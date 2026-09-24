@@ -26,8 +26,8 @@ TWF-0 — Product / Architecture Foundation                 ✅ ACCEPTED / FROZE
 
 TWF-1 — Application Foundation                            ▶ IN_PROGRESS
 │
-├── TWF-1.0 Repository Scaffold                           current
-├── TWF-1.1 Frontend Shell
+├── TWF-1.0 Repository Scaffold                           ✅ accepted
+├── TWF-1.1 Frontend Shell                                implemented / pending review
 ├── TWF-1.2 Backend Shell
 ├── TWF-1.3 Database Foundation
 ├── TWF-1.4 User / Login Foundation
@@ -42,13 +42,17 @@ TWF-1 — Application Foundation                            ▶ IN_PROGRESS
 ```text
 TWF-0 Architecture Foundation       ✅ accepted/frozen
 TWF-1 Application Foundation        IN_PROGRESS
-└── TWF-1.0 Repository Scaffold     current
+├── TWF-1.0 Repository Scaffold     ✅ accepted
+└── TWF-1.1 Frontend Shell          implemented / pending review
 ```
 
-The scaffold contains a minimal Next.js page, FastAPI health/status endpoints,
+The application contains a responsive Next.js trading shell, FastAPI health/status endpoints,
 typed environment settings, an empty SQLAlchemy/Alembic foundation, and local
 Docker configuration. See the [TWF-1.0 implementation record](docs/TWF_TWF1_0_REPOSITORY_PROJECT_SCAFFOLD.md)
-for the exact file inventory, setup commands, validation evidence, and next target.
+for the accepted scaffold inventory and setup commands. See the
+[TWF-1.1 Frontend Shell implementation record](docs/TWF_TWF1_1_FRONTEND_SHELL.md)
+for the current shell architecture, exact changes, responsive/browser validation,
+and review status. Next implementation target after review: TWF-1.2 Backend Shell.
 
 Local development (Python 3.12+ and Node.js 20.19+ / 22.13+ / 24+):
 
@@ -124,6 +128,8 @@ Then review the specialist architecture documents as needed.
 - [TWF_PRODUCT_VISION_AND_SYSTEM_ARCHITECTURE.md](docs/TWF_PRODUCT_VISION_AND_SYSTEM_ARCHITECTURE.md)
 
 ### UX
+
+- [Responsive Trading Application Architecture](docs/TWF_RESPONSIVE_TRADING_APPLICATION_ARCHITECTURE.md) — normative responsive application clarification
 
 - [TWF_UX_ARCHITECTURE.md](docs/TWF_UX_ARCHITECTURE.md)
 - `docs/TWF_UX_ARCHITECTURE.docx`

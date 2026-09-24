@@ -2,13 +2,11 @@ import { render, screen } from "@testing-library/react";
 import { expect, test } from "vitest";
 import Home from "../src/app/page";
 
-test("renders the application foundation and clearly scoped status", () => {
+test("renders the current shell target and its bounded scope", () => {
   render(<Home />);
   expect(
-    screen.getByRole("heading", { level: 1, name: "TradingWorkFlow" }),
+    screen.getByRole("heading", { level: 1, name: "Workspace overview" }),
   ).toBeInTheDocument();
-  expect(screen.getByText("TWF-1 Application Foundation")).toBeInTheDocument();
-  expect(
-    screen.getByRole("region", { name: "Development status" }),
-  ).toHaveTextContent("TWF-1.0 Repository Scaffold");
+  expect(screen.getByText("TWF-1.1 Frontend Shell")).toBeInTheDocument();
+  expect(screen.getByText("TWF-1.2 Backend Shell")).toBeInTheDocument();
 });

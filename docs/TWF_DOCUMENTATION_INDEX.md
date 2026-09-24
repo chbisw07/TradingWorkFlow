@@ -57,6 +57,7 @@ Historical/accepted records remain historical unless an explicit later record su
 - `TWF_PRODUCT_VISION_AND_SYSTEM_ARCHITECTURE.md` — normative
 
 ### UX
+- [Responsive Trading Application Architecture](TWF_RESPONSIVE_TRADING_APPLICATION_ARCHITECTURE.md) — normative responsive application clarification
 - `TWF_UX_ARCHITECTURE.md` — normative
 - `TWF_UX_ARCHITECTURE.docx` — reference
 
@@ -133,14 +134,18 @@ TWF_TWF0_ARCHITECTURE_ACCEPTANCE_REVIEW.md
 TWF-0 — ACCEPTED / FROZEN (twf-0-architecture-baseline)
        ↓
 TWF-1 — APPLICATION FOUNDATION / IN_PROGRESS
-└── TWF-1.0 — REPOSITORY SCAFFOLD / CURRENT
+├── TWF-1.0 — REPOSITORY SCAFFOLD / ACCEPTED
+└── TWF-1.1 — FRONTEND SHELL / IMPLEMENTED, PENDING REVIEW
 ```
 
-Current implementation record:
+Implementation records:
 
 - [TWF-1.0 Repository / Project Scaffold](TWF_TWF1_0_REPOSITORY_PROJECT_SCAFFOLD.md)
   — authoritative bounded implementation record, developer commands, inventory,
-  and validation evidence. Next target: TWF-1.1 Frontend Shell.
+  and validation evidence for the accepted historical scaffold.
+- [TWF-1.1 Frontend Shell](TWF_TWF1_1_FRONTEND_SHELL.md)
+  — current bounded implementation record, responsive/browser evidence, exact
+  file inventory, and review recommendation. Next target after review: TWF-1.2 Backend Shell.
 
 ---
 

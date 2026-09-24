@@ -8,5 +8,9 @@
 **/.*_cache
 **/*.egg-info
 **/*.tsbuildinfo
+**/test-results
+**/playwright-report
+**/blob-report
+**/playwright/.cache
 **/*.db*
 docs

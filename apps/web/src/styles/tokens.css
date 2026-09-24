@@ -1,0 +1,55 @@
+:root {
+  color-scheme: dark;
+  --background: #0c1013;
+  --surface: #12181c;
+  --surface-raised: #181f24;
+  --surface-hover: #20292f;
+  --surface-accent: #1d2b24;
+  --border: #2a343b;
+  --border-subtle: #202a30;
+  --text: #e7ede9;
+  --text-secondary: #b2beb9;
+  --text-muted: #91a09a;
+  --accent: #c2e99c;
+  --focus: #d0f5aa;
+  --status-ready: #b9e397;
+  --status-stale: #edc17e;
+  --status-error: #f3a09b;
+  --status-loading: #a5c9e2;
+  --status-neutral: #a2b0b9;
+  --font-sans: Arial, Helvetica, sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --text-xs: 0.6875rem;
+  --text-sm: 0.75rem;
+  --text-base: 0.8125rem;
+  --text-lg: 1rem;
+  --text-heading: 1.5rem;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --radius-sm: 0.25rem;
+  --radius-panel: 0.5rem;
+  --shadow-panel: 0 2px 8px #00000018;
+  --motion-fast: 140ms;
+  --motion-easing: ease-out;
+  --nav-width: 11.5rem;
+  --context-width: 20rem;
+  --workspace-max: 112rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
