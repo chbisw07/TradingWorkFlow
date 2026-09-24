@@ -28,8 +28,8 @@ TWF-1 — Application Foundation                            ▶ IN_PROGRESS
 │
 ├── TWF-1.0 Repository Scaffold                           ✅ accepted
 ├── TWF-1.1 Frontend Shell                                ✅ accepted
-├── TWF-1.1A Theme Switching                              implemented / pending review
-├── TWF-1.2 Backend Shell
+├── TWF-1.1A Theme Switching                              ✅ accepted
+├── TWF-1.2 Backend Shell                                implemented / pending review
 ├── TWF-1.3 Database Foundation
 ├── TWF-1.4 User / Login Foundation
 ├── TWF-1.5 Settings Foundation
@@ -45,7 +45,8 @@ TWF-0 Architecture Foundation       ✅ accepted/frozen
 TWF-1 Application Foundation        IN_PROGRESS
 ├── TWF-1.0 Repository Scaffold     ✅ accepted
 ├── TWF-1.1 Frontend Shell          ✅ accepted
-└── TWF-1.1A Theme Switching        implemented / pending review
+├── TWF-1.1A Theme Switching        ✅ accepted
+└── TWF-1.2 Backend Shell          implemented / pending review
 ```
 
 The application contains a responsive Next.js trading shell, FastAPI health/status endpoints,
@@ -55,10 +56,13 @@ for the accepted scaffold inventory and setup commands. See the
 [TWF-1.1 Frontend Shell implementation record](docs/TWF_TWF1_1_FRONTEND_SHELL.md)
 for the current shell architecture, exact changes, responsive/browser validation,
 and historical implementation status. The accepted shell is tagged
-`twf-1.1-frontend-shell`. The current enhancement is
+`twf-1.1-frontend-shell`. The accepted theme enhancement is
 [TWF-1.1A Theme Switching](docs/TWF_TWF1_1A_THEME_SWITCHING_FOUNDATION.md):
 dark remains the default, with a locally persisted light-theme toggle.
-Next implementation target after review: TWF-1.2 Backend Shell.
+Theme switching is accepted at `twf-1.1a-theme-switching`. The current target is
+[TWF-1.2 Backend Shell](docs/TWF_TWF1_2_BACKEND_SHELL.md), including typed readiness,
+metadata, request IDs, safe errors, JSON logging, and configurable CORS.
+Next implementation target after review: TWF-1.3 Database Foundation.
 
 Local development (Python 3.12+ and Node.js 20.19+ / 22.13+ / 24+):
 
@@ -68,7 +72,7 @@ cd apps/api
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements-dev.lock
 .venv/bin/python -m pip install --no-deps -e .
-.venv/bin/uvicorn twf.main:create_app --factory --reload
+.venv/bin/uvicorn twf.main:create_app --factory --reload --no-access-log
 
 # Terminal 2, from the repository root
 cd apps/web
@@ -77,7 +81,8 @@ npm run dev
 ```
 
 Web: <http://localhost:3000>. API: <http://localhost:8000/health>,
-<http://localhost:8000/api/v1/status>, and <http://localhost:8000/docs>.
+<http://localhost:8000/ready>, <http://localhost:8000/api/v1/status>,
+<http://localhost:8000/api/v1/meta>, and <http://localhost:8000/docs>.
 For containers, run `docker compose up --build` from the repository root.
 
 ## Recommended Daily Startup
@@ -90,7 +95,7 @@ Terminal 1 — backend/API:
 ```bash
 cd apps/api
 source .venv/bin/activate
-uvicorn twf.main:create_app --factory --reload
+uvicorn twf.main:create_app --factory --reload --no-access-log
 ```
 
 Terminal 2 — frontend/web:

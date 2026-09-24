@@ -30,6 +30,7 @@ def test_health_and_status() -> None:
             "service": "twf-api",
             "version": __version__,
             "environment": "test",
+            "api_version": "v1",
             "status": "ok",
         }
 

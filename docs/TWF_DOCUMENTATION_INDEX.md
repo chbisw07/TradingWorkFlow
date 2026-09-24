@@ -136,7 +136,8 @@ TWF-0 — ACCEPTED / FROZEN (twf-0-architecture-baseline)
 TWF-1 — APPLICATION FOUNDATION / IN_PROGRESS
 ├── TWF-1.0 — REPOSITORY SCAFFOLD / ACCEPTED
 ├── TWF-1.1 — FRONTEND SHELL / ACCEPTED (twf-1.1-frontend-shell)
-└── TWF-1.1A — THEME SWITCHING / IMPLEMENTED, PENDING REVIEW
+├── TWF-1.1A — THEME SWITCHING / ACCEPTED (twf-1.1a-theme-switching)
+└── TWF-1.2 — BACKEND SHELL / IMPLEMENTED, PENDING REVIEW
 ```
 
 Implementation records:
@@ -147,9 +148,11 @@ Implementation records:
 - [TWF-1.1 Frontend Shell](TWF_TWF1_1_FRONTEND_SHELL.md)
   — historical implementation evidence for the accepted shell baseline.
 - [TWF-1.1A Theme Switching Foundation](TWF_TWF1_1A_THEME_SWITCHING_FOUNDATION.md)
-  — current implementation record for dark/light tokens, local persistence,
-  accessibility, browser validation, and review readiness.
-  Next target after review: TWF-1.2 Backend Shell.
+  — historical implementation evidence for the accepted theme foundation.
+- [TWF-1.2 Backend Shell](TWF_TWF1_2_BACKEND_SHELL.md)
+  — current implementation record for typed endpoints, request IDs, errors,
+  structured logs, settings/CORS, and Docker validation.
+  Next target after review: TWF-1.3 Database Foundation.
 
 ---
 
