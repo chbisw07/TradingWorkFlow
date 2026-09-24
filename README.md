@@ -70,6 +70,34 @@ Web: <http://localhost:3000>. API: <http://localhost:8000/health>,
 <http://localhost:8000/api/v1/status>, and <http://localhost:8000/docs>.
 For containers, run `docker compose up --build` from the repository root.
 
+## Recommended Daily Startup
+
+After completing the one-time setup, start the native development servers in two
+terminals from the repository root.
+
+Terminal 1 — backend/API:
+
+```bash
+cd apps/api
+source .venv/bin/activate
+uvicorn twf.main:create_app --factory --reload
+```
+
+Terminal 2 — frontend/web:
+
+```bash
+cd apps/web
+npm run dev
+```
+
+Open the web app at <http://localhost:3000>. API checks are available at
+<http://localhost:8000/health> and <http://localhost:8000/api/v1/status>.
+
+As a Docker alternative, run `docker compose up --build` from the repository root
+and stop it with `docker compose down`. See the
+[Ubuntu/Linux local development setup guide](docs/TWF_LOCAL_DEVELOPMENT_SETUP_LINUX.md)
+for initial installation, validation, shutdown, and troubleshooting.
+
 ---
 
 ## Start Here

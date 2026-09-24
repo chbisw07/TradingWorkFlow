@@ -45,6 +45,7 @@ Historical/accepted records remain historical unless an explicit later record su
 | `TWF_DETAILED_ROADMAP.md` | Milestones, targets, sequencing | Normative planning |
 | `TWF_TECHNOLOGY_DECISION_RECORD.md` | Technology baseline and open decisions | Decision record |
 | `TWF_TWF0_ARCHITECTURE_ACCEPTANCE_REVIEW.md` | Formal TWF-0 architecture acceptance | Acceptance authority |
+| `TWF_LOCAL_DEVELOPMENT_SETUP_LINUX.md` | Ubuntu/Linux local developer setup, validation, startup, shutdown, and troubleshooting | Developer operations / setup guide |
 
 ---
 
@@ -91,6 +92,11 @@ Historical/accepted records remain historical unless an explicit later record su
 - `TWF_TECHNOLOGY_DECISION_RECORD.md`
 - `TWF_REPOSITORY_AND_ENGINEERING_STANDARDS.md`
 - `TWF_REPOSITORY_AND_ENGINEERING_STANDARDS.docx`
+
+### Developer operations
+
+- [Ubuntu/Linux Local Development Setup](TWF_LOCAL_DEVELOPMENT_SETUP_LINUX.md)
+  — setup, validation, native and Docker workflows, shutdown, and troubleshooting.
 
 ---
 
@@ -178,6 +184,7 @@ TWF_PRODUCT_VISION_AND_SYSTEM_ARCHITECTURE.md
 ### Developer
 ```text
 TWF_REPOSITORY_AND_ENGINEERING_STANDARDS.md
+→ TWF_LOCAL_DEVELOPMENT_SETUP_LINUX.md
 → TWF_TECHNOLOGY_DECISION_RECORD.md
 → TWF_SERVICE_INTEGRATION_ARCHITECTURE.md
 → TWF_DETAILED_ROADMAP.md
