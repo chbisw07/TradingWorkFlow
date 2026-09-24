@@ -4,19 +4,23 @@
 
 **Authoritative documentation map for TWF**
 
-This file identifies the purpose, authority, and relationship of the current TWF documentation corpus.
+Current architecture gate:
+
+```text
+TWF-0 ACCEPTED
+GO_TWF1
+```
 
 ---
 
 ## 1. Documentation Authority Model
-
-TWF documentation is organized into four broad classes:
 
 ```text
 Vision / Intent
 Architecture
 Planning / Engineering
 Acceptance / Closure
+Implementation Records
 ```
 
 Where both Markdown and DOCX versions exist:
@@ -26,7 +30,7 @@ Markdown = normative repository source
 DOCX     = polished visual/reference companion
 ```
 
-Historical/accepted records should remain immutable except for clearly marked corrections or superseding records.
+Historical/accepted records remain historical unless an explicit later record supersedes them.
 
 ---
 
@@ -34,138 +38,125 @@ Historical/accepted records should remain immutable except for clearly marked co
 
 | Document | Role | Authority |
 |---|---|---|
-| [`README.md`](../README.md) | Human entry point and reading guide | Navigation |
+| [`README.md`](../README.md) | Human entry point and current-status dashboard | Navigation / status |
 | `TWF_DOCUMENTATION_INDEX.md` | Canonical documentation map | Authoritative map |
-| `TWF_HIGH_LEVEL_DISCUSSION_RECORD.md` | Captures initial product discussion and intent | Historical / contextual |
-| `TWF_PRODUCT_VISION_AND_SYSTEM_ARCHITECTURE.md` | Product purpose, boundaries, high-level system design | Normative architecture |
+| `TWF_HIGH_LEVEL_DISCUSSION_RECORD.md` | Initial product discussion and intent | Historical / contextual |
+| `TWF_PRODUCT_VISION_AND_SYSTEM_ARCHITECTURE.md` | Product purpose and high-level system design | Normative architecture |
 | `TWF_DETAILED_ROADMAP.md` | Milestones, targets, sequencing | Normative planning |
-| `TWF_TECHNOLOGY_DECISION_RECORD.md` | Proposed/accepted technology choices | Decision record |
+| `TWF_TECHNOLOGY_DECISION_RECORD.md` | Technology baseline and open decisions | Decision record |
+| `TWF_TWF0_ARCHITECTURE_ACCEPTANCE_REVIEW.md` | Formal TWF-0 architecture acceptance | Acceptance authority |
 
 ---
 
 ## 3. Architecture Documents
 
-### 3.1 Master / Component
+### Master / Component
+- `TWF_MASTER_PRODUCT_ARCHITECTURE.docx` — visual/reference
+- `TWF_COMPONENT_ARCHITECTURE.docx` — visual/reference
+- `TWF_PRODUCT_VISION_AND_SYSTEM_ARCHITECTURE.md` — normative
 
-| Document | Purpose | Authority |
-|---|---|---|
-| `TWF_MASTER_PRODUCT_ARCHITECTURE.docx` | Product-wide master block architecture | Visual/reference companion |
-| `TWF_COMPONENT_ARCHITECTURE.docx` | Component-level system decomposition | Visual/reference companion |
-| [TWF_PRODUCT_VISION_AND_SYSTEM_ARCHITECTURE.md](TWF_PRODUCT_VISION_AND_SYSTEM_ARCHITECTURE.md) | Normative high-level architecture | Normative |
+### UX
+- `TWF_UX_ARCHITECTURE.md` — normative
+- `TWF_UX_ARCHITECTURE.docx` — reference
 
-### 3.2 UX
+### Data
+- `TWF_DATA_ARCHITECTURE.md` — normative
+- `TWF_DATA_ARCHITECTURE.docx` — reference
 
-| Document | Purpose | Authority |
-|---|---|---|
-| [TWF_UX_ARCHITECTURE.md](TWF_UX_ARCHITECTURE.md) | Trader journeys, shell, panels, realtime UX, consoles | Normative |
-| `TWF_UX_ARCHITECTURE.docx` | Visual UX architecture companion | Reference |
+### Security / Authentication
+- `TWF_SECURITY_AUTH_ARCHITECTURE.md` — normative
+- `TWF_SECURITY_AUTH_ARCHITECTURE.docx` — reference
 
-### 3.3 Data
-
-| Document | Purpose | Authority |
-|---|---|---|
-| [TWF_DATA_ARCHITECTURE.md](TWF_DATA_ARCHITECTURE.md) | Persistence, ownership, SQLite→PostgreSQL portability | Normative |
-| `TWF_DATA_ARCHITECTURE.docx` | Visual data architecture companion | Reference |
-
-### 3.4 Security / Authentication
-
-| Document | Purpose | Authority |
-|---|---|---|
-| [TWF_SECURITY_AUTH_ARCHITECTURE.md](TWF_SECURITY_AUTH_ARCHITECTURE.md) | Authentication, authorization, secrets, trust boundaries | Normative |
-| `TWF_SECURITY_AUTH_ARCHITECTURE.docx` | Visual security architecture companion | Reference |
-
-### 3.5 Deployment
-
-| Document | Purpose | Authority |
-|---|---|---|
-| [TWF_DEPLOYMENT_ARCHITECTURE.md](TWF_DEPLOYMENT_ARCHITECTURE.md) | Development, integration and production deployment model | Normative |
-| `TWF_DEPLOYMENT_ARCHITECTURE.docx` | Visual deployment companion | Reference |
+### Deployment
+- `TWF_DEPLOYMENT_ARCHITECTURE.md` — normative
+- `TWF_DEPLOYMENT_ARCHITECTURE.docx` — reference
 
 ---
 
 ## 4. Service / Integration Documents
 
-| Document | Purpose | Authority |
-|---|---|---|
-| [TWF_SERVICE_CONTRACT_ARCHITECTURE.md](TWF_SERVICE_CONTRACT_ARCHITECTURE.md) | Common service contract principles | Normative |
-| `TWF_SERVICE_CONTRACT_ARCHITECTURE.docx` | Visual service-contract companion | Reference |
-| [TWF_SERVICE_INTEGRATION_ARCHITECTURE.md](TWF_SERVICE_INTEGRATION_ARCHITECTURE.md) | Local/remote adapter and service-integration model | Normative |
-| [TWF_TI_INTEGRATION_CONTRACT.md](TWF_TI_INTEGRATION_CONTRACT.md) | TWF ↔ TI logical integration contract | Normative / architecture-stage |
-| [TWF_TM_INTEGRATION_CONTRACT.md](TWF_TM_INTEGRATION_CONTRACT.md) | TWF ↔ TM integration contract | Provisional until TM public surface reconciliation |
-
-Important:
-
-`TWF_TM_INTEGRATION_CONTRACT.md` must not be treated as implementation-frozen until reconciled against a clean committed TM baseline.
+| Document | Authority |
+|---|---|
+| `TWF_SERVICE_CONTRACT_ARCHITECTURE.md` | Normative |
+| `TWF_SERVICE_CONTRACT_ARCHITECTURE.docx` | Reference |
+| `TWF_SERVICE_INTEGRATION_ARCHITECTURE.md` | Normative |
+| `TWF_TI_INTEGRATION_CONTRACT.md` | Architecture-stage normative |
+| `TWF_TM_INTEGRATION_CONTRACT.md` | Provisional until clean TM public-surface reconciliation |
 
 ---
 
-## 5. Planning / Engineering Documents
+## 5. Planning / Engineering
 
-| Document | Purpose | Authority |
-|---|---|---|
-| [TWF_DETAILED_ROADMAP.md](TWF_DETAILED_ROADMAP.md) | TWF-0…TWF-10 provisional milestone/target plan | Normative planning |
-| [TWF_TECHNOLOGY_DECISION_RECORD.md](TWF_TECHNOLOGY_DECISION_RECORD.md) | Stack choices and still-open technology decisions | Decision record |
-| [TWF_REPOSITORY_AND_ENGINEERING_STANDARDS.md](TWF_REPOSITORY_AND_ENGINEERING_STANDARDS.md) | Repository layout, quality gates, coding/documentation standards | Normative engineering |
-| `TWF_REPOSITORY_AND_ENGINEERING_STANDARDS.docx` | Human-readable engineering companion | Reference |
+- `TWF_DETAILED_ROADMAP.md`
+- `TWF_TECHNOLOGY_DECISION_RECORD.md`
+- `TWF_REPOSITORY_AND_ENGINEERING_STANDARDS.md`
+- `TWF_REPOSITORY_AND_ENGINEERING_STANDARDS.docx`
 
 ---
 
-## 6. Acceptance / Readiness Documents
+## 6. Acceptance / Readiness
 
-| Document | Purpose | Authority |
-|---|---|---|
-| [TWF_TWF0_ARCHITECTURE_ACCEPTANCE_AND_CODING_READINESS.md](TWF_TWF0_ARCHITECTURE_ACCEPTANCE_AND_CODING_READINESS.md) | Formal pre-coding architecture readiness gate | Acceptance authority |
-| `TWF_TWF0_ARCHITECTURE_ACCEPTANCE_AND_CODING_READINESS.docx` | Visual/human-readable companion | Reference |
+### Gate template
+`TWF_TWF0_ARCHITECTURE_ACCEPTANCE_AND_CODING_READINESS.md`
 
-TWF-0 should eventually conclude exactly one:
+Purpose:
+- defines the criteria;
+- remains the gate specification.
+
+### Accepted review
+`TWF_TWF0_ARCHITECTURE_ACCEPTANCE_REVIEW.md`
+
+Purpose:
+- applies the gate;
+- records `GO_TWF1`;
+- authorizes bounded TWF-1 coding.
+
+Authority:
 
 ```text
-GO_TWF1
-HOLD_TWF0
-ARCHITECTURAL_REWORK_REQUIRED
+TWF_TWF0_ARCHITECTURE_ACCEPTANCE_REVIEW.md
+    supersedes the template's NOT YET ACCEPTED status
+    without rewriting the historical template.
 ```
 
 ---
 
-## 7. Current Document Inventory
-
-Current known files:
+## 7. Current Phase
 
 ```text
-README.md
-docs/
-├── TWF_DOCUMENTATION_INDEX.md
-├── TWF_COMPONENT_ARCHITECTURE.docx
-├── TWF_DATA_ARCHITECTURE.docx
-├── TWF_DATA_ARCHITECTURE.md
-├── TWF_DEPLOYMENT_ARCHITECTURE.docx
-├── TWF_DEPLOYMENT_ARCHITECTURE.md
-├── TWF_DETAILED_ROADMAP.md
-├── TWF_HIGH_LEVEL_DISCUSSION_RECORD.md
-├── TWF_MASTER_PRODUCT_ARCHITECTURE.docx
-├── TWF_PRODUCT_VISION_AND_SYSTEM_ARCHITECTURE.md
-├── TWF_REPOSITORY_AND_ENGINEERING_STANDARDS.docx
-├── TWF_REPOSITORY_AND_ENGINEERING_STANDARDS.md
-├── TWF_SECURITY_AUTH_ARCHITECTURE.docx
-├── TWF_SECURITY_AUTH_ARCHITECTURE.md
-├── TWF_SERVICE_CONTRACT_ARCHITECTURE.docx
-├── TWF_SERVICE_CONTRACT_ARCHITECTURE.md
-├── TWF_SERVICE_INTEGRATION_ARCHITECTURE.md
-├── TWF_TECHNOLOGY_DECISION_RECORD.md
-├── TWF_TI_INTEGRATION_CONTRACT.md
-├── TWF_TM_INTEGRATION_CONTRACT.md
-├── TWF_TWF0_ARCHITECTURE_ACCEPTANCE_AND_CODING_READINESS.docx
-├── TWF_TWF0_ARCHITECTURE_ACCEPTANCE_AND_CODING_READINESS.md
-├── TWF_UX_ARCHITECTURE.docx
-└── TWF_UX_ARCHITECTURE.md
+TWF-0 — ACCEPTED / READY_TO_FREEZE
+       ↓
+TWF-1 — APPLICATION FOUNDATION / NEXT
+```
+
+Recommended repository action:
+
+```text
+commit acceptance/status updates
+tag twf-0-architecture-baseline
+begin TWF-1
 ```
 
 ---
 
-## 8. Recommended Reading Paths
+## 8. TWF-1 Authorized Targets
 
-### Product Owner / Trader View
+```text
+TWF-1.1 Frontend Shell
+TWF-1.2 Backend Shell
+TWF-1.3 Database Foundation
+TWF-1.4 User / Login Foundation
+TWF-1.5 Settings Foundation
+TWF-1.6 Service Client Foundation
+```
 
+Later milestones remain separately gated.
+
+---
+
+## 9. Recommended Reading Paths
+
+### Product / Trader
 ```text
 ../README.md
 → TWF_HIGH_LEVEL_DISCUSSION_RECORD.md
@@ -174,77 +165,34 @@ docs/
 → TWF_DETAILED_ROADMAP.md
 ```
 
-### Architect View
-
+### Architect
 ```text
 TWF_PRODUCT_VISION_AND_SYSTEM_ARCHITECTURE.md
-→ TWF_MASTER_PRODUCT_ARCHITECTURE.docx
-→ TWF_COMPONENT_ARCHITECTURE.docx
+→ master/component DOCX companions
 → TWF_SERVICE_CONTRACT_ARCHITECTURE.md
 → TWF_DATA_ARCHITECTURE.md
 → TWF_SECURITY_AUTH_ARCHITECTURE.md
 → TWF_DEPLOYMENT_ARCHITECTURE.md
+→ TWF_TWF0_ARCHITECTURE_ACCEPTANCE_REVIEW.md
 ```
 
-### Developer View
-
+### Developer
 ```text
 TWF_REPOSITORY_AND_ENGINEERING_STANDARDS.md
 → TWF_TECHNOLOGY_DECISION_RECORD.md
 → TWF_SERVICE_INTEGRATION_ARCHITECTURE.md
-→ TWF_TI_INTEGRATION_CONTRACT.md
-→ TWF_TM_INTEGRATION_CONTRACT.md
 → TWF_DETAILED_ROADMAP.md
-```
-
-### Pre-Coding Review
-
-```text
-All normative architecture docs
-→ TWF_TWF0_ARCHITECTURE_ACCEPTANCE_AND_CODING_READINESS.md
+→ TWF_TWF0_ARCHITECTURE_ACCEPTANCE_REVIEW.md
 ```
 
 ---
 
-## 9. Authority / Supersession Rules
-
-1. Historical discussion records remain historical.
-2. Architecture records define intended structure.
-3. Decision records freeze technology/policy choices when explicitly accepted.
-4. Roadmap defines current intended sequence.
-5. Acceptance records determine whether a bounded milestone is allowed to advance.
-6. Implementation records, when added later, document what was actually built.
-7. Later accepted records may supersede earlier proposed designs, but earlier historical records should not be silently rewritten.
-
----
-
-## 10. Documentation Maintenance
+## 10. Maintenance Rules
 
 When new documents are added:
 
-1. add them to this index;
-2. assign purpose and authority;
-3. add them to the root [`README.md`](../README.md) when useful to readers;
-4. preserve naming consistency;
-5. avoid duplicate competing architecture documents;
-6. explicitly mark provisional vs accepted status.
-
----
-
-## 11. Current Phase
-
-Current phase:
-
-```text
-TWF-0 — Product / Architecture Foundation
-```
-
-Current intent:
-
-```text
-complete architecture review
-→ run TWF-0 readiness gate
-→ GO_TWF1 or HOLD
-```
-
-No implementation milestone should be treated as started merely because architecture documents exist.
+1. add them here;
+2. state purpose and authority;
+3. update root README when current status changes;
+4. preserve prior acceptance/history;
+5. avoid duplicate competing normative documents.

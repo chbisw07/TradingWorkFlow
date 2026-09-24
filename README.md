@@ -6,6 +6,38 @@ TWF is the trader-facing web application that composes scanner, TradingIntellige
 
 ---
 
+## Current Project Status
+
+```text
+TWF-0 — Product / Architecture Foundation                 ✅ ACCEPTED / READY_TO_FREEZE
+│
+├── Product vision / system architecture                  ✅ accepted
+├── Master / component architecture                       ✅ accepted
+├── Technology baseline                                   ✅ accepted for TWF-1
+├── UX architecture                                       ✅ accepted
+├── Data architecture                                     ✅ accepted
+├── Security / authentication architecture                ✅ accepted
+├── Service contract / integration architecture           ✅ accepted
+├── Deployment architecture                               ✅ accepted
+├── Repository / engineering standards                    ✅ accepted
+└── Coding readiness                                      ✅ GO_TWF1
+
+                         ↓
+
+TWF-1 — Application Foundation                            ▶ NEXT
+│
+├── TWF-1.1 Frontend Shell
+├── TWF-1.2 Backend Shell
+├── TWF-1.3 Database Foundation
+├── TWF-1.4 User / Login Foundation
+├── TWF-1.5 Settings Foundation
+└── TWF-1.6 Service Client Foundation
+```
+
+**Current state:** TWF-0 architecture has passed its formal pre-coding review with `GO_TWF1`. TWF-1 is authorized only for the bounded application foundation. Real TI/TM/broker integration and later workflow capabilities remain separately gated.
+
+---
+
 ## Start Here
 
 For a first reading, follow this order:
@@ -15,6 +47,7 @@ For a first reading, follow this order:
 3. [Documentation Index](docs/TWF_DOCUMENTATION_INDEX.md)
 4. [Detailed Roadmap](docs/TWF_DETAILED_ROADMAP.md)
 5. [Technology Decision Record](docs/TWF_TECHNOLOGY_DECISION_RECORD.md)
+6. [TWF-0 Architecture Acceptance Review](docs/TWF_TWF0_ARCHITECTURE_ACCEPTANCE_REVIEW.md)
 
 Then review the specialist architecture documents as needed.
 
@@ -69,14 +102,13 @@ Then review the specialist architecture documents as needed.
 
 ## Acceptance / Readiness
 
-- [TWF_TWF0_ARCHITECTURE_ACCEPTANCE_AND_CODING_READINESS.md](docs/TWF_TWF0_ARCHITECTURE_ACCEPTANCE_AND_CODING_READINESS.md)
+- [TWF-0 Architecture Acceptance Review](docs/TWF_TWF0_ARCHITECTURE_ACCEPTANCE_REVIEW.md)
+- [TWF-0 Coding Readiness Gate Template](docs/TWF_TWF0_ARCHITECTURE_ACCEPTANCE_AND_CODING_READINESS.md)
 - `docs/TWF_TWF0_ARCHITECTURE_ACCEPTANCE_AND_CODING_READINESS.docx`
 
 ---
 
 ## Documentation Roles
-
-The documentation set follows this rule:
 
 ```text
 Markdown
@@ -92,17 +124,25 @@ Where both exist, the Markdown file should be treated as the normative source un
 
 ## Current Project Phase
 
-TWF is currently in the **TWF-0 architecture and pre-coding foundation phase**.
+TWF is transitioning from:
 
-Coding should begin only after the TWF-0 acceptance/readiness review concludes that architecture is sufficiently complete.
+```text
+TWF-0 Architecture Foundation
+```
 
-Expected gate outcomes:
+to:
+
+```text
+TWF-1 Application Foundation
+```
+
+The accepted gate outcome is:
 
 ```text
 GO_TWF1
-HOLD_TWF0
-ARCHITECTURAL_REWORK_REQUIRED
 ```
+
+The TWF-0 baseline should be tagged before TWF-1 implementation begins.
 
 ---
 
