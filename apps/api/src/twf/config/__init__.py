@@ -1,0 +1,1 @@
+"""Typed backend configuration."""

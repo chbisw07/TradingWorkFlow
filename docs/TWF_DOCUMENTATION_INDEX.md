@@ -124,18 +124,17 @@ TWF_TWF0_ARCHITECTURE_ACCEPTANCE_REVIEW.md
 ## 7. Current Phase
 
 ```text
-TWF-0 — ACCEPTED / READY_TO_FREEZE
+TWF-0 — ACCEPTED / FROZEN (twf-0-architecture-baseline)
        ↓
-TWF-1 — APPLICATION FOUNDATION / NEXT
+TWF-1 — APPLICATION FOUNDATION / IN_PROGRESS
+└── TWF-1.0 — REPOSITORY SCAFFOLD / CURRENT
 ```
 
-Recommended repository action:
+Current implementation record:
 
-```text
-commit acceptance/status updates
-tag twf-0-architecture-baseline
-begin TWF-1
-```
+- [TWF-1.0 Repository / Project Scaffold](TWF_TWF1_0_REPOSITORY_PROJECT_SCAFFOLD.md)
+  — authoritative bounded implementation record, developer commands, inventory,
+  and validation evidence. Next target: TWF-1.1 Frontend Shell.
 
 ---
 

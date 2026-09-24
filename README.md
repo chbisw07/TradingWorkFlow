@@ -1,6 +1,6 @@
 # TradingWorkFlow (TWF) Documentation
 
-This repository contains the architecture, planning, integration, engineering, and acceptance documentation for **TradingWorkFlow (TWF)**.
+This repository contains the application scaffold and authoritative architecture, planning, engineering, and acceptance documentation for **TradingWorkFlow (TWF)**.
 
 TWF is the trader-facing web application that composes scanner, TradingIntelligence (TI), TradeMonitor (TM), LLMs, brokers, and other satellite services into one coherent workflow.
 
@@ -9,7 +9,7 @@ TWF is the trader-facing web application that composes scanner, TradingIntellige
 ## Current Project Status
 
 ```text
-TWF-0 — Product / Architecture Foundation                 ✅ ACCEPTED / READY_TO_FREEZE
+TWF-0 — Product / Architecture Foundation                 ✅ ACCEPTED / FROZEN
 │
 ├── Product vision / system architecture                  ✅ accepted
 ├── Master / component architecture                       ✅ accepted
@@ -24,8 +24,9 @@ TWF-0 — Product / Architecture Foundation                 ✅ ACCEPTED / READY
 
                          ↓
 
-TWF-1 — Application Foundation                            ▶ NEXT
+TWF-1 — Application Foundation                            ▶ IN_PROGRESS
 │
+├── TWF-1.0 Repository Scaffold                           current
 ├── TWF-1.1 Frontend Shell
 ├── TWF-1.2 Backend Shell
 ├── TWF-1.3 Database Foundation
@@ -35,6 +36,39 @@ TWF-1 — Application Foundation                            ▶ NEXT
 ```
 
 **Current state:** TWF-0 architecture has passed its formal pre-coding review with `GO_TWF1`. TWF-1 is authorized only for the bounded application foundation. Real TI/TM/broker integration and later workflow capabilities remain separately gated.
+
+### Current Implementation Status
+
+```text
+TWF-0 Architecture Foundation       ✅ accepted/frozen
+TWF-1 Application Foundation        IN_PROGRESS
+└── TWF-1.0 Repository Scaffold     current
+```
+
+The scaffold contains a minimal Next.js page, FastAPI health/status endpoints,
+typed environment settings, an empty SQLAlchemy/Alembic foundation, and local
+Docker configuration. See the [TWF-1.0 implementation record](docs/TWF_TWF1_0_REPOSITORY_PROJECT_SCAFFOLD.md)
+for the exact file inventory, setup commands, validation evidence, and next target.
+
+Local development (Python 3.12+ and Node.js 20.19+ / 22.13+ / 24+):
+
+```bash
+# Terminal 1, from the repository root
+cd apps/api
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-dev.lock
+.venv/bin/python -m pip install --no-deps -e .
+.venv/bin/uvicorn twf.main:create_app --factory --reload
+
+# Terminal 2, from the repository root
+cd apps/web
+npm ci
+npm run dev
+```
+
+Web: <http://localhost:3000>. API: <http://localhost:8000/health>,
+<http://localhost:8000/api/v1/status>, and <http://localhost:8000/docs>.
+For containers, run `docker compose up --build` from the repository root.
 
 ---
 
@@ -142,7 +176,7 @@ The accepted gate outcome is:
 GO_TWF1
 ```
 
-The TWF-0 baseline should be tagged before TWF-1 implementation begins.
+The accepted TWF-0 baseline is tagged `twf-0-architecture-baseline`.
 
 ---
 
