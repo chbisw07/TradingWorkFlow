@@ -26,6 +26,10 @@ mako==1.4.3
     # via alembic
 markupsafe==3.0.3
     # via mako
+psycopg==3.3.6
+    # via twf-api (pyproject.toml)
+psycopg-binary==3.3.6
+    # via psycopg
 pydantic==2.13.5
     # via
     #   fastapi
@@ -47,6 +51,7 @@ typing-extensions==4.16.0
     #   alembic
     #   anyio
     #   fastapi
+    #   psycopg
     #   pydantic
     #   pydantic-core
     #   sqlalchemy

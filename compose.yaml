@@ -5,7 +5,7 @@ services:
       dockerfile: deploy/Dockerfile.api
     environment:
       TWF_ENVIRONMENT: development
-      TWF_DATABASE_URL: sqlite+pysqlite:////app/twf.db
+      TWF_DATABASE_URL: ${TWF_DATABASE_URL:-sqlite+pysqlite:////app/twf.db}
     ports:
       - "127.0.0.1:8000:8000"
     healthcheck:

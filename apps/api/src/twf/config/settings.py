@@ -3,6 +3,8 @@ from urllib.parse import urlsplit
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ArgumentError
 
 from twf import __version__
 
@@ -11,7 +13,7 @@ Environment = Literal["development", "test", "production"]
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_prefix="TWF_", env_file=".env", extra="ignore", frozen=True
+        env_prefix="TWF_", env_file=".env", extra="ignore", frozen=True, hide_input_in_errors=True
     )
 
     environment: Environment = "development"
@@ -22,6 +24,27 @@ class Settings(BaseSettings):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] | None = None
     cors_origins: tuple[str, ...] | None = None
     database_url: str = Field(default="sqlite+pysqlite:///./twf.db", repr=False)
+
+    @field_validator("database_url")
+    @classmethod
+    def validate_database_url(cls, value: str) -> str:
+        try:
+            url = make_url(value)
+            if url.drivername in {"sqlite", "sqlite+pysqlite"}:
+                if url.username or url.password or url.host or url.port or url.query:
+                    raise ValueError
+                url = url.set(drivername="sqlite+pysqlite")
+            elif url.drivername in {"postgresql", "postgresql+psycopg"}:
+                if not url.database:
+                    raise ValueError
+                url = url.set(drivername="postgresql+psycopg")
+            else:
+                raise ValueError
+        except (ArgumentError, ValueError):
+            raise ValueError(
+                "Database URL must use SQLite/pysqlite or PostgreSQL/psycopg"
+            ) from None
+        return url.render_as_string(hide_password=False)
 
     @field_validator("cors_origins")
     @classmethod

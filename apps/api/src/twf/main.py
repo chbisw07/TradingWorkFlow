@@ -1,8 +1,9 @@
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
+from sqlalchemy import Engine
 from starlette.exceptions import HTTPException
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
@@ -10,24 +11,35 @@ from starlette.middleware.cors import CORSMiddleware
 from twf.api.errors import http_error, unexpected_error, validation_error
 from twf.api.routes import create_router
 from twf.config.settings import Settings
+from twf.infrastructure.database import create_database_engine, create_session_factory
 from twf.middleware import ErrorBoundaryMiddleware, RequestContextMiddleware
 from twf.observability import create_logger
 from twf.schemas import ErrorResponse
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    *,
+    engine_factory: Callable[[Settings], Engine] = create_database_engine,
+) -> FastAPI:
     """Construct an isolated application without opening database connections."""
     settings = settings if settings is not None else Settings()
     logger = create_logger(settings)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        engine = engine_factory(settings)
+        app.state.database_engine = engine
+        app.state.session_factory = create_session_factory(engine)
         app.state.initialized = True
         logger.info("application_started")
         try:
             yield
         finally:
             app.state.initialized = False
+            app.state.session_factory = None
+            app.state.database_engine = None
+            engine.dispose()
             logger.info("application_stopped")
 
     app = FastAPI(

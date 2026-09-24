@@ -73,6 +73,14 @@ pathspec==1.1.1
     # via mypy
 pluggy==1.6.0
     # via pytest
+psycopg==3.3.6
+    # via
+    #   -c requirements.lock
+    #   twf-api (pyproject.toml)
+psycopg-binary==3.3.6
+    # via
+    #   -c requirements.lock
+    #   psycopg
 pydantic==2.13.5
     # via
     #   -c requirements.lock
@@ -112,6 +120,7 @@ typing-extensions==4.16.0
     #   anyio
     #   fastapi
     #   mypy
+    #   psycopg
     #   pydantic
     #   pydantic-core
     #   sqlalchemy

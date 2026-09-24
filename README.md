@@ -29,8 +29,8 @@ TWF-1 — Application Foundation                            ▶ IN_PROGRESS
 ├── TWF-1.0 Repository Scaffold                           ✅ accepted
 ├── TWF-1.1 Frontend Shell                                ✅ accepted
 ├── TWF-1.1A Theme Switching                              ✅ accepted
-├── TWF-1.2 Backend Shell                                implemented / pending review
-├── TWF-1.3 Database Foundation
+├── TWF-1.2 Backend Shell                                ✅ accepted
+├── TWF-1.3 Database Foundation                          implemented / pending review
 ├── TWF-1.4 User / Login Foundation
 ├── TWF-1.5 Settings Foundation
 └── TWF-1.6 Service Client Foundation
@@ -46,11 +46,12 @@ TWF-1 Application Foundation        IN_PROGRESS
 ├── TWF-1.0 Repository Scaffold     ✅ accepted
 ├── TWF-1.1 Frontend Shell          ✅ accepted
 ├── TWF-1.1A Theme Switching        ✅ accepted
-└── TWF-1.2 Backend Shell          implemented / pending review
+├── TWF-1.2 Backend Shell          ✅ accepted
+└── TWF-1.3 Database Foundation    implemented / pending review
 ```
 
 The application contains a responsive Next.js trading shell, FastAPI health/status endpoints,
-typed environment settings, an empty SQLAlchemy/Alembic foundation, and local
+typed environment settings, a tested SQLite/PostgreSQL persistence foundation, and local
 Docker configuration. See the [TWF-1.0 implementation record](docs/TWF_TWF1_0_REPOSITORY_PROJECT_SCAFFOLD.md)
 for the accepted scaffold inventory and setup commands. See the
 [TWF-1.1 Frontend Shell implementation record](docs/TWF_TWF1_1_FRONTEND_SHELL.md)
@@ -59,10 +60,14 @@ and historical implementation status. The accepted shell is tagged
 `twf-1.1-frontend-shell`. The accepted theme enhancement is
 [TWF-1.1A Theme Switching](docs/TWF_TWF1_1A_THEME_SWITCHING_FOUNDATION.md):
 dark remains the default, with a locally persisted light-theme toggle.
-Theme switching is accepted at `twf-1.1a-theme-switching`. The current target is
-[TWF-1.2 Backend Shell](docs/TWF_TWF1_2_BACKEND_SHELL.md), including typed readiness,
-metadata, request IDs, safe errors, JSON logging, and configurable CORS.
-Next implementation target after review: TWF-1.3 Database Foundation.
+Theme switching is accepted at `twf-1.1a-theme-switching`.
+[TWF-1.2 Backend Shell](docs/TWF_TWF1_2_BACKEND_SHELL.md) is accepted at
+`twf-1.2-backend-shell`, including typed readiness, metadata, request IDs, safe
+errors, JSON logging, and configurable CORS. The current target is
+[TWF-1.3 Database Foundation](docs/TWF_TWF1_3_DATABASE_FOUNDATION.md): synchronous
+SQLAlchemy engine/session lifecycle, explicit transactions, empty Alembic baseline,
+and verified SQLite/PostgreSQL migration paths. Readiness remains application-only.
+Next implementation target after independent review: TWF-1.4 User / Login Foundation.
 
 Local development (Python 3.12+ and Node.js 20.19+ / 22.13+ / 24+):
 
@@ -84,6 +89,12 @@ Web: <http://localhost:3000>. API: <http://localhost:8000/health>,
 <http://localhost:8000/ready>, <http://localhost:8000/api/v1/status>,
 <http://localhost:8000/api/v1/meta>, and <http://localhost:8000/docs>.
 For containers, run `docker compose up --build` from the repository root.
+
+Database setup, from `apps/api`: `.venv/bin/alembic upgrade head`.
+`TWF_DATABASE_URL` defaults to local SQLite; deploy PostgreSQL using an externally
+injected `postgresql+psycopg://` URL. Production migrations are explicit release
+operations and never run at API startup. See the database foundation record for
+transaction policy, test isolation, and container migration commands.
 
 ## Recommended Daily Startup
 

@@ -31,8 +31,10 @@ def isolated_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         "API_VERSION",
         "LOG_LEVEL",
         "CORS_ORIGINS",
+        "DATABASE_URL",
     ):
         monkeypatch.delenv(f"TWF_{key}", raising=False)
+    monkeypatch.setenv("TWF_DATABASE_URL", "sqlite+pysqlite:///:memory:")
 
 
 @pytest.fixture
