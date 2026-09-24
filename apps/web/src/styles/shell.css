@@ -1,3 +1,21 @@
+.theme-toggle {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-secondary);
+}
+.theme-toggle:hover {
+  background: var(--surface-hover);
+}
+.theme-toggle[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+}
 * {
   box-sizing: border-box;
 }

@@ -27,7 +27,8 @@ TWF-0 — Product / Architecture Foundation                 ✅ ACCEPTED / FROZE
 TWF-1 — Application Foundation                            ▶ IN_PROGRESS
 │
 ├── TWF-1.0 Repository Scaffold                           ✅ accepted
-├── TWF-1.1 Frontend Shell                                implemented / pending review
+├── TWF-1.1 Frontend Shell                                ✅ accepted
+├── TWF-1.1A Theme Switching                              implemented / pending review
 ├── TWF-1.2 Backend Shell
 ├── TWF-1.3 Database Foundation
 ├── TWF-1.4 User / Login Foundation
@@ -43,7 +44,8 @@ TWF-1 — Application Foundation                            ▶ IN_PROGRESS
 TWF-0 Architecture Foundation       ✅ accepted/frozen
 TWF-1 Application Foundation        IN_PROGRESS
 ├── TWF-1.0 Repository Scaffold     ✅ accepted
-└── TWF-1.1 Frontend Shell          implemented / pending review
+├── TWF-1.1 Frontend Shell          ✅ accepted
+└── TWF-1.1A Theme Switching        implemented / pending review
 ```
 
 The application contains a responsive Next.js trading shell, FastAPI health/status endpoints,
@@ -52,7 +54,11 @@ Docker configuration. See the [TWF-1.0 implementation record](docs/TWF_TWF1_0_RE
 for the accepted scaffold inventory and setup commands. See the
 [TWF-1.1 Frontend Shell implementation record](docs/TWF_TWF1_1_FRONTEND_SHELL.md)
 for the current shell architecture, exact changes, responsive/browser validation,
-and review status. Next implementation target after review: TWF-1.2 Backend Shell.
+and historical implementation status. The accepted shell is tagged
+`twf-1.1-frontend-shell`. The current enhancement is
+[TWF-1.1A Theme Switching](docs/TWF_TWF1_1A_THEME_SWITCHING_FOUNDATION.md):
+dark remains the default, with a locally persisted light-theme toggle.
+Next implementation target after review: TWF-1.2 Backend Shell.
 
 Local development (Python 3.12+ and Node.js 20.19+ / 22.13+ / 24+):
 

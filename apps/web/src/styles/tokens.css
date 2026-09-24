@@ -40,6 +40,28 @@
   --workspace-max: 112rem;
 }
 
+:root[data-theme="light"] {
+  color-scheme: light;
+  --background: #edf0ee;
+  --surface: #fafbf9;
+  --surface-raised: #e6ece7;
+  --surface-hover: #dce5de;
+  --surface-accent: #dce9d7;
+  --border: #bcc8c0;
+  --border-subtle: #d3dcd5;
+  --text: #202b26;
+  --text-secondary: #43544b;
+  --text-muted: #54645b;
+  --accent: #356125;
+  --focus: #315c21;
+  --status-ready: #356125;
+  --status-stale: #80500e;
+  --status-error: #a22e2a;
+  --status-loading: #2d607f;
+  --status-neutral: #50616b;
+  --shadow-panel: 0 2px 8px #20382b08;
+}
+
 @media (prefers-reduced-motion: reduce) {
   :root {
     --motion-fast: 0ms;

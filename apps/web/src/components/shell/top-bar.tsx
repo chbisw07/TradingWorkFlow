@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { StateBadge } from "../ui/surface-state";
+import { ThemeToggle } from "./theme-toggle";
 
 export function TopBar() {
   return (
@@ -15,6 +16,7 @@ export function TopBar() {
           <span className="muted">Workspace</span> Default
         </span>
         <div className="top-bar-user">
+          <ThemeToggle />
           <StateBadge state="COMING_SOON" label="Development" />
           <span className="user-label">User: Not signed in</span>
           <span className="avatar" aria-hidden="true">

@@ -6,7 +6,7 @@ import { ConsoleRegion } from "./console-region";
 
 export function AppShell({ children }: { children: ReactNode }) {
   return (
-    <div className="app-shell" data-theme="trading-dark">
+    <div className="app-shell">
       <a className="skip-link" href="#workspace">
         Skip to workspace
       </a>
