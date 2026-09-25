@@ -23,10 +23,18 @@ export default defineConfig({
       },
     })),
   ),
-  webServer: {
-    command: "npm run start -- --hostname 127.0.0.1 --port 3100",
-    url: "http://127.0.0.1:3100",
-    reuseExistingServer: false,
-    timeout: 60_000,
-  },
+  webServer: [
+    {
+      command: "node tests/browser/auth-test-server.mjs",
+      url: "http://127.0.0.1:8100/health",
+      reuseExistingServer: false,
+    },
+    {
+      command:
+        "TWF_API_ORIGIN=http://127.0.0.1:8100 npm run start -- --hostname 127.0.0.1 --port 3100",
+      url: "http://127.0.0.1:3100",
+      reuseExistingServer: false,
+      timeout: 60_000,
+    },
+  ],
 });

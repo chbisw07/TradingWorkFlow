@@ -138,7 +138,8 @@ TWF-1 — APPLICATION FOUNDATION / IN_PROGRESS
 ├── TWF-1.1 — FRONTEND SHELL / ACCEPTED (twf-1.1-frontend-shell)
 ├── TWF-1.1A — THEME SWITCHING / ACCEPTED (twf-1.1a-theme-switching)
 ├── TWF-1.2 — BACKEND SHELL / ACCEPTED (twf-1.2-backend-shell)
-└── TWF-1.3 — DATABASE FOUNDATION / IMPLEMENTED, PENDING REVIEW
+├── TWF-1.3 — DATABASE FOUNDATION / ACCEPTED
+└── TWF-1.4 — USER / LOGIN FOUNDATION / FIXES APPLIED, PENDING RE-REVIEW
 ```
 
 Implementation records:
@@ -153,9 +154,10 @@ Implementation records:
 - [TWF-1.2 Backend Shell](TWF_TWF1_2_BACKEND_SHELL.md)
   — historical implementation evidence for the accepted backend shell.
 - [TWF-1.3 Database Foundation](TWF_TWF1_3_DATABASE_FOUNDATION.md)
-  — current implementation record for persistence lifecycle, explicit transactions,
-  empty migration baseline, SQLite/PostgreSQL validation, and database operations.
-  Next target after review: TWF-1.4 User / Login Foundation.
+  — historical implementation evidence for the accepted database foundation.
+- [TWF-1.4 User / Login Foundation](TWF_TWF1_4_USER_LOGIN_FOUNDATION.md)
+  — current identity, credential, session, login UI, CSRF and migration record.
+  Next target after review: TWF-1.5 Settings Foundation.
 
 ---
 

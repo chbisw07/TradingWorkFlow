@@ -30,8 +30,8 @@ TWF-1 — Application Foundation                            ▶ IN_PROGRESS
 ├── TWF-1.1 Frontend Shell                                ✅ accepted
 ├── TWF-1.1A Theme Switching                              ✅ accepted
 ├── TWF-1.2 Backend Shell                                ✅ accepted
-├── TWF-1.3 Database Foundation                          implemented / pending review
-├── TWF-1.4 User / Login Foundation
+├── TWF-1.3 Database Foundation                          ✅ accepted
+├── TWF-1.4 User / Login Foundation                     fixes applied / pending re-review
 ├── TWF-1.5 Settings Foundation
 └── TWF-1.6 Service Client Foundation
 ```
@@ -47,7 +47,8 @@ TWF-1 Application Foundation        IN_PROGRESS
 ├── TWF-1.1 Frontend Shell          ✅ accepted
 ├── TWF-1.1A Theme Switching        ✅ accepted
 ├── TWF-1.2 Backend Shell          ✅ accepted
-└── TWF-1.3 Database Foundation    implemented / pending review
+├── TWF-1.3 Database Foundation    ✅ accepted
+└── TWF-1.4 User / Login Foundation fixes applied / pending re-review
 ```
 
 The application contains a responsive Next.js trading shell, FastAPI health/status endpoints,
@@ -63,11 +64,13 @@ dark remains the default, with a locally persisted light-theme toggle.
 Theme switching is accepted at `twf-1.1a-theme-switching`.
 [TWF-1.2 Backend Shell](docs/TWF_TWF1_2_BACKEND_SHELL.md) is accepted at
 `twf-1.2-backend-shell`, including typed readiness, metadata, request IDs, safe
-errors, JSON logging, and configurable CORS. The current target is
-[TWF-1.3 Database Foundation](docs/TWF_TWF1_3_DATABASE_FOUNDATION.md): synchronous
+errors, JSON logging, and configurable CORS. The accepted
+[TWF-1.3 Database Foundation](docs/TWF_TWF1_3_DATABASE_FOUNDATION.md) provides synchronous
 SQLAlchemy engine/session lifecycle, explicit transactions, empty Alembic baseline,
 and verified SQLite/PostgreSQL migration paths. Readiness remains application-only.
-Next implementation target after independent review: TWF-1.4 User / Login Foundation.
+The current target is [TWF-1.4 User / Login Foundation](docs/TWF_TWF1_4_USER_LOGIN_FOUNDATION.md):
+persistent users, protected shell, login/logout and revocable sessions.
+Next target after independent review: TWF-1.5 Settings Foundation.
 
 Local development (Python 3.12+ and Node.js 20.19+ / 22.13+ / 24+):
 
@@ -77,6 +80,9 @@ cd apps/api
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements-dev.lock
 .venv/bin/python -m pip install --no-deps -e .
+.venv/bin/alembic upgrade head
+TWF_ENVIRONMENT=development .venv/bin/python -m twf.bootstrap --username trader --display-name "Development Trader"
+# First setup only: enter your own password at the hidden prompt.
 .venv/bin/uvicorn twf.main:create_app --factory --reload --no-access-log
 
 # Terminal 2, from the repository root

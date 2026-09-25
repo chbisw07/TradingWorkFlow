@@ -1,6 +1,8 @@
+import secrets
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 
+from argon2 import PasswordHasher
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy import Engine
@@ -8,10 +10,12 @@ from starlette.exceptions import HTTPException
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 
+from twf.api.auth import router as auth_router
 from twf.api.errors import http_error, unexpected_error, validation_error
 from twf.api.routes import create_router
 from twf.config.settings import Settings
 from twf.infrastructure.database import create_database_engine, create_session_factory
+from twf.login_limit import LoginLimit
 from twf.middleware import ErrorBoundaryMiddleware, RequestContextMiddleware
 from twf.observability import create_logger
 from twf.schemas import ErrorResponse
@@ -31,6 +35,7 @@ def create_app(
         engine = engine_factory(settings)
         app.state.database_engine = engine
         app.state.session_factory = create_session_factory(engine)
+        app.state.auth_dummy_hash = PasswordHasher().hash(secrets.token_urlsafe(32))
         app.state.initialized = True
         logger.info("application_started")
         try:
@@ -64,6 +69,7 @@ def create_app(
         ],
         responses={code: {"model": ErrorResponse} for code in (404, 405, 422, 500)},
     )
+    app.state.login_limit = LoginLimit()
     app.state.settings = settings
     app.state.logger = logger
     app.state.initialized = False
@@ -71,4 +77,5 @@ def create_app(
     app.add_exception_handler(RequestValidationError, validation_error)
     app.add_exception_handler(Exception, unexpected_error)
     app.include_router(create_router(settings))
+    app.include_router(auth_router)
     return app

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { UserMenu } from "../auth/user-session";
 import { StateBadge } from "../ui/surface-state";
 import { ThemeToggle } from "./theme-toggle";
 
@@ -18,10 +19,7 @@ export function TopBar() {
         <div className="top-bar-user">
           <ThemeToggle />
           <StateBadge state="COMING_SOON" label="Development" />
-          <span className="user-label">User: Not signed in</span>
-          <span className="avatar" aria-hidden="true">
-            —
-          </span>
+          <UserMenu />
         </div>
       </div>
       <dl className="session-strip" aria-label="Session context">

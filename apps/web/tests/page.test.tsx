@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { expect, test } from "vitest";
-import Home from "../src/app/page";
+import Home from "../src/app/(protected)/page";
 
 test("renders the current shell target and its bounded scope", () => {
   render(<Home />);

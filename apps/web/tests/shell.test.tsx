@@ -5,10 +5,13 @@ import { developmentServices } from "../src/components/shell/context-panel";
 import { SurfaceState, stateLabels } from "../src/components/ui/surface-state";
 import ErrorView from "../src/app/error";
 import NotFound from "../src/app/not-found";
-import Home from "../src/app/page";
+import Home from "../src/app/(protected)/page";
 import Loading from "../src/app/loading";
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/" }));
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }),
+}));
 
 test("shell renders product, semantic regions, target, and honest service states", () => {
   render(
@@ -20,7 +23,7 @@ test("shell renders product, semantic regions, target, and honest service states
     screen.getByRole("link", { name: "TradingWorkFlow home" }),
   ).toBeInTheDocument();
   expect(screen.getByRole("main")).toHaveTextContent("TWF-1.1 Frontend Shell");
-  expect(screen.getByRole("banner")).toHaveTextContent("User: Not signed in");
+  expect(screen.getByRole("banner")).toHaveTextContent("Not signed in");
   expect(screen.getByRole("contentinfo")).toHaveTextContent("No live data");
   expect(
     screen.getByRole("region", { name: "System console" }),

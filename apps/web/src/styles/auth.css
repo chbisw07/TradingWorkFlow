@@ -1,0 +1,130 @@
+.login-page {
+  min-height: 100dvh;
+  padding: clamp(1.25rem, 5vw, 5rem);
+  max-width: 100rem;
+  margin: auto;
+}
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-lg);
+}
+.login-brand button {
+  margin-left: auto;
+}
+.login-layout {
+  display: grid;
+  grid-template-columns: 1fr minmax(19rem, 27rem);
+  gap: clamp(2rem, 8vw, 9rem);
+  align-items: center;
+  min-height: 70vh;
+}
+.login-intro h1 {
+  font-size: clamp(2.5rem, 5vw, 5rem);
+  line-height: 1.05;
+  max-width: 9ch;
+  margin: var(--space-5) 0;
+  letter-spacing: -0.05em;
+}
+.login-intro > p {
+  color: var(--text-secondary);
+  max-width: 42ch;
+  line-height: 1.6;
+}
+.login-intro .login-footnote {
+  margin-top: var(--space-6);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+.login-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  padding: clamp(1.5rem, 3vw, 2.5rem);
+  box-shadow: var(--shadow-panel);
+}
+.login-card h2 {
+  font-size: var(--text-heading);
+  margin: var(--space-3) 0;
+}
+.login-card > p {
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+.login-card form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+}
+.login-card input {
+  min-width: 0;
+  min-height: 2.75rem;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: var(--space-3);
+  font: inherit;
+  font-size: 1rem;
+}
+.login-card button {
+  min-height: 2.75rem;
+  padding: var(--space-3);
+  background: var(--accent);
+  color: var(--background);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-weight: bold;
+  margin-top: var(--space-3);
+}
+.login-card button:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+.login-error {
+  color: var(--status-error);
+  line-height: 1.5;
+}
+.user-menu {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.current-user {
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.user-menu button {
+  min-height: 2.75rem;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+}
+.user-menu [role="alert"] {
+  color: var(--status-error);
+}
+@media (max-width: 699px) {
+  .login-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-6);
+    padding-top: var(--space-6);
+  }
+  .login-intro h1 {
+    max-width: none;
+    font-size: 2.5rem;
+  }
+  .login-intro .login-footnote {
+    margin-top: var(--space-4);
+  }
+  .current-user {
+    max-width: 8rem;
+  }
+}

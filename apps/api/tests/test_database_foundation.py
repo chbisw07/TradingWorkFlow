@@ -221,7 +221,7 @@ def test_probe_failure_safe_and_ready_unchanged(
 
 def test_migration_history_and_metadata() -> None:
     config = Config(str(Path(__file__).parents[1] / "alembic.ini"))
-    assert Base.metadata.tables == {}
+    assert set(Base.metadata.tables) == {"users", "auth_sessions"}
     assert set(Base.metadata.naming_convention) == {"pk", "fk", "ix", "uq", "ck"}
     command.upgrade(config, "head")
     command.upgrade(config, "head")
@@ -229,20 +229,18 @@ def test_migration_history_and_metadata() -> None:
     db = create_database_engine(Settings())
     try:
         with db.connect() as connection:
-            assert (
-                MigrationContext.configure(connection).get_current_revision()
-                == "0001_empty_baseline"
-            )
-            assert inspect(connection).get_table_names() == ["alembic_version"]
+            assert MigrationContext.configure(connection).get_current_revision() == "0002_identity"
+            assert inspect(connection).get_table_names() == [
+                "alembic_version",
+                "auth_sessions",
+                "users",
+            ]
         command.downgrade(config, "base")
         with db.connect() as connection:
             assert MigrationContext.configure(connection).get_current_revision() is None
         command.upgrade(config, "head")
         with db.connect() as connection:
-            assert (
-                MigrationContext.configure(connection).get_current_revision()
-                == "0001_empty_baseline"
-            )
+            assert MigrationContext.configure(connection).get_current_revision() == "0002_identity"
     finally:
         db.dispose()
 

@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { AppShell } from "../components/shell/app-shell";
 import { themeInitializationScript } from "../lib/theme";
 import "./globals.css";
 
@@ -19,9 +18,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: themeInitializationScript }}
         />
       </head>
-      <body>
-        <AppShell>{children}</AppShell>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

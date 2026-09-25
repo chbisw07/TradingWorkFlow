@@ -1,5 +1,13 @@
 import { expect, test } from "@playwright/test";
 
+test.beforeEach(async ({ page }) => {
+  const response = await page.request.post("/api/v1/auth/login", {
+    headers: { Origin: "http://127.0.0.1:3100" },
+    data: { username: "browser-user", password: "test-only-browser-password" },
+  });
+  expect(response.ok()).toBe(true);
+});
+
 test("shell recomposes with reachable regions, keyboard controls and no page overflow", async ({
   page,
 }, testInfo) => {
@@ -110,7 +118,12 @@ test("skip link, reduced motion, and localized panel overflow work", async ({
 
 test("unknown routes retain the shell and offer recovery", async ({ page }) => {
   const response = await page.goto("/missing-shell-view");
-  expect(response?.status()).toBe(404);
+  // Next.js streams authenticated layouts; a streamed not-found response is 200.
+  expect([200, 404]).toContain(response?.status());
+  await expect(page.locator('meta[name="robots"]').first()).toHaveAttribute(
+    "content",
+    "noindex",
+  );
   await expect(
     page.getByRole("heading", { name: "Page not found" }),
   ).toBeVisible();

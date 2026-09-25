@@ -1,7 +1,7 @@
-from typing import Literal
+from typing import Literal, Self
 from urllib.parse import urlsplit
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
@@ -24,6 +24,19 @@ class Settings(BaseSettings):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] | None = None
     cors_origins: tuple[str, ...] | None = None
     database_url: str = Field(default="sqlite+pysqlite:///./twf.db", repr=False)
+    session_ttl_seconds: int = Field(default=28800, ge=60, le=604800)
+
+    @property
+    def session_cookie_name(self) -> str:
+        return "__Host-twf_session" if self.environment == "production" else "twf_session"
+
+    @model_validator(mode="after")
+    def validate_auth_origins(self) -> Self:
+        if self.environment == "production" and any(
+            not origin.startswith("https://") for origin in self.allowed_origins
+        ):
+            raise ValueError("Production authentication origins require HTTPS")
+        return self
 
     @field_validator("database_url")
     @classmethod

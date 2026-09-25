@@ -1,5 +1,13 @@
 import { expect, test } from "@playwright/test";
 
+test.beforeEach(async ({ page }) => {
+  const response = await page.request.post("/api/v1/auth/login", {
+    headers: { Origin: "http://127.0.0.1:3100" },
+    data: { username: "browser-user", password: "test-only-browser-password" },
+  });
+  expect(response.ok()).toBe(true);
+});
+
 test("themes switch without changing layout and persist across reloads", async ({
   page,
 }, testInfo) => {

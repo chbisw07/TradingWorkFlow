@@ -99,12 +99,21 @@ def test_lifecycle_and_contracts(settings: Settings) -> None:
             "environment": "test",
         }
         schema = client.get("/openapi.json").json()
-        assert set(schema["paths"]) == {"/health", "/ready", "/api/v1/status", "/api/v1/meta"}
+        assert set(schema["paths"]) == {
+            "/health",
+            "/ready",
+            "/api/v1/status",
+            "/api/v1/meta",
+            "/api/v1/auth/login",
+            "/api/v1/auth/logout",
+            "/api/v1/auth/me",
+        }
         assert schema["info"]["version"] == "1.2.3"
         for route in schema["paths"].values():
-            assert route["get"]["responses"]["500"]["content"]["application/json"]["schema"][
-                "$ref"
-            ].endswith("/ErrorResponse")
+            for operation in route.values():
+                assert operation["responses"]["500"]["content"]["application/json"]["schema"][
+                    "$ref"
+                ].endswith("/ErrorResponse")
         assert client.get("/docs").status_code == 200
     assert app.state.initialized is False
 
