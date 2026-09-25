@@ -7,6 +7,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
 
 from twf import __version__
+from twf.integrations.config import ServiceDescriptor, validate_policy
 
 Environment = Literal["development", "test", "production"]
 
@@ -25,6 +26,16 @@ class Settings(BaseSettings):
     cors_origins: tuple[str, ...] | None = None
     database_url: str = Field(default="sqlite+pysqlite:///./twf.db", repr=False)
     session_ttl_seconds: int = Field(default=28800, ge=60, le=604800)
+
+    service_clients: tuple[ServiceDescriptor, ...] = ()
+    service_allowed_origins: tuple[str, ...] = Field(default=(), repr=False)
+
+    @model_validator(mode="after")
+    def validate_services(self) -> Self:
+        validate_policy(
+            self.service_clients, self.service_allowed_origins, self.environment == "production"
+        )
+        return self
 
     @property
     def session_cookie_name(self) -> str:

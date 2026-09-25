@@ -25,7 +25,18 @@ class JsonFormatter(logging.Formatter):
             "event": record.getMessage(),
             "request_id": request_id_context.get(),
         }
-        for key in ("method", "route", "status_code", "duration_ms", "exception_type", "user_id"):
+        for key in (
+            "method",
+            "route",
+            "status_code",
+            "duration_ms",
+            "exception_type",
+            "user_id",
+            "service_id",
+            "operation",
+            "outcome",
+            "operation_request_id",
+        ):
             if hasattr(record, key):
                 payload[key] = getattr(record, key)
         return json.dumps(payload)

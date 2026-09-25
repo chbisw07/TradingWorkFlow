@@ -12,6 +12,18 @@ const env = Object.fromEntries(
 );
 Object.assign(env, {
   TWF_ENVIRONMENT: "test",
+  TWF_SERVICE_CLIENTS: JSON.stringify(
+    ["SCANNER", "TI", "TM", "LLM"].map((kind) => ({
+      identity: {
+        service_id: `synthetic-${kind.toLowerCase()}`,
+        service_kind: kind,
+        provider: "twf-fixture",
+        service_version: "1",
+      },
+      mode: "SYNTHETIC",
+      enabled: true,
+    })),
+  ),
   TWF_DATABASE_URL: `sqlite+pysqlite:///${directory}/auth.db`,
   TWF_CORS_ORIGINS: '["http://127.0.0.1:3100"]',
 });
@@ -45,7 +57,9 @@ const child = spawn(
   [
     "-m",
     "uvicorn",
-    "twf.main:create_app",
+    "service_fixture_api:create_app",
+    "--app-dir",
+    resolve("tests/browser"),
     "--factory",
     "--host",
     "127.0.0.1",

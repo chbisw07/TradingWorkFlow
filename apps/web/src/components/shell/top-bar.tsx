@@ -41,7 +41,7 @@ export function TopBar() {
         </div>
         <div className="session-services">
           <dt>Services</dt>
-          <dd>Development placeholders</dd>
+          <dd>On-demand status</dd>
         </div>
       </dl>
     </header>

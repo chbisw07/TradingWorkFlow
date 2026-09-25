@@ -21,13 +21,16 @@ govern workspace semantics, visual quality and recomposition. The
 
 | Track | Current evidence | Remaining work |
 |---|---|---|
-| UX-B1 | Partial: accepted TWF-1.1 shell, TWF-1.1A themes and TWF-1.4 login | Persisted settings, Setup, profiles, catalog/status contracts, console behavior and bucket acceptance |
+| UX-B1 | Partial: accepted shell, themes, login and TWF-1.5 settings; TWF-1.6 status awaits review | Broader Setup, console behavior and bucket acceptance |
 | UX-B2 | Planned; shell containers provide readiness only | Operational settings and trader workflows as TWF-2–7 mature |
 | UX-B3 | Planned architecture hooks | Mature APS/ACS administration, subscriptions, diagnostics, IFL and operations |
 
-TWF-1.5 is **implemented, pending independent review**; see its
+TWF-1.5 is **accepted and committed at `664d4cf`**; see its historical
 [implementation record](TWF_TWF1_5_SETTINGS_FOUNDATION.md). Its personal Settings and
-profile surface advances partial UX-B1. No bucket is declared complete by this work.
+profile surface advances partial UX-B1. The
+[TWF-1.6 foundation](TWF_TWF1_6_SERVICE_CLIENT_FOUNDATION.md) adds on-demand configured
+service status and explicitly labeled synthetic fixtures, pending independent review.
+No bucket is declared complete by this work.
 The existing WebKit host/runtime limitation remains an explicit verification gap;
 Chromium evidence does not establish Safari compatibility.
 

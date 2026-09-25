@@ -840,3 +840,21 @@ h3 {
     gap: var(--space-1);
   }
 }
+
+.service-status > .quiet-button {
+  width: auto;
+  max-width: calc(100% - 2 * var(--space-4));
+  margin: var(--space-2) var(--space-4);
+}
+.service-status .service-list dt {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.service-status .service-identity {
+  display: block;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+.service-status .service-list dd {
+  flex-shrink: 0;
+}

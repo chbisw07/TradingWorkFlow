@@ -1,7 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 import { AppShell } from "../src/components/shell/app-shell";
-import { developmentServices } from "../src/components/shell/context-panel";
 import { SurfaceState, stateLabels } from "../src/components/ui/surface-state";
 import ErrorView from "../src/app/error";
 import NotFound from "../src/app/not-found";
@@ -31,16 +30,10 @@ test("shell renders product, semantic regions, target, and honest service states
   const aside = screen.getByRole("complementary", {
     name: "Workspace context",
   });
-  for (const [name, status] of developmentServices) {
-    const term = within(aside).getByText(name, {
-      exact: true,
-      selector: "span:not([aria-hidden])",
-    });
-    expect(term.closest("div")).toHaveTextContent(status);
-  }
-  expect(aside).toHaveTextContent(
-    "Static placeholders. No health checks are running.",
-  );
+  expect(
+    within(aside).getByRole("button", { name: "Check service status" }),
+  ).toBeEnabled();
+  expect(aside).toHaveTextContent("Configured services have not been checked.");
 });
 
 test("only supported navigation is actionable and disclosure restores focus on Escape", () => {

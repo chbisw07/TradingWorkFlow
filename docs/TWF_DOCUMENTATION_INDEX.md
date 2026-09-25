@@ -10,7 +10,8 @@ Current architecture gate:
 TWF-0 ACCEPTED / FROZEN
 GO_TWF1
 Configuration v0.6 reconciled / GO_TWF1_5
-TWF-1.5 IMPLEMENTED / pending independent review
+TWF-1.5 ACCEPTED / committed 664d4cf
+TWF-1.6 IMPLEMENTED / pending independent review
 ```
 
 ---
@@ -163,8 +164,8 @@ TWF-1 — APPLICATION FOUNDATION / IN_PROGRESS
 ├── TWF-1.3 — DATABASE FOUNDATION / ACCEPTED
 ├── TWF-1.4 — USER / LOGIN FOUNDATION / ACCEPTED AFTER BOUNDED FIXES (ba9bb8b)
 ├── Configuration reconciliation — REVIEWED v0.6 / GO_TWF1_5
-├── TWF-1.5 — SETTINGS FOUNDATION / IMPLEMENTED / pending independent review
-└── TWF-1.6 — SERVICE CLIENT FOUNDATION / PENDING
+├── TWF-1.5 — SETTINGS FOUNDATION / ACCEPTED / committed 664d4cf
+└── TWF-1.6 — SERVICE CLIENT FOUNDATION / IMPLEMENTED / pending independent review
 
 UX workstream (parallel to functional milestones)
 ├── UX-B1 — FOUNDATIONAL COMPLETE UX / PARTIAL
@@ -191,7 +192,10 @@ Implementation records:
   is recorded here and in README without rewriting that implementation history.
 - [TWF-1.5 Settings Foundation](TWF_TWF1_5_SETTINGS_FOUNDATION.md)
   — implemented personal preferences, validated profiles, revision checks and Setup UI;
-  pending independent review. Next functional target after acceptance/freeze: TWF-1.6.
+  accepted and committed at `664d4cf`; its record retains historical pre-review evidence.
+- [TWF-1.6 Service Client Foundation](TWF_TWF1_6_SERVICE_CLIENT_FOUNDATION.md)
+  — typed local/remote/synthetic health adapters, safe configuration/transport,
+  authenticated status and minimal UX-B1 panel; pending independent review.
 
 ---
 

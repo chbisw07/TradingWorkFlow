@@ -1,14 +1,7 @@
 import { Panel } from "../ui/panel";
-import { StateBadge, SurfaceState } from "../ui/surface-state";
+import { SurfaceState } from "../ui/surface-state";
 
-export const developmentServices = [
-  ["TWF API", "Not checked"],
-  ["Scanner", "Not connected"],
-  ["TI", "Not connected"],
-  ["TM", "Not connected"],
-  ["LLM", "Not configured"],
-  ["Broker", "Not connected"],
-] as const;
+import { ServiceStatus } from "./service-status";
 
 export function ContextPanel() {
   return (
@@ -16,32 +9,10 @@ export function ContextPanel() {
       <Panel
         id="services"
         title="Service connections"
-        eyebrow="DEVELOPMENT"
+        eyebrow="FOUNDATION"
         meta={<span className="panel-index">01 / 02</span>}
       >
-        <p className="panel-intro">
-          Static placeholders. No health checks are running.
-        </p>
-        <dl className="service-list">
-          {developmentServices.map(([name, label]) => (
-            <div key={name}>
-              <dt>
-                <span className="service-monogram" aria-hidden="true">
-                  {name === "TWF API" ? "API" : name.slice(0, 2).toUpperCase()}
-                </span>
-                <span>{name}</span>
-              </dt>
-              <dd>
-                <StateBadge
-                  state={
-                    label === "Not configured" ? "UNAVAILABLE" : "DISCONNECTED"
-                  }
-                  label={label}
-                />
-              </dd>
-            </div>
-          ))}
-        </dl>
+        <ServiceStatus />
       </Panel>
       <Panel
         id="context"

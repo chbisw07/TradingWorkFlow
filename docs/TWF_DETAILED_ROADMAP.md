@@ -4,9 +4,9 @@
 
 **Accepted TWF-0 functional sequence, reconciled on 2026-09-25 for configuration v0.6 and UX buckets.**
 
-TWF-1.0, 1.1, 1.1A, 1.2, 1.3 and 1.4 are accepted. TWF-1.5 is implemented,
-pending independent review;
-TWF-1.6 and later functional targets remain pending. The
+TWF-1.0, 1.1, 1.1A, 1.2, 1.3, 1.4 and 1.5 are accepted; TWF-1.5 is committed at
+`664d4cf`. TWF-1.6 is implemented, pending independent review. Later functional
+targets remain pending. The
 [configuration review](TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md) records
 `GO_TWF1_5` for the bounded scope below. Architecture readiness is not implementation
 completion or a repository freeze.
@@ -86,7 +86,7 @@ User identity, login/session and initial authorization boundary.
 
 ### TWF-1.5 Settings Foundation
 
-**Implemented; pending independent review.** See the
+**Accepted and committed at `664d4cf`.** See the historical
 [implementation record](TWF_TWF1_5_SETTINGS_FOUNDATION.md) for the finite contract,
 validation evidence and explicit deferrals. The governing boundary remains:
 
@@ -104,6 +104,11 @@ adapters. Full APS/ACS administration, subscription billing, production vaults, 
 providers and dynamic plugin loading remain excluded.
 
 ### TWF-1.6 Service Client Foundation
+
+**Implemented; pending independent review.** See the
+[implementation record](TWF_TWF1_6_SERVICE_CLIENT_FOUNDATION.md) for bounded contracts,
+operator configuration, security boundaries and validation.
+
 Logical service descriptors, capability registration/identity, health/status and
 local/remote adapter base. Establish deterministic SyntheticScannerService,
 SyntheticTIService, SyntheticTMService and SyntheticLLMService fixtures behind versioned
@@ -261,7 +266,7 @@ Use ChatGPT web for architecture, planning, docs, reviews, acceptance reasoning 
 ## 17. Current Next Work
 
 TWF-0 is accepted/frozen; TWF-1.4 was accepted after bounded fixes and committed at
-`ba9bb8b`. Following the configuration reconciliation's `GO_TWF1_5`, the bounded
-[TWF-1.5 implementation](TWF_TWF1_5_SETTINGS_FOUNDATION.md) is ready for independent
-review. Acceptance and freeze remain pending. TWF-1.6 Service Client Foundation follows
-that gate; UX-B1 remains partial and UX-B2/B3 remain planned.
+`ba9bb8b`. TWF-1.5 was accepted and committed at `664d4cf`. The bounded
+[TWF-1.6 implementation](TWF_TWF1_6_SERVICE_CLIENT_FOUNDATION.md) awaits independent
+acceptance review before freeze. No whole-TWF-1 or UX bucket acceptance is asserted;
+UX-B1 remains partial and UX-B2/B3 remain planned. TWF-2 remains separately gated.

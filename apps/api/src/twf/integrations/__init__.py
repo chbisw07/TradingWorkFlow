@@ -1,1 +1,1 @@
-"""Future satellite adapters live here, without cross-repository source imports."""
+"""Logical service foundation and adapters; no cross-repository source imports."""

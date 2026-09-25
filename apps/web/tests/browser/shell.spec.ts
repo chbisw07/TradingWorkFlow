@@ -54,8 +54,12 @@ test("shell recomposes with reachable regions, keyboard controls and no page ove
     expect(contextBox!.x).toBeGreaterThanOrEqual(main!.x + main!.width);
   else expect(contextBox!.y).toBeGreaterThanOrEqual(main!.y + main!.height);
   await context.scrollIntoViewIfNeeded();
-  await expect(context.getByText("TWF API", { exact: true })).toBeVisible();
-  await expect(context.getByText("Not checked", { exact: true })).toBeVisible();
+  await expect(
+    context.getByRole("button", { name: "Check service status" }),
+  ).toBeVisible();
+  await expect(
+    context.getByText("Configured services have not been checked."),
+  ).toBeVisible();
   const collapse = page.getByRole("button", { name: "Collapse console" });
   await collapse.scrollIntoViewIfNeeded();
   await collapse.focus();

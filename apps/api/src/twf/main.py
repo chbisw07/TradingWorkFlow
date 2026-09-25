@@ -15,8 +15,10 @@ from twf.api.errors import http_error, unexpected_error, validation_error
 from twf.api.preferences import router as preferences_router
 from twf.api.preferences import settings_error
 from twf.api.routes import create_router
+from twf.api.services import router as services_router
 from twf.config.settings import Settings
 from twf.infrastructure.database import create_database_engine, create_session_factory
+from twf.integrations.registry import ServiceRegistry
 from twf.login_limit import LoginLimit
 from twf.middleware import ErrorBoundaryMiddleware, RequestContextMiddleware
 from twf.observability import create_logger
@@ -28,6 +30,7 @@ def create_app(
     settings: Settings | None = None,
     *,
     engine_factory: Callable[[Settings], Engine] = create_database_engine,
+    service_registry: ServiceRegistry | None = None,
 ) -> FastAPI:
     """Construct an isolated application without opening database connections."""
     settings = settings if settings is not None else Settings()
@@ -74,6 +77,11 @@ def create_app(
     )
     app.state.login_limit = LoginLimit()
     app.state.settings = settings
+    app.state.service_registry = service_registry or ServiceRegistry(
+        settings.service_clients,
+        allowed_origins=settings.service_allowed_origins,
+        production=settings.environment == "production",
+    )
     app.state.logger = logger
     app.state.initialized = False
     app.add_exception_handler(HTTPException, http_error)
@@ -82,5 +90,6 @@ def create_app(
     app.include_router(create_router(settings))
     app.include_router(auth_router)
     app.include_router(preferences_router)
+    app.include_router(services_router)
     app.add_exception_handler(SettingsFailure, settings_error)
     return app

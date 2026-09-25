@@ -33,8 +33,8 @@ TWF-1 — Application Foundation                            ▶ IN_PROGRESS
 ├── TWF-1.3 Database Foundation                          ✅ accepted
 ├── TWF-1.4 User / Login Foundation                      ✅ accepted (ba9bb8b)
 ├── Configuration architecture reconciliation             ✅ reviewed v0.6 / GO_TWF1_5
-├── TWF-1.5 Settings Foundation                           IMPLEMENTED / pending independent review
-└── TWF-1.6 Service Client Foundation                     pending
+├── TWF-1.5 Settings Foundation                           ✅ accepted (664d4cf)
+└── TWF-1.6 Service Client Foundation                     IMPLEMENTED / pending independent review
 
 UX maturity — parallel workstream
 ├── UX-B1 Foundational Complete UX                        PARTIAL (TWF-1.x / TWF-2)
@@ -66,8 +66,8 @@ TWF-1 Application Foundation        IN_PROGRESS
 ├── TWF-1.2 Backend Shell          ✅ accepted
 ├── TWF-1.3 Database Foundation    ✅ accepted
 ├── TWF-1.4 User / Login Foundation ✅ accepted after bounded fixes / committed ba9bb8b
-├── TWF-1.5 Settings Foundation     IMPLEMENTED / pending independent review
-└── TWF-1.6 Service Client Foundation pending
+├── TWF-1.5 Settings Foundation     ✅ accepted (664d4cf)
+└── TWF-1.6 Service Client Foundation IMPLEMENTED / pending independent review
 ```
 
 The application contains a responsive Next.js trading shell, FastAPI health/status endpoints,
@@ -95,11 +95,16 @@ is asserted here.
 
 The [configuration architecture reconciliation](docs/TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md)
 concludes `GO_TWF1_5` under [configuration architecture v0.6](docs/TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLEMENT_PLUGGABILITY_ARCHITECTURE.md).
-[TWF-1.5 Settings Foundation](docs/TWF_TWF1_5_SETTINGS_FOUNDATION.md) is implemented
-and pending independent review: personal Setup density, a safe future analysis default,
+[TWF-1.5 Settings Foundation](docs/TWF_TWF1_5_SETTINGS_FOUNDATION.md) is accepted
+and committed at `664d4cf`: personal Setup density, a safe future analysis default,
 validated profiles, explicit apply/reset, revision checks and change metadata.
 Theme remains device-local. APS/ACS administration, subscriptions and live integrations
-remain deferred. Review and freeze precede the next bounded target, TWF-1.6.
+remain deferred. Its implementation record preserves historical pre-review evidence.
+[TWF-1.6 Service Client Foundation](docs/TWF_TWF1_6_SERVICE_CLIENT_FOUNDATION.md) is
+implemented and pending independent review: typed local/remote/synthetic adapters,
+operator-configured service status, bounded transport, safe errors and a minimal
+authenticated status panel. Defaults contain no services; no real integrations or
+new persistence were introduced. No new freeze tag is asserted.
 The [UX bucket roadmap](docs/TWF_UX_BUCKET_ROADMAP.md) tracks partial UX-B1 and planned
 UX-B2/B3 alongside functional milestones; mature administration does not block core
 trading integration.
