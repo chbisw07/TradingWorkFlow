@@ -1,7 +1,7 @@
 # TradingWorkFlow (TWF) — Deployment Architecture
 
 ## Status
-**TWF-0 normative deployment architecture — proposed for acceptance**
+**TWF-0 accepted deployment baseline, with configuration operations clarification dated 2026-09-25**
 
 ## 1. Purpose
 Define how TWF evolves from local development to cloud-hosted multi-user SaaS while preserving logical service contracts and avoiding premature distributed-system complexity.
@@ -239,3 +239,13 @@ Scale only when needed, approximately:
 4. Broker authority/truth remains outside TWF.
 5. Horizontal scale cannot create duplicate authority-changing actions.
 6. Every production deployment is observable and reversible enough for safe operation.
+
+## 24. Configuration and Operations Boundary
+
+The [configuration architecture v0.6](TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLEMENT_PLUGGABILITY_ARCHITECTURE.md) separates bootstrap/deployment, capability publication and consumer HOT/WARM configuration. APS owns COLD release decisions; approved machine/release identities execute them. Subscriber changes cannot install code or require a platform restart. WARM may interrupt a particular connection with explicit progress/failure; it is not a zero-interruption guarantee.
+
+Rolling/blue-green production releases require mixed-version API/config-schema compatibility, expand/contract DB migrations, session continuity, connection draining, capacity and rollback evidence. COLD does not itself require downtime, and this design does not claim those deployment mechanisms are implemented. No new cloud vendor, Kubernetes, Redis or worker requirement is introduced.
+
+Migrate, restore, restart, secret rotation and cache invalidation are separately authorized/audited operations. Migration/backup/service principals have task-specific scope; they are not shared owner accounts. Secret-manager bootstrap remains external; tenant settings cannot rewrite database URLs, auth trust, origins or platform key material.
+
+The accepted `/ready` reports application initialization only. Database and capability/service health are separate observations. Runtime rollout and entitlement caches must have bounded freshness/invalidation before horizontal scale; account/realm keys and current checks prevent cross-tenant or stale-grant access. See [configuration reconciliation](TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md) for staged delivery gates.

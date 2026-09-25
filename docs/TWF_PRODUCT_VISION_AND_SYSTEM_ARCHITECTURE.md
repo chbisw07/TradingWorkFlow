@@ -2,7 +2,7 @@
 
 ## Status
 
-**Initial architecture draft — for review before implementation**
+**Accepted TWF-0 product baseline, extended by configuration reconciliation on 2026-09-25**
 
 ## 1. Purpose
 
@@ -252,7 +252,7 @@ Workspace
 owned resources
 ```
 
-Later add subscriptions, plans, entitlements, quotas, billing, and usage accounting.
+Capability-based subscription/entitlement hooks and account boundaries are defined now in [configuration architecture v0.6](TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLEMENT_PLUGGABILITY_ARCHITECTURE.md). Commercial plans, quotas, billing and usage accounting remain later implementation scope.
 
 ## 17. Authentication Direction
 
@@ -263,7 +263,7 @@ Separate:
 - trading authority;
 - broker authorization.
 
-The exact auth technology remains a separate decision.
+TWF-1.4 implements local password authentication and server-owned revocable sessions. Production IdP, MFA and account recovery remain separate decisions; realm/account administration is not yet implemented.
 
 ## 18. LLM Architecture
 
@@ -304,7 +304,7 @@ Do not copy external authoritative state into TWF as independently mutable truth
 
 ## 22. Configuration Model
 
-Separate UserPreference, WorkspaceConfiguration, ServiceConfiguration, SystemConfiguration, SecurityConfiguration and TradingAuthorityConfiguration.
+Runtime classes are Presentation, User/Workflow and System/Integration, with explicit permitted Platform/Account/User/Workspace/Workflow scopes and profile revisions. User/workspace/service configuration are ownership/use-case examples within that model. Bootstrap/security operations stay APS-owned; TM trading authority is outside ordinary settings. Section 34 and configuration architecture v0.6 govern the detailed separation.
 
 ## 23. Pluggability
 
@@ -369,7 +369,7 @@ Design for request correlation, workflow ID, service latency/health, structured 
 12. Durable-state ownership is explicit.
 13. External authoritative state is not silently copied as local truth.
 14. Workflow lineage is traceable.
-15. First implementation is miniature but end-to-end complete.
+15. The first complete product checkpoint is the TWF-6 miniature; TWF-1 establishes its application foundation.
 16. User settings cannot silently grant trading authority.
 17. Degraded states are explicit.
 18. Service contracts are versioned.
@@ -385,16 +385,26 @@ Initial authoritative docs:
 - `TWF_DETAILED_ROADMAP.md`
 - `TWF_TECHNOLOGY_DECISION_RECORD.md`
 
-Recommended later additions:
+Specialist architecture and planning documents:
 
 - `TWF_UX_ARCHITECTURE.md`
 - `TWF_SERVICE_CONTRACT_ARCHITECTURE.md`
 - `TWF_DATA_ARCHITECTURE.md`
-- `TWF_SECURITY_ARCHITECTURE.md`
+- `TWF_SECURITY_AUTH_ARCHITECTURE.md`
 - `TWF_DEPLOYMENT_ARCHITECTURE.md`
-- `TWF_MILESTONES.md`
-- `TWF_IMPLEMENTATION_TARGETS.md`
+- `TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLEMENT_PLUGGABILITY_ARCHITECTURE.md`
+- `TWF_UX_BUCKET_ROADMAP.md`
+
+The detailed roadmap owns milestone/target sequencing; the documentation index maps current and historical implementation records.
 
 ## 33. Current Decision
 
-Proceed architecture-first. Do not begin implementation until product/system architecture, milestone roadmap, technology choices and miniature-system acceptance boundary are reviewed.
+TWF-0 passed its formal architecture gate; TWF-1.0 through TWF-1.4, including TWF-1.1A, are accepted. The [configuration reconciliation](TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md) now recommends `GO_TWF1_5` for a bounded Settings Foundation plan. TWF-1.5 remains not started; later service/trading milestones retain their own acceptance gates.
+
+## 34. Configuration and UX Reconciliation
+
+This 2026-09-25 clarification extends the accepted TWF-0 product boundary. The [configuration architecture v0.6](TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLEMENT_PLUGGABILITY_ARCHITECTURE.md) separates APS platform producers from ACS consumer tenants, COLD capability publication from HOT/WARM subscriber settings, and entitlement from permission and trading authority. The earlier settings categories are examples; canonical runtime classes are Presentation, User/Workflow and System/Integration, with explicit scopes and override policy. Platform bootstrap/security operations remain separate.
+
+Capability registry/policy, entitlement, configuration/profile resolution, secret references, health and audit are logical backend responsibilities, not mandated microservices. Setup Center, ACS account administration and APS operations are distinct UX contexts. The master/component DOCX files remain TWF-0 reference snapshots; this clarification and the linked normative architectures govern subsequent configuration work.
+
+The [UX Bucket Roadmap](TWF_UX_BUCKET_ROADMAP.md) tracks foundational, operational and mature UX across the unchanged functional sequence. TWF-1.5 builds only the bounded personal settings foundation; TWF-1.6 supplies service-client foundations; TWF-2–6 grow the trader workflow. Later administration/subscription/IFL UX does not block early trading integration. Synthetic adapters accelerate UX while preserving Scanner/TI/TM/LLM contracts and authority boundaries.

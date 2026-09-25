@@ -2,9 +2,13 @@
 
 ## Status
 
-**Initial architecture-stage roadmap — proposed, not yet frozen**
+**Accepted TWF-0 functional sequence, reconciled on 2026-09-25 for configuration v0.6 and UX buckets.**
 
-Milestone/target identifiers are provisional until reviewed and accepted.
+TWF-1.0, 1.1, 1.1A, 1.2, 1.3 and 1.4 are accepted. TWF-1.5 is NOT STARTED;
+TWF-1.6 and later functional targets remain pending. The
+[configuration review](TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md) records
+`GO_TWF1_5` for the bounded scope below. Architecture readiness is not implementation
+completion or a repository freeze.
 
 ## 1. Roadmap Objective
 
@@ -61,8 +65,14 @@ Coding can begin without unresolved foundational contradictions.
 
 ## 4. TWF-1 — Application Foundation
 
+### TWF-1.0 Repository and Project Scaffold
+Accepted repository layout, runnable shells, development tooling and container baseline.
+
 ### TWF-1.1 Frontend Shell
 Next.js/React/TypeScript shell, layout, navigation, error/loading states.
+
+### TWF-1.1A Theme Switching Foundation
+Accepted centralized dark/light tokens, dark default and safe browser-local restoration.
 
 ### TWF-1.2 Backend Shell
 FastAPI app, health endpoint, config, structured logging and API version base.
@@ -74,10 +84,25 @@ Repository interfaces, SQLAlchemy, SQLite and Alembic with migration tests.
 User identity, login/session and initial authorization boundary.
 
 ### TWF-1.5 Settings Foundation
-User preferences, workspace configuration and service configuration separated from security/authority.
+Dependency: the reviewed [configuration architecture v0.6](TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLEMENT_PLUGGABILITY_ARCHITECTURE.md),
+especially section 34. Define a finite settings/profile contract before coding.
+Implement typed personal Presentation and safe User/Workflow preferences, allowed-scope
+resolution, optimistic revisions, non-secret profile foundation, capability/entitlement
+interfaces with explicit foundation grants, secret-reference contracts, Setup UI and
+change metadata. Preserve accepted auth and theme behavior.
+
+Shared ACCOUNT/WORKSPACE/WORKFLOW persistence requires real ownership foundations and
+an explicit bounded scope decision. Do not infer tenant membership from a user ID.
+WARM metadata may be defined now; real connection/rebind behavior belongs to later
+adapters. Full APS/ACS administration, subscription billing, production vaults, live
+providers and dynamic plugin loading remain excluded.
 
 ### TWF-1.6 Service Client Foundation
-Logical service descriptors, health/status and local/remote adapter base.
+Logical service descriptors, capability registration/identity, health/status and
+local/remote adapter base. Establish deterministic SyntheticScannerService,
+SyntheticTIService, SyntheticTMService and SyntheticLLMService fixtures behind versioned
+logical contracts as needed to prove foundation behavior; full domain payloads mature
+in their integration milestones. No real integrations or authority shortcuts.
 
 ### Acceptance
 User can log in, see the shell, persist workspace/settings and see configured service status.
@@ -189,7 +214,12 @@ Targets: claim/history view, resolved outcome view, performance summaries, produ
 
 ## 12. TWF-9 — Multi-user / Subscription Readiness
 
-Targets: tenant/user isolation, roles, subscription model, entitlements, quotas, usage accounting and administration.
+Targets: ACS account/membership and role administration, APS realm/role/support/service
+principal administration, versioned subscription grants, quotas, usage accounting,
+rollout controls and lifecycle UX. These develop the architectural hooks accepted now;
+pricing, plans and billing provider remain deferred. Account isolation must be proved
+before any shared tenant feature ships, even if that feature is scheduled earlier.
+Support/break-glass and machine access require their security gates before exposure.
 
 ## 13. TWF-10 — Production Hardening
 
@@ -197,7 +227,22 @@ Targets: PostgreSQL production migration, performance profiling, caching if just
 
 ## 14. Cross-Cutting Workstreams
 
-Security, accessibility, responsive UX, service-version compatibility, auditability, observability, migration safety, contract tests, documentation and backward compatibility.
+Security, accessibility, responsive UX, service-version compatibility, auditability,
+observability, migration safety, contract tests, documentation and backward compatibility.
+
+The [UX Bucket Roadmap](TWF_UX_BUCKET_ROADMAP.md) defines an additional maturity track:
+
+| Bucket | Milestone mapping | Dependency rule |
+|---|---|---|
+| UX-B1 Foundational Complete UX | TWF-1.x plus workspace/console foundations in TWF-2 | Partial today; synthetic/local UX does not require live services or admin backend |
+| UX-B2 Operationally Useful Trading UX | TWF-2/3/4/5, end-to-end acceptance in TWF-6 and realtime refinement in TWF-7 | Layout/content evolve with real contracts; preserve source and authority semantics |
+| UX-B3 Architecture-Complete UX | Progressive administration/subscriptions, IFL and operations in TWF-8/9/10 | Individual features advance when justified; the whole bucket never blocks core integrations |
+
+Configuration checkpoint before TWF-1.5: reviewed v0.6 separates realms, scopes,
+capability/entitlement gates, desired/effective/applied state, profiles and operations.
+Later integration targets must implement the corresponding lifecycle, secret, schema
+migration and revocation controls before exposing those features. TWF-10 owns evidence
+for zero/minimal-downtime deployment, not an assumed guarantee today.
 
 ## 15. Documentation Rule
 
@@ -209,4 +254,8 @@ Use ChatGPT web for architecture, planning, docs, reviews, acceptance reasoning 
 
 ## 17. Current Next Work
 
-Complete/review TWF-0 architecture documents before implementation. Likely additional TWF-0 documents: UX architecture, service contract architecture, data architecture, security architecture and deployment architecture.
+TWF-0 is accepted/frozen; TWF-1.4 was accepted after bounded fixes and committed at
+`ba9bb8b`. Configuration reconciliation now recommends `GO_TWF1_5`. Next prepare the
+bounded TWF-1.5 implementation prompt and finite settings/profile acceptance cases.
+TWF-1.5 remains NOT STARTED until that implementation work begins. This documentation
+checkpoint neither implements it nor closes UX-B1/B2/B3.

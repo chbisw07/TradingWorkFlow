@@ -613,3 +613,9 @@ It should be referenced by:
 - documentation index;
 - TWF-1.1 implementation record;
 - future UX acceptance records.
+
+# 29. Setup and UX Bucket Recomposition
+
+The [UX Bucket Roadmap](TWF_UX_BUCKET_ROADMAP.md) extends this baseline without changing its viewport or browser requirements. Test Setup in both themes at 390, 768, 1024, 1440, 1920 and 2560+ widths: desktop may show feature/provider/profile context concurrently; tablet uses fewer panes; mobile uses nested views and reachable save/cancel/status controls. Preserve scope, realm, validation, unsaved changes and applied-versus-selected state during recomposition.
+
+UX-B1/B2/B3 are progressive acceptance tracks, not separate layouts or permission systems. Synthetic services support early review without fabricating live health or administration. The known WebKit host/runtime limitation remains a verification gap; Chromium success never certifies Safari. The affected UX target must obtain WebKit evidence on a supported host before claiming that browser's acceptance.

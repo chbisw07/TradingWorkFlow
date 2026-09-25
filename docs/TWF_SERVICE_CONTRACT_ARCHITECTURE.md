@@ -1,7 +1,7 @@
 # TradingWorkFlow (TWF) — Service Contract Architecture
 
 ## Status
-**TWF-0 normative service-contract architecture — proposed for acceptance**
+**TWF-0 accepted service-contract baseline, with configuration clarification dated 2026-09-25**
 
 ## 1. Purpose
 Define how TWF consumes scanner, TI, TM, LLM, broker-facing, notification, and future services through stable logical contracts while remaining independent of physical deployment.
@@ -156,7 +156,7 @@ Separate:
 Do not conflate these.
 
 ## 14. Service Registry
-TWF should maintain a lightweight configured-service catalog containing:
+TWF should maintain lightweight configured service instances linked to the APS-owned capability catalog. Capability definitions, tenant profiles and runtime health are separate; instance descriptors include:
 - logical service key
 - service family
 - enabled state
@@ -258,3 +258,11 @@ Authority-changing TM calls require stricter controls than read-only scanner/TI 
 8. Synthetic adapters are clearly marked.
 9. Contract versions are explicit.
 10. Service replacement must not require workflow-domain redesign.
+
+## 24. Capability and Configuration Contracts
+
+The [configuration architecture v0.6](TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLEMENT_PLUGGABILITY_ARCHITECTURE.md) governs registration, dependencies, rollout, entitlements and profile revisions. A service identity/capability response verifies deployed support; it cannot register arbitrary code, confer customer entitlement or bypass authorization. Stable capability IDs link to provider/implementation, contract/schema versions, required/optional/conflicting capabilities, mutability and safe health/test operations. Health is an observation, not a plan grant.
+
+Before use, resolve an authorized profile revision and secret reference under the caller's account/user context. Contract requests preserve correlation, actual producer identity and relevant configuration revisions without secret values. Changing providers or restoring an entitlement requires revalidation; retries cannot silently switch producer. Running-work behavior on revocation must follow the operation's safety contract, especially TM-governed exposure.
+
+SyntheticScannerService, SyntheticTIService, SyntheticTMService and SyntheticLLMService are explicit test/development adapters behind the same versioned logical contracts as real adapters. Deterministic fixtures cover success, empty, failure, timeout, stale, denied, incompatible and degraded states; preserve source/as-of/correlation/provenance and mark synthetic mode. They never contact live brokers or grant real authority. Real TM contracts still require committed public-surface reconciliation before integration freeze.

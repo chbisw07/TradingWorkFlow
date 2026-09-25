@@ -31,9 +31,26 @@ TWF-1 — Application Foundation                            ▶ IN_PROGRESS
 ├── TWF-1.1A Theme Switching                              ✅ accepted
 ├── TWF-1.2 Backend Shell                                ✅ accepted
 ├── TWF-1.3 Database Foundation                          ✅ accepted
-├── TWF-1.4 User / Login Foundation                     fixes applied / pending re-review
-├── TWF-1.5 Settings Foundation
-└── TWF-1.6 Service Client Foundation
+├── TWF-1.4 User / Login Foundation                      ✅ accepted (ba9bb8b)
+├── Configuration architecture reconciliation             ✅ reviewed v0.6 / GO_TWF1_5
+├── TWF-1.5 Settings Foundation                           NOT STARTED / next bounded target
+└── TWF-1.6 Service Client Foundation                     pending
+
+UX maturity — parallel workstream
+├── UX-B1 Foundational Complete UX                        PARTIAL (TWF-1.x / TWF-2)
+├── UX-B2 Operationally Useful Trading UX                  PLANNED (TWF-2–7)
+└── UX-B3 Architecture-Complete UX                        PLANNED (progressive TWF-8–10)
+
+Later functional milestones — separately gated
+├── TWF-2 Trader Workspace
+├── TWF-3 Scanner Integration
+├── TWF-4 TI + Active LLM Integration
+├── TWF-5 TM Integration
+├── TWF-6 Minimal Complete Trading Workflow
+├── TWF-7 Realtime / Notifications
+├── TWF-8 IFL / History / Learning Visibility
+├── TWF-9 Multi-user / Subscription Readiness
+└── TWF-10 Production Hardening
 ```
 
 **Current state:** TWF-0 architecture has passed its formal pre-coding review with `GO_TWF1`. TWF-1 is authorized only for the bounded application foundation. Real TI/TM/broker integration and later workflow capabilities remain separately gated.
@@ -48,7 +65,9 @@ TWF-1 Application Foundation        IN_PROGRESS
 ├── TWF-1.1A Theme Switching        ✅ accepted
 ├── TWF-1.2 Backend Shell          ✅ accepted
 ├── TWF-1.3 Database Foundation    ✅ accepted
-└── TWF-1.4 User / Login Foundation fixes applied / pending re-review
+├── TWF-1.4 User / Login Foundation ✅ accepted after bounded fixes / committed ba9bb8b
+├── TWF-1.5 Settings Foundation     NOT STARTED
+└── TWF-1.6 Service Client Foundation pending
 ```
 
 The application contains a responsive Next.js trading shell, FastAPI health/status endpoints,
@@ -68,9 +87,20 @@ errors, JSON logging, and configurable CORS. The accepted
 [TWF-1.3 Database Foundation](docs/TWF_TWF1_3_DATABASE_FOUNDATION.md) provides synchronous
 SQLAlchemy engine/session lifecycle, explicit transactions, empty Alembic baseline,
 and verified SQLite/PostgreSQL migration paths. Readiness remains application-only.
-The current target is [TWF-1.4 User / Login Foundation](docs/TWF_TWF1_4_USER_LOGIN_FOUNDATION.md):
-persistent users, protected shell, login/logout and revocable sessions.
-Next target after independent review: TWF-1.5 Settings Foundation.
+[TWF-1.4 User / Login Foundation](docs/TWF_TWF1_4_USER_LOGIN_FOUNDATION.md) is accepted
+after bounded fixes and committed at `ba9bb8b`: persistent users, protected shell,
+login/logout and revocable sessions. Its implementation record retains its historical
+pre-review status; this dashboard records the later accepted state. No new freeze tag
+is asserted here.
+
+The [configuration architecture reconciliation](docs/TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md)
+concludes `GO_TWF1_5` under [configuration architecture v0.6](docs/TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLEMENT_PLUGGABILITY_ARCHITECTURE.md).
+TWF-1.5 remains **NOT STARTED**: next derive its finite personal-settings/profile
+contract and bounded implementation prompt. This checkpoint accepts architectural
+direction, not implemented APS/ACS administration, subscriptions or live integrations.
+The [UX bucket roadmap](docs/TWF_UX_BUCKET_ROADMAP.md) tracks partial UX-B1 and planned
+UX-B2/B3 alongside functional milestones; mature administration does not block core
+trading integration.
 
 Local development (Python 3.12+ and Node.js 20.19+ / 22.13+ / 24+):
 
@@ -160,7 +190,13 @@ Then review the specialist architecture documents as needed.
 - [Responsive Trading Application Architecture](docs/TWF_RESPONSIVE_TRADING_APPLICATION_ARCHITECTURE.md) — normative responsive application clarification
 
 - [TWF_UX_ARCHITECTURE.md](docs/TWF_UX_ARCHITECTURE.md)
+- [UX Bucket Roadmap](docs/TWF_UX_BUCKET_ROADMAP.md) — cross-cutting maturity and acceptance criteria
 - `docs/TWF_UX_ARCHITECTURE.docx`
+
+### Configuration / Setup
+
+- [Configuration, Setup, Capability, Entitlement and Pluggability Architecture](docs/TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLEMENT_PLUGGABILITY_ARCHITECTURE.md) — current normative v0.6
+- [Configuration Architecture Review](docs/TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md) — decisions, SaaS gap review and TWF-1.5 readiness
 
 ### Data
 
@@ -214,7 +250,10 @@ DOCX
     = polished human-readable / diagram-oriented companion
 ```
 
-Where both exist, the Markdown file should be treated as the normative source unless a later acceptance/decision record explicitly states otherwise.
+Where both exist, Markdown is normative unless a later decision explicitly states
+otherwise. DOCX files remain reference snapshots: the supplied configuration DOCX is
+v0.5, while its Markdown is now v0.6; other architecture DOCX companions retain their
+TWF-0 content. See the [index](docs/TWF_DOCUMENTATION_INDEX.md) for current authority.
 
 ---
 

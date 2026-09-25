@@ -528,3 +528,9 @@ Before implementation freeze:
 8. Synthetic/mock TI remains distinguishable from actual TI.
 9. TWF preserves correlation lineage.
 10. TI remains independently deployable and replaceable.
+
+# 26. Configuration and UX Reconciliation
+
+The [configuration architecture](TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLEMENT_PLUGGABILITY_ARCHITECTURE.md) governs TWF-side provider/profile selection, dependency/entitlement checks and HOT/WARM apply. TI still owns its intelligence/model semantics and authoritative output provenance. A TWF preference cannot rewrite TI's claimed producer, horizon or schema. Show the actual applied profile/configuration version; never silently substitute another LLM/provider after failure or entitlement loss.
+
+SyntheticTIService/SyntheticLLMService fixtures advance UX-B2 under the [UX Bucket Roadmap](TWF_UX_BUCKET_ROADMAP.md), preserving synthetic labels, typed claims, evidence, timestamps, failure states and correlation. Exact real API/schema mapping remains a TWF-4 gate. Profile availability never creates execution authority; in-flight analysis and revocation policy must be explicit before real integration.

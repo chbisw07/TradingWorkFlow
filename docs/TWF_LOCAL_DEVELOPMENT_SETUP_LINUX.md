@@ -4,8 +4,13 @@
 
 This guide covers local development setup for TradingWorkFlow (TWF) on
 Ubuntu/Linux. It documents the current TWF-1 application scaffold: a Next.js web
-app, a FastAPI backend, an empty SQLAlchemy/Alembic persistence foundation, and a
-Docker Compose smoke environment.
+app, a FastAPI backend, a SQLAlchemy/Alembic persistence foundation, and a
+Docker Compose smoke environment. This guide preserves the historical scaffold
+setup walkthrough. TWF-1.4 has since added user/session tables and a protected
+shell: follow the current [README startup instructions](../README.md#current-implementation-status)
+and [login foundation record](TWF_TWF1_4_USER_LOGIN_FOUNDATION.md) for migrations,
+first-user bootstrap and authentication. Configuration/realm/UX bucket architecture
+does not add new local services or setup steps.
 
 Run commands from the repository root unless a section changes directories.
 

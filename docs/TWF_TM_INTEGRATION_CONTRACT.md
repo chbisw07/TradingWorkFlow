@@ -596,3 +596,11 @@ A policy change is not necessarily an API schema change.
 8. Remote/local transport does not change semantics.
 9. Authority-changing calls are auditable/idempotent.
 10. Actual TM public contracts must be reconciled before implementation freeze.
+
+# 27. Configuration and UX Reconciliation
+
+The [configuration architecture](TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLEMENT_PLUGGABILITY_ARCHITECTURE.md) governs TWF configuration eligibility and applied revisions. A TWF broker profile references a TM-managed connection; it does not acquire broker credentials, alter TM risk policy, or authorize execution. Account administration, subscription upgrades and Work/Admin mode never imply TM authority.
+
+Entitlement loss blocks new gated work but cannot abandon existing broker exposure, silently liquidate positions or cancel TM supervision. Define safety monitoring/handoff and fresh authority checks with the actual TM contract before live integration. WARM profile rollback cannot undo a broker-side action or resurrect revoked credentials.
+
+SyntheticTMService fixtures may show deterministic risk/adoption/approval/monitoring states for UX-B2, always marked synthetic and unable to contact live brokers. The [UX bucket plan](TWF_UX_BUCKET_ROADMAP.md) does not bypass the clean committed TM public-contract reconciliation gate in section 20.

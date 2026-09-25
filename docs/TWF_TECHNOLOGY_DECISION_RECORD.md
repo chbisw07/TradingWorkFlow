@@ -2,7 +2,9 @@
 
 ## Status
 
-**Initial proposed technology baseline — review required before freeze**
+**Accepted TWF-0 technology baseline, with implementation/configuration clarifications dated 2026-09-25**
+
+The original proposal labels below retain decision history; the [TWF-0 acceptance](TWF_TWF0_ARCHITECTURE_ACCEPTANCE_REVIEW.md) governs accepted stack choices. Section 28 records subsequent authentication/theme selections and bounded configuration direction.
 
 ## 1. Decision Goal
 
@@ -99,7 +101,7 @@ Define a task/worker boundary but defer framework choice. Potential future optio
 
 ## 12. Authentication
 
-Deferred to a dedicated security/auth decision. Requirements include secure browser login, multi-user production, future entitlements, separation from broker authorization and no secret exposure to browser bundles.
+TWF-1.4 implements bounded local password authentication and server-owned revocable sessions; see section 28 and the [security architecture](TWF_SECURITY_AUTH_ARCHITECTURE.md). Production identity/MFA/recovery remain later decisions. Preserve multi-user readiness, entitlement separation, broker authority and secret isolation.
 
 ## 13. API Contract Strategy
 
@@ -200,3 +202,11 @@ pytest + Playwright
 - notification providers.
 
 Resolve these through bounded decision records as their milestones approach.
+
+## 28. Configuration and UX Decisions on 2026-09-25
+
+The [configuration architecture v0.6](TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLEMENT_PLUGGABILITY_ARCHITECTURE.md) adds typed/versioned setting and capability descriptors, explicit scope/ownership checks, optimistic revisions, secret references and profile/application lifecycle. Implement these using the accepted FastAPI/Pydantic/SQLAlchemy/Next.js foundations; no plugin framework, commercial feature-flag provider, billing SDK, policy engine or global form/state framework is selected or required now.
+
+TWF-1.4 has selected local password authentication and revocable server-owned sessions. Its limited Next.js same-origin auth transport is not a second backend authority; FastAPI remains responsible for identity/session decisions. Production IdP/MFA/recovery remain later choices. Realm/admin features require their own design gate, not reinterpretation of the existing user model.
+
+The accepted TWF-1.1A centralized dark/light tokens and guarded browser-local restoration remain the theme baseline. TWF-1.5 must specify user/device preference precedence and hydration/first-paint preservation before integrating persisted appearance settings. [UX buckets](TWF_UX_BUCKET_ROADMAP.md) do not preselect chart/grid/docking libraries. Synthetic contract adapters are required for early UX/testing; no real service SDK is added by this decision.

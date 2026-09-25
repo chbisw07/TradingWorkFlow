@@ -1,7 +1,7 @@
 # TradingWorkFlow (TWF) — UX Architecture
 
 ## Status
-**TWF-0 architecture-stage UX specification — proposed for review**
+**TWF-0 accepted UX baseline, reconciled with configuration and UX buckets on 2026-09-25**
 
 ## 1. Purpose
 Define the user-experience architecture for a fast, responsive, trader-oriented web application that unifies scanner, TI, TM, LLM, broker-facing state, alerts, consoles, and workflow history without collapsing their ownership boundaries.
@@ -72,7 +72,7 @@ Primary areas:
 - Alerts
 - History
 - Consoles
-- Settings
+- Setup / Settings
 
 Navigation should preserve current instrument/workflow context where practical.
 
@@ -217,7 +217,7 @@ Architectural targets:
 Exact SLOs should be defined after prototype measurements.
 
 ## 18. Initial UX Acceptance
-Before TWF-1 coding is considered complete, the miniature should demonstrate:
+The complete miniature checkpoint belongs to TWF-6, with UX developed progressively through TWF-2–5. It should demonstrate:
 - login;
 - persistent shell;
 - watchlist;
@@ -236,7 +236,7 @@ Before TWF-1 coding is considered complete, the miniature should demonstrate:
 - docking/resizable panel library;
 - server-state library;
 - keyboard command system;
-- theming implementation;
+- future theme preference synchronization; the local dark/light foundation is already accepted;
 - browser notification strategy;
 - TradingView embedding vs native charting.
 
@@ -248,3 +248,11 @@ Before TWF-1 coding is considered complete, the miniature should demonstrate:
 5. Context is preserved across workflow stages.
 6. Critical actions are auditable.
 7. Fast/responsive feel is a product requirement.
+
+## 21. Setup and UX Maturity
+
+The [configuration architecture v0.6](TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLEMENT_PLUGGABILITY_ARCHITECTURE.md) defines Setup as feature → capability/provider → named profile, with progressive drill-down, clear ownership/scope and desired/effective/applied state. Show no more than about three navigation levels together on desktop; tablet/mobile use labelled nested views with breadcrumbs/back navigation, preserving unsaved edits and context.
+
+Work/Administration contexts are useful in both APS and ACS when backend rights exist. Show realm, account and acting identity persistently. Switching context cannot elevate privilege. Unsupported administration remains an honest unavailable preview. Discovery may show sanitized unavailable/upgrade cards; internal capabilities stay hidden. Configuration repair must remain available to authorized actors even while capability use is disabled.
+
+The [UX Bucket Roadmap](TWF_UX_BUCKET_ROADMAP.md) defines UX-B1 foundation, UX-B2 operational trading and UX-B3 mature architecture coverage. These complement functional milestones; TWF-1 completion does not require trading screens or all UX-B1 features assigned to TWF-2. UX-B2/B3 panel details evolve with real contracts. Preserve accepted token/theme quality, all eight shell states, responsive recomposition and authority/provenance across devices. Synthetic fixtures must be labelled and contract-tested; a successful mock is not live service or trading authorization.

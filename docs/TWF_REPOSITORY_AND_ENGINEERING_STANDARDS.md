@@ -1,7 +1,7 @@
 # TradingWorkFlow (TWF) — Repository and Engineering Standards
 
 ## Status
-**TWF-0 engineering baseline — proposed for acceptance**
+**Accepted TWF-0 engineering baseline, extended for configuration and UX planning on 2026-09-25**
 
 ## 1. Purpose
 Define repository structure, coding standards, documentation discipline, testing gates, Git practices, and artifact conventions before implementation begins.
@@ -268,3 +268,13 @@ Require:
 6. Authority/security logic is server-side and governed.
 7. README/roadmap remain current.
 8. No milestone closure without acceptance evidence.
+
+## 31. Configuration and UX Delivery Rules
+
+The [configuration architecture v0.6](TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLEMENT_PLUGGABILITY_ARCHITECTURE.md) is the sole normative configuration design. The [reconciliation review](TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md) records decisions/findings; the [UX Bucket Roadmap](TWF_UX_BUCKET_ROADMAP.md) tracks UX maturity, without duplicating configuration rules or replacing functional milestones. Acceptance records describe their historical review; current README/index status must distinguish implemented, accepted, planned and unverified behavior.
+
+Synthetic Scanner/TI/TM/LLM adapters are an explicit standard: deterministic fixtures behind the same versioned logical contracts, visible synthetic provenance, no live credentials/network effects, and shared success/failure/stale/denial/compatibility tests. Add cross-user/tenant and realm isolation, stale revision, failed apply/rollback, secret redaction and entitlement-change tests when the relevant functionality ships. Test meaning and authority boundaries, not merely counts.
+
+Typed setting schemas, descriptor changes, configuration migrations and API revisions require compatibility notes and regression cases. Do not silently reinterpret saved profiles when upgrading providers. Concurrent editing uses expected revisions from the first mutable records. Runtime scope remains bounded by each milestone's prompt.
+
+DOCX references may lag the normative Markdown if their version/status is explicitly recorded in the index. This task retains historical companions, including supplied configuration v0.5; they must not be presented as the v0.6 authority. Regeneration should use the normative source and rendered-page QA when supported tooling is available.

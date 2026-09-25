@@ -1,7 +1,7 @@
 # TradingWorkFlow (TWF) — Security and Authentication Architecture
 
 ## Status
-**TWF-0 architecture-stage security/auth specification — proposed for review**
+**TWF-0 accepted security baseline, with configuration realm clarification dated 2026-09-25**
 
 ## 1. Purpose
 Define the security model for a cloud-hosted, multi-user trading workflow application integrating TI, TM, scanners, LLM providers, brokers, and future subscription services.
@@ -54,7 +54,7 @@ Requirements:
 - brute-force/rate-limit protections;
 - email/account verification as needed.
 
-Exact auth technology is still TBD.
+TWF-1.4 implements local password authentication with server-owned revocable sessions. Production IdP/federation, MFA and recovery remain later decisions; see the [historical login implementation](TWF_TWF1_4_USER_LOGIN_FOUNDATION.md).
 
 ## 6. Session Strategy
 Prefer secure server-managed session or short-lived token architecture appropriate to Next.js + FastAPI.
@@ -79,14 +79,7 @@ Every user-owned object must be authorization-checked:
 Do not rely on frontend hiding controls.
 
 ## 8. Roles
-Initial roles may be minimal:
-- USER
-- ADMIN
-
-Future:
-- support/operator;
-- read-only;
-- team/workspace roles.
+Use realm-qualified roles from [configuration architecture v0.6](TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLEMENT_PLUGGABILITY_ARCHITECTURE.md). APS starts with representative PLATFORM_OWNER, APS_ADMIN and DEVELOPER identities; operational roles are decomposed when needed. ACS starts with ACCOUNT_ADMIN and REGULAR_USER, each bound to an account. These are design commitments, not roles implemented by TWF-1.4. Generic USER/ADMIN must not imply cross-realm authority.
 
 Trading authority should not simply equal an application role.
 
@@ -99,7 +92,7 @@ TWF user authenticated
     ≠
 allowed to execute trade
 
-TWF role = USER
+TWF role = REGULAR_USER
     ≠
 TM risk/authority approved
 ```
@@ -222,7 +215,7 @@ Rules:
 - no IDOR-style direct access by guessable IDs.
 
 ## 20. Subscription Entitlements
-Future subscription plan should control capabilities, not security authority.
+The entitlement architecture is defined now; commercial plans and billing remain later scope. Versioned capability grants control what an account may use; roles control which actors may configure/use it.
 
 Examples:
 - number of scanners;
@@ -294,7 +287,7 @@ For each milestone:
 Production hardening later adds penetration testing and operational monitoring.
 
 ## 27. Initial Authentication Recommendation
-Do not freeze provider yet.
+TWF-1.4 has selected the bounded local password/session implementation. Keep its authentication boundary replaceable; evaluate production identity options before the deployment that needs them.
 
 Preferred architecture:
 ```text
@@ -333,3 +326,13 @@ Decision criteria:
 8. Sensitive actions are auditable/idempotent.
 9. Subscription entitlement never equals trading authority.
 10. Security failures fail closed for authority-changing actions.
+
+## 29. Realm and Configuration Security Clarification
+
+Follow [configuration architecture v0.6](TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLEMENT_PLUGGABILITY_ARCHITECTURE.md) sections 3–7, 20, 25, 28 and 45–49. APS and ACS require distinct authenticated contexts/audiences and scoped authorization/audit. Shared IdP or infrastructure never makes an APS actor an ACS superuser. Work/Admin is navigation only. HUMAN/SERVICE principal kind, account ownership, DEMO usage class, subscription and role remain orthogonal.
+
+APS_ADMIN grants only an owner-approved delegation set and cannot change its own authority or bypass separate approval through another principal. PLATFORM_OWNER is a governed recovery/approval identity; production break-glass requires reauthentication/MFA, reason, bounded scope/time and independent audit review. Developers receive no default customer-data access. Support requires a named operator, target account, approved basis/consent, reason, expiry, explicit read/write scope and revocation; no silent impersonation. Service principals use narrow audience/environment/task grants and dedicated machine credentials.
+
+Settings read, edit, enable, apply and use are separately authorized. Entitlement or a UI mode never grants a role, secret access or TM authority. Secret references must be owner-checked; production integration secrets require a vault before activation. Profile cloning/import/export cannot transfer credentials or rights. Cross-user/tenant tests, stale revision conflicts, revoked-grant behavior, redacted explain/audit responses and failed-apply cleanup are acceptance requirements when each feature ships.
+
+These additions do not expand TWF-1.5 into a realm/RBAC implementation. It uses authenticated personal ownership from TWF-1.4; shared-account and APS exposure require their own security gate first.

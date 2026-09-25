@@ -1,7 +1,7 @@
 # TradingWorkFlow (TWF) — Data Architecture
 
 ## Status
-**TWF-0 architecture-stage data specification — proposed for review**
+**TWF-0 accepted data baseline, with configuration ownership clarification dated 2026-09-25**
 
 ## 1. Purpose
 Define TWF data ownership, persistence boundaries, repository abstractions, SQLite-to-PostgreSQL portability, auditability, and multi-user readiness.
@@ -205,7 +205,7 @@ Future subscription deployment requires:
 - no cross-user cache leakage;
 - migration path to tenant/account concepts.
 
-Initial version may use single-user mode but must keep ownership columns/contracts.
+The accepted TWF-1.4 foundation has persistent user identities. Personal settings may use explicit user ownership; shared tenant data requires verified account membership before exposure.
 
 ## 19. Caching
 Do not make cache authoritative.
@@ -276,3 +276,13 @@ Before PostgreSQL migration is considered easy/valid:
 6. Secrets are isolated.
 7. Staleness is representable.
 8. Cross-service actions use idempotency/correlation, not distributed DB transactions.
+
+## 26. Configuration Ownership and Revision Model
+
+The [configuration architecture v0.6](TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLEMENT_PLUGGABILITY_ARCHITECTURE.md) owns the full conceptual model. Keep principal identity, account/tenant ownership and role bindings separate. TWF-1.5 may implement personal settings without accounts; future account backfill must map verified ownership explicitly and test isolation, never assume every user belongs to one tenant or that user/account IDs are interchangeable.
+
+Setting descriptors define typed values, schema versions, permitted scopes and override policy. Stored desired values, effective results, profile selections, applied revisions and health observations remain distinct. Profiles carry owner/scope, capability/schema identity and revision. An update uses an expected revision/ETag and an explicit transaction; reject stale writers. Reset removes an override, and validation is tied to exact revisions. HOT apply can be atomic; WARM apply needs a durable change record and recovery before integrations use it.
+
+Plan versions/grants, rollout and configuration schemas evolve independently. Entitlement removal retains configuration inactive under retention policy, and restoration requires revalidation. Rollback records a compensating revision without deleting audit or restoring revoked rights. Provider upgrades require tested schema migrations preserving original values and provenance. Secret stores own values; settings contain authorized references only.
+
+Queries, indexes, references, exports, jobs, caches and realtime topics include the applicable realm/account/user boundary. Cache keys also include configuration/policy/entitlement revisions where results depend on them. Define audit/profile/support/export/backup retention and account-deletion semantics before production sharing. Audit diffs and effective-value explanations are redacted. Alembic still owns DB evolution; configuration migrations are explicit semantic transformations, not startup auto-migration.

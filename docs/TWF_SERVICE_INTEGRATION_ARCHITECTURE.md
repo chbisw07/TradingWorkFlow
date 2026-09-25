@@ -2,7 +2,7 @@
 
 ## Status
 
-**Initial architecture record**
+**Accepted TWF-0 integration baseline, clarified for configuration and UX planning on 2026-09-25**
 
 ---
 
@@ -112,7 +112,7 @@ No need for gRPC initially unless later justified.
 
 # 7. Service Registry
 
-TWF needs a lightweight configured-service catalog.
+TWF needs lightweight configured service instances linked to the platform capability catalog. Follow the separate definition, profile, eligibility and health model in [configuration architecture v0.6](TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLEMENT_PLUGGABILITY_ARCHITECTURE.md).
 
 Possible fields:
 
@@ -241,3 +241,9 @@ This enables the miniature TWF workflow before live trading integration.
 8. TM authority is not weakened by generic service abstraction.
 9. Provider/model identities remain visible where scientifically meaningful.
 10. Synthetic services are clearly marked.
+
+# 15. Profile Application and Synthetic Adapters
+
+An integration adapter receives validated effective configuration and authorized secret references from TWF's configuration boundary. It does not interpret commercial plan names or own settings authorization. Reconnect/rebind is a WARM operation with explicit applied revision, bounded connection test, failure/rollback reporting and correlation. Unknown/incompatible schemas and missing required capabilities fail explicitly. Provider/schema upgrades cannot silently replace provenance or TM authority.
+
+SyntheticScannerService, SyntheticTIService, SyntheticTMService and SyntheticLLMService support the [UX bucket workstream](TWF_UX_BUCKET_ROADMAP.md). Use deterministic contract fixtures and the same typed errors/identity/provenance as real adapters, while clearly marking synthetic operation and isolating credentials/network access. TWF-1.6 establishes foundations; functional payloads mature under TWF-3/4/5. Neither synthetic UI completion nor capability registration authorizes a live integration.
