@@ -4,7 +4,8 @@
 
 **Accepted TWF-0 functional sequence, reconciled on 2026-09-25 for configuration v0.6 and UX buckets.**
 
-TWF-1.0, 1.1, 1.1A, 1.2, 1.3 and 1.4 are accepted. TWF-1.5 is NOT STARTED;
+TWF-1.0, 1.1, 1.1A, 1.2, 1.3 and 1.4 are accepted. TWF-1.5 is implemented,
+pending independent review;
 TWF-1.6 and later functional targets remain pending. The
 [configuration review](TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md) records
 `GO_TWF1_5` for the bounded scope below. Architecture readiness is not implementation
@@ -84,6 +85,11 @@ Repository interfaces, SQLAlchemy, SQLite and Alembic with migration tests.
 User identity, login/session and initial authorization boundary.
 
 ### TWF-1.5 Settings Foundation
+
+**Implemented; pending independent review.** See the
+[implementation record](TWF_TWF1_5_SETTINGS_FOUNDATION.md) for the finite contract,
+validation evidence and explicit deferrals. The governing boundary remains:
+
 Dependency: the reviewed [configuration architecture v0.6](TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLEMENT_PLUGGABILITY_ARCHITECTURE.md),
 especially section 34. Define a finite settings/profile contract before coding.
 Implement typed personal Presentation and safe User/Workflow preferences, allowed-scope
@@ -255,7 +261,7 @@ Use ChatGPT web for architecture, planning, docs, reviews, acceptance reasoning 
 ## 17. Current Next Work
 
 TWF-0 is accepted/frozen; TWF-1.4 was accepted after bounded fixes and committed at
-`ba9bb8b`. Configuration reconciliation now recommends `GO_TWF1_5`. Next prepare the
-bounded TWF-1.5 implementation prompt and finite settings/profile acceptance cases.
-TWF-1.5 remains NOT STARTED until that implementation work begins. This documentation
-checkpoint neither implements it nor closes UX-B1/B2/B3.
+`ba9bb8b`. Following the configuration reconciliation's `GO_TWF1_5`, the bounded
+[TWF-1.5 implementation](TWF_TWF1_5_SETTINGS_FOUNDATION.md) is ready for independent
+review. Acceptance and freeze remain pending. TWF-1.6 Service Client Foundation follows
+that gate; UX-B1 remains partial and UX-B2/B3 remain planned.

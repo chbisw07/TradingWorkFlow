@@ -33,7 +33,7 @@ TWF-1 — Application Foundation                            ▶ IN_PROGRESS
 ├── TWF-1.3 Database Foundation                          ✅ accepted
 ├── TWF-1.4 User / Login Foundation                      ✅ accepted (ba9bb8b)
 ├── Configuration architecture reconciliation             ✅ reviewed v0.6 / GO_TWF1_5
-├── TWF-1.5 Settings Foundation                           NOT STARTED / next bounded target
+├── TWF-1.5 Settings Foundation                           IMPLEMENTED / pending independent review
 └── TWF-1.6 Service Client Foundation                     pending
 
 UX maturity — parallel workstream
@@ -66,7 +66,7 @@ TWF-1 Application Foundation        IN_PROGRESS
 ├── TWF-1.2 Backend Shell          ✅ accepted
 ├── TWF-1.3 Database Foundation    ✅ accepted
 ├── TWF-1.4 User / Login Foundation ✅ accepted after bounded fixes / committed ba9bb8b
-├── TWF-1.5 Settings Foundation     NOT STARTED
+├── TWF-1.5 Settings Foundation     IMPLEMENTED / pending independent review
 └── TWF-1.6 Service Client Foundation pending
 ```
 
@@ -95,9 +95,11 @@ is asserted here.
 
 The [configuration architecture reconciliation](docs/TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md)
 concludes `GO_TWF1_5` under [configuration architecture v0.6](docs/TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLEMENT_PLUGGABILITY_ARCHITECTURE.md).
-TWF-1.5 remains **NOT STARTED**: next derive its finite personal-settings/profile
-contract and bounded implementation prompt. This checkpoint accepts architectural
-direction, not implemented APS/ACS administration, subscriptions or live integrations.
+[TWF-1.5 Settings Foundation](docs/TWF_TWF1_5_SETTINGS_FOUNDATION.md) is implemented
+and pending independent review: personal Setup density, a safe future analysis default,
+validated profiles, explicit apply/reset, revision checks and change metadata.
+Theme remains device-local. APS/ACS administration, subscriptions and live integrations
+remain deferred. Review and freeze precede the next bounded target, TWF-1.6.
 The [UX bucket roadmap](docs/TWF_UX_BUCKET_ROADMAP.md) tracks partial UX-B1 and planned
 UX-B2/B3 alongside functional milestones; mature administration does not block core
 trading integration.

@@ -28,6 +28,9 @@ command.upgrade(Config(${JSON.stringify(join(api, "alembic.ini"))}), 'head')
 engine=create_database_engine(Settings())
 with session_scope(create_session_factory(engine)) as session:
     create_user(session, 'browser-user', 'Browser Trader', 'test-only-browser-password')
+    for browser in ('chromium', 'webkit'):
+        for width in (390,768,1024,1440,1920,2560):
+            create_user(session, f'settings-{browser}-{width}', 'Settings Trader', 'test-only-browser-password')
     session.commit()
 engine.dispose()`,
   ],

@@ -34,7 +34,7 @@ test("shell recomposes with reachable regions, keyboard controls and no page ove
     nav.getByRole("link", { name: "Home", exact: true }),
   ).toBeVisible();
   await expect(nav.getByRole("button", { name: /coming later/ })).toHaveCount(
-    9,
+    8,
   );
   await expect(
     nav.getByRole("button", { name: "Orders — coming later" }),

@@ -61,7 +61,13 @@ def test_database_boundary() -> None:
     try:
         with create_session_factory(engine)() as session:
             assert session.scalar(text("SELECT 1")) == 1
-        assert set(Base.metadata.tables) == {"users", "auth_sessions"}
+        assert set(Base.metadata.tables) == {
+            "users",
+            "auth_sessions",
+            "user_preferences",
+            "preference_profiles",
+            "preference_changes",
+        }
         assert not inspect(engine).get_table_names()
     finally:
         engine.dispose()

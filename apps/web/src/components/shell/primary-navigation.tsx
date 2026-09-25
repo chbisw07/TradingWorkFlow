@@ -50,11 +50,15 @@ export function PrimaryNavigation() {
         <ul>
           {navigationItems.map(({ label, icon }, index) => (
             <li key={label}>
-              {index === 0 ? (
+              {index === 0 || label === "Settings" ? (
                 <Link
-                  href="/"
+                  href={label === "Settings" ? "/settings" : "/"}
                   className="nav-item"
-                  aria-current={pathname === "/" ? "page" : undefined}
+                  aria-current={
+                    pathname === (label === "Settings" ? "/settings" : "/")
+                      ? "page"
+                      : undefined
+                  }
                   onClick={() => setExpanded(false)}
                 >
                   <Icon name={icon} />

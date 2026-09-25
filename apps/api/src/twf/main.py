@@ -12,12 +12,15 @@ from starlette.middleware.cors import CORSMiddleware
 
 from twf.api.auth import router as auth_router
 from twf.api.errors import http_error, unexpected_error, validation_error
+from twf.api.preferences import router as preferences_router
+from twf.api.preferences import settings_error
 from twf.api.routes import create_router
 from twf.config.settings import Settings
 from twf.infrastructure.database import create_database_engine, create_session_factory
 from twf.login_limit import LoginLimit
 from twf.middleware import ErrorBoundaryMiddleware, RequestContextMiddleware
 from twf.observability import create_logger
+from twf.preferences import SettingsFailure
 from twf.schemas import ErrorResponse
 
 
@@ -78,4 +81,6 @@ def create_app(
     app.add_exception_handler(Exception, unexpected_error)
     app.include_router(create_router(settings))
     app.include_router(auth_router)
+    app.include_router(preferences_router)
+    app.add_exception_handler(SettingsFailure, settings_error)
     return app

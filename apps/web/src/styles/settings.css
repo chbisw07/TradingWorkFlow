@@ -1,0 +1,97 @@
+.settings-center {
+  display: grid;
+  gap: var(--space-5);
+  min-width: 0;
+}
+.settings-center section {
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-4);
+}
+.settings-center p {
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+.settings-center h1 {
+  font-size: var(--text-heading);
+}
+.settings-center h2 {
+  font-size: var(--text-lg);
+}
+.settings-center h3 {
+  font-size: var(--text-base);
+  overflow-wrap: anywhere;
+}
+.settings-center fieldset {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-4);
+  min-width: 0;
+}
+.settings-center label {
+  display: block;
+  margin-top: var(--space-4);
+  margin-bottom: var(--space-2);
+}
+.settings-center input,
+.settings-center select {
+  max-width: 100%;
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-2);
+  color: var(--text);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font: inherit;
+}
+.settings-center button {
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.settings-center button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+.settings-center :focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+.settings-profiles {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: var(--space-4);
+}
+.settings-profiles li {
+  background: var(--surface-raised);
+  padding: var(--space-4);
+  border-radius: var(--radius-sm);
+}
+.settings-center[data-density="compact"] {
+  gap: var(--space-3);
+}
+.settings-center[data-density="compact"] fieldset,
+.settings-center[data-density="compact"] .settings-profiles li {
+  padding: var(--space-3);
+}
+.settings-center [role="alert"] {
+  border-left: 3px solid var(--status-error);
+  padding-left: var(--space-3);
+}
+@media (min-width: 1440px) {
+  .settings-center {
+    max-width: 60rem;
+  }
+}

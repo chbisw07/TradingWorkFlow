@@ -3,7 +3,7 @@
 from alembic import context
 
 from twf.config.settings import Settings
-from twf.infrastructure import identity  # noqa: F401 -- register identity metadata
+from twf.infrastructure import identity, preferences  # noqa: F401 -- register metadata
 from twf.infrastructure.database import Base, create_database_engine
 
 settings = Settings()

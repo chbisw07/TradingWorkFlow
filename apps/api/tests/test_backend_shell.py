@@ -107,6 +107,13 @@ def test_lifecycle_and_contracts(settings: Settings) -> None:
             "/api/v1/auth/login",
             "/api/v1/auth/logout",
             "/api/v1/auth/me",
+            "/api/v1/settings/definitions",
+            "/api/v1/settings/values",
+            "/api/v1/settings/reset",
+            "/api/v1/settings/deactivate",
+            "/api/v1/settings/profiles",
+            "/api/v1/settings/profiles/{profile_id}",
+            "/api/v1/settings/profiles/{profile_id}/apply",
         }
         assert schema["info"]["version"] == "1.2.3"
         for route in schema["paths"].values():

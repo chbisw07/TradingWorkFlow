@@ -25,7 +25,9 @@ govern workspace semantics, visual quality and recomposition. The
 | UX-B2 | Planned; shell containers provide readiness only | Operational settings and trader workflows as TWF-2–7 mature |
 | UX-B3 | Planned architecture hooks | Mature APS/ACS administration, subscriptions, diagnostics, IFL and operations |
 
-TWF-1.5 is **NOT STARTED**. No bucket is declared complete by this planning work.
+TWF-1.5 is **implemented, pending independent review**; see its
+[implementation record](TWF_TWF1_5_SETTINGS_FOUNDATION.md). Its personal Settings and
+profile surface advances partial UX-B1. No bucket is declared complete by this work.
 The existing WebKit host/runtime limitation remains an explicit verification gap;
 Chromium evidence does not establish Safari compatibility.
 

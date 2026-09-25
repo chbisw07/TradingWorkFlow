@@ -221,7 +221,13 @@ def test_probe_failure_safe_and_ready_unchanged(
 
 def test_migration_history_and_metadata() -> None:
     config = Config(str(Path(__file__).parents[1] / "alembic.ini"))
-    assert set(Base.metadata.tables) == {"users", "auth_sessions"}
+    assert set(Base.metadata.tables) == {
+        "users",
+        "auth_sessions",
+        "user_preferences",
+        "preference_profiles",
+        "preference_changes",
+    }
     assert set(Base.metadata.naming_convention) == {"pk", "fk", "ix", "uq", "ck"}
     command.upgrade(config, "head")
     command.upgrade(config, "head")
@@ -229,10 +235,15 @@ def test_migration_history_and_metadata() -> None:
     db = create_database_engine(Settings())
     try:
         with db.connect() as connection:
-            assert MigrationContext.configure(connection).get_current_revision() == "0002_identity"
+            assert (
+                MigrationContext.configure(connection).get_current_revision() == "0003_preferences"
+            )
             assert inspect(connection).get_table_names() == [
                 "alembic_version",
                 "auth_sessions",
+                "preference_changes",
+                "preference_profiles",
+                "user_preferences",
                 "users",
             ]
         command.downgrade(config, "base")
@@ -240,7 +251,9 @@ def test_migration_history_and_metadata() -> None:
             assert MigrationContext.configure(connection).get_current_revision() is None
         command.upgrade(config, "head")
         with db.connect() as connection:
-            assert MigrationContext.configure(connection).get_current_revision() == "0002_identity"
+            assert (
+                MigrationContext.configure(connection).get_current_revision() == "0003_preferences"
+            )
     finally:
         db.dispose()
 

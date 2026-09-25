@@ -60,7 +60,7 @@ test("only supported navigation is actionable and disclosure restores focus on E
     expect(item).toBeDisabled();
   expect(
     within(nav).getAllByRole("button", { name: /coming later/ }),
-  ).toHaveLength(9);
+  ).toHaveLength(8);
   const toggle = within(nav).getByRole("button", {
     name: "Workspace navigation",
   });
