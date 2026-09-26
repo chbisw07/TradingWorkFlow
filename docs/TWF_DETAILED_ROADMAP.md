@@ -2,15 +2,17 @@
 
 ## Status
 
-**Accepted TWF-0 milestone identities; delivery priorities reconciled on 2026-09-26 for Broker Workspace v0.3.**
+**Accepted TWF-0 milestone identities; delivery priorities reconciled on 2026-09-26 for accepted/tagged Broker Workspace Architecture v0.3.**
 
 TWF-1.0, 1.1, 1.1A, 1.2, 1.3, 1.4 and 1.5 are accepted; TWF-1.5 is committed at
 `664d4cf`. TWF-1.6 is accepted at `e3852d3`; existing annotated tag
 `twf-1-application-foundation` at that commit records TWF-1 acceptance/freeze.
 Later functional targets remain pending. The
 [configuration review](TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md) records
-`GO_TWF1_5` for the bounded scope below. Architecture readiness is not implementation
-completion or a repository freeze.
+`GO_TWF1_5` for the bounded scope below. Broker Workspace Architecture v0.3 is independently reviewed and accepted at
+annotated tag `twf-broker-workspace-architecture-v0.3` (`0b73492`). Its BW-1
+through BW-6 runtime gates remain undelivered; BW-1 is next. Architecture
+acceptance is not implementation completion.
 
 ## 1. Roadmap Objective
 
@@ -298,6 +300,31 @@ Broker contracts + Synthetic Broker read-only rooms (BW-1)
 → TI + active LLM integration (existing TWF-4)
 → full managed/intelligence workflow acceptance (existing TWF-6)
 ```
+
+### BW-1 through BW-6 gate inventory
+
+The bounded delivery and required evidence below are copied from
+[Broker Workspace Architecture v0.3, section 34](TWF_BROKER_WORKSPACE_ARCHITECTURE.md#34-bounded-delivery-and-acceptance-gates).
+The status column is repository-derived: the architecture is tagged, but no BW
+runtime implementation or acceptance record exists. BW labels are a broker
+workstream, **not replacements for TWF milestone IDs**.
+
+| Status | Gate | Exact bounded delivery | Required evidence / next gate |
+|---|---|---|---|
+| NEXT | BW-1 Synthetic Broker Read-Only Foundation | Versioned broker identity, capability, auth/operation health, observations and typed query contract; deterministic injected-clock adapter; authenticated personal room/overview showing Dashboard, Holdings, Positions, Orders and Funds | Three fixture accounts across two fictional providers, including two accounts of one provider; both themes/six widths; negative ownership and failure/isolation tests; no provider network or real credential path |
+| PENDING | BW-2 One real broker read-only | One chosen provider's verified auth/account binding, vault references, bounded read adapters and versioned catalog/search; optional canonical mapping | Official public API mapping, credential/callback/revocation review, source/completeness/rate-limit fixtures, isolated real read smoke; provider and permission selected before implementation |
+| PENDING | BW-3 Broker watchlists and draft/preview | Revisioned owned watchlists; exact native instrument resolution; backend draft validation and preview, no live dispatch | Persistence/migration/isolation tests, duplicate/stale/expired/token-reuse cases; no generic global-watchlist routing |
+| PENDING | BW-4 Synthetic command and recovery foundation | Durable intent/request/confirmation/audit, synthetic accept/reject/partial/unknown/cancel/modify, dispatch claims and reconciliation | Crash/restart and multi-worker tests, policy-expiry and concurrent commands; actual secret-free synthetic behavior remains labelled |
+| PENDING | BW-5 Controlled live manual orders | One provider, explicit personal ownership, restricted segments/order types, separately enabled LIVE mode and approved safety policy | All live prerequisites in sections 7, 18, 19, 23 and 26; provider contract/sandbox evidence where available; operator recovery runbook; explicit approval and independent acceptance before live activation |
+| PENDING | BW-6 Second real broker proof | Add second provider adapter/manifest and contract fixtures | Section 34.3 proof before claiming multi-provider operational acceptance |
+| PENDING | Later managed workflow | Reviewed TM public-contract integration and exclusive command transfer | No automatic manual/TM fallback; separate TWF-5 acceptance |
+
+BW-1–3 contribute to the TWF-2 broker workspace progression; BW-4/5 provide
+the synthetic recovery and controlled manual execution foundations mapped to
+TWF-6. BW-6 is the second-provider operational proof. Later managed workflow
+requires a separate TWF-5 public-contract and command-ownership acceptance.
+These mappings describe dependencies and scope, not completion of TWF-2,
+TWF-5 or TWF-6.
 
 BW labels subdivide work across TWF-2 workspace and TWF-6 execution foundations;
 they are not a new competing milestone series or a claim that TWF-6 is complete.

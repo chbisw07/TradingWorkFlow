@@ -13,7 +13,8 @@ Configuration v0.6 reconciled / GO_TWF1_5
 TWF-1.5 ACCEPTED / committed 664d4cf
 TWF-1.6 ACCEPTED / committed e3852d3
 TWF-1 ACCEPTED / FROZEN (twf-1-application-foundation)
-Broker Workspace v0.3 reviewed / GO_BROKER_WORKSPACE (BW-1 only)
+Broker Workspace Architecture v0.3 REVIEWED / ACCEPTED / TAGGED (twf-broker-workspace-architecture-v0.3)
+BW-1 Synthetic Broker Read-Only Foundation NEXT; BW-2–BW-6 PENDING
 ```
 
 ---
@@ -72,7 +73,7 @@ Companions are not synchronized v0.6 deliverables.
 ### UX
 - [Responsive Trading Application Architecture](TWF_RESPONSIVE_TRADING_APPLICATION_ARCHITECTURE.md) — normative responsive application clarification
 - `TWF_UX_ARCHITECTURE.md` — normative
-- [UX Bucket Roadmap](TWF_UX_BUCKET_ROADMAP.md) — normative cross-cutting maturity plan v0.2; UX-B1 partial, UX-B2/B3 planned
+- [UX Bucket Roadmap](TWF_UX_BUCKET_ROADMAP.md) — normative cross-cutting maturity plan v0.3; UX-B1 partial, UX-B2/B3 planned
 - `TWF_UX_ARCHITECTURE.docx` — reference
 
 ### Configuration / Setup
@@ -81,7 +82,7 @@ Companions are not synchronized v0.6 deliverables.
 - [Configuration Architecture Review](TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md) — corpus, decisions, gaps, changes and TWF-1.5 readiness; does not duplicate normative design
 
 ### Broker Workspace
-- [Broker Workspace Architecture](TWF_BROKER_WORKSPACE_ARCHITECTURE.md) — sole normative broker design v0.3, reviewed 2026-09-26, not Git-frozen
+- [Broker Workspace Architecture](TWF_BROKER_WORKSPACE_ARCHITECTURE.md) — sole normative broker design v0.3, independently reviewed and accepted at annotated tag `twf-broker-workspace-architecture-v0.3`
 - `TWF_BROKER_WORKSPACE_ARCHITECTURE.docx` — synchronized v0.3 presentation companion
 - [Broker Workspace Architecture Review](TWF_BROKER_WORKSPACE_ARCHITECTURE_REVIEW.md) — evidence, findings, reconciliation, gap timing and implementation gates; no competing design
 
@@ -180,6 +181,16 @@ UX workstream (parallel to functional milestones)
 ├── UX-B1 — FOUNDATIONAL COMPLETE UX / PARTIAL
 ├── UX-B2 — OPERATIONALLY USEFUL TRADING UX / PLANNED
 └── UX-B3 — ARCHITECTURE-COMPLETE UX / PLANNED
+
+Broker Workspace Architecture v0.3 — REVIEWED / ACCEPTED / TAGGED
+Broker Workspace Workstream — no runtime gate accepted
+├── BW-1 Synthetic Broker Read-Only Foundation — NEXT
+├── BW-2 One real broker read-only — PENDING
+├── BW-3 Broker watchlists and draft/preview — PENDING
+├── BW-4 Synthetic command and recovery foundation — PENDING
+├── BW-5 Controlled live manual orders — PENDING
+├── BW-6 Second real broker proof — PENDING
+└── Later managed workflow — PENDING (separate TWF-5 gate)
 ```
 
 Implementation records:
@@ -223,8 +234,10 @@ TWF-1.5 Settings Foundation
 TWF-1.6 Service Client Foundation
 ```
 
-Later milestones remain separately gated. Next bounded target is BW-1 Synthetic
-Broker Read-Only Foundation under the [reviewed broker delivery plan](TWF_BROKER_WORKSPACE_ARCHITECTURE.md#34-bounded-delivery-and-acceptance-gates).
+The BW labels are a cross-cutting delivery workstream mapped into TWF-2/TWF-6;
+they do not replace or renumber the TWF-0–10 milestones. Later milestones remain
+separately gated. Next bounded target is BW-1 Synthetic Broker Read-Only
+Foundation under the [accepted broker delivery plan](TWF_BROKER_WORKSPACE_ARCHITECTURE.md#34-bounded-delivery-and-acceptance-gates).
 
 ---
 
@@ -273,4 +286,5 @@ When new documents are added:
 2. state purpose and authority;
 3. update root README when current status changes;
 4. preserve prior acceptance/history;
-5. avoid duplicate competing normative documents.
+5. avoid duplicate competing normative documents;
+6. keep the broker DOCX synchronized with its normative Markdown when that architecture changes.

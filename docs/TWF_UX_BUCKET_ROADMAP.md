@@ -2,7 +2,15 @@
 
 ## Status and purpose
 
-**Normative cross-cutting UX plan, version 0.2, reconciled on 2026-09-26.**
+**Normative cross-cutting UX plan, version 0.3, reconciled on 2026-09-26.**
+
+Version history: v0.2 established the broker contribution and bucket boundaries;
+v0.3 adds a source-backed BW-1–BW-6 mapping after Broker Workspace Architecture
+v0.3 acceptance. Previous version: v0.2. Status: normative planning, with UX-B1
+partial and UX-B2/B3 planned. Change summary: gate-to-bucket clarification only.
+Review/acceptance reference: [Broker Workspace independent review](TWF_BROKER_WORKSPACE_ARCHITECTURE_REVIEW.md)
+and annotated architecture tag `twf-broker-workspace-architecture-v0.3`; no UX bucket
+completion is implied.
 
 UX-B1, UX-B2 and UX-B3 track the completeness of the user experience across
 functional milestones. They preserve the accepted trading application design
@@ -161,6 +169,22 @@ identity; do not freeze trading details ahead of those contracts.
 [Broker Workspace v0.3](TWF_BROKER_WORKSPACE_ARCHITECTURE.md) is a major UX-B2 workstream.
 BW-1 synthetic read-only rooms precede one real broker, native search/watchlists,
 draft/preview, synthetic recovery and separately gated live manual execution.
+The [bounded gate inventory](TWF_BROKER_WORKSPACE_ARCHITECTURE.md#34-bounded-delivery-and-acceptance-gates)
+maps to UX maturity as follows. Every BW runtime gate is pending except BW-1,
+which is next; the architecture tag does not complete a UX bucket.
+
+| Broker gate | Source-backed UX contribution | Bucket boundary |
+|---|---|---|
+| BW-1 Synthetic Broker Read-Only Foundation | Authenticated synthetic personal rooms/overview, read-only Dashboard, Holdings, Positions, Orders and Funds across two fictional providers | Major UX-B2 advancement; reuses UX-B1 themes, responsive behavior and accessibility |
+| BW-2 One real broker read-only | Verified real account/read experience plus native catalog/search | Deepens UX-B2; provider evidence does not grant command authority |
+| BW-3 Broker watchlists and draft/preview | Owned room watchlists, exact native resolution and backend preview | Deepens UX-B2; no live dispatch |
+| BW-4 Synthetic command and recovery foundation | Labelled synthetic commands, uncertain outcomes and recovery evidence | Adds execution/recovery UX-B2 evidence; no live authority |
+| BW-5 Controlled live manual orders | One provider, approved safety policy and explicit LIVE mode | Adds bounded manual execution UX-B2 after its separate live gate |
+| BW-6 Second real broker proof | Same contract and room semantics with a second real provider | Proves provider-neutral operational UX-B2, not UX-B3 completion |
+| Later managed workflow | Reviewed TM public contract and exclusive command transfer | Separate TWF-5 managed-workflow UX-B2 acceptance |
+
+Advanced operations, bulk administration and commercial broker quota diagnostics
+remain later UX-B3 contributions; no BW-1–BW-6 gate by itself completes UX-B3.
 Broker Watchlists belong to explicit account rooms; the future canonical Global
 Watchlist remains separate. Real provider cards expose deployed/eligible/configured/
 enabled/auth/read/command status without pretending that connection grants trade rights.

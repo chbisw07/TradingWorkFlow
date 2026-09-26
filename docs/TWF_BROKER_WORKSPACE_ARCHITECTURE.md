@@ -2,7 +2,16 @@
 
 # Broker Workspace Architecture
 
-**Version 0.3 — Reviewed normative architecture, reconciled 2026-09-26; not Git-frozen**
+- **Version:** 0.3
+- **Date:** 2026-09-26
+- **Status:** Independently reviewed and accepted/frozen at annotated tag
+  `twf-broker-workspace-architecture-v0.3` (`0b73492`).
+- **Previous version:** Supplied v0.2 proposal, preserved as the historical input
+  described in the independent review.
+- **Change summary:** Reconciled broker-neutral rooms, contracts, ownership, order
+  safety and bounded BW-1–BW-6 delivery gates.
+- **Review/acceptance:** [Independent review and reconciliation](TWF_BROKER_WORKSPACE_ARCHITECTURE_REVIEW.md)
+  and the tagged v0.3 acceptance commit.
 
 Supersedes the supplied v0.2 Markdown. The DOCX is a synchronized v0.3 presentation
 companion; this Markdown remains the normative source. Update both formats together
@@ -14,9 +23,9 @@ activate a real broker or live orders. Provider names and instrument examples ar
 illustrative; no provider API, permission, market-data licence or sandbox support
 has been verified by this documentation review.
 
-Repository evidence: HEAD `e3852d3` records TWF-1.6 acceptance and annotated tag
-`twf-1-application-foundation` records TWF-1 acceptance. Entry documents were stale
-at review start and are reconciled in this change. Historical implementation records
+At the independent review checkpoint, HEAD `e3852d3` recorded TWF-1.6 acceptance and annotated tag
+`twf-1-application-foundation` recorded TWF-1 acceptance. Entry documents were stale
+at review start and were reconciled in the accepted v0.3 commit. Historical implementation records
 remain unchanged; UX-B1 is still partial and UX-B2/B3 are not completed.
 
 > **Core invariants**
