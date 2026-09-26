@@ -1,7 +1,7 @@
 # TradingWorkFlow (TWF) — Security and Authentication Architecture
 
 ## Status
-**TWF-0 accepted security baseline, with configuration realm clarification dated 2026-09-25**
+**TWF-0 accepted security baseline, with configuration realm clarification dated 2026-09-25 and Broker Workspace clarification dated 2026-09-26**
 
 ## 1. Purpose
 Define the security model for a cloud-hosted, multi-user trading workflow application integrating TI, TM, scanners, LLM providers, brokers, and future subscription services.
@@ -34,6 +34,7 @@ TWF trusted application zone
   ├── TM service
   ├── Scanner service
   ├── LLM provider
+  ├── Server-side BrokerClient / account adapter / secret vault (manual path)
   └── Notification/Billing services
 
 TM
@@ -41,7 +42,7 @@ TM
 Broker boundary
 ```
 
-Broker secrets should remain within the broker/TM trust boundary whenever possible.
+Broker secrets remain within the server-side broker integration/vault boundary. Manual connections use TWF's dedicated broker adapter boundary; TM-managed connections retain TM's boundary. Neither exposes reusable tokens to the browser or ordinary workflow/settings records.
 
 ## 5. User Authentication
 Production must support secure user login.
@@ -84,7 +85,7 @@ Use realm-qualified roles from [configuration architecture v0.6](TWF_CONFIGURATI
 Trading authority should not simply equal an application role.
 
 ## 9. Trading Authority
-Trading authority belongs to TM/policy/trader workflow, not ordinary TWF authorization.
+Trading authority requires explicit execution permission and the applicable policy/trader workflow, not ordinary TWF login or settings authorization. TM owns governance for TM-managed accounts. Manual accounts must be explicitly unmanaged and pass TWF Basic Execution Safety, confirmation and command-ownership checks; this never represents TM approval.
 
 Example:
 ```text
@@ -100,18 +101,14 @@ TM risk/authority approved
 UI must show these states separately.
 
 ## 10. Broker Authorization
-Prefer TWF never sees raw broker credentials.
+Use two explicit server-side paths:
 
-Architecture:
 ```text
-TWF
-  ↓
-TM
-  ↓
-Broker adapter / broker secret store
+Manual:     TWF backend → account-scoped broker adapter → secret vault / broker
+TM-managed: TWF backend → TM → TM broker adapter / secret store → broker
 ```
 
-If TWF must initiate broker connection/setup later, secrets should flow through dedicated secure paths and secret management.
+TWF's general API responses, browser state, logs and domain records never contain reusable broker credentials. Dedicated setup/callback handlers may receive transient provider codes or user-supplied secrets only through a reviewed secure ingestion path, immediately exchanging/storing them server-side and redacting traces. Production vault resolution is required before real broker activation. A TM connection reference does not import TM secrets into TWF.
 
 ## 11. Service Authentication
 Remote TI/TM/scanner services should authenticate TWF.
@@ -320,7 +317,7 @@ Decision criteria:
 2. TWF authorization != broker authorization.
 3. LLM output is untrusted.
 4. Secrets never belong in browser bundles.
-5. Broker secrets stay behind TM/broker boundary when possible.
+5. Broker secrets stay inside the dedicated server-side broker adapter/vault boundary; TM-managed secrets retain TM ownership.
 6. Every user-owned resource is server-authorized.
 7. Remote services authenticate.
 8. Sensitive actions are auditable/idempotent.
@@ -336,3 +333,11 @@ APS_ADMIN grants only an owner-approved delegation set and cannot change its own
 Settings read, edit, enable, apply and use are separately authorized. Entitlement or a UI mode never grants a role, secret access or TM authority. Secret references must be owner-checked; production integration secrets require a vault before activation. Profile cloning/import/export cannot transfer credentials or rights. Cross-user/tenant tests, stale revision conflicts, revoked-grant behavior, redacted explain/audit responses and failed-apply cleanup are acceptance requirements when each feature ships.
 
 These additions do not expand TWF-1.5 into a realm/RBAC implementation. It uses authenticated personal ownership from TWF-1.4; shared-account and APS exposure require their own security gate first.
+
+## 30. Broker Workspace Security Gate — 2026-09-26
+
+[Broker Workspace v0.3](TWF_BROKER_WORKSPACE_ARCHITECTURE.md) sections 6–8, 18–19 and 23 govern the account/command boundary. `broker_account_id`, owner `user_id` and future ACS tenant `account_id` are distinct. Every read, command, callback, secret resolution, job, cache and stream enforces the same owner/environment/provider/account scope. Personal ownership uses the accepted authentication foundation; shared accounts require verified memberships before exposure.
+
+Before real authentication, implement one-use expiring callback state tied to session/owner, provider, account, environment and connection/configuration revision; validate exact redirects, issuer and PKCE where supported, and verify the broker account returned. Prevent replay, account swaps, concurrent refresh races and late callbacks after disable. Validate fixed provider destinations/TLS and redirect/DNS behavior; user-entered endpoints do not authorize SSRF. Provider payloads and instrument masters are untrusted input.
+
+Before live commands, require server-side execution permission, immutable confirmation binding, current policy and durable command ownership. TM failure cannot unlock manual execution. Revocation/disable blocks new dispatch but must not erase submitted commands, audit or safe reconciliation; define limited safety access and ownership handoff before live exposure. Entitlement never supplies trading authority. Stream credentials stay server-side; browser subscriptions reauthorize account scope.

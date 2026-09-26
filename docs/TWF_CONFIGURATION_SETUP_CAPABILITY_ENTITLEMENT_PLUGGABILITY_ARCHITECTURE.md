@@ -2,9 +2,9 @@
 
 ## Status
 
-**Normative architecture — Version 0.6, reconciled for bounded TWF-1.5 planning on 2026-09-25**
+**Normative architecture — Version 0.6, reconciled for bounded TWF-1.5 planning on 2026-09-25; Broker Workspace clarification dated 2026-09-26**
 
-Version 0.6 preserves the v0.5 design basis and supersedes its ambiguous realm, lifecycle, visibility and delivery rules. The [reconciliation review](TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md) records the changes and readiness decision. This is design acceptance, not evidence that these capabilities are implemented or a Git freeze. TWF-1.5 remains not started. The supplied DOCX remains a v0.5 reference; this Markdown is the sole current authority. The earlier v0.4 conceptual version is superseded. It consolidates the full configuration/settings/pluggability discussion into one normative design and adds the App Producer Side (APS), App Consumer Side (ACS), roles/privileges, subscription/entitlement model, capability lifecycle, effective-configuration resolution, platform administration, and SaaS operating model.
+Version 0.6 preserves the v0.5 design basis and supersedes its ambiguous realm, lifecycle, visibility and delivery rules. The [reconciliation review](TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md) records the changes and readiness decision. This is design acceptance, not evidence that these capabilities are implemented or a Git freeze. That review predates implementation. TWF-1.5 and TWF-1.6 are now accepted, and the existing `twf-1-application-foundation` tag at `e3852d3` records TWF-1 acceptance; this does not implement the broader APS/ACS architecture. The supplied DOCX remains a v0.5 reference; this Markdown is the sole current authority. The earlier v0.4 conceptual version is superseded. It consolidates the full configuration/settings/pluggability discussion into one normative design and adds the App Producer Side (APS), App Consumer Side (ACS), roles/privileges, subscription/entitlement model, capability lifecycle, effective-configuration resolution, platform administration, and SaaS operating model.
 
 The commercial details of subscription plans (pricing, final plan names, quotas and exact feature bundles) remain TBD, but the **subscription architecture is intentionally included now** because it materially affects settings, capability exposure, roles, secrets, data design and future SaaS evolution.
 
@@ -573,7 +573,7 @@ Examples:
 
 Production integration secrets require a secret manager/vault before those integrations ship. The configuration DB stores metadata/reference only. Resolution checks both owner scope and permission to use the reference; possession of a reference string grants no access. A platform-managed credential never becomes readable by ACS users.
 
-References track version/status and permit rotation, expiry and revocation. Rotation is a privileged operation with WARM rebind where needed; revoked/expired references block new use. Connection tests use authorized server-side credentials, bounded timeouts and sanitized results, never returning secrets to the browser. Broker secrets stay behind TM's broker boundary; a TWF broker profile may reference a TM-managed connection, not import raw broker credentials.
+References track version/status and permit rotation, expiry and revocation. Rotation is a privileged operation with WARM rebind where needed; revoked/expired references block new use. Connection tests use authorized server-side credentials, bounded timeouts and sanitized results, never returning secrets to the browser. TM-managed broker secrets stay behind TM's broker boundary; a TWF profile references that connection. Manual BrokerAccount profiles use TWF's dedicated server-side broker adapter/vault boundary, with secret references in configuration and no reusable credentials in browser responses or ordinary records. See section 51.
 
 Endpoint connection tests also require an environment-specific destination policy before they ship: allow approved protocols/hosts, reject credential-bearing URLs, constrain redirects and block cloud metadata or unintended internal destinations. Local adapters may use explicitly approved local endpoints; a user-supplied URL is never permission for arbitrary server-side network access.
 
@@ -1012,7 +1012,7 @@ Active = Usable AND SelectedForCurrentScope
     AND ApplySucceededForSelectedRevision AND RuntimeActivationConfirmed
 ```
 
-Health acceptability is contract-specific: degraded read-only display may be usable with a warning, while an authority-changing action fails closed. Selection persists when Usable becomes false; report selected/blocked or selected/degraded with the last applied revision. Never interpret a checkbox as confirmation of runtime activation. For in-flight work, section 46 governs entitlement loss; TM remains the authority for existing broker exposure.
+Health acceptability is contract-specific: degraded read-only display may be usable with a warning, while an authority-changing action fails closed. Selection persists when Usable becomes false; report selected/blocked or selected/degraded with the last applied revision. Never interpret a checkbox as confirmation of runtime activation. For in-flight work, section 46 governs entitlement loss; TM remains the authority for TM-managed exposure; manual exposure retains TWF command recovery and the broker's execution truth under section 51.
 
 ---
 
@@ -1106,7 +1106,7 @@ Each implemented sensitive change must capture actor, realm/context where implem
 
 ## 44. Next Engineering Gate
 
-The [architecture review](TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md) records `GO_TWF1_5` for a bounded implementation plan under section 34. TWF-1.5 is not implemented by this reconciliation. Produce its finite settings/profile contract and acceptance cases before coding; preserve the accepted authentication, theme and database foundations. Each later feature must satisfy the applicable gates below before exposure.
+The [architecture review](TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md) records the historical `GO_TWF1_5` planning decision under section 34. The subsequently accepted [Settings Foundation](TWF_TWF1_5_SETTINGS_FOUNDATION.md) implements only its bounded personal settings scope. Current next delivery is BW-1 under the [Broker Workspace review](TWF_BROKER_WORKSPACE_ARCHITECTURE_REVIEW.md). Preserve accepted authentication, theme, settings and database foundations; each later feature must satisfy the applicable gates below before exposure.
 
 ---
 
@@ -1132,7 +1132,7 @@ Upgrades, downgrades, trial expiry, payment failure, grant revocation and tempor
 
 Entitlement loss normally retains owned settings/profiles inactive, under retention policy. It denies new activations and new gated actions; read/repair/export access is separately authorized. Restoration requires fresh schema, dependency, secret and permission validation and explicit safe activation, never automatic restart of a previously running trade workflow. Reduced quotas block new allocations rather than deleting arbitrary existing profiles.
 
-Running work records capability, configuration and entitlement revisions. Recheck at new consequential actions and authorization renewals. Pause/cancel optional queued analysis safely on loss of eligibility. Never abandon TM monitoring, cancel broker exposure, liquidate a position or invent a trading action because a plan changed. Existing exposure follows TM's governed safety/monitoring policy with an explicit handoff and audit; any limited safety access must be defined before live integration. A workflow snapshot is provenance, not permanent authorization.
+Running work records capability, configuration and entitlement revisions. Recheck at new consequential actions and authorization renewals. Pause/cancel optional queued analysis safely on loss of eligibility. Never abandon TM monitoring, cancel broker exposure, liquidate a position or invent a trading action because a plan changed. TM-managed exposure follows TM's governed safety/monitoring policy; manual exposure retains durable TWF command reconciliation. Both require an explicit handoff and audit, and any limited safety access must be defined before live integration. A workflow snapshot is provenance, not permanent authorization.
 
 Before distributed entitlement caching, define maximum staleness, invalidation and outage policy per operation. Cache keys include realm, account, principal/permission context and policy/entitlement revisions. Revocation invalidates authorization caches and long-lived channels; high-consequence actions require current authoritative checks and fail closed when freshness cannot be established. Bounded stale data may be displayed with an as-of label, never used as a stale permission grant.
 
@@ -1164,4 +1164,14 @@ The accepted `/ready` remains application-initialization-only. Capability health
 
 ## 50. UX and Delivery References
 
-[UX Bucket Roadmap](TWF_UX_BUCKET_ROADMAP.md) defines UX-B1/B2/B3 as a cross-cutting maturity workstream. [Detailed Roadmap](TWF_DETAILED_ROADMAP.md) retains functional TWF-0 through TWF-10 sequencing. Synthetic Scanner/TI/TM/LLM adapters must satisfy versioned logical contracts, expose synthetic provenance and never grant live authority. Configuration schemas describe supported functionality; they do not authorize ahead-of-milestone implementation.
+[UX Bucket Roadmap](TWF_UX_BUCKET_ROADMAP.md) defines UX-B1/B2/B3 as a cross-cutting maturity workstream. [Detailed Roadmap](TWF_DETAILED_ROADMAP.md) retains functional TWF-0 through TWF-10 milestone IDs, with current delivery priority in section 18. Synthetic Scanner/TI/TM/LLM adapters must satisfy versioned logical contracts, expose synthetic provenance and never grant live authority. Configuration schemas describe supported functionality; they do not authorize ahead-of-milestone implementation.
+
+## 51. Broker Workspace Clarification — 2026-09-26
+
+[Broker Workspace v0.3](TWF_BROKER_WORKSPACE_ARCHITECTURE.md) applies this configuration model to N providers and N account connections without a permanent hard-coded account cap. BrokerAccount identity is distinct from ACS tenant identity and user ownership. Use accepted personal ownership initially; do not invent shared memberships, entitlement APIs or an administration framework for BW-1.
+
+Supported capability, saved configuration, enabled policy, authenticated connection, read/command health and dataset freshness are separate dimensions. Provider manifests version setup/auth schemas, native catalog support, command/read capabilities, pagination and rate budgets; role/entitlement policy authorizes their use separately. Future configurable broker quotas must not reuse TWF-1.6's 16 process service-descriptor bound. Reduced quotas block new allocations without deleting accounts or abandoning commands/exposure.
+
+WARM reconnect/disable uses a connection generation and applied configuration revision; old callbacks/refresh results cannot resurrect disabled sessions. Rebinding cannot retarget an existing confirmed order. Manual and TM-managed connections preserve their separate secret and command-ownership boundaries. Before real broker use, implement vault, callback/endpoint security and safe connection recovery; before live orders, implement durable intent/reconciliation, Basic Execution Safety and revocation/handoff policy. These are design gates, not capabilities added to the accepted Settings Foundation.
+
+The v0.6 configuration rules and historical review remain intact; this dated clarification resolves the formerly unqualified TM-only broker assumptions and points to the single current Broker Workspace authority.

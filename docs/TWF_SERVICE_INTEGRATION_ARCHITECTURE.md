@@ -215,17 +215,17 @@ Every service integration should have:
 Recommended:
 
 ```text
-1. Synthetic Scanner
-2. Synthetic TI
-3. Synthetic TM
-4. Real Scanner adapter
-5. Real TI adapter
-6. Real TM adapter
-7. Realtime event integration
-8. Broker-facing workflow only through TM
+1. Two synthetic broker providers / three isolated account rooms (BW-1)
+2. One verified real broker read-only (BW-2)
+3. Native watchlists and order draft/preview (BW-3)
+4. Synthetic durable command/recovery proof (BW-4)
+5. Controlled manual live orders after safety/security gates (BW-5)
+6. Second real broker contract/UI proof (BW-6)
+7. TM integration after committed public-contract reconciliation
+8. Scanner, then TI; realtime when justified by its own gate
 ```
 
-This enables the miniature TWF workflow before live trading integration.
+This 2026-09-26 priority supersedes the original Scanner-first/TM-only broker sequence. It preserves existing milestone IDs and TM authority for managed accounts. Manual accounts use the dedicated TWF BrokerClient boundary; TM-managed accounts never bypass TM. See the [current delivery overlay](TWF_DETAILED_ROADMAP.md#18-broker-workspace-delivery-overlay) and [Broker Workspace v0.3](TWF_BROKER_WORKSPACE_ARCHITECTURE.md). Each later live gate needs its own acceptance; BW-1 does not authorize real credentials or submission.
 
 ---
 
@@ -247,3 +247,9 @@ This enables the miniature TWF workflow before live trading integration.
 An integration adapter receives validated effective configuration and authorized secret references from TWF's configuration boundary. It does not interpret commercial plan names or own settings authorization. Reconnect/rebind is a WARM operation with explicit applied revision, bounded connection test, failure/rollback reporting and correlation. Unknown/incompatible schemas and missing required capabilities fail explicitly. Provider/schema upgrades cannot silently replace provenance or TM authority.
 
 SyntheticScannerService, SyntheticTIService, SyntheticTMService and SyntheticLLMService support the [UX bucket workstream](TWF_UX_BUCKET_ROADMAP.md). Use deterministic contract fixtures and the same typed errors/identity/provenance as real adapters, while clearly marking synthetic operation and isolating credentials/network access. TWF-1.6 establishes foundations; functional payloads mature under TWF-3/4/5. Neither synthetic UI completion nor capability registration authorizes a live integration.
+
+# 16. Broker Adapter Boundary — 2026-09-26
+
+Broker domain/application → versioned BrokerClient → broker adapter registry → provider adapter. This is a sibling integration boundary, not new methods silently added to `foundation.health.v1`. Keep provider credentials/headers, endpoint trust policy, parsing and SDKs inside the server-side adapter. Share transport utilities only when they preserve account ownership, typed operation outcomes, bounded per-provider/account concurrency, pagination and rate budgets.
+
+A read endpoint being healthy does not prove order submission is available. A cancelled UI request does not cancel a broker order. A possibly sent command must be reconciled, not retried by generic timeout middleware. No automatic broker switch or credential reuse across account rooms is permitted. Connection generations prevent late callbacks/refreshes from resurrecting disabled sessions. Initial TM integration requires one durable command owner per broker account and an audited handoff with outstanding commands resolved; see Broker Workspace sections 18–19.

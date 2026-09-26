@@ -11,7 +11,9 @@ TWF-0 ACCEPTED / FROZEN
 GO_TWF1
 Configuration v0.6 reconciled / GO_TWF1_5
 TWF-1.5 ACCEPTED / committed 664d4cf
-TWF-1.6 IMPLEMENTED / pending independent review
+TWF-1.6 ACCEPTED / committed e3852d3
+TWF-1 ACCEPTED / FROZEN (twf-1-application-foundation)
+Broker Workspace v0.3 reviewed / GO_BROKER_WORKSPACE (BW-1 only)
 ```
 
 ---
@@ -37,7 +39,9 @@ Historical/accepted records remain historical unless an explicit later record su
 The [configuration review](TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md) records the
 2026-09-25 clarification without reopening TWF-0. Current normative configuration is
 Markdown v0.6; its supplied DOCX is retained unchanged as a **v0.5 reference snapshot**.
-Other DOCX companions, including master/component diagrams, retain their TWF-0 content.
+Broker Workspace Markdown and its DOCX presentation companion are synchronized at
+v0.3; Markdown remains the sole normative source and both formats must be updated together. Other DOCX companions, including master/component diagrams,
+retain their TWF-0 content.
 Read the updated normative Markdown for current realm/configuration/UX decisions.
 Companions are not synchronized v0.6 deliverables.
 
@@ -68,13 +72,18 @@ Companions are not synchronized v0.6 deliverables.
 ### UX
 - [Responsive Trading Application Architecture](TWF_RESPONSIVE_TRADING_APPLICATION_ARCHITECTURE.md) — normative responsive application clarification
 - `TWF_UX_ARCHITECTURE.md` — normative
-- [UX Bucket Roadmap](TWF_UX_BUCKET_ROADMAP.md) — normative cross-cutting maturity plan v0.1; UX-B1 partial, UX-B2/B3 planned
+- [UX Bucket Roadmap](TWF_UX_BUCKET_ROADMAP.md) — normative cross-cutting maturity plan v0.2; UX-B1 partial, UX-B2/B3 planned
 - `TWF_UX_ARCHITECTURE.docx` — reference
 
 ### Configuration / Setup
 - [Configuration, Setup, Capability, Entitlement and Pluggability Architecture](TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLEMENT_PLUGGABILITY_ARCHITECTURE.md) — sole normative configuration source, reconciled v0.6
 - `TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLEMENT_PLUGGABILITY_ARCHITECTURE.docx` — supplied v0.5 reference, unchanged
 - [Configuration Architecture Review](TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md) — corpus, decisions, gaps, changes and TWF-1.5 readiness; does not duplicate normative design
+
+### Broker Workspace
+- [Broker Workspace Architecture](TWF_BROKER_WORKSPACE_ARCHITECTURE.md) — sole normative broker design v0.3, reviewed 2026-09-26, not Git-frozen
+- `TWF_BROKER_WORKSPACE_ARCHITECTURE.docx` — synchronized v0.3 presentation companion
+- [Broker Workspace Architecture Review](TWF_BROKER_WORKSPACE_ARCHITECTURE_REVIEW.md) — evidence, findings, reconciliation, gap timing and implementation gates; no competing design
 
 ### Data
 - `TWF_DATA_ARCHITECTURE.md` — normative
@@ -156,7 +165,7 @@ architecture; it does not claim SaaS administration, billing or UX bucket comple
 ```text
 TWF-0 — ACCEPTED / FROZEN (twf-0-architecture-baseline)
        ↓
-TWF-1 — APPLICATION FOUNDATION / IN_PROGRESS
+TWF-1 — APPLICATION FOUNDATION / ACCEPTED / FROZEN (twf-1-application-foundation)
 ├── TWF-1.0 — REPOSITORY SCAFFOLD / ACCEPTED
 ├── TWF-1.1 — FRONTEND SHELL / ACCEPTED (twf-1.1-frontend-shell)
 ├── TWF-1.1A — THEME SWITCHING / ACCEPTED (twf-1.1a-theme-switching)
@@ -165,7 +174,7 @@ TWF-1 — APPLICATION FOUNDATION / IN_PROGRESS
 ├── TWF-1.4 — USER / LOGIN FOUNDATION / ACCEPTED AFTER BOUNDED FIXES (ba9bb8b)
 ├── Configuration reconciliation — REVIEWED v0.6 / GO_TWF1_5
 ├── TWF-1.5 — SETTINGS FOUNDATION / ACCEPTED / committed 664d4cf
-└── TWF-1.6 — SERVICE CLIENT FOUNDATION / IMPLEMENTED / pending independent review
+└── TWF-1.6 — SERVICE CLIENT FOUNDATION / ACCEPTED / committed e3852d3
 
 UX workstream (parallel to functional milestones)
 ├── UX-B1 — FOUNDATIONAL COMPLETE UX / PARTIAL
@@ -195,7 +204,9 @@ Implementation records:
   accepted and committed at `664d4cf`; its record retains historical pre-review evidence.
 - [TWF-1.6 Service Client Foundation](TWF_TWF1_6_SERVICE_CLIENT_FOUNDATION.md)
   — typed local/remote/synthetic health adapters, safe configuration/transport,
-  authenticated status and minimal UX-B1 panel; pending independent review.
+  authenticated status and minimal UX-B1 panel; accepted by commit `e3852d3`, part of
+  tagged TWF-1 closure. Its pre-review record remains historical. The current status
+  reconciliation and exact commit/tag evidence are recorded in the broker review.
 
 ---
 
@@ -212,7 +223,8 @@ TWF-1.5 Settings Foundation
 TWF-1.6 Service Client Foundation
 ```
 
-Later milestones remain separately gated.
+Later milestones remain separately gated. Next bounded target is BW-1 Synthetic
+Broker Read-Only Foundation under the [reviewed broker delivery plan](TWF_BROKER_WORKSPACE_ARCHITECTURE.md#34-bounded-delivery-and-acceptance-gates).
 
 ---
 

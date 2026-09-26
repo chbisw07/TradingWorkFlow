@@ -26,7 +26,7 @@ TradeMonitor
 Broker
 ```
 
-TM remains the authoritative governance/risk/execution-supervision layer.
+For TM-managed workflows/accounts, TM remains the authoritative governance/risk/execution-supervision layer. This contract does not make TM a prerequisite for the explicitly unmanaged manual path in [Broker Workspace v0.3](TWF_BROKER_WORKSPACE_ARCHITECTURE.md); section 28 defines coexistence.
 
 Broker remains execution truth.
 
@@ -44,7 +44,7 @@ Broker remains execution truth.
 - TWF audit of workflow actions;
 - service status presentation.
 
-## TM owns
+## TM owns (within TM-managed scope)
 
 - broker reconciliation;
 - position truth within TM semantics;
@@ -66,12 +66,12 @@ Broker remains execution truth.
 
 ## TWF must NOT
 
-- create independent risk truth;
-- mark a position owned without TM;
+- create competing TM risk truth;
+- mark a position TM-managed without TM;
 - silently adopt external positions;
 - mutate TM position state directly;
 - treat TI recommendations as TM approval;
-- duplicate broker reconciliation logic.
+- duplicate or override TM's managed-state reconciliation. Manual command recovery and read-only broker observations follow the separate Broker Workspace contract.
 
 ---
 
@@ -431,9 +431,7 @@ Eventually require:
 - secret isolation;
 - audit of authority-changing actions.
 
-Broker secrets remain inside TM/broker integration boundary.
-
-TWF should not receive raw broker credentials.
+For TM-managed connections, broker secrets remain inside TM/broker integration boundary. TWF receives an authorized connection reference, not TM's raw broker credentials. Separately configured manual connections use the server-side TWF broker adapter/vault boundary; they cannot become a fallback around TM.
 
 ---
 
@@ -590,7 +588,7 @@ A policy change is not necessarily an API schema change.
 2. TM remains risk/authority owner.
 3. Broker remains execution truth.
 4. TWF does not silently adopt positions.
-5. TWF does not duplicate broker reconciliation.
+5. TWF does not duplicate TM managed-state reconciliation; manual commands retain separate broker-truth recovery.
 6. Manual approval is mandatory initially.
 7. TI advice never equals TM authorization.
 8. Remote/local transport does not change semantics.
@@ -599,8 +597,16 @@ A policy change is not necessarily an API schema change.
 
 # 27. Configuration and UX Reconciliation
 
-The [configuration architecture](TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLEMENT_PLUGGABILITY_ARCHITECTURE.md) governs TWF configuration eligibility and applied revisions. A TWF broker profile references a TM-managed connection; it does not acquire broker credentials, alter TM risk policy, or authorize execution. Account administration, subscription upgrades and Work/Admin mode never imply TM authority.
+The [configuration architecture](TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLEMENT_PLUGGABILITY_ARCHITECTURE.md) governs TWF configuration eligibility and applied revisions. A TM-managed TWF broker profile references a TM-managed connection; it does not acquire TM's broker credentials, alter TM risk policy, or authorize execution. Manual BrokerAccount profiles follow the separate Broker Workspace contract. Account administration, subscription upgrades and Work/Admin mode never imply TM authority.
 
 Entitlement loss blocks new gated work but cannot abandon existing broker exposure, silently liquidate positions or cancel TM supervision. Define safety monitoring/handoff and fresh authority checks with the actual TM contract before live integration. WARM profile rollback cannot undo a broker-side action or resurrect revoked credentials.
 
 SyntheticTMService fixtures may show deterministic risk/adoption/approval/monitoring states for UX-B2, always marked synthetic and unable to contact live brokers. The [UX bucket plan](TWF_UX_BUCKET_ROADMAP.md) does not bypass the clean committed TM public-contract reconciliation gate in section 20.
+
+# 28. Manual Broker Workspace Coexistence — 2026-09-26
+
+[Broker Workspace v0.3](TWF_BROKER_WORKSPACE_ARCHITECTURE.md) section 18 makes Basic Execution Safety distinct from TM portfolio governance. Manual trades remain explicitly UNMANAGED; they do not acquire SL/target supervision, adoption or risk approval by being visible in TWF. TI and LLM advice never authorizes either path.
+
+The first TM integration must assign exclusive command ownership per broker account. Read-only views may coexist, but direct TWF submit/cancel/modify is blocked on a TM-managed account. A finer position/instrument partition is deferred until the public TM contract proves it safe. Transfer is explicit and durable, reconciles outstanding orders/unknown submissions, records an ownership revision and rejects late commands against an old revision. Unknown ownership blocks commands. TM downtime never enables manual fallback.
+
+No runtime TM API or transfer operation is claimed implemented by this reconciliation. Actual committed TM contracts, authority checks, entitlement-loss safety access and transfer/recovery tests remain prerequisites before the TM integration gate.

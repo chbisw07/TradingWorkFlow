@@ -45,9 +45,9 @@ The first miniature does not require autonomous trading, full multi-tenant billi
 Scanner  = discover / propose
 TI       = assess / explain / forecast / advise
 LLM      = reason / synthesize / interpret
-TM       = govern / authorize / supervise / reconcile
+TM       = govern / authorize / supervise / reconcile TM-managed workflows
 Broker   = execution truth
-TWF      = orchestrate / present / coordinate trader workflow
+TWF      = orchestrate / present / coordinate; bounded manual execution safety
 ```
 
 ## 6. System Context
@@ -156,7 +156,7 @@ Scanner contract, candidate stream/results, filters/sort, candidate-to-workspace
 Analysis request, IntelligenceResponse, claims, horizon, evidence, provenance, optional trade expression.
 
 ### TM
-Risk, authority, broker truth, adoption, execution supervision and monitoring.
+Managed-trade risk, authority, adoption, execution supervision and reconciliation of broker observations. The broker remains execution truth. Manual Broker Workspace is a separate, explicitly unmanaged path; see section 35.
 
 ### LLM
 One active primary LLM configuration behind a provider-neutral service.
@@ -399,7 +399,7 @@ The detailed roadmap owns milestone/target sequencing; the documentation index m
 
 ## 33. Current Decision
 
-TWF-0 passed its formal architecture gate; TWF-1.0 through TWF-1.4, including TWF-1.1A, are accepted. The [configuration reconciliation](TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md) now recommends `GO_TWF1_5` for a bounded Settings Foundation plan. TWF-1.5 remains not started; later service/trading milestones retain their own acceptance gates.
+TWF-0 and TWF-1 are accepted/frozen. Repository commit `e3852d3` accepts TWF-1.6, and the existing annotated tag `twf-1-application-foundation` targets that commit with message `TWF-1 Application Foundation accepted`. TWF-1.0–1.6, including TWF-1.1A, are accepted. The earlier [configuration review](TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md) remains a historical planning gate. The [Broker Workspace review](TWF_BROKER_WORKSPACE_ARCHITECTURE_REVIEW.md) reconciles stale status and recommends only the bounded BW-1 synthetic read-only target; it does not accept later runtime functionality.
 
 ## 34. Configuration and UX Reconciliation
 
@@ -407,4 +407,12 @@ This 2026-09-25 clarification extends the accepted TWF-0 product boundary. The [
 
 Capability registry/policy, entitlement, configuration/profile resolution, secret references, health and audit are logical backend responsibilities, not mandated microservices. Setup Center, ACS account administration and APS operations are distinct UX contexts. The master/component DOCX files remain TWF-0 reference snapshots; this clarification and the linked normative architectures govern subsequent configuration work.
 
-The [UX Bucket Roadmap](TWF_UX_BUCKET_ROADMAP.md) tracks foundational, operational and mature UX across the unchanged functional sequence. TWF-1.5 builds only the bounded personal settings foundation; TWF-1.6 supplies service-client foundations; TWF-2–6 grow the trader workflow. Later administration/subscription/IFL UX does not block early trading integration. Synthetic adapters accelerate UX while preserving Scanner/TI/TM/LLM contracts and authority boundaries.
+The [UX Bucket Roadmap](TWF_UX_BUCKET_ROADMAP.md) tracks foundational, operational and mature UX across the functional milestones, with current delivery priority in the Detailed Roadmap. TWF-1.5 builds only the bounded personal settings foundation; TWF-1.6 supplies service-client foundations; TWF-2–6 grow the trader workflow. Later administration/subscription/IFL UX does not block early trading integration. Synthetic adapters accelerate UX while preserving Scanner/TI/TM/LLM contracts and authority boundaries.
+
+## 35. Broker Workspace Reconciliation — 2026-09-26
+
+[Broker Workspace architecture v0.3](TWF_BROKER_WORKSPACE_ARCHITECTURE.md) extends the accepted product direction: isolated rooms for N configured broker accounts, a read-only Unified Broker Control Room, broker-native execution identity and TWF Basic Execution Safety. Scanner, TI and LLM are optional later layers. The service diagram and section 12 describe the full intelligence/TM workflow, not a prerequisite for broker read-only utility.
+
+The manual path is trader → TWF backend/BrokerClient → selected account adapter → broker, with explicit unmanaged status, authorization, revision-bound confirmation, durable command identity and recovery before any live submission. TM-managed accounts use trader → TWF → TM → broker; TWF never bypasses TM or falls back to direct execution. Initial TM coexistence is exclusive command ownership per broker account, with explicit reconciled handoff; read-only observations may coexist. Login, entitlement and broker authentication do not independently authorize a trade.
+
+Current priority is Broker Workspace → Basic Execution Safety → TM → Scanner → TI. [Detailed Roadmap section 18](TWF_DETAILED_ROADMAP.md#18-broker-workspace-delivery-overlay) governs the bounded gates without renumbering existing milestones or declaring all UX-B1 complete. Synthetic read-only contracts/UI come first; secrets, real orders, trading safety, provider verification and recovery each retain a separate gate.

@@ -2,11 +2,12 @@
 
 ## Status
 
-**Accepted TWF-0 functional sequence, reconciled on 2026-09-25 for configuration v0.6 and UX buckets.**
+**Accepted TWF-0 milestone identities; delivery priorities reconciled on 2026-09-26 for Broker Workspace v0.3.**
 
 TWF-1.0, 1.1, 1.1A, 1.2, 1.3, 1.4 and 1.5 are accepted; TWF-1.5 is committed at
-`664d4cf`. TWF-1.6 is implemented, pending independent review. Later functional
-targets remain pending. The
+`664d4cf`. TWF-1.6 is accepted at `e3852d3`; existing annotated tag
+`twf-1-application-foundation` at that commit records TWF-1 acceptance/freeze.
+Later functional targets remain pending. The
 [configuration review](TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md) records
 `GO_TWF1_5` for the bounded scope below. Architecture readiness is not implementation
 completion or a repository freeze.
@@ -16,6 +17,11 @@ completion or a repository freeze.
 Build a miniature TWF system that is complete end-to-end, then expand it incrementally. Optimize for architecture correctness, responsive UX, stable service boundaries, early usefulness, cloud/multi-user readiness, bounded milestones and clear acceptance criteria.
 
 ## 2. Major Sequence
+
+The following retains the original milestone identities and historical planning order.
+The current delivery overlay in [section 18](#18-broker-workspace-delivery-overlay)
+prioritizes broker operations before managed/intelligence workflows without renumbering
+TWF-3/4/5 or asserting that those integrations are implemented.
 
 ```text
 TWF-0  Product / Architecture Foundation
@@ -105,8 +111,8 @@ providers and dynamic plugin loading remain excluded.
 
 ### TWF-1.6 Service Client Foundation
 
-**Implemented; pending independent review.** See the
-[implementation record](TWF_TWF1_6_SERVICE_CLIENT_FOUNDATION.md) for bounded contracts,
+**Accepted and committed at `e3852d3`, within the tagged TWF-1 foundation.** See the
+historical [implementation record](TWF_TWF1_6_SERVICE_CLIENT_FOUNDATION.md) for bounded contracts,
 operator configuration, security boundaries and validation.
 
 Logical service descriptors, capability registration/identity, health/status and
@@ -124,7 +130,9 @@ User can log in, see the shell, persist workspace/settings and see configured se
 Panel system, navigation and selected-instrument context.
 
 ### TWF-2.2 Watchlists
-Create/edit/delete lists and select instruments.
+Prioritize broker-owned-context watchlists under BW-3; create/edit/delete TWF-owned
+lists with exact broker-native references. A future canonical/global watchlist is
+separate and deferred; it never selects a broker implicitly.
 
 ### TWF-2.3 Candidate Workspace
 Candidate summary, selected instrument and workflow context.
@@ -137,6 +145,8 @@ Panel/layout preferences and defaults.
 
 ### Acceptance
 Trader can navigate a responsive workspace, manage watchlists, select a candidate and use the base console.
+Broker rooms and synthetic read-only observations can arrive through BW-1 before the
+full TWF-2 scope closes; no placeholder tab counts as an implemented feature.
 
 ## 6. TWF-3 — Scanner Integration
 
@@ -213,7 +223,8 @@ Workflow closure, final state and audit history.
 Synthetic/local scanner → TI → TM → monitored/closed scenarios.
 
 ### Acceptance
-One coherent trading workflow works end-to-end. This is the first major product milestone.
+One coherent intelligence/TM trading workflow works end-to-end. Broker manual workflow
+value may arrive earlier under BW gates; it does not satisfy this managed-workflow acceptance.
 
 ## 10. TWF-7 — Realtime / Notifications
 
@@ -246,7 +257,7 @@ The [UX Bucket Roadmap](TWF_UX_BUCKET_ROADMAP.md) defines an additional maturity
 | Bucket | Milestone mapping | Dependency rule |
 |---|---|---|
 | UX-B1 Foundational Complete UX | TWF-1.x plus workspace/console foundations in TWF-2 | Partial today; synthetic/local UX does not require live services or admin backend |
-| UX-B2 Operationally Useful Trading UX | TWF-2/3/4/5, end-to-end acceptance in TWF-6 and realtime refinement in TWF-7 | Layout/content evolve with real contracts; preserve source and authority semantics |
+| UX-B2 Operationally Useful Trading UX | Broker Workspace BW-1–6 across TWF-2/6 first; TM (TWF-5), then Scanner (TWF-3), TI (TWF-4); realtime refinement in TWF-7 | Separate manual broker submission from TM-managed authority; each slice has acceptance gates |
 | UX-B3 Architecture-Complete UX | Progressive administration/subscriptions, IFL and operations in TWF-8/9/10 | Individual features advance when justified; the whole bucket never blocks core integrations |
 
 Configuration checkpoint before TWF-1.5: reviewed v0.6 separates realms, scopes,
@@ -265,8 +276,47 @@ Use ChatGPT web for architecture, planning, docs, reviews, acceptance reasoning 
 
 ## 17. Current Next Work
 
-TWF-0 is accepted/frozen; TWF-1.4 was accepted after bounded fixes and committed at
-`ba9bb8b`. TWF-1.5 was accepted and committed at `664d4cf`. The bounded
-[TWF-1.6 implementation](TWF_TWF1_6_SERVICE_CLIENT_FOUNDATION.md) awaits independent
-acceptance review before freeze. No whole-TWF-1 or UX bucket acceptance is asserted;
-UX-B1 remains partial and UX-B2/B3 remain planned. TWF-2 remains separately gated.
+TWF-0 and TWF-1 are accepted/frozen from repository commit/tag evidence recorded in
+the [Broker Workspace review](TWF_BROKER_WORKSPACE_ARCHITECTURE_REVIEW.md).
+TWF-1.4 `ba9bb8b`, TWF-1.5 `664d4cf` and TWF-1.6 `e3852d3` keep their histories.
+UX-B1 remains partial; UX-B2/B3 remain planned. Next target: BW-1 below.
+
+## 18. Broker Workspace Delivery Overlay
+
+[Broker Workspace v0.3](TWF_BROKER_WORKSPACE_ARCHITECTURE.md#34-bounded-delivery-and-acceptance-gates)
+is the sole detailed scope/gate definition. Delivery priority is:
+
+```text
+Broker contracts + Synthetic Broker read-only rooms (BW-1)
+→ one real broker read-only + native catalog/search (BW-2)
+→ broker watchlists + draft/preview (BW-3)
+→ durable synthetic command recovery + Basic Execution Safety (BW-4)
+→ controlled live manual orders, separately approved (BW-5)
+→ second real broker neutrality proof (BW-6)
+→ TM integration (existing TWF-5, committed public-contract gate)
+→ Scanner integration (existing TWF-3)
+→ TI + active LLM integration (existing TWF-4)
+→ full managed/intelligence workflow acceptance (existing TWF-6)
+```
+
+BW labels subdivide work across TWF-2 workspace and TWF-6 execution foundations;
+they are not a new competing milestone series or a claim that TWF-6 is complete.
+TWF-2.3 candidate and TWF-6.1–6.5 managed/intelligence targets retain their scope
+and run when their contracts are ready. TWF-2.4 console and UX-B1 closure remain
+separate outstanding work. Existing TWF-7–10 retain their meanings; specific durable
+reconciliation, secret, ownership and recovery prerequisites must move forward to
+the live gate that needs them rather than waiting for generic production hardening.
+
+BW-1 scope: typed broker query contracts, three owned synthetic fixture accounts
+across two providers, authenticated room/overview, read-only Dashboard/Holdings/
+Positions/Orders/Funds, deterministic source/freshness/failure scenarios, same UI
+semantics and negative ownership tests. No real broker, credential/OAuth flow,
+shared ACS account, live/draft command endpoint, catalog import, watchlist CRUD,
+persistence rollout or streaming platform. Exact acceptance is section 34.1 of the
+broker architecture. This review recommends implementation; it delivers no runtime.
+
+Basic Execution Safety protects manual submission; TM retains managed-trade
+governance and exclusive command ownership at the later TM gate. No convenience
+fallback bypasses TM. A live activation requires its own bounded prompt and
+independent acceptance. Global watchlists, advanced provider administration and
+commercial quotas remain later scope, not dependencies of BW-1.

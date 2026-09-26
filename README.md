@@ -24,7 +24,7 @@ TWF-0 — Product / Architecture Foundation                 ✅ ACCEPTED / FROZE
 
                          ↓
 
-TWF-1 — Application Foundation                            ▶ IN_PROGRESS
+TWF-1 — Application Foundation                            ✅ ACCEPTED / FROZEN
 │
 ├── TWF-1.0 Repository Scaffold                           ✅ accepted
 ├── TWF-1.1 Frontend Shell                                ✅ accepted
@@ -34,7 +34,7 @@ TWF-1 — Application Foundation                            ▶ IN_PROGRESS
 ├── TWF-1.4 User / Login Foundation                      ✅ accepted (ba9bb8b)
 ├── Configuration architecture reconciliation             ✅ reviewed v0.6 / GO_TWF1_5
 ├── TWF-1.5 Settings Foundation                           ✅ accepted (664d4cf)
-└── TWF-1.6 Service Client Foundation                     IMPLEMENTED / pending independent review
+└── TWF-1.6 Service Client Foundation                     ✅ accepted (e3852d3)
 
 UX maturity — parallel workstream
 ├── UX-B1 Foundational Complete UX                        PARTIAL (TWF-1.x / TWF-2)
@@ -53,13 +53,22 @@ Later functional milestones — separately gated
 └── TWF-10 Production Hardening
 ```
 
-**Current state:** TWF-0 architecture has passed its formal pre-coding review with `GO_TWF1`. TWF-1 is authorized only for the bounded application foundation. Real TI/TM/broker integration and later workflow capabilities remain separately gated.
+**Current state:** TWF-0 and TWF-1 are accepted/frozen. TWF-1 closure is recorded by
+the existing annotated tag `twf-1-application-foundation` at `e3852d3`, whose message
+is “TWF-1 Application Foundation accepted.” The
+[Broker Workspace review](docs/TWF_BROKER_WORKSPACE_ARCHITECTURE_REVIEW.md) reconciles
+the previously stale status pages against this repository evidence. This does not
+close UX-B1 or accept any broker runtime. Next bounded target: BW-1 Synthetic Broker
+Read-Only Foundation under [Broker Workspace v0.3](docs/TWF_BROKER_WORKSPACE_ARCHITECTURE.md#341-first-implementation-target-bw-1).
+Broker Workspace → Basic Execution Safety → TM → Scanner → TI is the reviewed
+delivery priority; existing TWF milestone numbers retain their original meanings.
+Real providers and live commands have separate gates.
 
 ### Current Implementation Status
 
 ```text
 TWF-0 Architecture Foundation       ✅ accepted/frozen
-TWF-1 Application Foundation        IN_PROGRESS
+TWF-1 Application Foundation        ✅ accepted/frozen (twf-1-application-foundation)
 ├── TWF-1.0 Repository Scaffold     ✅ accepted
 ├── TWF-1.1 Frontend Shell          ✅ accepted
 ├── TWF-1.1A Theme Switching        ✅ accepted
@@ -67,7 +76,7 @@ TWF-1 Application Foundation        IN_PROGRESS
 ├── TWF-1.3 Database Foundation    ✅ accepted
 ├── TWF-1.4 User / Login Foundation ✅ accepted after bounded fixes / committed ba9bb8b
 ├── TWF-1.5 Settings Foundation     ✅ accepted (664d4cf)
-└── TWF-1.6 Service Client Foundation IMPLEMENTED / pending independent review
+└── TWF-1.6 Service Client Foundation ✅ accepted (e3852d3)
 ```
 
 The application contains a responsive Next.js trading shell, FastAPI health/status endpoints,
@@ -101,10 +110,11 @@ validated profiles, explicit apply/reset, revision checks and change metadata.
 Theme remains device-local. APS/ACS administration, subscriptions and live integrations
 remain deferred. Its implementation record preserves historical pre-review evidence.
 [TWF-1.6 Service Client Foundation](docs/TWF_TWF1_6_SERVICE_CLIENT_FOUNDATION.md) is
-implemented and pending independent review: typed local/remote/synthetic adapters,
+accepted and committed at `e3852d3`: typed local/remote/synthetic adapters,
 operator-configured service status, bounded transport, safe errors and a minimal
 authenticated status panel. Defaults contain no services; no real integrations or
-new persistence were introduced. No new freeze tag is asserted.
+new persistence were introduced. Its implementation record preserves the historical
+pre-review evidence; the existing TWF-1 tag records the later accepted foundation.
 The [UX bucket roadmap](docs/TWF_UX_BUCKET_ROADMAP.md) tracks partial UX-B1 and planned
 UX-B2/B3 alongside functional milestones; mature administration does not block core
 trading integration.
@@ -220,6 +230,12 @@ Then review the specialist architecture documents as needed.
 - [TWF_DEPLOYMENT_ARCHITECTURE.md](docs/TWF_DEPLOYMENT_ARCHITECTURE.md)
 - `docs/TWF_DEPLOYMENT_ARCHITECTURE.docx`
 
+### Broker Workspace
+
+- [Broker Workspace Architecture v0.3](docs/TWF_BROKER_WORKSPACE_ARCHITECTURE.md) — sole normative broker design; reviewed, not Git-frozen
+- [Broker Workspace Architecture Review](docs/TWF_BROKER_WORKSPACE_ARCHITECTURE_REVIEW.md) — findings, status reconciliation, delivery gates and acceptance matrix
+- `docs/TWF_BROKER_WORKSPACE_ARCHITECTURE.docx` — synchronized v0.3 presentation companion
+
 ### Service / Integration
 
 - [TWF_SERVICE_CONTRACT_ARCHITECTURE.md](docs/TWF_SERVICE_CONTRACT_ARCHITECTURE.md)
@@ -260,31 +276,17 @@ DOCX
 Where both exist, Markdown is normative unless a later decision explicitly states
 otherwise. DOCX files remain reference snapshots: the supplied configuration DOCX is
 v0.5, while its Markdown is now v0.6; other architecture DOCX companions retain their
-TWF-0 content. See the [index](docs/TWF_DOCUMENTATION_INDEX.md) for current authority.
+TWF-0 content; the broker Markdown and DOCX are synchronized at v0.3. Broker
+architecture updates must keep both formats in sync, with Markdown normative. See the [index](docs/TWF_DOCUMENTATION_INDEX.md) for current authority.
 
 ---
 
 ## Current Project Phase
 
-TWF is transitioning from:
-
-```text
-TWF-0 Architecture Foundation
-```
-
-to:
-
-```text
-TWF-1 Application Foundation
-```
-
-The accepted gate outcome is:
-
-```text
-GO_TWF1
-```
-
-The accepted TWF-0 baseline is tagged `twf-0-architecture-baseline`.
+TWF-0 is tagged `twf-0-architecture-baseline`; TWF-1 is tagged
+`twf-1-application-foundation`. The next bounded target is BW-1 under TWF-2
+workspace foundations. `GO_BROKER_WORKSPACE` accepts the reconciled design and
+synthetic-first plan; no Broker Workspace runtime has been delivered or frozen.
 
 ---
 

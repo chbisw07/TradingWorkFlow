@@ -2,7 +2,7 @@
 
 ## Status and purpose
 
-**Normative cross-cutting UX plan, version 0.1, reviewed on 2026-09-25.**
+**Normative cross-cutting UX plan, version 0.2, reconciled on 2026-09-26.**
 
 UX-B1, UX-B2 and UX-B3 track the completeness of the user experience across
 functional milestones. They preserve the accepted trading application design
@@ -21,7 +21,7 @@ govern workspace semantics, visual quality and recomposition. The
 
 | Track | Current evidence | Remaining work |
 |---|---|---|
-| UX-B1 | Partial: accepted shell, themes, login and TWF-1.5 settings; TWF-1.6 status awaits review | Broader Setup, console behavior and bucket acceptance |
+| UX-B1 | Partial: accepted shell, themes, login and TWF-1.5 settings; accepted TWF-1.6 status | Broader Setup, console behavior and bucket acceptance |
 | UX-B2 | Planned; shell containers provide readiness only | Operational settings and trader workflows as TWF-2–7 mature |
 | UX-B3 | Planned architecture hooks | Mature APS/ACS administration, subscriptions, diagnostics, IFL and operations |
 
@@ -29,7 +29,8 @@ TWF-1.5 is **accepted and committed at `664d4cf`**; see its historical
 [implementation record](TWF_TWF1_5_SETTINGS_FOUNDATION.md). Its personal Settings and
 profile surface advances partial UX-B1. The
 [TWF-1.6 foundation](TWF_TWF1_6_SERVICE_CLIENT_FOUNDATION.md) adds on-demand configured
-service status and explicitly labeled synthetic fixtures, pending independent review.
+service status and explicitly labeled synthetic fixtures, accepted at `e3852d3`.
+The existing `twf-1-application-foundation` tag closes TWF-1, not the whole UX bucket.
 No bucket is declared complete by this work.
 The existing WebKit host/runtime limitation remains an explicit verification gap;
 Chromium evidence does not establish Safari compatibility.
@@ -135,13 +136,15 @@ one or to block synthetic core workflows.
    reset and activation enforce concurrency checks and preserve unsaved work.
 4. Secret UX shows ownership and configured/expired/revoked state without reading
    raw credentials. Authorized connection tests return bounded, sanitized results.
-   Broker connection configuration respects TM's secret/authority boundary.
+   Broker connection configuration respects the manual adapter secret boundary and
+   the separate TM-managed authority path in [Broker Workspace v0.3](TWF_BROKER_WORKSPACE_ARCHITECTURE.md#183-manual-execution-and-managed-execution).
 5. Scanner/TI/TM surfaces preserve timestamps, provenance, stale/denied/incompatible
    and degraded states. Retry, reconnect and cancellation have honest outcomes;
    remote failure cannot freeze navigation or silently change provider identity.
 6. Notifications and history expose relevant action/result/correlation. Entitlement
    loss makes retained profiles inactive and prevents new gated work, while existing
-   broker exposure follows the separately accepted TM safety policy.
+   broker exposure follows the active command owner's separately accepted safety
+   policy; manual unmanaged orders are not presumed to have TM supervision.
 7. Applicable UX-B1 accessibility, themes, responsive and browser gates continue to
    pass with realistic dense tables and long results. Selection and authority meaning
    survive panel rearrangement and mobile/tablet recomposition.
@@ -152,6 +155,29 @@ one or to block synthetic core workflows.
 Layouts, field details, table columns and workflow steps may evolve with TWF-3/4/5
 contracts. Preserve design tokens, panel responsibilities, semantics and source
 identity; do not freeze trading details ahead of those contracts.
+
+### Broker Workspace contribution
+
+[Broker Workspace v0.3](TWF_BROKER_WORKSPACE_ARCHITECTURE.md) is a major UX-B2 workstream.
+BW-1 synthetic read-only rooms precede one real broker, native search/watchlists,
+draft/preview, synthetic recovery and separately gated live manual execution.
+Broker Watchlists belong to explicit account rooms; the future canonical Global
+Watchlist remains separate. Real provider cards expose deployed/eligible/configured/
+enabled/auth/read/command status without pretending that connection grants trade rights.
+
+Keep provider, account alias/masked reference and LIVE/SYNTHETIC/SANDBOX mode obvious
+on every room/action. Overview reads/aggregates/navigates only, never routes an order.
+Render source/as-of, stale/partial/unmapped contributions, unsupported capability,
+pending commands and unknown submission without claiming success. Order previews
+bind an exact account/instrument/revision and expire on context change. Manual
+execution remains unmanaged; a TM-managed room disables competing direct commands.
+
+Use existing themes, accessible tables/announcements and six-width recomposition.
+Test actual account context after room switches, error recovery, keyboard operation
+and request races. BW-1 does not implement later command interactions; each gate
+must add evidence for its own UX. Provider neutrality needs a second adapter proof,
+not a second provider logo. Advanced operations, bulk administration and commercial
+broker quota diagnostics contribute to UX-B3 later; they do not block BW-1.
 
 ## UX-B3 Architecture-Complete UX
 
@@ -200,11 +226,11 @@ all UX-B3 work is never a prerequisite for TWF-3/4/5 integration.
 | Architecture reconciliation | Configuration v0.6 and this plan | Design checkpoint before TWF-1.5, no runtime delivery |
 | TWF-1.5 | Personal settings, Setup/profile foundation; advances UX-B1 | Finite bounded contract; no full SaaS administration |
 | TWF-1.6 | Capability/client/status and synthetic foundations; advances UX-B1 | Payload detail stays with each integration target |
-| TWF-2 | Workspace, watchlists and TWF-2.4 console; closes remaining UX-B1 and starts UX-B2 | Does not wait for UX-B3 or full account portal |
+| TWF-2 | Broker BW-1–3 workspace/watchlist progression plus TWF-2.4 console; partial UX-B1 closure and UX-B2 | Synthetic first; real broker and persistent mutations have separate gates |
 | TWF-3 | Scanner/candidate UX-B2 | Scanner contract and provenance |
 | TWF-4 | TI/active LLM/profile UX-B2 | Typed intelligence and provider/secret boundary |
 | TWF-5 | TM risk/authority/monitoring UX-B2 | Committed TM contract gate; manual approval and broker truth |
-| TWF-6 | End-to-end workflow/history UX-B2 acceptance | Synthetic/local miniature first; live actions separately gated |
+| TWF-6 | BW-4/5 command safety/recovery ahead of full intelligence/TM workflow acceptance | Synthetic recovery first; controlled live manual orders do not imply managed workflow or UX-B2 completion |
 | TWF-7 | Realtime, notification and stale/reconnect UX-B2 | Authenticated topics and revocation/freshness policy |
 | TWF-8 | IFL/history/performance portions of UX-B3 | Preserve external scientific and execution ownership |
 | TWF-9 | Tenant/admin/subscription/support portions of UX-B3 | Ownership/realm controls before shared exposure, even if needed earlier |
@@ -219,7 +245,8 @@ target update and acceptance evidence, not silent expansion of TWF-1.5.
 ## Synthetic contract strategy
 
 Use SyntheticScannerService, SyntheticTIService, SyntheticTMService and
-SyntheticLLMService behind the same versioned logical interfaces as future real
+SyntheticLLMService, plus the staged SyntheticBroker defined in broker v0.3,
+behind the same versioned logical interfaces as future real
 adapters. Keep deterministic fixtures for success, empty, timeout, error, stale,
 denied, incompatible and degraded cases, with fixed identifiers/time inputs and
 explicit synthetic provenance. Isolate fixture data, credentials and network access.
@@ -240,6 +267,7 @@ backend capability.
 
 This document does not implement settings, administration, billing, integrations,
 plugin loading, charting, docking, realtime, broker actions or IFL. It introduces no
-dependency, framework, deployment service or new freeze requirement. The
-[reconciliation review](TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md) records the
-architecture readiness recommendation for the next bounded target.
+dependency, framework, deployment service or new freeze requirement. The historical
+[configuration review](TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md) records the
+TWF-1.5 planning gate; the current [Broker Workspace review](TWF_BROKER_WORKSPACE_ARCHITECTURE_REVIEW.md)
+records the next bounded BW-1 recommendation.

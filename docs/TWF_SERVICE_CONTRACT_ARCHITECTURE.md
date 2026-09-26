@@ -1,7 +1,7 @@
 # TradingWorkFlow (TWF) — Service Contract Architecture
 
 ## Status
-**TWF-0 accepted service-contract baseline, with configuration clarification dated 2026-09-25**
+**TWF-0 accepted service-contract baseline, with configuration clarification dated 2026-09-25 and Broker Workspace clarification dated 2026-09-26**
 
 ## 1. Purpose
 Define how TWF consumes scanner, TI, TM, LLM, broker-facing, notification, and future services through stable logical contracts while remaining independent of physical deployment.
@@ -20,7 +20,7 @@ Initial service families:
 - TMService
 - LLMService
 - NotificationService
-- future BrokerMetadataService where needed
+- BrokerClient for the separately versioned Broker Workspace contract
 - future IFLService
 
 A service family represents semantics, not transport.
@@ -194,7 +194,7 @@ TWF consumes typed IntelligenceResponse including:
 TI advice is not execution authority.
 
 ## 17. TM Contract Boundary
-TM owns:
+For TM-managed workflows/accounts, TM owns:
 - risk
 - authority
 - broker reconciliation
@@ -202,7 +202,7 @@ TM owns:
 - execution supervision
 - monitoring
 
-TWF presents and orchestrates but does not duplicate TM authority.
+TWF presents and orchestrates but does not duplicate TM authority. Direct manual Broker Workspace commands apply only to explicitly unmanaged accounts under the separate contract in section 25. Read-only broker observations do not grant command ownership.
 
 ## 18. LLM Contract Boundary
 LLM is consumed through provider-neutral logical service.
@@ -266,3 +266,11 @@ The [configuration architecture v0.6](TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLE
 Before use, resolve an authorized profile revision and secret reference under the caller's account/user context. Contract requests preserve correlation, actual producer identity and relevant configuration revisions without secret values. Changing providers or restoring an entitlement requires revalidation; retries cannot silently switch producer. Running-work behavior on revocation must follow the operation's safety contract, especially TM-governed exposure.
 
 SyntheticScannerService, SyntheticTIService, SyntheticTMService and SyntheticLLMService are explicit test/development adapters behind the same versioned logical contracts as real adapters. Deterministic fixtures cover success, empty, failure, timeout, stale, denied, incompatible and degraded states; preserve source/as-of/correlation/provenance and mark synthetic mode. They never contact live brokers or grant real authority. Real TM contracts still require committed public-surface reconciliation before integration freeze.
+
+## 25. Broker Workspace Contract Clarification — 2026-09-26
+
+[Broker Workspace v0.3](TWF_BROKER_WORKSPACE_ARCHITECTURE.md) governs BrokerClient, typed provider capabilities, account-scoped observations/commands and the adapter registry. Application/UI code consumes these contracts, never vendor SDK types. Synthetic adapters must use the same contract and visibly synthetic provenance. Provider/account identity, dataset timestamps, completeness, configuration/contract revisions and safe correlation survive normalization; provider details are sanitized and typed.
+
+TWF-1.6 actually implements `foundation.health.v1` for SCANNER, TI, TM and LLM only. Its process-scoped descriptors, health timeout/failure model and 16-descriptor bound are not a BrokerAccount registry, broker quota or trading contract. Preserve that accepted surface. Introduce separately versioned broker contracts under the same layering principles; reuse safe transport/correlation mechanisms only where semantics match.
+
+Read failures are distinct from uncertain command outcomes: a timeout after possible dispatch means `SUBMISSION_UNKNOWN`, not a retryable rejection. Durable request identity, exact confirmed payload, fenced dispatch, scoped broker IDs and restart reconciliation are mandatory before live commands. Provider client tags alone do not promise idempotency. Contract-level tests cover two synthetic providers and multiple accounts before a real provider; no real provider support is asserted by this architecture.
