@@ -138,7 +138,7 @@ def test_zerodha_registration_is_truthful_and_no_connect_routes(client: TestClie
     assert "/api/v1/broker-providers" in paths
     assert "/api/v1/broker-accounts" in paths
     assert not any(
-        path.startswith("/api/v1/broker-")
+        path.startswith("/api/v1/broker-accounts")
         and any(word in path for word in ("connect", "callback", "token", "logout"))
         for path in paths
     )

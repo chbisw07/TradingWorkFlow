@@ -3,7 +3,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 from secrets import token_urlsafe
-from typing import Protocol
+from typing import Literal, Protocol
 from uuid import UUID
 
 from twf.config.settings import Settings
@@ -39,9 +39,11 @@ class SecretScope:
     broker_account_id: UUID
     environment: str
     connection_generation: int
+    purpose: Literal["access", "configuration", "pending"] = "access"
+    context: str = ""
 
     def __post_init__(self) -> None:
-        if self.connection_generation < 1:
+        if self.connection_generation < (0 if self.purpose == "configuration" else 1):
             raise ValueError("Secret scope requires a positive target generation")
 
 

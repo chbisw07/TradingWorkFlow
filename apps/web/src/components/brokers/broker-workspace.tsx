@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { RealBrokers } from "./real-brokers";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   brokerViews,
@@ -347,7 +348,11 @@ function OverviewView({ data }: { data: Overview }) {
           )}
         </span>
       </div>
-      <p className="broker-lead">Three separate rooms. One analytical view.</p>
+      <p className="broker-lead">
+        Your broker connections and separate account rooms.
+      </p>
+      <RealBrokers />
+      <h2>Development / Synthetic</h2>
       <div className="broker-cards">
         {data.accounts.map((item) => (
           <section key={item.account.broker_account_id} className="broker-card">
@@ -530,6 +535,10 @@ export function BrokerWorkspace({
         <Link href="/brokers" aria-current={!accountId ? "page" : undefined}>
           Overview
         </Link>
+        <Link href="/brokers#real-brokers">
+          Zerodha<small>LIVE · READ ONLY</small>
+        </Link>
+        <p className="eyebrow">DEVELOPMENT / SYNTHETIC</p>
         {result.overview.accounts.map(({ account }) => (
           <Link
             key={account.broker_account_id}

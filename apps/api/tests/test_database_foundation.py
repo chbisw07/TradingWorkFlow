@@ -229,6 +229,9 @@ def test_migration_history_and_metadata() -> None:
         "preference_changes",
         "broker_provider_configurations",
         "broker_accounts",
+        "broker_auth_attempts",
+        "broker_auth_configurations",
+        "broker_secret_lifecycle",
         "broker_connections",
         "broker_audit_events",
     }
@@ -240,29 +243,32 @@ def test_migration_history_and_metadata() -> None:
     try:
         with db.connect() as connection:
             assert (
-                MigrationContext.configure(connection).get_current_revision()
-                == "0004_broker_foundation"
+                MigrationContext.configure(connection).get_current_revision() == "0005_broker_auth"
             )
-            assert inspect(connection).get_table_names() == [
-                "alembic_version",
-                "auth_sessions",
-                "broker_accounts",
-                "broker_audit_events",
-                "broker_connections",
-                "broker_provider_configurations",
-                "preference_changes",
-                "preference_profiles",
-                "user_preferences",
-                "users",
-            ]
+            assert inspect(connection).get_table_names() == sorted(
+                [
+                    "alembic_version",
+                    "auth_sessions",
+                    "broker_accounts",
+                    "broker_audit_events",
+                    "broker_auth_attempts",
+                    "broker_auth_configurations",
+                    "broker_connections",
+                    "broker_provider_configurations",
+                    "broker_secret_lifecycle",
+                    "preference_changes",
+                    "preference_profiles",
+                    "user_preferences",
+                    "users",
+                ]
+            )
         command.downgrade(config, "base")
         with db.connect() as connection:
             assert MigrationContext.configure(connection).get_current_revision() is None
         command.upgrade(config, "head")
         with db.connect() as connection:
             assert (
-                MigrationContext.configure(connection).get_current_revision()
-                == "0004_broker_foundation"
+                MigrationContext.configure(connection).get_current_revision() == "0005_broker_auth"
             )
     finally:
         db.dispose()

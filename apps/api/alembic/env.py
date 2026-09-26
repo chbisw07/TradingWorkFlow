@@ -3,7 +3,7 @@
 from alembic import context
 
 from twf.config.settings import Settings
-from twf.infrastructure import broker_foundation, identity, preferences  # noqa: F401
+from twf.infrastructure import broker_auth, broker_foundation, identity, preferences  # noqa: F401
 from twf.infrastructure.database import Base, create_database_engine
 
 settings = Settings()

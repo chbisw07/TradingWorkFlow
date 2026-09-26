@@ -16,7 +16,13 @@ function api(data: Overview) {
     .fn()
     .mockImplementation((url: string) =>
       Promise.resolve(
-        Response.json(url.endsWith("overview") ? data : data.accounts[0]),
+        Response.json(
+          url.includes("broker-auth")
+            ? []
+            : url.endsWith("overview")
+              ? data
+              : data.accounts[0],
+        ),
       ),
     );
   vi.stubGlobal("fetch", fetcher);

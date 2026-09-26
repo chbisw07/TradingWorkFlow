@@ -96,7 +96,7 @@ class ProviderStatus(Contract):
     capabilities: ProviderCapabilities
     supported: Literal[True] = True
     configured: bool
-    connectable: Literal[False] = False
+    connectable: bool = False
     trading_enabled: Literal[False] = False
 
 
@@ -122,11 +122,20 @@ class BrokerAccountView(Contract):
     configured: bool
     configuration_revision: int
     connection_generation: int
-    authentication_state: Literal["NOT_CONFIGURED", "DISCONNECTED", "AUTHENTICATING"]
+    authentication_state: Literal[
+        "NOT_CONFIGURED",
+        "DISCONNECTED",
+        "AUTHENTICATING",
+        "AUTH_REQUIRED",
+        "AUTH_IN_PROGRESS",
+        "CONNECTED",
+        "REAUTH_REQUIRED",
+        "ERROR",
+    ]
     read_health: Literal["UNKNOWN", "AVAILABLE", "DEGRADED", "UNAVAILABLE"]
     last_successful_read_at: AwareDatetime | None
     last_failure_at: AwareDatetime | None
-    connectable: Literal[False] = False
+    connectable: bool = False
     trading_enabled: Literal[False] = False
     created_at: datetime
     updated_at: datetime

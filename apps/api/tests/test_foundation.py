@@ -69,6 +69,9 @@ def test_database_boundary() -> None:
             "preference_changes",
             "broker_provider_configurations",
             "broker_accounts",
+            "broker_auth_attempts",
+            "broker_auth_configurations",
+            "broker_secret_lifecycle",
             "broker_connections",
             "broker_audit_events",
         }

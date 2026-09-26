@@ -11,6 +11,7 @@ from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 
 from twf.api.auth import router as auth_router
+from twf.api.broker_auth import router as broker_auth_router
 from twf.api.broker_foundation import router as broker_foundation_router
 from twf.api.brokers import router as brokers_router
 from twf.api.errors import http_error, unexpected_error, validation_error
@@ -20,6 +21,7 @@ from twf.api.routes import create_router
 from twf.api.services import router as services_router
 from twf.brokers.foundation_contracts import PersonalBrokerPermissionPolicy
 from twf.brokers.service import BrokerService
+from twf.brokers.zerodha_auth import AuthProvider, KiteAuthClient
 from twf.config.settings import Settings
 from twf.infrastructure.database import create_database_engine, create_session_factory
 from twf.integrations.registry import ServiceRegistry
@@ -38,6 +40,7 @@ def create_app(
     service_registry: ServiceRegistry | None = None,
     broker_service: BrokerService | None = None,
     secret_store: SecretStore | None = None,
+    broker_auth_provider: AuthProvider | None = None,
 ) -> FastAPI:
     """Construct an isolated application without opening database connections."""
     settings = settings if settings is not None else Settings()
@@ -86,6 +89,7 @@ def create_app(
     app.state.broker_service = broker_service if broker_service is not None else BrokerService()
     app.state.broker_permission_policy = PersonalBrokerPermissionPolicy()
     app.state.secret_store = selected_secret_store
+    app.state.broker_auth_provider = broker_auth_provider or KiteAuthClient()
     app.state.login_limit = LoginLimit()
     app.state.settings = settings
     app.state.service_registry = service_registry or ServiceRegistry(
@@ -104,5 +108,6 @@ def create_app(
     app.include_router(services_router)
     app.include_router(brokers_router)
     app.include_router(broker_foundation_router)
+    app.include_router(broker_auth_router)
     app.add_exception_handler(SettingsFailure, settings_error)
     return app

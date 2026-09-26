@@ -270,3 +270,80 @@
     text-align: center;
   }
 }
+
+.broker-real {
+  margin: var(--space-4) 0 var(--space-6);
+  padding: var(--space-4);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  scroll-margin-top: var(--space-5);
+}
+.broker-real-card {
+  border-top: 1px solid var(--border);
+  padding: var(--space-4) 0;
+}
+.broker-real h2,
+.broker-real h3 {
+  margin: 0;
+}
+.broker-real details summary {
+  cursor: pointer;
+  min-height: 44px;
+  padding: var(--space-3) 0;
+}
+.broker-safety-label {
+  color: var(--status-stale);
+  font: var(--text-sm) var(--font-mono);
+}
+.broker-credential-form,
+.broker-add-account {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+}
+.broker-real label {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.broker-real input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: var(--space-3);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.broker-connection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
+}
+.broker-real button {
+  min-height: 44px;
+}
+.broker-real button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.broker-callback {
+  max-width: 45rem;
+  margin: var(--space-6) auto;
+  padding: var(--space-5);
+}
+@media (min-width: 768px) {
+  .broker-credential-form {
+    grid-template-columns: 1fr 1fr;
+  }
+  .broker-credential-form p {
+    grid-column: 1 / -1;
+  }
+  .broker-add-account {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+  }
+}

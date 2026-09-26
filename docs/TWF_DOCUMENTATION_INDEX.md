@@ -14,7 +14,7 @@ TWF-1.5 ACCEPTED / committed 664d4cf
 TWF-1.6 ACCEPTED / committed e3852d3
 TWF-1 ACCEPTED / FROZEN (twf-1-application-foundation)
 Broker Workspace Architecture v0.3 REVIEWED / ACCEPTED / TAGGED (twf-broker-workspace-architecture-v0.3)
-BW-1 Synthetic Broker Read-Only Foundation ACCEPTED / FROZEN (twf-bw1-synthetic-broker-readonly); BW-2.1 secure provider/account foundation IMPLEMENTED / PENDING REVIEW; BW-3–BW-6 PENDING
+BW-1 Synthetic Broker Read-Only Foundation ACCEPTED / FROZEN (twf-bw1-synthetic-broker-readonly); BW-2.1 secure provider/account foundation ACCEPTED / FROZEN; BW-2.2 authentication IMPLEMENTED / PENDING REVIEW; BW-3–BW-6 PENDING
 ```
 
 ---
@@ -90,7 +90,8 @@ Companions are not synchronized v0.6 deliverables.
 - `TWF_BROKER_WORKSPACE_ARCHITECTURE.docx` — synchronized v0.3 presentation companion
 - [Broker Workspace Architecture Review](TWF_BROKER_WORKSPACE_ARCHITECTURE_REVIEW.md) — evidence, findings, reconciliation, gap timing and implementation gates; no competing design
 - [BW-2 Zerodha Read-Only Planning and Design Gate](TWF_BW2_ONE_REAL_BROKER_READ_ONLY_PLAN.md) — v0.2 provider-specific gate resolution; real activation remains separately gated
-- [BW-2.1 Secure Provider / Account Foundation](TWF_BW2_1_SECURE_PROVIDER_ACCOUNT_FOUNDATION.md) — bounded runtime foundation implemented; pending independent review; no real connectivity
+- [BW-2.1 Secure Provider / Account Foundation](TWF_BW2_1_SECURE_PROVIDER_ACCOUNT_FOUNDATION.md) — accepted/frozen at `twf-bw2-1-secure-provider-account-foundation`; historical implementation record
+- [BW-2.2 Zerodha Authentication and Account Binding](TWF_BW2_2_ZERODHA_AUTH_ACCOUNT_BINDING.md) — implemented; pending review; real activation gated; portfolio reads deferred; trading disabled
 
 ### Data
 
@@ -192,13 +193,13 @@ TWF-1 — APPLICATION FOUNDATION / ACCEPTED / FROZEN (twf-1-application-foundati
 
 UX workstream (parallel to functional milestones)
 ├── UX-B1 — FOUNDATIONAL COMPLETE UX / PARTIAL
-├── UX-B2 — OPERATIONALLY USEFUL TRADING UX / IN PROGRESS (BW-1 accepted; BW-2.1 pending review)
+├── UX-B2 — OPERATIONALLY USEFUL TRADING UX / IN PROGRESS (BW-1 accepted; BW-2.1 accepted; BW-2.2 pending review)
 └── UX-B3 — ARCHITECTURE-COMPLETE UX / PLANNED
 
 Broker Workspace Architecture v0.3 — REVIEWED / ACCEPTED / TAGGED
 Broker Workspace Workstream — BW-1 synthetic runtime accepted
 ├── BW-1 Synthetic Broker Read-Only Foundation — ACCEPTED / FROZEN
-├── BW-2 Zerodha read-only — IN PROGRESS (BW-2.1 pending review)
+├── BW-2 Zerodha read-only — IN PROGRESS (BW-2.1 accepted; BW-2.2 pending review)
 ├── BW-3 Broker watchlists and draft/preview — PENDING
 ├── BW-4 Synthetic command and recovery foundation — PENDING
 ├── BW-5 Controlled live manual orders — PENDING

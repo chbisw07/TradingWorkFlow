@@ -27,6 +27,39 @@ class Settings(BaseSettings):
     database_url: str = Field(default="sqlite+pysqlite:///./twf.db", repr=False)
     session_ttl_seconds: int = Field(default=28800, ge=60, le=604800)
 
+    zerodha_auth_enabled: bool = False
+    zerodha_web_origin: str = "http://localhost:3000"
+    zerodha_callback_url: str = "http://localhost:8000/api/v1/broker-auth/callback"
+
+    @model_validator(mode="after")
+    def validate_broker_callback(self) -> Self:
+        origin = urlsplit(self.zerodha_web_origin)
+        callback = urlsplit(self.zerodha_callback_url)
+        if (
+            origin.scheme not in {"http", "https"}
+            or not origin.hostname
+            or origin.username
+            or origin.password
+            or origin.path
+            or origin.query
+            or origin.fragment
+            or callback.scheme != origin.scheme
+            or callback.hostname != origin.hostname
+            or callback.username
+            or callback.password
+            or callback.query
+            or callback.fragment
+            or callback.path != "/api/v1/broker-auth/callback"
+            or (
+                self.zerodha_auth_enabled
+                and self.environment == "production"
+                and origin.scheme != "https"
+            )
+        ):
+            raise ValueError("Broker callback requires the same web host and fixed callback path")
+        _ = origin.port, callback.port
+        return self
+
     service_clients: tuple[ServiceDescriptor, ...] = ()
     service_allowed_origins: tuple[str, ...] = Field(default=(), repr=False)
 

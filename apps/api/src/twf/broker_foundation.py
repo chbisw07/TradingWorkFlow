@@ -127,7 +127,16 @@ class BrokerFoundation:
             configuration_revision=account.configuration_revision,
             connection_generation=account.connection_generation,
             authentication_state=cast(
-                Literal["NOT_CONFIGURED", "DISCONNECTED", "AUTHENTICATING"],
+                Literal[
+                    "NOT_CONFIGURED",
+                    "DISCONNECTED",
+                    "AUTHENTICATING",
+                    "AUTH_REQUIRED",
+                    "AUTH_IN_PROGRESS",
+                    "CONNECTED",
+                    "REAUTH_REQUIRED",
+                    "ERROR",
+                ],
                 connection.authentication_state,
             ),
             read_health=cast(

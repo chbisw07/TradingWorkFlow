@@ -7,6 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 
 from twf.api.auth import Database, get_current_user, require_origin
+from twf.broker_auth import BrokerAuth
 from twf.broker_foundation import BrokerFoundation, BrokerFoundationFailure
 from twf.brokers.foundation_contracts import (
     BrokerAccountConfiguration,
@@ -15,6 +16,7 @@ from twf.brokers.foundation_contracts import (
     BrokerPermissionPolicy,
     ProviderStatus,
 )
+from twf.brokers.zerodha_auth import AuthProvider
 from twf.infrastructure.identity import User
 from twf.schemas import ErrorResponse
 from twf.secrets import SecretStore
@@ -32,7 +34,7 @@ def foundation(
     user: Annotated[User, Depends(get_current_user)],
     session: Database,
 ) -> BrokerFoundation:
-    return BrokerFoundation(
+    return BrokerAuth(
         session,
         user.id,
         cast(BrokerPermissionPolicy, request.app.state.broker_permission_policy),
@@ -40,7 +42,7 @@ def foundation(
         request.app.state.settings.environment,
         request.state.request_id,
         logger=request.app.state.logger,
-    )
+    ).setup(request.app.state.settings, cast(AuthProvider, request.app.state.broker_auth_provider))
 
 
 def invoke[Result](operation: Callable[[], Result]) -> Result:

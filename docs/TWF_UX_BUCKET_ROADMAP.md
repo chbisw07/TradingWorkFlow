@@ -34,7 +34,7 @@ govern workspace semantics, visual quality and recomposition. The
 | Track | Current evidence                                                                     | Remaining work                                                                |
 | ----- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
 | UX-B1 | Partial: accepted shell, themes, login and TWF-1.5 settings; accepted TWF-1.6 status | Broader Setup, console behavior and bucket acceptance                         |
-| UX-B2 | In progress: accepted BW-1 rooms; BW-2.1 foundation pending review                   | Operational settings and trader workflows as TWF-2–7 mature                   |
+| UX-B2 | In progress: BW-1 and BW-2.1 accepted/frozen; BW-2.2 active/pending review           | Operational settings and trader workflows as TWF-2–7 mature                   |
 | UX-B3 | Planned architecture hooks                                                           | Mature APS/ACS administration, subscriptions, diagnostics, IFL and operations |
 
 TWF-1.5 is **accepted and committed at `664d4cf`**; see its historical
@@ -182,7 +182,9 @@ The [bounded gate inventory](TWF_BROKER_WORKSPACE_ARCHITECTURE.md#34-bounded-del
 maps to UX maturity as follows. [BW-1](TWF_BW1_SYNTHETIC_BROKER_READ_ONLY_FOUNDATION.md)
 is accepted/frozen, advancing UX-B2 with three owned
 synthetic rooms, qualified overview, both themes and six-width Chromium evidence.
-BW-2.1 is implemented and pending review; real connectivity and BW-3–6 remain pending.
+BW-2.1 is **ACCEPTED / FROZEN**. BW-2.2 authentication/account binding is
+**ACTIVE / PENDING REVIEW**; real activation remains deployment-gated, portfolio
+reads are deferred, and trading and BW-3–6 remain pending.
 Neither BW-1 acceptance nor the architecture tag completes a UX bucket.
 
 | Broker gate                                    | Source-backed UX contribution                                                                                                              | Bucket boundary                                                                     |
@@ -307,4 +309,4 @@ dependency, framework, deployment service or new freeze requirement. The histori
 [configuration review](TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md) records the
 TWF-1.5 planning gate; the current [Broker Workspace review](TWF_BROKER_WORKSPACE_ARCHITECTURE_REVIEW.md)
 records the historical BW-1 implementation recommendation. BW-1 is now
-accepted/frozen at `twf-bw1-synthetic-broker-readonly`; BW-2.1 is now implemented and pending review under its [bounded record](TWF_BW2_1_SECURE_PROVIDER_ACCOUNT_FOUNDATION.md).
+accepted/frozen at `twf-bw1-synthetic-broker-readonly`; BW-2.1 is accepted/frozen; BW-2.2 authentication is implemented and pending review under its [bounded record](TWF_BW2_2_ZERODHA_AUTH_ACCOUNT_BINDING.md).

@@ -13,6 +13,9 @@ const env = Object.fromEntries(
 );
 Object.assign(env, {
   TWF_ENVIRONMENT: "test",
+  TWF_ZERODHA_AUTH_ENABLED: "true",
+  TWF_ZERODHA_WEB_ORIGIN: `http://127.0.0.1:${webPort}`,
+  TWF_ZERODHA_CALLBACK_URL: `http://127.0.0.1:${apiPort}/api/v1/broker-auth/callback`,
   TWF_SERVICE_CLIENTS: JSON.stringify(
     ["SCANNER", "TI", "TM", "LLM"].map((kind) => ({
       identity: {
@@ -45,6 +48,7 @@ with session_scope(create_session_factory(engine)) as session:
         for width in (390,768,1024,1440,1920,2560):
             create_user(session, f'settings-{browser}-{width}', 'Settings Trader', 'test-only-browser-password')
             create_user(session, f'brokers-{browser}-{width}', 'Broker Trader', 'test-only-browser-password')
+            create_user(session, f'zerodha-{browser}-{width}', 'Connection Trader', 'test-only-browser-password')
     session.commit()
 engine.dispose()`,
   ],
