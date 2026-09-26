@@ -14,7 +14,7 @@ TWF-1.5 ACCEPTED / committed 664d4cf
 TWF-1.6 ACCEPTED / committed e3852d3
 TWF-1 ACCEPTED / FROZEN (twf-1-application-foundation)
 Broker Workspace Architecture v0.3 REVIEWED / ACCEPTED / TAGGED (twf-broker-workspace-architecture-v0.3)
-BW-1 Synthetic Broker Read-Only Foundation IMPLEMENTED / PENDING REVIEW; BW-2–BW-6 PENDING
+BW-1 Synthetic Broker Read-Only Foundation ACCEPTED / FROZEN (twf-bw1-synthetic-broker-readonly); BW-2.1 secure provider/account foundation IMPLEMENTED / PENDING REVIEW; BW-3–BW-6 PENDING
 ```
 
 ---
@@ -50,51 +50,60 @@ Companions are not synchronized v0.6 deliverables.
 
 ## 2. Core Entry Documents
 
-| Document | Role | Authority |
-|---|---|---|
-| [`README.md`](../README.md) | Human entry point and current-status dashboard | Navigation / status |
-| `TWF_DOCUMENTATION_INDEX.md` | Canonical documentation map | Authoritative map |
-| `TWF_HIGH_LEVEL_DISCUSSION_RECORD.md` | Initial product discussion and intent | Historical / contextual |
-| `TWF_PRODUCT_VISION_AND_SYSTEM_ARCHITECTURE.md` | Product purpose and high-level system design | Normative architecture |
-| `TWF_DETAILED_ROADMAP.md` | Milestones, targets, sequencing | Normative planning |
-| `TWF_TECHNOLOGY_DECISION_RECORD.md` | Technology baseline and open decisions | Decision record |
-| `TWF_TWF0_ARCHITECTURE_ACCEPTANCE_REVIEW.md` | Formal TWF-0 architecture acceptance | Acceptance authority |
-| `TWF_LOCAL_DEVELOPMENT_SETUP_LINUX.md` | Ubuntu/Linux local developer setup, validation, startup, shutdown, and troubleshooting | Developer operations / setup guide |
+| Document                                        | Role                                                                                   | Authority                          |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------- | ---------------------------------- |
+| [`README.md`](../README.md)                     | Human entry point and current-status dashboard                                         | Navigation / status                |
+| `TWF_DOCUMENTATION_INDEX.md`                    | Canonical documentation map                                                            | Authoritative map                  |
+| `TWF_HIGH_LEVEL_DISCUSSION_RECORD.md`           | Initial product discussion and intent                                                  | Historical / contextual            |
+| `TWF_PRODUCT_VISION_AND_SYSTEM_ARCHITECTURE.md` | Product purpose and high-level system design                                           | Normative architecture             |
+| `TWF_DETAILED_ROADMAP.md`                       | Milestones, targets, sequencing                                                        | Normative planning                 |
+| `TWF_TECHNOLOGY_DECISION_RECORD.md`             | Technology baseline and open decisions                                                 | Decision record                    |
+| `TWF_TWF0_ARCHITECTURE_ACCEPTANCE_REVIEW.md`    | Formal TWF-0 architecture acceptance                                                   | Acceptance authority               |
+| `TWF_LOCAL_DEVELOPMENT_SETUP_LINUX.md`          | Ubuntu/Linux local developer setup, validation, startup, shutdown, and troubleshooting | Developer operations / setup guide |
 
 ---
 
 ## 3. Architecture Documents
 
 ### Master / Component
+
 - `TWF_MASTER_PRODUCT_ARCHITECTURE.docx` — visual/reference
 - `TWF_COMPONENT_ARCHITECTURE.docx` — visual/reference
 - `TWF_PRODUCT_VISION_AND_SYSTEM_ARCHITECTURE.md` — normative
 
 ### UX
+
 - [Responsive Trading Application Architecture](TWF_RESPONSIVE_TRADING_APPLICATION_ARCHITECTURE.md) — normative responsive application clarification
 - `TWF_UX_ARCHITECTURE.md` — normative
-- [UX Bucket Roadmap](TWF_UX_BUCKET_ROADMAP.md) — normative cross-cutting maturity plan v0.3; UX-B1 partial, initial UX-B2 implementation pending review, UX-B3 planned
+- [UX Bucket Roadmap](TWF_UX_BUCKET_ROADMAP.md) — normative cross-cutting maturity plan v0.3; UX-B1 partial, accepted BW-1 UX-B2 contribution, UX-B3 planned
 - `TWF_UX_ARCHITECTURE.docx` — reference
 
 ### Configuration / Setup
+
 - [Configuration, Setup, Capability, Entitlement and Pluggability Architecture](TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLEMENT_PLUGGABILITY_ARCHITECTURE.md) — sole normative configuration source, reconciled v0.6
 - `TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLEMENT_PLUGGABILITY_ARCHITECTURE.docx` — supplied v0.5 reference, unchanged
 - [Configuration Architecture Review](TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md) — corpus, decisions, gaps, changes and TWF-1.5 readiness; does not duplicate normative design
 
 ### Broker Workspace
+
 - [Broker Workspace Architecture](TWF_BROKER_WORKSPACE_ARCHITECTURE.md) — sole normative broker design v0.3, independently reviewed and accepted at annotated tag `twf-broker-workspace-architecture-v0.3`
 - `TWF_BROKER_WORKSPACE_ARCHITECTURE.docx` — synchronized v0.3 presentation companion
 - [Broker Workspace Architecture Review](TWF_BROKER_WORKSPACE_ARCHITECTURE_REVIEW.md) — evidence, findings, reconciliation, gap timing and implementation gates; no competing design
+- [BW-2 Zerodha Read-Only Planning and Design Gate](TWF_BW2_ONE_REAL_BROKER_READ_ONLY_PLAN.md) — v0.2 provider-specific gate resolution; real activation remains separately gated
+- [BW-2.1 Secure Provider / Account Foundation](TWF_BW2_1_SECURE_PROVIDER_ACCOUNT_FOUNDATION.md) — bounded runtime foundation implemented; pending independent review; no real connectivity
 
 ### Data
+
 - `TWF_DATA_ARCHITECTURE.md` — normative
 - `TWF_DATA_ARCHITECTURE.docx` — reference
 
 ### Security / Authentication
+
 - `TWF_SECURITY_AUTH_ARCHITECTURE.md` — normative
 - `TWF_SECURITY_AUTH_ARCHITECTURE.docx` — reference
 
 ### Deployment
+
 - `TWF_DEPLOYMENT_ARCHITECTURE.md` — normative
 - `TWF_DEPLOYMENT_ARCHITECTURE.docx` — reference
 
@@ -102,13 +111,13 @@ Companions are not synchronized v0.6 deliverables.
 
 ## 4. Service / Integration Documents
 
-| Document | Authority |
-|---|---|
-| `TWF_SERVICE_CONTRACT_ARCHITECTURE.md` | Normative |
-| `TWF_SERVICE_CONTRACT_ARCHITECTURE.docx` | Reference |
-| `TWF_SERVICE_INTEGRATION_ARCHITECTURE.md` | Normative |
-| `TWF_TI_INTEGRATION_CONTRACT.md` | Architecture-stage normative |
-| `TWF_TM_INTEGRATION_CONTRACT.md` | Provisional until clean TM public-surface reconciliation |
+| Document                                  | Authority                                                |
+| ----------------------------------------- | -------------------------------------------------------- |
+| `TWF_SERVICE_CONTRACT_ARCHITECTURE.md`    | Normative                                                |
+| `TWF_SERVICE_CONTRACT_ARCHITECTURE.docx`  | Reference                                                |
+| `TWF_SERVICE_INTEGRATION_ARCHITECTURE.md` | Normative                                                |
+| `TWF_TI_INTEGRATION_CONTRACT.md`          | Architecture-stage normative                             |
+| `TWF_TM_INTEGRATION_CONTRACT.md`          | Provisional until clean TM public-surface reconciliation |
 
 ---
 
@@ -129,18 +138,22 @@ Companions are not synchronized v0.6 deliverables.
 ## 6. Acceptance / Readiness
 
 ### Gate template
+
 `TWF_TWF0_ARCHITECTURE_ACCEPTANCE_AND_CODING_READINESS.md`
 
 `TWF_TWF0_ARCHITECTURE_ACCEPTANCE_AND_CODING_READINESS.docx` — historical reference companion
 
 Purpose:
+
 - defines the criteria;
 - remains the gate specification.
 
 ### Accepted review
+
 `TWF_TWF0_ARCHITECTURE_ACCEPTANCE_REVIEW.md`
 
 Purpose:
+
 - applies the gate;
 - records `GO_TWF1`;
 - authorizes bounded TWF-1 coding.
@@ -179,13 +192,13 @@ TWF-1 — APPLICATION FOUNDATION / ACCEPTED / FROZEN (twf-1-application-foundati
 
 UX workstream (parallel to functional milestones)
 ├── UX-B1 — FOUNDATIONAL COMPLETE UX / PARTIAL
-├── UX-B2 — OPERATIONALLY USEFUL TRADING UX / IN PROGRESS (BW-1 pending review)
+├── UX-B2 — OPERATIONALLY USEFUL TRADING UX / IN PROGRESS (BW-1 accepted; BW-2.1 pending review)
 └── UX-B3 — ARCHITECTURE-COMPLETE UX / PLANNED
 
 Broker Workspace Architecture v0.3 — REVIEWED / ACCEPTED / TAGGED
-Broker Workspace Workstream — no runtime gate accepted
-├── BW-1 Synthetic Broker Read-Only Foundation — IMPLEMENTED / PENDING REVIEW
-├── BW-2 One real broker read-only — PENDING
+Broker Workspace Workstream — BW-1 synthetic runtime accepted
+├── BW-1 Synthetic Broker Read-Only Foundation — ACCEPTED / FROZEN
+├── BW-2 Zerodha read-only — IN PROGRESS (BW-2.1 pending review)
 ├── BW-3 Broker watchlists and draft/preview — PENDING
 ├── BW-4 Synthetic command and recovery foundation — PENDING
 ├── BW-5 Controlled live manual orders — PENDING
@@ -196,8 +209,8 @@ Broker Workspace Workstream — no runtime gate accepted
 Implementation records:
 
 - [BW-1 Synthetic Broker Read-Only Foundation](TWF_BW1_SYNTHETIC_BROKER_READ_ONLY_FOUNDATION.md)
-  — current uncommitted synthetic broker runtime, requirement mapping, security,
-  normalization and validation evidence; pending independent acceptance.
+  — accepted/frozen synthetic broker runtime, requirement mapping, security,
+  normalization and validation evidence; tag `twf-bw1-synthetic-broker-readonly`.
 
 - [TWF-1.0 Repository / Project Scaffold](TWF_TWF1_0_REPOSITORY_PROJECT_SCAFFOLD.md)
   — authoritative bounded implementation record, developer commands, inventory,
@@ -240,14 +253,15 @@ TWF-1.6 Service Client Foundation
 
 The BW labels are a cross-cutting delivery workstream mapped into TWF-2/TWF-6;
 they do not replace or renumber the TWF-0–10 milestones. Later milestones remain
-separately gated. BW-1 Synthetic Broker Read-Only Foundation is implemented and
-awaits independent acceptance under the [accepted broker delivery plan](TWF_BROKER_WORKSPACE_ARCHITECTURE.md#34-bounded-delivery-and-acceptance-gates).
+separately gated. BW-1 Synthetic Broker Read-Only Foundation is accepted/frozen at
+`twf-bw1-synthetic-broker-readonly` under the [accepted broker delivery plan](TWF_BROKER_WORKSPACE_ARCHITECTURE.md#34-bounded-delivery-and-acceptance-gates).
 
 ---
 
 ## 9. Recommended Reading Paths
 
 ### Product / Trader
+
 ```text
 ../README.md
 → TWF_HIGH_LEVEL_DISCUSSION_RECORD.md
@@ -257,6 +271,7 @@ awaits independent acceptance under the [accepted broker delivery plan](TWF_BROK
 ```
 
 ### Architect
+
 ```text
 TWF_PRODUCT_VISION_AND_SYSTEM_ARCHITECTURE.md
 → master/component DOCX companions
@@ -271,6 +286,7 @@ TWF_PRODUCT_VISION_AND_SYSTEM_ARCHITECTURE.md
 ```
 
 ### Developer
+
 ```text
 TWF_REPOSITORY_AND_ENGINEERING_STANDARDS.md
 → TWF_LOCAL_DEVELOPMENT_SETUP_LINUX.md

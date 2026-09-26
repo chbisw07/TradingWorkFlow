@@ -7,14 +7,14 @@
 Version history: v0.2 established the broker contribution and bucket boundaries;
 v0.3 adds a source-backed BW-1–BW-6 mapping after Broker Workspace Architecture
 v0.3 acceptance. Previous version: v0.2. Status: normative planning, with UX-B1
-partial and UX-B2/B3 planned. Change summary: gate-to-bucket clarification only.
+partial, UX-B2 in progress and UX-B3 planned. Change summary: gate-to-bucket clarification only.
 Review/acceptance reference: [Broker Workspace independent review](TWF_BROKER_WORKSPACE_ARCHITECTURE_REVIEW.md)
 and annotated architecture tag `twf-broker-workspace-architecture-v0.3`; no UX bucket
 completion is implied.
 
 Implementation checkpoint, 2026-09-26: BW-1 now supplies an initial UX-B2
-contribution, implemented and pending independent review. The v0.3 gate definitions
-remain unchanged; the status updates below do not claim acceptance.
+contribution, accepted/frozen at `twf-bw1-synthetic-broker-readonly`. The
+v0.3 gate definitions remain unchanged; the status updates below claim only BW-1 acceptance.
 
 UX-B1, UX-B2 and UX-B3 track the completeness of the user experience across
 functional milestones. They preserve the accepted trading application design
@@ -31,11 +31,11 @@ govern workspace semantics, visual quality and recomposition. The
 
 ## Current position
 
-| Track | Current evidence | Remaining work |
-|---|---|---|
-| UX-B1 | Partial: accepted shell, themes, login and TWF-1.5 settings; accepted TWF-1.6 status | Broader Setup, console behavior and bucket acceptance |
-| UX-B2 | In progress: BW-1 synthetic read-only rooms and overview implemented, pending independent review | Operational settings and trader workflows as TWF-2–7 mature |
-| UX-B3 | Planned architecture hooks | Mature APS/ACS administration, subscriptions, diagnostics, IFL and operations |
+| Track | Current evidence                                                                     | Remaining work                                                                |
+| ----- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| UX-B1 | Partial: accepted shell, themes, login and TWF-1.5 settings; accepted TWF-1.6 status | Broader Setup, console behavior and bucket acceptance                         |
+| UX-B2 | In progress: accepted BW-1 rooms; BW-2.1 foundation pending review                   | Operational settings and trader workflows as TWF-2–7 mature                   |
+| UX-B3 | Planned architecture hooks                                                           | Mature APS/ACS administration, subscriptions, diagnostics, IFL and operations |
 
 TWF-1.5 is **accepted and committed at `664d4cf`**; see its historical
 [implementation record](TWF_TWF1_5_SETTINGS_FOUNDATION.md). Its personal Settings and
@@ -180,20 +180,20 @@ BW-1 synthetic read-only rooms precede one real broker, native search/watchlists
 draft/preview, synthetic recovery and separately gated live manual execution.
 The [bounded gate inventory](TWF_BROKER_WORKSPACE_ARCHITECTURE.md#34-bounded-delivery-and-acceptance-gates)
 maps to UX maturity as follows. [BW-1](TWF_BW1_SYNTHETIC_BROKER_READ_ONLY_FOUNDATION.md)
-is implemented and pending independent review, advancing UX-B2 with three owned
+is accepted/frozen, advancing UX-B2 with three owned
 synthetic rooms, qualified overview, both themes and six-width Chromium evidence.
-BW-2–6 remain pending; neither this implementation nor the architecture tag
-completes a UX bucket.
+BW-2.1 is implemented and pending review; real connectivity and BW-3–6 remain pending.
+Neither BW-1 acceptance nor the architecture tag completes a UX bucket.
 
-| Broker gate | Source-backed UX contribution | Bucket boundary |
-|---|---|---|
-| BW-1 Synthetic Broker Read-Only Foundation | Authenticated synthetic personal rooms/overview, read-only Dashboard, Holdings, Positions, Orders and Funds across two fictional providers | Major UX-B2 advancement; reuses UX-B1 themes, responsive behavior and accessibility |
-| BW-2 One real broker read-only | Verified real account/read experience plus native catalog/search | Deepens UX-B2; provider evidence does not grant command authority |
-| BW-3 Broker watchlists and draft/preview | Owned room watchlists, exact native resolution and backend preview | Deepens UX-B2; no live dispatch |
-| BW-4 Synthetic command and recovery foundation | Labelled synthetic commands, uncertain outcomes and recovery evidence | Adds execution/recovery UX-B2 evidence; no live authority |
-| BW-5 Controlled live manual orders | One provider, approved safety policy and explicit LIVE mode | Adds bounded manual execution UX-B2 after its separate live gate |
-| BW-6 Second real broker proof | Same contract and room semantics with a second real provider | Proves provider-neutral operational UX-B2, not UX-B3 completion |
-| Later managed workflow | Reviewed TM public contract and exclusive command transfer | Separate TWF-5 managed-workflow UX-B2 acceptance |
+| Broker gate                                    | Source-backed UX contribution                                                                                                              | Bucket boundary                                                                     |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| BW-1 Synthetic Broker Read-Only Foundation     | Authenticated synthetic personal rooms/overview, read-only Dashboard, Holdings, Positions, Orders and Funds across two fictional providers | Major UX-B2 advancement; reuses UX-B1 themes, responsive behavior and accessibility |
+| BW-2 One real broker read-only                 | Verified real account/read experience plus native catalog/search                                                                           | Deepens UX-B2; provider evidence does not grant command authority                   |
+| BW-3 Broker watchlists and draft/preview       | Owned room watchlists, exact native resolution and backend preview                                                                         | Deepens UX-B2; no live dispatch                                                     |
+| BW-4 Synthetic command and recovery foundation | Labelled synthetic commands, uncertain outcomes and recovery evidence                                                                      | Adds execution/recovery UX-B2 evidence; no live authority                           |
+| BW-5 Controlled live manual orders             | One provider, approved safety policy and explicit LIVE mode                                                                                | Adds bounded manual execution UX-B2 after its separate live gate                    |
+| BW-6 Second real broker proof                  | Same contract and room semantics with a second real provider                                                                               | Proves provider-neutral operational UX-B2, not UX-B3 completion                     |
+| Later managed workflow                         | Reviewed TM public contract and exclusive command transfer                                                                                 | Separate TWF-5 managed-workflow UX-B2 acceptance                                    |
 
 Advanced operations, bulk administration and commercial broker quota diagnostics
 remain later UX-B3 contributions; no BW-1–BW-6 gate by itself completes UX-B3.
@@ -255,22 +255,22 @@ all UX-B3 work is never a prerequisite for TWF-3/4/5 integration.
 
 ## Mapping to functional milestones
 
-| Functional delivery | UX contribution | Dependency boundary |
-|---|---|---|
-| TWF-1.0, 1.1, 1.1A | Tooling, shell, state primitives, themes; partial UX-B1 | Already accepted; retain regression evidence |
-| TWF-1.2, 1.3, 1.4 | API/persistence/identity supporting UX-B1 | No automatic tenant/admin authority |
-| Architecture reconciliation | Configuration v0.6 and this plan | Design checkpoint before TWF-1.5, no runtime delivery |
-| TWF-1.5 | Personal settings, Setup/profile foundation; advances UX-B1 | Finite bounded contract; no full SaaS administration |
-| TWF-1.6 | Capability/client/status and synthetic foundations; advances UX-B1 | Payload detail stays with each integration target |
-| TWF-2 | Broker BW-1–3 workspace/watchlist progression plus TWF-2.4 console; partial UX-B1 closure and UX-B2 | Synthetic first; real broker and persistent mutations have separate gates |
-| TWF-3 | Scanner/candidate UX-B2 | Scanner contract and provenance |
-| TWF-4 | TI/active LLM/profile UX-B2 | Typed intelligence and provider/secret boundary |
-| TWF-5 | TM risk/authority/monitoring UX-B2 | Committed TM contract gate; manual approval and broker truth |
-| TWF-6 | BW-4/5 command safety/recovery ahead of full intelligence/TM workflow acceptance | Synthetic recovery first; controlled live manual orders do not imply managed workflow or UX-B2 completion |
-| TWF-7 | Realtime, notification and stale/reconnect UX-B2 | Authenticated topics and revocation/freshness policy |
-| TWF-8 | IFL/history/performance portions of UX-B3 | Preserve external scientific and execution ownership |
-| TWF-9 | Tenant/admin/subscription/support portions of UX-B3 | Ownership/realm controls before shared exposure, even if needed earlier |
-| TWF-10 | Operations, diagnostics and production UX-B3 hardening | Production security, recovery and availability evidence |
+| Functional delivery         | UX contribution                                                                                     | Dependency boundary                                                                                       |
+| --------------------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| TWF-1.0, 1.1, 1.1A          | Tooling, shell, state primitives, themes; partial UX-B1                                             | Already accepted; retain regression evidence                                                              |
+| TWF-1.2, 1.3, 1.4           | API/persistence/identity supporting UX-B1                                                           | No automatic tenant/admin authority                                                                       |
+| Architecture reconciliation | Configuration v0.6 and this plan                                                                    | Design checkpoint before TWF-1.5, no runtime delivery                                                     |
+| TWF-1.5                     | Personal settings, Setup/profile foundation; advances UX-B1                                         | Finite bounded contract; no full SaaS administration                                                      |
+| TWF-1.6                     | Capability/client/status and synthetic foundations; advances UX-B1                                  | Payload detail stays with each integration target                                                         |
+| TWF-2                       | Broker BW-1–3 workspace/watchlist progression plus TWF-2.4 console; partial UX-B1 closure and UX-B2 | Synthetic first; real broker and persistent mutations have separate gates                                 |
+| TWF-3                       | Scanner/candidate UX-B2                                                                             | Scanner contract and provenance                                                                           |
+| TWF-4                       | TI/active LLM/profile UX-B2                                                                         | Typed intelligence and provider/secret boundary                                                           |
+| TWF-5                       | TM risk/authority/monitoring UX-B2                                                                  | Committed TM contract gate; manual approval and broker truth                                              |
+| TWF-6                       | BW-4/5 command safety/recovery ahead of full intelligence/TM workflow acceptance                    | Synthetic recovery first; controlled live manual orders do not imply managed workflow or UX-B2 completion |
+| TWF-7                       | Realtime, notification and stale/reconnect UX-B2                                                    | Authenticated topics and revocation/freshness policy                                                      |
+| TWF-8                       | IFL/history/performance portions of UX-B3                                                           | Preserve external scientific and execution ownership                                                      |
+| TWF-9                       | Tenant/admin/subscription/support portions of UX-B3                                                 | Ownership/realm controls before shared exposure, even if needed earlier                                   |
+| TWF-10                      | Operations, diagnostics and production UX-B3 hardening                                              | Production security, recovery and availability evidence                                                   |
 
 Dependencies attach to the feature that needs them, not to a whole bucket number.
 For example, shared profile editing requires account isolation and revision checks
@@ -306,5 +306,5 @@ plugin loading, charting, docking, realtime, broker actions or IFL. It introduce
 dependency, framework, deployment service or new freeze requirement. The historical
 [configuration review](TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md) records the
 TWF-1.5 planning gate; the current [Broker Workspace review](TWF_BROKER_WORKSPACE_ARCHITECTURE_REVIEW.md)
-records the historical BW-1 implementation recommendation. The current BW-1
-implementation checkpoint above now awaits independent acceptance.
+records the historical BW-1 implementation recommendation. BW-1 is now
+accepted/frozen at `twf-bw1-synthetic-broker-readonly`; BW-2.1 is now implemented and pending review under its [bounded record](TWF_BW2_1_SECURE_PROVIDER_ACCOUNT_FOUNDATION.md).

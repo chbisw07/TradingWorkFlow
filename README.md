@@ -38,13 +38,13 @@ TWF-1 — Application Foundation                            ✅ ACCEPTED / FROZE
 
 UX maturity — parallel workstream
 ├── UX-B1 Foundational Complete UX                        PARTIAL (TWF-1.x / TWF-2)
-├── UX-B2 Operationally Useful Trading UX                  IN PROGRESS (BW-1 pending review)
+├── UX-B2 Operationally Useful Trading UX                  IN PROGRESS (BW-1 accepted; BW-2.1 pending review)
 └── UX-B3 Architecture-Complete UX                        PLANNED (progressive TWF-8–10)
 
 Broker Workspace Architecture v0.3                        ✅ REVIEWED / ACCEPTED / TAGGED
-Broker Workspace Workstream — mapped into TWF-2/TWF-6; no BW runtime accepted
-├── BW-1 Synthetic Broker Read-Only Foundation             IMPLEMENTED / PENDING REVIEW
-├── BW-2 One real broker read-only                          PENDING
+Broker Workspace Workstream — mapped into TWF-2/TWF-6; BW-1 accepted
+├── BW-1 Synthetic Broker Read-Only Foundation             ✅ ACCEPTED / FROZEN
+├── BW-2 One real broker read-only                          IN PROGRESS (BW-2.1 pending review)
 ├── BW-3 Broker watchlists and draft/preview               PENDING
 ├── BW-4 Synthetic command and recovery foundation         PENDING
 ├── BW-5 Controlled live manual orders                     PENDING
@@ -71,9 +71,11 @@ the previously stale status pages against this repository evidence. Broker Works
 Architecture v0.3 was independently reviewed and accepted at annotated tag
 `twf-broker-workspace-architecture-v0.3` (`0b73492`); its [bounded gates](docs/TWF_BROKER_WORKSPACE_ARCHITECTURE.md#34-bounded-delivery-and-acceptance-gates)
 are an implementation workstream, not replacement TWF milestone IDs. UX-B1 is still
-partial and no broker runtime is accepted. **ACTIVE: BW-1 — Synthetic Broker
-Read-Only Foundation, implemented and awaiting independent acceptance review.** It provides broker-neutral read-only rooms and a unified
-overview with synthetic providers/accounts only; it authorizes no real broker
+partial. **BW-1 — Synthetic Broker Read-Only Foundation is accepted/frozen** at
+`twf-bw1-synthetic-broker-readonly`; its broker-neutral rooms and overview use
+synthetic providers/accounts only. **ACTIVE: BW-2.1 — Secure Provider / Account Foundation, implemented and pending review**
+under the [BW-2.1 implementation record](docs/TWF_BW2_1_SECURE_PROVIDER_ACCOUNT_FOUNDATION.md).
+BW-1 acceptance authorizes no real broker
 credentials, real authentication, live orders or live execution.
 Broker Workspace → Basic Execution Safety → TM → Scanner → TI is the reviewed
 delivery priority; existing TWF milestone numbers retain their original meanings.
@@ -308,9 +310,10 @@ architecture updates must keep both formats in sync, with Markdown normative. Se
 TWF-0 is tagged `twf-0-architecture-baseline`; TWF-1 is tagged
 `twf-1-application-foundation`; Broker Workspace Architecture v0.3 is tagged
 `twf-broker-workspace-architecture-v0.3`. BW-1 under TWF-2 workspace foundations is
-implemented and awaiting independent review. `GO_BROKER_WORKSPACE` accepts the
-reconciled design and synthetic-first plan; BW-1 is not accepted or frozen. BW-2–6
-and the separate managed-workflow gate remain pending.
+accepted/frozen at `twf-bw1-synthetic-broker-readonly`. `GO_BROKER_WORKSPACE` was the
+prior architecture decision; the BW-1 freeze tag supplies separate runtime acceptance.
+BW-2.1 is implemented and awaiting independent review; it does not enable real Zerodha connectivity. BW-3–6 and the
+separate managed-workflow gate remain pending.
 
 ---
 

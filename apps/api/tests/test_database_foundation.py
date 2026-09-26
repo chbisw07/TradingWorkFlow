@@ -227,6 +227,10 @@ def test_migration_history_and_metadata() -> None:
         "user_preferences",
         "preference_profiles",
         "preference_changes",
+        "broker_provider_configurations",
+        "broker_accounts",
+        "broker_connections",
+        "broker_audit_events",
     }
     assert set(Base.metadata.naming_convention) == {"pk", "fk", "ix", "uq", "ck"}
     command.upgrade(config, "head")
@@ -236,11 +240,16 @@ def test_migration_history_and_metadata() -> None:
     try:
         with db.connect() as connection:
             assert (
-                MigrationContext.configure(connection).get_current_revision() == "0003_preferences"
+                MigrationContext.configure(connection).get_current_revision()
+                == "0004_broker_foundation"
             )
             assert inspect(connection).get_table_names() == [
                 "alembic_version",
                 "auth_sessions",
+                "broker_accounts",
+                "broker_audit_events",
+                "broker_connections",
+                "broker_provider_configurations",
                 "preference_changes",
                 "preference_profiles",
                 "user_preferences",
@@ -252,7 +261,8 @@ def test_migration_history_and_metadata() -> None:
         command.upgrade(config, "head")
         with db.connect() as connection:
             assert (
-                MigrationContext.configure(connection).get_current_revision() == "0003_preferences"
+                MigrationContext.configure(connection).get_current_revision()
+                == "0004_broker_foundation"
             )
     finally:
         db.dispose()
@@ -265,4 +275,4 @@ def test_offline_postgresql_migration(monkeypatch: pytest.MonkeyPatch) -> None:
     command.upgrade(config, "head", sql=True)
     sql = output.getvalue()
     assert "0001_empty_baseline" in sql and "alembic_version" in sql
-    assert "secret" not in sql and "db.invalid" not in sql
+    assert "placeholder:secret.invalid" not in sql and "db.invalid" not in sql
