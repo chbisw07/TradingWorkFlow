@@ -11,11 +11,13 @@ from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 
 from twf.api.auth import router as auth_router
+from twf.api.brokers import router as brokers_router
 from twf.api.errors import http_error, unexpected_error, validation_error
 from twf.api.preferences import router as preferences_router
 from twf.api.preferences import settings_error
 from twf.api.routes import create_router
 from twf.api.services import router as services_router
+from twf.brokers.service import BrokerService
 from twf.config.settings import Settings
 from twf.infrastructure.database import create_database_engine, create_session_factory
 from twf.integrations.registry import ServiceRegistry
@@ -31,6 +33,7 @@ def create_app(
     *,
     engine_factory: Callable[[Settings], Engine] = create_database_engine,
     service_registry: ServiceRegistry | None = None,
+    broker_service: BrokerService | None = None,
 ) -> FastAPI:
     """Construct an isolated application without opening database connections."""
     settings = settings if settings is not None else Settings()
@@ -75,6 +78,7 @@ def create_app(
         ],
         responses={code: {"model": ErrorResponse} for code in (404, 405, 422, 500)},
     )
+    app.state.broker_service = broker_service if broker_service is not None else BrokerService()
     app.state.login_limit = LoginLimit()
     app.state.settings = settings
     app.state.service_registry = service_registry or ServiceRegistry(
@@ -91,5 +95,6 @@ def create_app(
     app.include_router(auth_router)
     app.include_router(preferences_router)
     app.include_router(services_router)
+    app.include_router(brokers_router)
     app.add_exception_handler(SettingsFailure, settings_error)
     return app

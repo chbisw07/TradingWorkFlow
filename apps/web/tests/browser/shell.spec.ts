@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
 
-test.beforeEach(async ({ page }) => {
+test.beforeEach(async ({ page, baseURL }) => {
   const response = await page.request.post("/api/v1/auth/login", {
-    headers: { Origin: "http://127.0.0.1:3100" },
+    headers: { Origin: baseURL! },
     data: { username: "browser-user", password: "test-only-browser-password" },
   });
   expect(response.ok()).toBe(true);

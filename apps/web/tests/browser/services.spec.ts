@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test("authenticated service status is labeled synthetic and fits both themes", async ({
   page,
+  baseURL,
 }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -9,7 +10,7 @@ test("authenticated service status is labeled synthetic and fits both themes", a
   expect(
     (
       await page.request.post("/api/v1/auth/login", {
-        headers: { Origin: "http://127.0.0.1:3100" },
+        headers: { Origin: baseURL! },
         data: {
           username: "browser-user",
           password: "test-only-browser-password",

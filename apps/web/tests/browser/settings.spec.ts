@@ -1,11 +1,12 @@
 import { expect, test } from "@playwright/test";
 test("personal settings persist, profiles apply, stale edits conflict and both themes recompose", async ({
   page,
+  baseURL,
 }, info) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   const login = await page.request.post("/api/v1/auth/login", {
-    headers: { Origin: "http://127.0.0.1:3100" },
+    headers: { Origin: baseURL! },
     data: {
       username: "settings-" + info.project.name,
       password: "test-only-browser-password",
@@ -26,7 +27,7 @@ test("personal settings persist, profiles apply, stale edits conflict and both t
   await expect(page.getByLabel("Setup density")).toHaveValue("compact");
   await expect(page.getByLabel("Default analysis horizon")).toHaveValue("15d");
   const conflict = await page.request.put("/api/v1/settings/values", {
-    headers: { Origin: "http://127.0.0.1:3100" },
+    headers: { Origin: baseURL! },
     data: { revision: 0, values: {} },
   });
   expect(conflict.status()).toBe(409);

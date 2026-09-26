@@ -12,6 +12,10 @@ Review/acceptance reference: [Broker Workspace independent review](TWF_BROKER_WO
 and annotated architecture tag `twf-broker-workspace-architecture-v0.3`; no UX bucket
 completion is implied.
 
+Implementation checkpoint, 2026-09-26: BW-1 now supplies an initial UX-B2
+contribution, implemented and pending independent review. The v0.3 gate definitions
+remain unchanged; the status updates below do not claim acceptance.
+
 UX-B1, UX-B2 and UX-B3 track the completeness of the user experience across
 functional milestones. They preserve the accepted trading application design
 language while allowing panel content and workflow details to evolve with real
@@ -30,7 +34,7 @@ govern workspace semantics, visual quality and recomposition. The
 | Track | Current evidence | Remaining work |
 |---|---|---|
 | UX-B1 | Partial: accepted shell, themes, login and TWF-1.5 settings; accepted TWF-1.6 status | Broader Setup, console behavior and bucket acceptance |
-| UX-B2 | Planned; shell containers provide readiness only | Operational settings and trader workflows as TWF-2–7 mature |
+| UX-B2 | In progress: BW-1 synthetic read-only rooms and overview implemented, pending independent review | Operational settings and trader workflows as TWF-2–7 mature |
 | UX-B3 | Planned architecture hooks | Mature APS/ACS administration, subscriptions, diagnostics, IFL and operations |
 
 TWF-1.5 is **accepted and committed at `664d4cf`**; see its historical
@@ -40,8 +44,13 @@ profile surface advances partial UX-B1. The
 service status and explicitly labeled synthetic fixtures, accepted at `e3852d3`.
 The existing `twf-1-application-foundation` tag closes TWF-1, not the whole UX bucket.
 No bucket is declared complete by this work.
-The existing WebKit host/runtime limitation remains an explicit verification gap;
-Chromium evidence does not establish Safari compatibility.
+The local WebKit execution gap was closed during the 2026-09-26 BW-1 follow-up:
+54 checks passed across six widths after installing the missing host library and
+omitting the inherited Snap GIO override for the test process. See the
+[BW-1 validation record](TWF_BW1_SYNTHETIC_BROKER_READ_ONLY_FOUNDATION.md#validation-evidence)
+for the reproducible command and runtime diagnosis. This verifies Playwright WebKit
+on Linux; native macOS/iOS Safari was not tested. Earlier records retain their
+historical host-limitation evidence.
 
 ## UX-B1 Foundational Complete UX
 
@@ -170,8 +179,11 @@ identity; do not freeze trading details ahead of those contracts.
 BW-1 synthetic read-only rooms precede one real broker, native search/watchlists,
 draft/preview, synthetic recovery and separately gated live manual execution.
 The [bounded gate inventory](TWF_BROKER_WORKSPACE_ARCHITECTURE.md#34-bounded-delivery-and-acceptance-gates)
-maps to UX maturity as follows. Every BW runtime gate is pending except BW-1,
-which is next; the architecture tag does not complete a UX bucket.
+maps to UX maturity as follows. [BW-1](TWF_BW1_SYNTHETIC_BROKER_READ_ONLY_FOUNDATION.md)
+is implemented and pending independent review, advancing UX-B2 with three owned
+synthetic rooms, qualified overview, both themes and six-width Chromium evidence.
+BW-2–6 remain pending; neither this implementation nor the architecture tag
+completes a UX bucket.
 
 | Broker gate | Source-backed UX contribution | Bucket boundary |
 |---|---|---|
@@ -294,4 +306,5 @@ plugin loading, charting, docking, realtime, broker actions or IFL. It introduce
 dependency, framework, deployment service or new freeze requirement. The historical
 [configuration review](TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md) records the
 TWF-1.5 planning gate; the current [Broker Workspace review](TWF_BROKER_WORKSPACE_ARCHITECTURE_REVIEW.md)
-records the next bounded BW-1 recommendation.
+records the historical BW-1 implementation recommendation. The current BW-1
+implementation checkpoint above now awaits independent acceptance.

@@ -104,6 +104,8 @@ def test_lifecycle_and_contracts(settings: Settings) -> None:
             "/ready",
             "/api/v1/status",
             "/api/v1/services",
+            "/api/v1/brokers/overview",
+            "/api/v1/brokers/accounts/{account_id}",
             "/api/v1/meta",
             "/api/v1/auth/login",
             "/api/v1/auth/logout",

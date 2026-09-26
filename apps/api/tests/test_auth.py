@@ -112,8 +112,10 @@ def test_csrf_rejected(client: TestClient, origin: str | None, action: str) -> N
 def test_expiration_inactive_and_rotation(client: TestClient) -> None:
     login(client)
     original = client.cookies.get("twf_session")
+    assert original is not None
     login(client)
     current = client.cookies.get("twf_session")
+    assert current is not None
     assert original != current
     with session_scope(cast(FastAPI, client.app).state.session_factory) as session:
         old_session = session.get(AuthSession, token_digest(original))
@@ -147,6 +149,7 @@ def test_auth_logging_redacts_secrets(client: TestClient) -> None:
     cast(FastAPI, client.app).state.logger.handlers = [handler]
     login(client)
     token = client.cookies.get("twf_session")
+    assert token is not None
     login(client, "unknown")
     login(client, "disabled")
     client.post("/api/v1/auth/logout", headers={"Origin": ORIGIN})

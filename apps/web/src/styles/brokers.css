@@ -1,0 +1,272 @@
+.broker-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  min-width: 0;
+}
+.broker-content {
+  min-width: 0;
+}
+.broker-account-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: start;
+  gap: var(--space-2);
+}
+.broker-account-nav .eyebrow {
+  flex-basis: 100%;
+}
+.broker-account-nav a,
+.broker-tabs a {
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  color: var(--text-secondary);
+  min-height: 44px;
+}
+.broker-account-nav a[aria-current],
+.broker-tabs a[aria-current] {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--surface-accent);
+}
+.broker-account-nav small {
+  display: block;
+  font-size: var(--text-xs);
+  margin-top: var(--space-1);
+}
+.broker-fixture-clock,
+.broker-provenance,
+.broker-account-id,
+.broker-deferred {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+.broker-fixture-clock {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: var(--space-3);
+}
+.broker-room-heading {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-5) 0 var(--space-3);
+}
+.broker-room-heading h1 {
+  margin: var(--space-2) 0;
+  font-size: clamp(1.3rem, 2vw, 1.8rem);
+  letter-spacing: -0.025em;
+}
+.broker-mode {
+  color: var(--accent);
+  background: var(--surface-accent);
+  border: 1px solid var(--border);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+}
+.broker-lead {
+  color: var(--text-secondary);
+  margin-bottom: var(--space-5);
+}
+.broker-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+.broker-card,
+.broker-surface {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  padding: var(--space-4);
+  min-width: 0;
+}
+.broker-card h2 {
+  font-size: 1.2rem;
+  margin: var(--space-3) 0;
+}
+.broker-card a {
+  text-decoration: none;
+}
+.broker-card dl,
+.broker-metrics {
+  font-variant-numeric: tabular-nums;
+}
+.broker-card dt,
+.broker-metrics dt {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  margin-top: var(--space-3);
+}
+.broker-card dd,
+.broker-metrics dd {
+  margin: var(--space-2) 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-lg);
+}
+.broker-open {
+  display: inline-block;
+  min-height: 44px;
+  padding-top: var(--space-3);
+  color: var(--accent);
+}
+.broker-qualification {
+  color: var(--status-stale);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+.broker-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-4) 0;
+}
+.broker-surface h2 {
+  font-size: var(--text-lg);
+  margin: 0 0 var(--space-3);
+}
+.broker-provenance p {
+  margin: var(--space-1) 0;
+}
+.broker-provenance {
+  margin-bottom: var(--space-4);
+}
+.broker-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--space-3);
+}
+.broker-metrics > div {
+  padding: var(--space-3);
+  border-left: 2px solid var(--border);
+}
+.broker-metrics dt {
+  margin-top: 0;
+}
+.broker-dataset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: var(--space-3);
+  border-top: 1px solid var(--border);
+  margin-top: var(--space-4);
+}
+.broker-dataset-grid h3 {
+  font-size: var(--text-base);
+}
+.broker-table-scroll {
+  overflow: auto;
+  max-width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.broker-table-scroll table {
+  width: 100%;
+  border-collapse: collapse;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+.broker-table-scroll caption {
+  text-align: left;
+  padding: var(--space-3);
+  color: var(--text-muted);
+}
+.broker-table-scroll th {
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  text-align: left;
+}
+.broker-table-scroll th,
+.broker-table-scroll td {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.broker-table-scroll small {
+  display: block;
+  color: var(--text-muted);
+  margin-top: var(--space-1);
+}
+.broker-table-scroll tr:hover {
+  background: var(--surface-hover);
+}
+.broker-notice {
+  color: var(--text-secondary);
+  padding: var(--space-4);
+  background: var(--surface-raised);
+}
+.broker-aggregate {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-4);
+  margin-top: var(--space-4);
+}
+.broker-aggregate h3 {
+  margin: 0;
+}
+.broker-net {
+  display: block;
+  font: 1.8rem var(--font-mono);
+  color: var(--accent);
+  margin: var(--space-3) 0;
+}
+.broker-aggregate ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.broker-aggregate li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.broker-aggregate small {
+  grid-column: 1 / -1;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+.broker-aggregate p {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+.broker-deferred {
+  margin: var(--space-4) 0;
+}
+@media (min-width: 1440px) {
+  .broker-workspace {
+    grid-template-columns: 9rem minmax(0, 1fr);
+  }
+  .broker-account-nav {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+  }
+  .broker-aggregate {
+    grid-template-columns: minmax(10rem, 1fr) 2fr;
+  }
+}
+@media (max-width: 599px) {
+  .broker-card,
+  .broker-surface {
+    padding: var(--space-3);
+  }
+  .broker-account-nav a {
+    flex: 1 1 calc(50% - var(--space-2));
+  }
+  .broker-tabs a {
+    flex: 1 1 auto;
+    text-align: center;
+  }
+}

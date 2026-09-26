@@ -7,6 +7,7 @@ import { Icon, type IconName } from "./icon";
 
 export const navigationItems: { label: string; icon: IconName }[] = [
   { label: "Home", icon: "home" },
+  { label: "Brokers", icon: "positions" },
   { label: "Watchlists", icon: "watchlists" },
   { label: "Scanners", icon: "scanners" },
   { label: "Candidates", icon: "candidates" },
@@ -50,12 +51,27 @@ export function PrimaryNavigation() {
         <ul>
           {navigationItems.map(({ label, icon }, index) => (
             <li key={label}>
-              {index === 0 || label === "Settings" ? (
+              {index === 0 || label === "Settings" || label === "Brokers" ? (
                 <Link
-                  href={label === "Settings" ? "/settings" : "/"}
+                  href={
+                    label === "Settings"
+                      ? "/settings"
+                      : label === "Brokers"
+                        ? "/brokers"
+                        : "/"
+                  }
                   className="nav-item"
                   aria-current={
-                    pathname === (label === "Settings" ? "/settings" : "/")
+                    (
+                      label === "Brokers"
+                        ? pathname.startsWith("/brokers")
+                        : pathname ===
+                          (label === "Settings"
+                            ? "/settings"
+                            : label === "Brokers"
+                              ? "/brokers"
+                              : "/")
+                    )
                       ? "page"
                       : undefined
                   }

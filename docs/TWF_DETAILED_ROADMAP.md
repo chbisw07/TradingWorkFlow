@@ -10,9 +10,9 @@ TWF-1.0, 1.1, 1.1A, 1.2, 1.3, 1.4 and 1.5 are accepted; TWF-1.5 is committed at
 Later functional targets remain pending. The
 [configuration review](TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md) records
 `GO_TWF1_5` for the bounded scope below. Broker Workspace Architecture v0.3 is independently reviewed and accepted at
-annotated tag `twf-broker-workspace-architecture-v0.3` (`0b73492`). Its BW-1
-through BW-6 runtime gates remain undelivered; BW-1 is next. Architecture
-acceptance is not implementation completion.
+annotated tag `twf-broker-workspace-architecture-v0.3` (`0b73492`). BW-1 is implemented and awaiting independent review; see its
+[implementation record](TWF_BW1_SYNTHETIC_BROKER_READ_ONLY_FOUNDATION.md). BW-2–6 remain pending. Architecture
+acceptance is not runtime acceptance.
 
 ## 1. Roadmap Objective
 
@@ -281,7 +281,8 @@ Use ChatGPT web for architecture, planning, docs, reviews, acceptance reasoning 
 TWF-0 and TWF-1 are accepted/frozen from repository commit/tag evidence recorded in
 the [Broker Workspace review](TWF_BROKER_WORKSPACE_ARCHITECTURE_REVIEW.md).
 TWF-1.4 `ba9bb8b`, TWF-1.5 `664d4cf` and TWF-1.6 `e3852d3` keep their histories.
-UX-B1 remains partial; UX-B2/B3 remain planned. Next target: BW-1 below.
+UX-B1 remains partial; UX-B2 has an initial BW-1 implementation pending review;
+UX-B3 remains planned. Active target: BW-1 independent acceptance below.
 
 ## 18. Broker Workspace Delivery Overlay
 
@@ -305,13 +306,13 @@ Broker contracts + Synthetic Broker read-only rooms (BW-1)
 
 The bounded delivery and required evidence below are copied from
 [Broker Workspace Architecture v0.3, section 34](TWF_BROKER_WORKSPACE_ARCHITECTURE.md#34-bounded-delivery-and-acceptance-gates).
-The status column is repository-derived: the architecture is tagged, but no BW
-runtime implementation or acceptance record exists. BW labels are a broker
+The status column is repository-derived: the architecture is tagged; BW-1 has an
+uncommitted implementation record and awaits independent acceptance. BW labels are a broker
 workstream, **not replacements for TWF milestone IDs**.
 
 | Status | Gate | Exact bounded delivery | Required evidence / next gate |
 |---|---|---|---|
-| NEXT | BW-1 Synthetic Broker Read-Only Foundation | Versioned broker identity, capability, auth/operation health, observations and typed query contract; deterministic injected-clock adapter; authenticated personal room/overview showing Dashboard, Holdings, Positions, Orders and Funds | Three fixture accounts across two fictional providers, including two accounts of one provider; both themes/six widths; negative ownership and failure/isolation tests; no provider network or real credential path |
+| IMPLEMENTED / PENDING REVIEW | BW-1 Synthetic Broker Read-Only Foundation | Versioned broker identity, capability, auth/operation health, observations and typed query contract; deterministic injected-clock adapter; authenticated personal room/overview showing Dashboard, Holdings, Positions, Orders and Funds | Three fixture accounts across two fictional providers, including two accounts of one provider; both themes/six widths; negative ownership and failure/isolation tests; no provider network or real credential path |
 | PENDING | BW-2 One real broker read-only | One chosen provider's verified auth/account binding, vault references, bounded read adapters and versioned catalog/search; optional canonical mapping | Official public API mapping, credential/callback/revocation review, source/completeness/rate-limit fixtures, isolated real read smoke; provider and permission selected before implementation |
 | PENDING | BW-3 Broker watchlists and draft/preview | Revisioned owned watchlists; exact native instrument resolution; backend draft validation and preview, no live dispatch | Persistence/migration/isolation tests, duplicate/stale/expired/token-reuse cases; no generic global-watchlist routing |
 | PENDING | BW-4 Synthetic command and recovery foundation | Durable intent/request/confirmation/audit, synthetic accept/reject/partial/unknown/cancel/modify, dispatch claims and reconciliation | Crash/restart and multi-worker tests, policy-expiry and concurrent commands; actual secret-free synthetic behavior remains labelled |
@@ -340,7 +341,9 @@ Positions/Orders/Funds, deterministic source/freshness/failure scenarios, same U
 semantics and negative ownership tests. No real broker, credential/OAuth flow,
 shared ACS account, live/draft command endpoint, catalog import, watchlist CRUD,
 persistence rollout or streaming platform. Exact acceptance is section 34.1 of the
-broker architecture. This review recommends implementation; it delivers no runtime.
+broker architecture. The [BW-1 implementation record](TWF_BW1_SYNTHETIC_BROKER_READ_ONLY_FOUNDATION.md)
+records the bounded runtime and validation. Next action is independent acceptance,
+not BW-2 activation; no architecture gate or later milestone is completed by this work.
 
 Basic Execution Safety protects manual submission; TM retains managed-trade
 governance and exclusive command ownership at the later TM gate. No convenience

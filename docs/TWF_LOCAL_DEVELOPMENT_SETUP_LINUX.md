@@ -369,9 +369,18 @@ dependency-maintenance change.
 
 ### Backend TestClient deprecation notice
 
-Backend tests may emit a Starlette notice that its current `httpx` TestClient path
-is deprecated. The tests pass. Treat the notice as non-blocking until the
-compatible test-client migration is taken as a dependency-maintenance change.
+Starlette TestClient uses `httpx2`, declared in the API development extra and pinned
+in `requirements-dev.lock`. If the deprecated `httpx` fallback warning appears,
+install the development lock into the same environment that runs pytest. From the
+repository root:
+
+```bash
+apps/api/.venv/bin/python -m pip install -r apps/api/requirements-dev.lock
+apps/api/.venv/bin/python -m pytest -q -W error
+```
+
+Do not suppress the warning. The application service transport still uses its
+separate runtime `httpx` dependency; no runtime transport migration is required.
 
 ### Frontend dependency deprecation notices
 

@@ -14,7 +14,7 @@ TWF-1.5 ACCEPTED / committed 664d4cf
 TWF-1.6 ACCEPTED / committed e3852d3
 TWF-1 ACCEPTED / FROZEN (twf-1-application-foundation)
 Broker Workspace Architecture v0.3 REVIEWED / ACCEPTED / TAGGED (twf-broker-workspace-architecture-v0.3)
-BW-1 Synthetic Broker Read-Only Foundation NEXT; BW-2–BW-6 PENDING
+BW-1 Synthetic Broker Read-Only Foundation IMPLEMENTED / PENDING REVIEW; BW-2–BW-6 PENDING
 ```
 
 ---
@@ -73,7 +73,7 @@ Companions are not synchronized v0.6 deliverables.
 ### UX
 - [Responsive Trading Application Architecture](TWF_RESPONSIVE_TRADING_APPLICATION_ARCHITECTURE.md) — normative responsive application clarification
 - `TWF_UX_ARCHITECTURE.md` — normative
-- [UX Bucket Roadmap](TWF_UX_BUCKET_ROADMAP.md) — normative cross-cutting maturity plan v0.3; UX-B1 partial, UX-B2/B3 planned
+- [UX Bucket Roadmap](TWF_UX_BUCKET_ROADMAP.md) — normative cross-cutting maturity plan v0.3; UX-B1 partial, initial UX-B2 implementation pending review, UX-B3 planned
 - `TWF_UX_ARCHITECTURE.docx` — reference
 
 ### Configuration / Setup
@@ -179,12 +179,12 @@ TWF-1 — APPLICATION FOUNDATION / ACCEPTED / FROZEN (twf-1-application-foundati
 
 UX workstream (parallel to functional milestones)
 ├── UX-B1 — FOUNDATIONAL COMPLETE UX / PARTIAL
-├── UX-B2 — OPERATIONALLY USEFUL TRADING UX / PLANNED
+├── UX-B2 — OPERATIONALLY USEFUL TRADING UX / IN PROGRESS (BW-1 pending review)
 └── UX-B3 — ARCHITECTURE-COMPLETE UX / PLANNED
 
 Broker Workspace Architecture v0.3 — REVIEWED / ACCEPTED / TAGGED
 Broker Workspace Workstream — no runtime gate accepted
-├── BW-1 Synthetic Broker Read-Only Foundation — NEXT
+├── BW-1 Synthetic Broker Read-Only Foundation — IMPLEMENTED / PENDING REVIEW
 ├── BW-2 One real broker read-only — PENDING
 ├── BW-3 Broker watchlists and draft/preview — PENDING
 ├── BW-4 Synthetic command and recovery foundation — PENDING
@@ -194,6 +194,10 @@ Broker Workspace Workstream — no runtime gate accepted
 ```
 
 Implementation records:
+
+- [BW-1 Synthetic Broker Read-Only Foundation](TWF_BW1_SYNTHETIC_BROKER_READ_ONLY_FOUNDATION.md)
+  — current uncommitted synthetic broker runtime, requirement mapping, security,
+  normalization and validation evidence; pending independent acceptance.
 
 - [TWF-1.0 Repository / Project Scaffold](TWF_TWF1_0_REPOSITORY_PROJECT_SCAFFOLD.md)
   — authoritative bounded implementation record, developer commands, inventory,
@@ -236,8 +240,8 @@ TWF-1.6 Service Client Foundation
 
 The BW labels are a cross-cutting delivery workstream mapped into TWF-2/TWF-6;
 they do not replace or renumber the TWF-0–10 milestones. Later milestones remain
-separately gated. Next bounded target is BW-1 Synthetic Broker Read-Only
-Foundation under the [accepted broker delivery plan](TWF_BROKER_WORKSPACE_ARCHITECTURE.md#34-bounded-delivery-and-acceptance-gates).
+separately gated. BW-1 Synthetic Broker Read-Only Foundation is implemented and
+awaits independent acceptance under the [accepted broker delivery plan](TWF_BROKER_WORKSPACE_ARCHITECTURE.md#34-bounded-delivery-and-acceptance-gates).
 
 ---
 
