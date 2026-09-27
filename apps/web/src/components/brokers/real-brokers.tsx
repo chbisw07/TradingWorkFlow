@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 
 type Connection = {
@@ -118,8 +119,9 @@ function ConnectionCard({
         </p>
       )}
       <p className="panel-intro">
-        Authentication and identity only. Real holdings, positions, orders and
-        funds are not available yet. Read health: {account.read_health}.
+        Native catalog search is available below. Real holdings, positions,
+        orders and funds are not available yet. Read health:{" "}
+        {account.read_health}.
       </p>
       {value.can_configure && (
         <details>
@@ -158,6 +160,12 @@ function ConnectionCard({
           </form>
         </details>
       )}
+      <Link
+        className="quiet-button"
+        href={`/brokers/${account.broker_account_id}/instruments`}
+      >
+        Instrument Search
+      </Link>
       <div className="broker-connection-actions">
         <button
           className="quiet-button"

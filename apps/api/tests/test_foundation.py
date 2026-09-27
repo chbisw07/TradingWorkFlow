@@ -72,6 +72,9 @@ def test_database_boundary() -> None:
             "broker_auth_attempts",
             "broker_auth_configurations",
             "broker_secret_lifecycle",
+            "catalog_snapshots",
+            "catalog_instruments",
+            "catalog_pointers",
             "broker_connections",
             "broker_audit_events",
         }

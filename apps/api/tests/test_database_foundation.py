@@ -232,6 +232,9 @@ def test_migration_history_and_metadata() -> None:
         "broker_auth_attempts",
         "broker_auth_configurations",
         "broker_secret_lifecycle",
+        "catalog_snapshots",
+        "catalog_instruments",
+        "catalog_pointers",
         "broker_connections",
         "broker_audit_events",
     }
@@ -243,7 +246,8 @@ def test_migration_history_and_metadata() -> None:
     try:
         with db.connect() as connection:
             assert (
-                MigrationContext.configure(connection).get_current_revision() == "0005_broker_auth"
+                MigrationContext.configure(connection).get_current_revision()
+                == "0006_native_catalog"
             )
             assert inspect(connection).get_table_names() == sorted(
                 [
@@ -256,6 +260,9 @@ def test_migration_history_and_metadata() -> None:
                     "broker_connections",
                     "broker_provider_configurations",
                     "broker_secret_lifecycle",
+                    "catalog_snapshots",
+                    "catalog_instruments",
+                    "catalog_pointers",
                     "preference_changes",
                     "preference_profiles",
                     "user_preferences",
@@ -268,7 +275,8 @@ def test_migration_history_and_metadata() -> None:
         command.upgrade(config, "head")
         with db.connect() as connection:
             assert (
-                MigrationContext.configure(connection).get_current_revision() == "0005_broker_auth"
+                MigrationContext.configure(connection).get_current_revision()
+                == "0006_native_catalog"
             )
     finally:
         db.dispose()

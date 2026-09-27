@@ -313,7 +313,7 @@
   min-height: 44px;
   padding: var(--space-3);
   background: var(--surface-raised);
-  color: var(--text-primary);
+  color: var(--text);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
 }
@@ -345,5 +345,88 @@
   .broker-add-account {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: end;
+  }
+}
+
+.catalog-room {
+  min-width: 0;
+}
+.catalog-filters {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: var(--space-5) 0;
+}
+.catalog-filters label {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.catalog-filters input,
+.catalog-filters select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: var(--space-2);
+  color: var(--text);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.catalog-text {
+  grid-column: 1 / -1;
+}
+.catalog-results {
+  display: grid;
+  gap: var(--space-3);
+}
+.catalog-instrument {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  padding: var(--space-4);
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+.catalog-instrument h2 {
+  font-size: var(--text-lg);
+  margin: var(--space-2) 0;
+}
+.catalog-instrument dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+.catalog-instrument dt {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+.catalog-instrument dd {
+  margin: var(--space-1) 0 0;
+  font-family: var(--font-mono);
+}
+.catalog-room .broker-provenance {
+  overflow-wrap: anywhere;
+}
+.catalog-room button {
+  min-height: 44px;
+}
+.catalog-room button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+@media (min-width: 768px) {
+  .catalog-instrument dl {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1024px) {
+  .catalog-filters {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1440px) {
+  .catalog-results {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
