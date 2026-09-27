@@ -1,9 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 
-export async function selectBroker(
-  page: Page,
-  label: "Overview" | "Zerodha" | "Manage Brokers",
-) {
+export async function selectBroker(page: Page, label: string) {
   const selector = page.getByRole("combobox", {
     name: "Broker workspace",
     exact: true,
@@ -18,7 +15,12 @@ export async function selectBroker(
 
 export async function selectDevelopment(page: Page, label: string) {
   const summary = page.locator(".broker-development > summary");
-  await summary.click();
+  if (
+    !(await summary.evaluate(
+      (element) => (element.parentElement as HTMLDetailsElement).open,
+    ))
+  )
+    await summary.click();
   await page
     .getByRole("navigation", { name: "Development accounts" })
     .getByRole("link", { name: label, exact: true })

@@ -1,27 +1,52 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { connectionHref, connectionName } from "../../lib/broker-connections";
+import { useBrokerSession } from "./broker-session";
 import { useEffect, useState } from "react";
 import type { Overview } from "../../lib/brokers";
 
-const destinations = [
-  ["overview", "/brokers", "Overview"],
-  ["zerodha", "/brokers/zerodha", "Zerodha"],
-  ["manage", "/brokers/manage", "Manage Brokers"],
-] as const;
-
-export function BrokerLinks({ active = "overview" }: { active?: string }) {
+export function BrokerLinks() {
+  const { connections, development } = useBrokerSession();
+  const pathname = usePathname();
+  const destinations = [
+    {
+      href: "/brokers",
+      label: "Overview",
+      active: pathname === "/brokers" || pathname === "/brokers/zerodha",
+    },
+    ...(connections || []).flatMap((value) => {
+      const href = connectionHref(value);
+      return href
+        ? [
+            {
+              href,
+              label: connectionName(value),
+              active:
+                pathname.includes(value.account.broker_account_id) &&
+                !pathname.startsWith("/brokers/manage"),
+            },
+          ]
+        : [];
+    }),
+    {
+      href: "/brokers/manage",
+      label: "Manage Brokers",
+      active: pathname.startsWith("/brokers/manage"),
+    },
+  ];
   return (
     <div className="broker-navigation">
       <nav
         className="broker-selector broker-tabs"
         aria-label="Broker workspace"
       >
-        {destinations.map(([key, href, label]) => (
+        {destinations.map(({ href, label, active }) => (
           <Link
-            key={key}
+            key={href}
             href={href}
-            aria-current={active === key ? "page" : undefined}
+            aria-current={active ? "page" : undefined}
           >
             {label}
           </Link>
@@ -30,25 +55,22 @@ export function BrokerLinks({ active = "overview" }: { active?: string }) {
       <label className="broker-mobile-selector">
         Broker workspace
         <select
-          value={
-            destinations.find(([key]) => key === active)?.[1] ||
-            "/brokers/development"
-          }
+          value={destinations.find((item) => item.active)?.href || ""}
           onChange={(event) => window.location.assign(event.target.value)}
         >
-          {destinations.map(([key, href, label]) => (
-            <option key={key} value={href}>
+          {!destinations.some((item) => item.active) && (
+            <option value="" disabled>
+              Select a broker
+            </option>
+          )}
+          {destinations.map(({ href, label }) => (
+            <option key={href} value={href}>
               {label}
             </option>
           ))}
-          {active === "development" && (
-            <option value="/brokers/development">
-              Development / Synthetic
-            </option>
-          )}
         </select>
       </label>
-      <DevelopmentNavigation />
+      {development && <DevelopmentNavigation />}
     </div>
   );
 }

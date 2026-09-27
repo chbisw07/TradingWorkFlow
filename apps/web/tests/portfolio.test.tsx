@@ -1,17 +1,41 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
   waitFor,
   within,
 } from "@testing-library/react";
-import { afterEach, expect, test, vi } from "vitest";
-import {
-  BrokerRoster,
-  RealBrokerRoom,
-} from "../src/components/brokers/real-broker-room";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { RealBrokerRoom } from "../src/components/brokers/real-broker-room";
 import type { NativeDataset, NativeRow, Portfolio } from "../src/lib/portfolio";
 
+let sessionState = "CONNECTED";
+vi.mock("../src/components/brokers/broker-session", () => ({
+  useBrokerSession: () => ({
+    connections: [
+      {
+        account: {
+          broker_account_id: "00000000-0000-0000-0000-000000000001",
+          provider_id: "zerodha",
+          label: "My Zerodha",
+          enabled: true,
+          configured: true,
+          provider_account_id: "fixture-user",
+          authentication_state: sessionState,
+          connection_generation: 1,
+          read_health: "AVAILABLE",
+        },
+        bound_at: "2026-09-01T00:00:00Z",
+      },
+    ],
+    observedAt: 0,
+    error: "",
+  }),
+}));
+beforeEach(() => {
+  sessionState = "CONNECTED";
+});
 afterEach(() => vi.unstubAllGlobals());
 const id = "00000000-0000-0000-0000-000000000001";
 function fixture(): Portfolio {
@@ -104,54 +128,15 @@ function api(data = fixture()) {
   return fetcher;
 }
 
-test("Zerodha roster opens a useful account room and keeps administration separate", async () => {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn().mockResolvedValue(
-      Response.json([
-        {
-          account: {
-            broker_account_id: id,
-            label: "My Zerodha",
-            authentication_state: "CONNECTED",
-          },
-        },
-      ]),
-    ),
-  );
-  render(<BrokerRoster />);
-  expect(
-    await screen.findByRole("link", { name: /My Zerodha Connected/ }),
-  ).toHaveAttribute("href", `/brokers/zerodha/${id}/dashboard`);
-  expect(
-    screen.getByRole("heading", { level: 2, name: "Zerodha" }),
-  ).toBeVisible();
-  expect(
-    screen
-      .getAllByRole("link", { name: "Manage connection" })
-      .every((a) => a.getAttribute("href") === "/brokers/manage"),
-  ).toBe(true);
-});
-
-test("unconfigured Zerodha remains a useful landing page", async () => {
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json([])));
-  render(<BrokerRoster />);
-  expect(
-    await screen.findByText(/Not connected. Add your Zerodha/),
-  ).toBeVisible();
-  expect(screen.getByRole("link", { name: "Zerodha" })).toHaveAttribute(
-    "href",
-    "/brokers/zerodha",
-  );
-});
-
 test("dashboard and function views use the same response without duplicate fixture arithmetic", async () => {
   const fetcher = api();
   const view = render(<RealBrokerRoom accountId={id} />);
-  await screen.findByText(/^Connected/);
+  await waitFor(() =>
+    expect(screen.queryByText("Loading broker observations…")).toBeNull(),
+  );
   const nav = screen.getByRole("navigation", { name: "Zerodha functions" });
   expect(within(nav).getAllByRole("link")).toHaveLength(4);
-  expect(within(nav).getByRole("link", { name: "Dashboard" })).toHaveAttribute(
+  expect(within(nav).getByRole("link", { name: "Overview" })).toHaveAttribute(
     "aria-current",
     "page",
   );
@@ -188,7 +173,9 @@ test.each(["holdings", "positions"] as const)(
         data[name].metadata.received_at = "2020-01-01T00:00:00Z";
       api(data);
       const view = render(<RealBrokerRoom accountId={id} view={name} />);
-      await screen.findByText(/^Connected/);
+      await waitFor(() =>
+        expect(screen.queryByText("Loading broker observations…")).toBeNull(),
+      );
       if (state === "empty")
         expect(screen.getByText(`No ${name}`)).toBeVisible();
       if (state === "missing") {
@@ -213,7 +200,7 @@ test.each(["NOT_CONFIGURED", "REAUTH_REQUIRED"])(
       await screen.findByRole("link", {
         name: state === "REAUTH_REQUIRED" ? "Reconnect" : "Configure / Connect",
       }),
-    ).toHaveAttribute("href", "/brokers/manage");
+    ).toHaveAttribute("href", `/brokers/manage/accounts/${id}`);
   },
 );
 
@@ -253,7 +240,8 @@ test("all-invalid partial rows are not presented as a successful empty account",
   expect(screen.queryByText("No holdings")).toBeNull();
 });
 
-test("direct Instruments entry loads account context without portfolio provider reads", async () => {
+test("direct Instruments entry uses session context without portfolio provider reads", async () => {
+  sessionState = "REAUTH_REQUIRED";
   const fetcher = vi.fn().mockImplementation((url: string) =>
     Promise.resolve(
       url.includes("broker-auth")
@@ -273,7 +261,7 @@ test("direct Instruments entry loads account context without portfolio provider 
   render(<RealBrokerRoom accountId={id} view="instruments" />);
   expect(
     await screen.findByRole("link", { name: "Reconnect" }),
-  ).toHaveAttribute("href", "/brokers/manage");
+  ).toHaveAttribute("href", `/brokers/manage/accounts/${id}`);
   expect(
     screen.getByRole("heading", { name: "Instrument Search", level: 2 }),
   ).toBeVisible();
@@ -282,33 +270,119 @@ test("direct Instruments entry loads account context without portfolio provider 
   ).toBe(true);
 });
 
-test("Zerodha opens its only connected account directly", async () => {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn().mockImplementation((url: string) =>
-      Promise.resolve(
-        Response.json(
-          url.includes("broker-auth")
-            ? [
-                {
-                  account: {
-                    broker_account_id: id,
-                    label: "My Zerodha",
-                    authentication_state: "CONNECTED",
-                  },
-                },
-              ]
-            : fixture(),
-        ),
-      ),
+const readStatus = () =>
+  screen.getByRole("status", { name: "Broker read status" });
+test.each([
+  ["healthy", "LIVE DATA · READ ONLY"],
+  ["degraded", "READ ONLY · DEGRADED"],
+  ["stale", "READ ONLY · STALE DATA"],
+  ["elapsed", "READ ONLY · STALE DATA"],
+  ["reauth", "REAUTH REQUIRED"],
+  ["disconnected", "NOT CONNECTED"],
+  ["auth-required", "NOT CONNECTED"],
+  ["connecting", "CONNECTING"],
+  ["unavailable", "READ ONLY · UNAVAILABLE"],
+  ["unknown-freshness", "READ ONLY · DEGRADED"],
+  ["missing-timestamp", "READ ONLY · DEGRADED"],
+])("room headline is truthful for %s", async (state, expected) => {
+  const data = fixture();
+  if (state === "degraded") {
+    data.holdings.metadata.health = "DEGRADED";
+    data.holdings.metadata.completeness = "PARTIAL";
+  }
+  if (state === "stale") data.holdings.metadata.freshness = "STALE";
+  if (state === "elapsed")
+    data.holdings.metadata.received_at = "2020-01-01T00:00:00Z";
+  if (state === "unknown-freshness")
+    data.holdings.metadata.freshness = "UNKNOWN";
+  if (state === "missing-timestamp") data.holdings.metadata.received_at = null;
+  if (state === "reauth") data.connection_state = "REAUTH_REQUIRED";
+  if (state === "disconnected") data.connection_state = "DISCONNECTED";
+  if (state === "auth-required") data.connection_state = "AUTH_REQUIRED";
+  if (state === "connecting") data.connection_state = "AUTH_IN_PROGRESS";
+  if (state === "unavailable") {
+    for (const dataset of [data.holdings, data.positions]) {
+      dataset.rows = null;
+      dataset.metadata.health = "UNAVAILABLE";
+      dataset.metadata.completeness = "MISSING";
+    }
+  }
+  api(data);
+  render(<RealBrokerRoom accountId={id} />);
+  await waitFor(() => expect(readStatus()).toHaveTextContent(expected));
+  expect(readStatus()).toHaveTextContent("TRADING DISABLED");
+  if (state !== "healthy")
+    expect(readStatus()).not.toHaveTextContent("LIVE DATA");
+});
+
+test("headline ages without a new request and follows the selected dataset", async () => {
+  vi.useFakeTimers();
+  try {
+    const data = fixture();
+    data.positions.metadata.health = "DEGRADED";
+    const fetcher = api(data);
+    const view = render(<RealBrokerRoom accountId={id} view="holdings" />);
+    await act(async () => {});
+    expect(readStatus()).toHaveTextContent("LIVE DATA");
+    view.rerender(<RealBrokerRoom accountId={id} view="positions" />);
+    expect(readStatus()).toHaveTextContent("DEGRADED");
+    view.rerender(<RealBrokerRoom accountId={id} view="holdings" />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(61_000);
+    });
+    expect(readStatus()).toHaveTextContent("STALE DATA");
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("loading and failed refresh never retain a live headline", async () => {
+  let resolve!: (response: Response) => void;
+  const fetcher = vi.fn().mockImplementationOnce(
+    () =>
+      new Promise<Response>((done) => {
+        resolve = done;
+      }),
+  );
+  vi.stubGlobal("fetch", fetcher);
+  render(<RealBrokerRoom accountId={id} />);
+  expect(readStatus()).not.toHaveTextContent("LIVE DATA");
+  await act(async () => {
+    resolve(Response.json(fixture()));
+  });
+  expect(readStatus()).toHaveTextContent("LIVE DATA");
+  fetcher.mockResolvedValueOnce(new Response(null, { status: 503 }));
+  fireEvent.click(screen.getByRole("button", { name: "Refresh data" }));
+  expect(readStatus()).not.toHaveTextContent("LIVE DATA");
+  await screen.findByRole("alert");
+  expect(readStatus()).toHaveTextContent("UNAVAILABLE");
+});
+
+test("connected Instruments remains reference data without implying a healthy portfolio read", async () => {
+  const fetcher = vi.fn().mockImplementation((url: string) =>
+    Promise.resolve(
+      url.includes("broker-auth")
+        ? Response.json([
+            {
+              account: {
+                broker_account_id: id,
+                label: "Primary",
+                authentication_state: "CONNECTED",
+                read_health: "AVAILABLE",
+              },
+            },
+          ])
+        : new Response(null, { status: 503 }),
     ),
   );
-  render(<BrokerRoster landing />);
+  vi.stubGlobal("fetch", fetcher);
+  render(<RealBrokerRoom accountId={id} view="instruments" />);
+  await waitFor(() =>
+    expect(readStatus()).toHaveTextContent("READ ONLY · REFERENCE DATA"),
+  );
+  expect(readStatus()).not.toHaveTextContent("LIVE DATA");
   expect(
-    await screen.findByRole("heading", { name: "Dashboard", level: 2 }),
-  ).toBeVisible();
-  expect(
-    screen.getByRole("navigation", { name: "Zerodha functions" }),
-  ).toBeVisible();
-  expect(screen.queryByRole("link", { name: /Open workspace/ })).toBeNull();
+    fetcher.mock.calls.every(([url]) => !url.includes("broker-portfolio")),
+  ).toBe(true);
 });

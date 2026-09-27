@@ -86,7 +86,8 @@ Companions are not synchronized v0.6 deliverables.
 
 ### Broker Workspace
 
-- [Broker UX Information Architecture](TWF_BROKER_UX_INFORMATION_ARCHITECTURE.md) — presentation correction implemented / pending user UX review; preserves BW-2.4 HOLD and architecture v0.3
+- [Broker UX Information Architecture](TWF_BROKER_UX_INFORMATION_ARCHITECTURE.md) — simplicity baseline implemented / pending user UX review; connected-account tabs, All Brokers / My Brokers, development-only fixtures; preserves BW-2.4 HOLD and architecture v0.3
+- [Generic Broker Setup and Adapter Architecture](TWF_GENERIC_BROKER_SETUP_AND_ADAPTER_ARCHITECTURE.md) — manifest-driven form, explicit credential lifecycles, test-only alternate provider proof and preserved backend adapter boundary
 
 - [Broker Workspace Architecture](TWF_BROKER_WORKSPACE_ARCHITECTURE.md) — sole normative broker design v0.3, independently reviewed and accepted at annotated tag `twf-broker-workspace-architecture-v0.3`
 - `TWF_BROKER_WORKSPACE_ARCHITECTURE.docx` — synchronized v0.3 presentation companion

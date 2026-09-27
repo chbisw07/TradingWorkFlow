@@ -1,9 +1,13 @@
 "use client";
 import Link from "next/link";
-import { BrokerLinks } from "./broker-navigation";
 import { useEffect, useState } from "react";
 import { InstrumentSearch } from "./instrument-search";
-import { brokerAuthRequest } from "./real-brokers";
+import { useBrokerSession } from "./broker-session";
+import {
+  effectiveBrokerRoomState,
+  datasetStale,
+  type RoomObservation,
+} from "../../lib/broker-room-status";
 import {
   roomViews,
   type RoomView,
@@ -12,7 +16,8 @@ import {
   type NativeRow,
 } from "../../lib/portfolio";
 
-const title = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+const title = (s: string) =>
+  s === "dashboard" ? "Overview" : s.charAt(0).toUpperCase() + s.slice(1);
 const amount = (v: string | number | null | undefined) =>
   v == null
     ? "—"
@@ -32,92 +37,9 @@ const reasons: Record<string, string> = {
   PARTIAL_RESPONSE:
     "Some broker rows could not be read. Totals are unavailable.",
 };
-export function BrokerRoster({ landing = false }: { landing?: boolean }) {
-  const [accounts, setAccounts] = useState<
-    | {
-        account: {
-          broker_account_id: string;
-          label: string;
-          authentication_state: string;
-        };
-      }[]
-    | null
-  >(null);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    let active = true;
-    brokerAuthRequest("accounts")
-      .then((value) => {
-        if (active) setAccounts(value);
-      })
-      .catch(() => {
-        if (active)
-          setError("Broker accounts are unavailable. Try again shortly.");
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-  if (
-    landing &&
-    accounts?.length === 1 &&
-    accounts[0].account.authentication_state === "CONNECTED"
-  ) {
-    return <RealBrokerRoom accountId={accounts[0].account.broker_account_id} />;
-  }
-  return (
-    <>
-      {landing && <BrokerLinks active="zerodha" />}
-      <section className="broker-roster" id="real-brokers">
-        {landing ? (
-          <h1>Zerodha</h1>
-        ) : (
-          <h2>
-            <Link href="/brokers/zerodha">Zerodha</Link>
-          </h2>
-        )}
-        <p className="broker-capability">
-          <span>LIVE DATA · READ ONLY</span>
-          <span>TRADING DISABLED</span>
-        </p>
-        <p className="panel-intro">Holdings, positions and instruments.</p>
-        {accounts?.map(({ account }) => (
-          <Link
-            className="broker-entry"
-            key={account.broker_account_id}
-            href={`/brokers/zerodha/${account.broker_account_id}/dashboard`}
-          >
-            <strong>{account.label}</strong>
-            <span>
-              {account.authentication_state === "CONNECTED"
-                ? "Connected"
-                : account.authentication_state === "REAUTH_REQUIRED"
-                  ? "Reconnect"
-                  : "Not connected"}{" "}
-              · Open workspace →
-            </span>
-          </Link>
-        ))}
-        {accounts?.length === 0 && (
-          <p>Not connected. Add your Zerodha account to open its workspace.</p>
-        )}
-        {!accounts && !error && <p role="status">Loading broker accounts…</p>}
-        {error && <p role="alert">{error}</p>}
-        <Link className="quiet-button" href="/brokers/manage">
-          {accounts?.length === 0 ? "Configure Zerodha" : "Manage connection"}
-        </Link>
-      </section>
-    </>
-  );
-}
 function DatasetState({ data, now }: { data: NativeDataset; now: number }) {
   const meta = data.metadata;
-  const stale =
-    meta.freshness === "STALE" ||
-    (data.rows !== null &&
-      meta.received_at !== null &&
-      now - Date.parse(meta.received_at) >
-        meta.freshness_policy_seconds * 1000);
+  const stale = datasetStale(data, now);
   return (
     <>
       <p role="status" className="broker-health">
@@ -299,11 +221,25 @@ export function RealBrokerRoom({
   accountId: string;
   view?: RoomView;
 }) {
-  const [data, setData] = useState<Portfolio | null>(null);
-  const [accountContext, setAccountContext] = useState<{
-    label: string;
-    authentication_state: string;
-  } | null>(null);
+  return (
+    <BrokerRoomSession
+      key={`${accountId}:${view === "instruments" ? "reference" : "portfolio"}`}
+      accountId={accountId}
+      view={view}
+    />
+  );
+}
+
+function BrokerRoomSession({
+  accountId,
+  view,
+}: {
+  accountId: string;
+  view: RoomView;
+}) {
+  const session = useBrokerSession();
+  const [observation, setObservation] = useState<RoomObservation | null>(null);
+  const data = observation?.value || null;
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
   const [now, setNow] = useState(0);
@@ -314,30 +250,8 @@ export function RealBrokerRoom({
   const reading = view !== "instruments";
   useEffect(() => {
     const c = new AbortController();
-    // Direct Instruments navigation needs account context, not portfolio calls.
-    if (!reading) {
-      brokerAuthRequest("accounts")
-        .then(
-          (
-            accounts: {
-              account: {
-                broker_account_id: string;
-                label: string;
-                authentication_state: string;
-              };
-            }[],
-          ) => {
-            const owned = accounts.find(
-              ({ account }) => account.broker_account_id === accountId,
-            );
-            if (!c.signal.aborted) setAccountContext(owned?.account || null);
-          },
-        )
-        .catch(() => {
-          if (!c.signal.aborted) setAccountContext(null);
-        });
-      return () => c.abort();
-    }
+    if (!reading) return () => c.abort();
+    const startedAt = performance.now();
     fetch(`/api/v1/broker-portfolio/accounts/${accountId}`, {
       cache: "no-store",
       signal: c.signal,
@@ -357,33 +271,54 @@ export function RealBrokerRoom({
       })
       .then((value) => {
         if (!c.signal.aborted) {
-          setData(value);
+          if (
+            value.broker_account_id !== accountId ||
+            value.provider_id !== "zerodha"
+          ) {
+            setObservation(null);
+            setError("This broker account is unavailable.");
+            return;
+          }
+          setObservation({ value, startedAt });
           setError("");
           setNow(Date.now());
         }
       })
       .catch((e) => {
         if (!c.signal.aborted) {
-          setData(null);
+          setObservation(null);
           setError(e.message);
         }
       });
     return () => c.abort();
   }, [accountId, attempt, reading]);
-  const connection = reading
-    ? data?.connection_state
-    : accountContext?.authentication_state;
-  const accountLabel = reading ? data?.account_label : accountContext?.label;
+  const {
+    connection,
+    headline,
+    retained,
+    actionLabel,
+    label: accountLabel,
+  } = effectiveBrokerRoomState({
+    accountId,
+    connections: session.connections,
+    sessionObservedAt: session.observedAt,
+    sessionError: session.error,
+    observation,
+    view,
+    now,
+    readError: error,
+  });
   return (
     <div className="broker-room broker-content">
-      <BrokerLinks active="zerodha" />
       <header className="broker-room-heading">
         <div>
-          <h1>
-            Zerodha <small>{accountLabel}</small>
-          </h1>
-          <p className="broker-capability">
-            <span>LIVE DATA · READ ONLY</span>
+          <h1>Zerodha{accountLabel ? ` · ${accountLabel}` : ""}</h1>
+          <p
+            className="broker-capability"
+            role="status"
+            aria-label="Broker read status"
+          >
+            <span>{headline}</span>
             <span>TRADING DISABLED</span>
           </p>
         </div>
@@ -394,15 +329,26 @@ export function RealBrokerRoom({
             ? "Connected"
             : connection === "REAUTH_REQUIRED"
               ? "Re-authentication required"
-              : "Not connected"}
-          {" · "}
-          <Link href="/brokers/manage">
-            {connection === "REAUTH_REQUIRED"
-              ? "Reconnect"
-              : connection === "CONNECTED"
-                ? "Manage connection"
-                : "Configure / Connect"}
-          </Link>
+              : connection === "AUTH_IN_PROGRESS" ||
+                  connection === "AUTHENTICATING"
+                ? "Connecting"
+                : connection === "ERROR" || connection === "UNAVAILABLE"
+                  ? "Connection unavailable"
+                  : "Not connected"}
+          {actionLabel && (
+            <>
+              {" · "}
+              <Link href={`/brokers/manage/accounts/${accountId}`}>
+                {actionLabel}
+              </Link>
+            </>
+          )}
+        </p>
+      )}
+      {retained && (
+        <p role="status">
+          Showing last available snapshot. These observations do not describe
+          the current connection.
         </p>
       )}
       <nav className="broker-tabs" aria-label="Zerodha functions">
@@ -425,7 +371,7 @@ export function RealBrokerRoom({
             <button
               className="quiet-button"
               onClick={() => {
-                setData(null);
+                setObservation(null);
                 setError("");
                 setAttempt((x) => x + 1);
               }}

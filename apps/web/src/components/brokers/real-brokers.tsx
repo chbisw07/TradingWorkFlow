@@ -1,187 +1,412 @@
 "use client";
-
 import Link from "next/link";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useState } from "react";
+import { brokerProviders, providerName } from "../../lib/broker-setup";
+import { brokerRoomHref } from "../../lib/broker-room-routes";
+import {
+  brokerAuthRequest,
+  connected,
+  connectionHref,
+  connectionName,
+  connectionState,
+  manageHref,
+  type Connection,
+} from "../../lib/broker-connections";
+import { ConnectionLoadState, useBrokerSession } from "./broker-session";
+import { BrokerSetupForm, type SetupInput } from "./broker-setup-form";
 
-type Connection = {
-  account: {
-    broker_account_id: string;
-    label: string;
-    configured: boolean;
-    authentication_state: string;
-    provider_account_id: string | null;
-    connection_generation: number;
-    configuration_revision: number;
-    read_health: string;
-  };
-  can_configure: boolean;
-  can_connect: boolean;
-  can_disconnect: boolean;
-  unavailable_reason: string | null;
-  callback_url: string;
-  cleanup_pending: number;
-};
-
-export async function brokerAuthRequest(path: string, body?: object) {
-  const response = await fetch(`/api/v1/broker-auth/${path}`, {
-    method: body === undefined ? "GET" : "POST",
-    headers:
-      body === undefined ? undefined : { "Content-Type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
-    cache: "no-store",
-  });
-  if (!response.ok)
-    throw new Error(
-      response.status === 401
-        ? "Your session expired. Sign in again."
-        : response.status === 409
-          ? "Connection changed or verification failed. Refresh and retry."
-          : "Broker authentication unavailable. Check setup and try again.",
-    );
-  return response.json();
+export function BrokerRoster() {
+  const { connections } = useBrokerSession();
+  const accounts = connections?.filter(
+    (value) =>
+      connectionHref(value) ||
+      (brokerRoomHref(
+        value.account.provider_id,
+        value.account.broker_account_id,
+      ) &&
+        value.account.enabled &&
+        value.account.configured &&
+        value.bound_at &&
+        value.account.provider_account_id &&
+        value.account.authentication_state === "REAUTH_REQUIRED"),
+  );
+  return (
+    <section className="broker-roster">
+      <ConnectionLoadState />
+      {accounts?.length === 0 && (
+        <div className="broker-empty-state">
+          <h2>No broker connected yet.</h2>
+          <p>Connect a broker to start using TWF.</p>
+          <Link className="broker-primary-action" href="/brokers/manage">
+            Manage Brokers
+          </Link>
+        </div>
+      )}
+      {accounts?.map((value) => (
+        <Link
+          className="broker-entry"
+          key={value.account.broker_account_id}
+          href={
+            connectionHref(value) || manageHref(value.account.broker_account_id)
+          }
+        >
+          <strong>{connectionName(value)}</strong>
+          <span>{connectionState(value)} →</span>
+        </Link>
+      ))}
+      {accounts?.length !== 0 && (
+        <Link className="quiet-button" href="/brokers/manage">
+          Manage Brokers
+        </Link>
+      )}
+    </section>
+  );
 }
 
-function ConnectionCard({
-  value,
-  reload,
+export function RealBrokers({ view = "all" }: { view?: "all" | "my" }) {
+  const { connections } = useBrokerSession();
+  const [search, setSearch] = useState("");
+  const query = search.trim().toLowerCase();
+  const providers = brokerProviders.filter((provider) =>
+    provider.display_name.toLowerCase().includes(query),
+  );
+  const accounts = connections?.filter((value) =>
+    connectionName(value).toLowerCase().includes(query),
+  );
+  return (
+    <div className="broker-room broker-content">
+      <h1>Manage Brokers</h1>
+      <nav className="broker-tabs" aria-label="Manage brokers">
+        <Link
+          href="/brokers/manage"
+          aria-current={view === "all" ? "page" : undefined}
+        >
+          All Brokers
+        </Link>
+        <Link
+          href="/brokers/manage/my"
+          aria-current={view === "my" ? "page" : undefined}
+        >
+          My Brokers
+        </Link>
+      </nav>
+      <label className="broker-search">
+        Search brokers
+        <input
+          type="search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Broker or connection name"
+        />
+      </label>
+      <ConnectionLoadState />
+      {view === "all" ? (
+        <>
+          <div className="broker-provider-grid">
+            {providers.map((provider) => {
+              const owned =
+                connections?.filter(
+                  (value) => value.account.provider_id === provider.provider_id,
+                ) || [];
+              return (
+                <article
+                  className="broker-provider-card"
+                  key={provider.provider_id}
+                >
+                  <h2>{provider.display_name}</h2>
+                  <p>
+                    {provider.support_state === "COMING_LATER"
+                      ? "Coming later"
+                      : !connections
+                        ? "Checking connections…"
+                        : owned.some(connected)
+                          ? `Connected: ${owned.filter(connected).length}`
+                          : owned.length
+                            ? "Setup saved · not connected"
+                            : "Not configured"}
+                  </p>
+                  {provider.support_state === "SUPPORTED" && (
+                    <>
+                      <p className="panel-intro">
+                        {[
+                          provider.capabilities.holdings && "Holdings",
+                          provider.capabilities.positions && "Positions",
+                          provider.capabilities.search && "Instruments",
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
+                      <div className="broker-connection-actions">
+                        {owned.length > 0 && (
+                          <Link
+                            className="quiet-button"
+                            href="/brokers/manage/my"
+                          >
+                            Manage
+                          </Link>
+                        )}
+                        <Link
+                          className="quiet-button"
+                          href={`/brokers/manage/setup/${provider.provider_id}`}
+                        >
+                          {owned.length ? "Add connection" : "Setup"}
+                        </Link>
+                      </div>
+                    </>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+          {!providers.length && (
+            <p role="status">No brokers match your search.</p>
+          )}
+        </>
+      ) : (
+        <>
+          <div className="broker-provider-grid">
+            {accounts?.map((value) => {
+              const href = connectionHref(value);
+              const setupSupported = brokerProviders.some(
+                (provider) =>
+                  provider.provider_id === value.account.provider_id &&
+                  provider.support_state === "SUPPORTED",
+              );
+              return (
+                <article
+                  className="broker-provider-card"
+                  key={value.account.broker_account_id}
+                >
+                  <h2>{connectionName(value)}</h2>
+                  <p>{connectionState(value)}</p>
+                  {!brokerRoomHref(
+                    value.account.provider_id,
+                    value.account.broker_account_id,
+                  ) && (
+                    <p className="panel-intro">
+                      Workspace not available for this broker.
+                    </p>
+                  )}
+                  <div className="broker-connection-actions">
+                    {href && (
+                      <Link className="quiet-button" href={href}>
+                        Open
+                      </Link>
+                    )}
+                    {setupSupported ? (
+                      <Link
+                        className="quiet-button"
+                        href={manageHref(value.account.broker_account_id)}
+                      >
+                        {value.account.authentication_state ===
+                        "REAUTH_REQUIRED"
+                          ? "Reconnect"
+                          : "Manage"}
+                      </Link>
+                    ) : (
+                      <p>Setup and management are not available yet.</p>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+          {accounts?.length === 0 && (
+            <p role="status">
+              {query
+                ? "No connections match your search."
+                : "No saved connections yet."}{" "}
+              <Link href="/brokers/manage">Find a broker</Link>
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+export function BrokerSetup({
+  providerId,
+  accountId,
 }: {
-  value: Connection;
-  reload: () => Promise<void>;
+  providerId?: string;
+  accountId?: string;
 }) {
-  const { account } = value;
-  const [message, setMessage] = useState("");
+  const { connections, reload } = useBrokerSession();
+  const [createdId, setCreatedId] = useState<string | undefined>(accountId);
+  const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
-  async function action(name: string, body: object = {}) {
+  const [message, setMessage] = useState("");
+  const value = connections?.find(
+    (connection) => connection.account.broker_account_id === createdId,
+  );
+  const roomHref = value ? connectionHref(value) : null;
+  const manifest = brokerProviders.find(
+    (provider) =>
+      provider.provider_id === (value?.account.provider_id || providerId),
+  );
+  async function save(input: SetupInput) {
+    // Only the accepted configuration contract may persist inputs. Other manifests need a supported backend strategy, never a generic credential dump.
+    if (
+      manifest?.provider_id !== "zerodha" ||
+      manifest.auth_strategy !== "BROWSER_REDIRECT_CALLBACK" ||
+      Object.keys(input.credentials).sort().join() !== "api_key,api_secret"
+    )
+      throw new Error("Unsupported configuration");
+    setMessage("");
+    let account = value?.account;
+    if (!account) {
+      account = (await brokerAuthRequest("create-account", {
+        provider_id: manifest.provider_id,
+        label: input.label,
+      })) as Connection["account"];
+      await reload();
+      setCreatedId(account.broker_account_id);
+    }
+    try {
+      await brokerAuthRequest(
+        `accounts/${account.broker_account_id}/configure`,
+        {
+          api_key: input.credentials.api_key,
+          api_secret: input.credentials.api_secret,
+          expected_revision: account.configuration_revision,
+          expected_generation: account.connection_generation,
+        },
+      );
+      setEditing(false);
+      setMessage("Configuration saved. Connect to verify your account.");
+    } finally {
+      await reload();
+    }
+  }
+  async function action(name: "connect" | "disconnect" | "cleanup") {
+    if (!value) return;
     setBusy(true);
     setMessage("");
     try {
       const result = await brokerAuthRequest(
-        `accounts/${account.broker_account_id}/${name}`,
-        body,
+        `accounts/${value.account.broker_account_id}/${name}`,
+        name === "disconnect"
+          ? { expected_generation: value.account.connection_generation }
+          : {},
       );
       if (name === "connect") {
+        // Auth mechanics remain in the backend. Only the accepted external login destination is navigable.
         const target = new URL(result.login_url);
         if (
+          value.account.provider_id !== "zerodha" ||
           target.origin !== "https://kite.zerodha.com" ||
-          target.pathname !== "/connect/login"
+          target.pathname !== "/connect/login" ||
+          target.username ||
+          target.password
         )
-          throw new Error("Invalid broker login destination.");
+          throw new Error("Invalid destination");
         window.location.assign(target.href);
       } else {
         setMessage(
           name === "disconnect"
-            ? "Disconnected from TWF. Your Zerodha session may remain valid until expiry or logout at Zerodha."
-            : "Saved. No secret is displayed or retained in this form.",
+            ? "Disconnected from TWF. Your broker session may remain valid until expiry or logout at the broker."
+            : "Cleanup retried.",
         );
         await reload();
       }
-    } catch (error) {
-      setMessage((error as Error).message);
+    } catch {
+      setMessage("Could not update the connection. Refresh and try again.");
     } finally {
       setBusy(false);
     }
   }
-  function save(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const data = new FormData(form);
-    const body = {
-      api_key: data.get("api_key"),
-      api_secret: data.get("api_secret"),
-      expected_revision: account.configuration_revision,
-      expected_generation: account.connection_generation,
-    };
-    form.reset();
-    void action("configure", body);
-  }
-  const state = account.authentication_state.replaceAll("_", " ");
+  if (!connections)
+    return (
+      <div className="broker-room">
+        <h1>Broker setup</h1>
+        <ConnectionLoadState />
+      </div>
+    );
+  if (
+    (createdId && !value) ||
+    !manifest ||
+    manifest.support_state !== "SUPPORTED"
+  )
+    return (
+      <div className="broker-room">
+        <h1>Broker setup unavailable</h1>
+        <Link href="/brokers/manage">Manage Brokers</Link>
+      </div>
+    );
   return (
-    <article
-      className="broker-real-card"
-      aria-label={`${account.label} connection`}
-    >
-      <h2>
-        Zerodha <small>{account.label}</small>
-      </h2>
-      <p role="status">
-        <strong>{state}</strong>
-      </p>
-      <p className="broker-capability">Read only · Trading disabled</p>
-      <details
-        className="broker-manage-details"
-        id={`connection-${account.broker_account_id}`}
-      >
-        <summary>Manage {account.label}</summary>
-        <p>{account.configured ? "Configured" : "Not configured"}</p>
-        {account.provider_account_id && (
-          <p>
-            Verified provider account:{" "}
-            <strong>{account.provider_account_id}</strong>
+    <div className="broker-room broker-content broker-setup">
+      <Link href="/brokers/manage/my">← My Brokers</Link>
+      <h1>
+        {value?.account.configured
+          ? connectionName(value)
+          : `Setup ${manifest.display_name}`}
+      </h1>
+      {value && <p>{connectionState(value)}</p>}
+      {message && <p role="status">{message}</p>}
+      {value?.account.provider_account_id && (
+        <p>
+          Verified account: <strong>{value.account.provider_account_id}</strong>
+        </p>
+      )}
+      {value?.callback_url && (
+        <p className="broker-account-id">
+          Set this redirect URL in your broker app:{" "}
+          <code>{value.callback_url}</code>
+        </p>
+      )}
+      {(!value?.account.configured || editing) &&
+      (!value || value.can_configure) ? (
+        <>
+          <p className="panel-intro">
+            Save your app details, then continue securely at{" "}
+            {manifest.display_name}.
+            {value?.account.configured
+              ? " Updating credentials requires a fresh connection."
+              : ""}
           </p>
-        )}
-        <p className="panel-intro">Orders and funds are deferred.</p>
-        {value.can_configure && (
-          <details>
-            <summary>Configure Zerodha</summary>
-            <p className="broker-account-id">
-              Register this callback with your Kite app: {value.callback_url}
-            </p>
-            <form className="broker-credential-form" onSubmit={save}>
-              <label>
-                API key / app identifier
-                <input
-                  name="api_key"
-                  autoComplete="off"
-                  required
-                  maxLength={128}
-                  pattern="[A-Za-z0-9_-]+"
-                />
-              </label>
-              <label>
-                API secret
-                <input
-                  name="api_secret"
-                  type="password"
-                  autoComplete="new-password"
-                  required
-                  maxLength={4096}
-                />
-              </label>
-              <p className="panel-intro">
-                Saving replaces the stored credentials and requires a fresh
-                connection.
-              </p>
-              <button className="quiet-button" disabled={busy} type="submit">
-                Save configuration
-              </button>
-            </form>
-          </details>
-        )}
-        <Link
-          className="quiet-button"
-          href={`/brokers/zerodha/${account.broker_account_id}/dashboard`}
-        >
-          Open broker room
-        </Link>
-        <div className="broker-connection-actions">
-          <button
-            className="quiet-button"
-            disabled={busy || !value.can_connect}
-            onClick={() => void action("connect")}
-          >
-            {account.authentication_state === "REAUTH_REQUIRED"
-              ? "Reauthenticate with Zerodha"
-              : "Connect Zerodha"}
+          <BrokerSetupForm
+            manifest={manifest}
+            label={value?.account.label}
+            lockedLabel={!!value}
+            onSubmit={save}
+          />
+          {editing && (
+            <button className="quiet-button" onClick={() => setEditing(false)}>
+              Cancel
+            </button>
+          )}
+        </>
+      ) : (
+        value?.can_configure && (
+          <button className="quiet-button" onClick={() => setEditing(true)}>
+            Update credentials
           </button>
-          {value.can_disconnect && account.configured && (
+        )
+      )}
+      {value && (
+        <div className="broker-connection-actions">
+          {value.can_connect && (
             <button
               className="quiet-button"
               disabled={busy}
-              onClick={() =>
-                void action("disconnect", {
-                  expected_generation: account.connection_generation,
-                })
-              }
+              onClick={() => void action("connect")}
+            >
+              {value.account.authentication_state === "REAUTH_REQUIRED"
+                ? "Reconnect"
+                : `Connect ${providerName(value.account.provider_id)}`}
+            </button>
+          )}
+          {roomHref && (
+            <Link className="quiet-button" href={roomHref}>
+              Open connection
+            </Link>
+          )}
+          {value.can_disconnect && value.account.configured && (
+            <button
+              className="quiet-button"
+              disabled={busy}
+              onClick={() => void action("disconnect")}
             >
               Disconnect from TWF
             </button>
@@ -192,130 +417,14 @@ function ConnectionCard({
               disabled={busy}
               onClick={() => void action("cleanup")}
             >
-              Retry secret cleanup ({value.cleanup_pending})
+              Retry credential cleanup
             </button>
           )}
         </div>
-        {value.unavailable_reason && (
-          <p className="panel-intro">{value.unavailable_reason}</p>
-        )}
-        {message && <p role="status">{message}</p>}
-      </details>
-    </article>
-  );
-}
-
-export function RealBrokers() {
-  const addDisclosure = useRef<HTMLDetailsElement>(null);
-  const [connections, setConnections] = useState<Connection[] | null>(null);
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  async function reload() {
-    setConnections(await brokerAuthRequest("accounts"));
-  }
-  useEffect(() => {
-    let active = true;
-    brokerAuthRequest("accounts")
-      .then((data) => {
-        if (active) setConnections(data);
-      })
-      .catch(() => {
-        if (active) setError("Real broker setup is temporarily unavailable.");
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-  async function add(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setBusy(true);
-    setError("");
-    const form = event.currentTarget;
-    try {
-      await brokerAuthRequest("create-account", {
-        provider_id: "zerodha",
-        label: new FormData(form).get("label"),
-      });
-      form.reset();
-      await reload();
-    } catch (failure) {
-      setError((failure as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <section
-      id="real-brokers"
-      className="broker-real"
-      aria-label="Broker connections"
-    >
-      <p className="panel-intro">
-        Manage connections here. Use your broker room for daily work.
-      </p>
-      <div className="broker-provider-grid">
-        {connections?.map((value) => (
-          <ConnectionCard
-            key={value.account.broker_account_id}
-            value={value}
-            reload={reload}
-          />
-        ))}
-        {connections && connections.length === 0 && (
-          <article className="broker-real-card">
-            <h2>Zerodha</h2>
-            <p>Not configured</p>
-            <p className="broker-capability">Read only · Trading disabled</p>
-            <button
-              className="quiet-button"
-              onClick={() => {
-                if (addDisclosure.current) {
-                  addDisclosure.current.open = true;
-                  addDisclosure.current.querySelector("input")?.focus();
-                }
-              }}
-            >
-              Configure Zerodha
-            </button>
-          </article>
-        )}
-        {["Fyers", "Angel One"].map((provider) => (
-          <article className="broker-real-card" key={provider}>
-            <h2>{provider}</h2>
-            <p>Coming later</p>
-            <p className="panel-intro">Connections are not available yet.</p>
-          </article>
-        ))}
-      </div>
-      {connections && (
-        <details
-          ref={addDisclosure}
-          className="broker-add-disclosure"
-          id="add-broker"
-          open={connections.length === 0 || undefined}
-        >
-          <summary>Add Zerodha account</summary>
-          <form onSubmit={add} className="broker-add-account">
-            <label>
-              Account label
-              <input
-                name="label"
-                required
-                minLength={1}
-                maxLength={80}
-                defaultValue="My Zerodha"
-              />
-            </label>
-            <button className="quiet-button" disabled={busy}>
-              Add Zerodha account
-            </button>
-          </form>
-        </details>
       )}
-      {!connections && !error && (
-        <p role="status">Loading broker connections…</p>
+      {value?.unavailable_reason && (
+        <p className="panel-intro">{value.unavailable_reason}</p>
       )}
-      {error && <p role="alert">{error}</p>}
-    </section>
+    </div>
   );
 }

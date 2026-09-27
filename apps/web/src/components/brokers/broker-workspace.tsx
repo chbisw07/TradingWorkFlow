@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { BrokerLinks } from "./broker-navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   brokerViews,
@@ -540,7 +539,6 @@ export function BrokerWorkspace({
     );
   return (
     <div className="broker-workspace broker-room">
-      <BrokerLinks active="development" />
       <div className="broker-content">
         {result.room ? (
           <Room snapshot={result.room} view={view} />

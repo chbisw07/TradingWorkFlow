@@ -1,10 +1,10 @@
-import { BrokerLinks } from "../../../../components/brokers/broker-navigation";
+import { RealBrokerRoom } from "../../../../components/brokers/real-broker-room";
 import {
-  RealBrokerRoom,
+  RealBrokers,
   BrokerRoster,
-} from "../../../../components/brokers/real-broker-room";
-import { RealBrokers } from "../../../../components/brokers/real-brokers";
-import { roomViews, type RoomView } from "../../../../lib/portfolio";
+  BrokerSetup,
+} from "../../../../components/brokers/real-brokers";
+import { resolveBrokerRoom } from "../../../../lib/broker-room-routes";
 import { notFound } from "next/navigation";
 import { BrokerWorkspace } from "../../../../components/brokers/broker-workspace";
 import { brokerViews, type BrokerView } from "../../../../lib/brokers";
@@ -15,31 +15,38 @@ export default async function BrokersPage({
   params: Promise<{ path?: string[] }>;
 }) {
   const { path = [] } = await params;
-  if (path.length === 1 && path[0] === "manage")
-    return (
-      <div className="broker-room">
-        <BrokerLinks active="manage" />
-        <h1>Manage Brokers</h1>
-        <RealBrokers />
-      </div>
-    );
+  if (path[0] === "manage") {
+    if (path.length === 1 || (path.length === 2 && path[1] === "my"))
+      return (
+        <RealBrokers
+          key={path.join("/")}
+          view={path[1] === "my" ? "my" : "all"}
+        />
+      );
+    if (path.length === 3 && path[1] === "setup")
+      return <BrokerSetup key={path.join("/")} providerId={path[2]} />;
+    if (
+      path.length === 3 &&
+      path[1] === "accounts" &&
+      /^[0-9a-f-]{36}$/i.test(path[2])
+    )
+      return <BrokerSetup key={path.join("/")} accountId={path[2]} />;
+    notFound();
+  }
   if (path.length === 1 && path[0] === "zerodha")
     return (
       <div className="broker-room">
-        <BrokerRoster landing />
+        <h1>Brokers</h1>
+        <BrokerRoster />
       </div>
     );
-  if (
-    path.length === 3 &&
-    path[0] === "zerodha" &&
-    /^[0-9a-f-]{36}$/i.test(path[1]) &&
-    roomViews.includes(path[2] as RoomView)
-  )
+  const room = resolveBrokerRoom(path);
+  if (room)
     return (
       <RealBrokerRoom
-        key={path[1]}
-        accountId={path[1]}
-        view={path[2] as RoomView}
+        key={room.accountId}
+        accountId={room.accountId}
+        view={room.view}
       />
     );
   if (
@@ -53,7 +60,6 @@ export default async function BrokersPage({
   if (path.length === 0)
     return (
       <div className="broker-room">
-        <BrokerLinks />
         <h1>Brokers</h1>
         <BrokerRoster />
       </div>

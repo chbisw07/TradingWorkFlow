@@ -26,7 +26,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <footer className="status-bar">
         <p role="status">
           <span className="status-indicator" aria-hidden="true" />
-          Development · Trading disabled
+          Trading disabled
         </p>
         <span>TWF · Read-only workspace</span>
       </footer>

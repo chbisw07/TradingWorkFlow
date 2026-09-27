@@ -38,7 +38,7 @@ export default defineConfig({
       reuseExistingServer: false,
     },
     {
-      command: `TWF_API_ORIGIN=http://127.0.0.1:${8100 + index} npm run start -- --hostname 127.0.0.1 --port ${3100 + index}`,
+      command: `TWF_ENVIRONMENT=test TWF_API_ORIGIN=http://127.0.0.1:${8100 + index} npm run start -- --hostname 127.0.0.1 --port ${3100 + index}`,
       url: `http://127.0.0.1:${3100 + index}`,
       reuseExistingServer: false,
       timeout: 60_000,

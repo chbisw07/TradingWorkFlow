@@ -29,6 +29,7 @@
   margin: var(--space-5) 0 var(--space-3);
 }
 .broker-room-heading h1 {
+  overflow-wrap: anywhere;
   margin: var(--space-2) 0;
   font-size: clamp(1.3rem, 2vw, 1.8rem);
   letter-spacing: -0.025em;
@@ -287,12 +288,12 @@
   gap: var(--space-3);
   margin: var(--space-3) 0;
 }
-.broker-real label {
+.broker-credential-form label {
   display: grid;
   gap: var(--space-2);
   min-width: 0;
 }
-.broker-real input {
+.broker-credential-form input {
   width: 100%;
   min-width: 0;
   min-height: 44px;
@@ -756,5 +757,114 @@
 @media (min-width: 768px) and (max-width: 1199px) {
   .broker-room .broker-metrics {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* The provider catalog and account management share a compact, token-based surface. */
+.broker-provider-card {
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+.broker-provider-card h2 {
+  margin: 0;
+  font-size: var(--text-base);
+  overflow-wrap: anywhere;
+}
+.broker-provider-card p {
+  margin: var(--space-2) 0;
+}
+.broker-search {
+  display: grid;
+  gap: var(--space-2);
+  max-width: 28rem;
+  margin-block: var(--space-3);
+}
+.broker-search input {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+}
+.broker-setup {
+  max-width: 46rem;
+}
+.broker-setup > .broker-connection-actions {
+  margin-top: var(--space-3);
+}
+.broker-setup > .quiet-button {
+  margin-block: var(--space-2);
+}
+
+.broker-credential-form > label:first-child {
+  grid-column: 1 / -1;
+}
+.broker-credential-form > button {
+  width: fit-content;
+  min-height: 44px;
+  margin-left: 0;
+}
+.broker-provider-card .quiet-button {
+  margin-left: 0;
+}
+.broker-provider-card .broker-connection-actions {
+  margin-bottom: 0;
+}
+.broker-setup h1 {
+  overflow-wrap: anywhere;
+}
+
+/* A concise empty-state action, without filling the workspace with placeholders. */
+.broker-empty-state {
+  padding: var(--space-5) 0;
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+}
+.broker-empty-state h2 {
+  font-size: clamp(1.25rem, 1.5vw, 1.5rem);
+  font-weight: 500;
+}
+.broker-empty-state p {
+  color: var(--text-secondary);
+}
+.broker-primary-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: var(--space-3) var(--space-5);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--background);
+  font-weight: 600;
+}
+.broker-primary-action:hover {
+  background: var(--surface-accent);
+  color: var(--accent);
+}
+@media (max-width: 1199px) {
+  .app-shell:has(.broker-room) .session-strip {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: var(--space-5);
+    max-width: 100%;
+    overflow-x: auto;
+    padding: var(--space-3) var(--space-4);
+  }
+  .app-shell:has(.broker-room) .session-strip > div {
+    flex: 0 0 auto;
+    display: flex;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+  }
+  .app-shell:has(.broker-room) .session-strip:focus-visible {
+    outline-offset: -3px;
   }
 }

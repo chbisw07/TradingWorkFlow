@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { UserMenu } from "../auth/user-session";
-import { StateBadge } from "../ui/surface-state";
 import { ThemeToggle } from "./theme-toggle";
 
 export function TopBar() {
@@ -18,15 +17,14 @@ export function TopBar() {
         </span>
         <div className="top-bar-user">
           <ThemeToggle />
-          <StateBadge state="COMING_SOON" label="Development" />
           <UserMenu />
         </div>
       </div>
-      <dl className="session-strip" aria-label="Session context">
+      <dl className="session-strip" aria-label="Session context" tabIndex={0}>
         <div>
           <dt>Broker</dt>
           <dd>
-            <Link href="/brokers">Account rooms</Link>
+            <Link href="/brokers">Connections</Link>
           </dd>
         </div>
         <div>
