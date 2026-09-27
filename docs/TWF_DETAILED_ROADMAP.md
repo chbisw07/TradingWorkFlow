@@ -11,8 +11,11 @@ Later functional targets remain pending. The
 [configuration review](TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md) records
 `GO_TWF1_5` for the bounded scope below. Broker Workspace Architecture v0.3 is independently reviewed and accepted at
 annotated tag `twf-broker-workspace-architecture-v0.3` (`0b73492`). Its BW-1
-through BW-6 runtime gates remain undelivered; BW-1 is next. Architecture
-acceptance is not implementation completion.
+through BW-6 remain the historical delivery gates. On the rebuild branch the
+user-authorized [Broker V1 vertical slice](TWF_BROKER_V1_VERTICAL_SLICE.md) is the
+active coherent read-only implementation, pending independent acceptance and real
+Zerodha smoke. Prior work is archived separately. This does not accept trading or
+renumber the TWF milestones. Architecture acceptance is not runtime completion.
 
 ## 1. Roadmap Objective
 
@@ -281,12 +284,15 @@ Use ChatGPT web for architecture, planning, docs, reviews, acceptance reasoning 
 TWF-0 and TWF-1 are accepted/frozen from repository commit/tag evidence recorded in
 the [Broker Workspace review](TWF_BROKER_WORKSPACE_ARCHITECTURE_REVIEW.md).
 TWF-1.4 `ba9bb8b`, TWF-1.5 `664d4cf` and TWF-1.6 `e3852d3` keep their histories.
-UX-B1 remains partial; UX-B2/B3 remain planned. Next target: BW-1 below.
+UX-B1 remains partial; UX-B2/B3 remain planned. Current implementation: Broker V1
+read-only rebuild, pending review and real-account smoke; see its linked record above.
 
 ## 18. Broker Workspace Delivery Overlay
 
 [Broker Workspace v0.3](TWF_BROKER_WORKSPACE_ARCHITECTURE.md#34-bounded-delivery-and-acceptance-gates)
-is the sole detailed scope/gate definition. Delivery priority is:
+records the accepted historical scope/gates. The user-authorized Broker V1 desktop
+prompt now governs this branch’s coherent read-only delivery; it does not authorize
+trading. The original delivery sequence is retained for reference:
 
 ```text
 Broker contracts + Synthetic Broker read-only rooms (BW-1)
@@ -305,13 +311,13 @@ Broker contracts + Synthetic Broker read-only rooms (BW-1)
 
 The bounded delivery and required evidence below are copied from
 [Broker Workspace Architecture v0.3, section 34](TWF_BROKER_WORKSPACE_ARCHITECTURE.md#34-bounded-delivery-and-acceptance-gates).
-The status column is repository-derived: the architecture is tagged, but no BW
-runtime implementation or acceptance record exists. BW labels are a broker
+The gate inventory below preserves the historical planning boundaries. The current
+Broker V1 implementation is recorded separately and has not received acceptance. BW labels are a broker
 workstream, **not replacements for TWF milestone IDs**.
 
 | Status | Gate | Exact bounded delivery | Required evidence / next gate |
 |---|---|---|---|
-| NEXT | BW-1 Synthetic Broker Read-Only Foundation | Versioned broker identity, capability, auth/operation health, observations and typed query contract; deterministic injected-clock adapter; authenticated personal room/overview showing Dashboard, Holdings, Positions, Orders and Funds | Three fixture accounts across two fictional providers, including two accounts of one provider; both themes/six widths; negative ownership and failure/isolation tests; no provider network or real credential path |
+| HISTORICAL GATE | BW-1 Synthetic Broker Read-Only Foundation | Versioned broker identity, capability, auth/operation health, observations and typed query contract; deterministic injected-clock adapter; authenticated personal room/overview showing Dashboard, Holdings, Positions, Orders and Funds | Three fixture accounts across two fictional providers, including two accounts of one provider; both themes/six widths; negative ownership and failure/isolation tests; no provider network or real credential path |
 | PENDING | BW-2 One real broker read-only | One chosen provider's verified auth/account binding, vault references, bounded read adapters and versioned catalog/search; optional canonical mapping | Official public API mapping, credential/callback/revocation review, source/completeness/rate-limit fixtures, isolated real read smoke; provider and permission selected before implementation |
 | PENDING | BW-3 Broker watchlists and draft/preview | Revisioned owned watchlists; exact native instrument resolution; backend draft validation and preview, no live dispatch | Persistence/migration/isolation tests, duplicate/stale/expired/token-reuse cases; no generic global-watchlist routing |
 | PENDING | BW-4 Synthetic command and recovery foundation | Durable intent/request/confirmation/audit, synthetic accept/reject/partial/unknown/cancel/modify, dispatch claims and reconciliation | Crash/restart and multi-worker tests, policy-expiry and concurrent commands; actual secret-free synthetic behavior remains labelled |
@@ -334,7 +340,7 @@ separate outstanding work. Existing TWF-7–10 retain their meanings; specific d
 reconciliation, secret, ownership and recovery prerequisites must move forward to
 the live gate that needs them rather than waiting for generic production hardening.
 
-BW-1 scope: typed broker query contracts, three owned synthetic fixture accounts
+Historical BW-1 scope: typed broker query contracts, three owned synthetic fixture accounts
 across two providers, authenticated room/overview, read-only Dashboard/Holdings/
 Positions/Orders/Funds, deterministic source/freshness/failure scenarios, same UI
 semantics and negative ownership tests. No real broker, credential/OAuth flow,

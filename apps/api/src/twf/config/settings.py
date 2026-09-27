@@ -1,7 +1,7 @@
 from typing import Literal, Self
 from urllib.parse import urlsplit
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
@@ -26,6 +26,29 @@ class Settings(BaseSettings):
     cors_origins: tuple[str, ...] | None = None
     database_url: str = Field(default="sqlite+pysqlite:///./twf.db", repr=False)
     session_ttl_seconds: int = Field(default=28800, ge=60, le=604800)
+
+    credential_master_key: SecretStr | None = Field(default=None, repr=False)
+    # Legacy name retained so existing encrypted records remain readable.
+    broker_secret_key: SecretStr | None = Field(default=None, repr=False)
+    broker_callback_url: str = "http://localhost:3000/brokers/callback"
+    broker_deadline_seconds: float = Field(default=20, ge=0.05, le=60)
+
+    @field_validator("broker_callback_url")
+    @classmethod
+    def validate_callback(cls, value: str) -> str:
+        url = urlsplit(value)
+        if (
+            url.scheme not in {"http", "https"}
+            or not url.hostname
+            or url.username
+            or url.password
+            or url.query
+            or url.fragment
+            or url.path != "/brokers/callback"
+            or (url.scheme == "http" and url.hostname not in {"localhost", "127.0.0.1"})
+        ):
+            raise ValueError("Broker callback requires HTTPS or loopback and /brokers/callback")
+        return value
 
     service_clients: tuple[ServiceDescriptor, ...] = ()
     service_allowed_origins: tuple[str, ...] = Field(default=(), repr=False)

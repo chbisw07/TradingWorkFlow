@@ -14,7 +14,8 @@ TWF-1.5 ACCEPTED / committed 664d4cf
 TWF-1.6 ACCEPTED / committed e3852d3
 TWF-1 ACCEPTED / FROZEN (twf-1-application-foundation)
 Broker Workspace Architecture v0.3 REVIEWED / ACCEPTED / TAGGED (twf-broker-workspace-architecture-v0.3)
-BW-1 Synthetic Broker Read-Only Foundation NEXT; BW-2–BW-6 PENDING
+Broker V1 read-only rebuild ACTIVE / PENDING REVIEW; real smoke pending
+BW-1–BW-6 retained as historical gate inventory; no new runtime freeze asserted
 ```
 
 ---
@@ -47,6 +48,11 @@ Read the updated normative Markdown for current realm/configuration/UX decisions
 Companions are not synchronized v0.6 deliverables.
 
 ---
+
+Current rebuild implementation and exact local setup:
+[Broker V1 vertical slice](TWF_BROKER_V1_VERTICAL_SLICE.md). The user-approved
+desktop v2 prompt governs this branch’s read-only scope; historical architecture
+and acceptance records are not rewritten.
 
 ## 2. Core Entry Documents
 

@@ -21,3 +21,8 @@ coverage/
 *.db-*
 *.sqlite*
 .DS_Store
+
+# Generated browser validation artifacts
+**/test-results/
+**/playwright-report/
+**/playwright/.cache/

@@ -1,9 +1,15 @@
 """Browser-only construction of deterministic, network-free service scenarios."""
 
+import sys
 from datetime import UTC, datetime
+from pathlib import Path
 
+import httpx
+from twf.brokers.zerodha import ZerodhaAdapter
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "api" / "tests"))
+from broker_provider_fixture import provider
 from fastapi import FastAPI
-
 from twf.config.settings import Settings
 from twf.integrations.adapters import (
     SyntheticLLMService,
@@ -22,11 +28,18 @@ def create_app() -> FastAPI:
     settings = Settings()
     clients = (
         SyntheticScannerService(reference_time=REFERENCE_TIME),
-        SyntheticTIService(scenario=SyntheticScenario.STALE, reference_time=REFERENCE_TIME),
-        SyntheticTMService(scenario=SyntheticScenario.UNAVAILABLE, reference_time=REFERENCE_TIME),
-        SyntheticLLMService(scenario=SyntheticScenario.EMPTY, reference_time=REFERENCE_TIME),
+        SyntheticTIService(
+            scenario=SyntheticScenario.STALE, reference_time=REFERENCE_TIME
+        ),
+        SyntheticTMService(
+            scenario=SyntheticScenario.UNAVAILABLE, reference_time=REFERENCE_TIME
+        ),
+        SyntheticLLMService(
+            scenario=SyntheticScenario.EMPTY, reference_time=REFERENCE_TIME
+        ),
     )
     return application(
         settings,
+        broker_adapter=ZerodhaAdapter(transport=httpx.MockTransport(provider)),
         service_registry=ServiceRegistry(settings.service_clients, clients=clients),
     )

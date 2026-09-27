@@ -114,6 +114,7 @@ def test_expiration_inactive_and_rotation(client: TestClient) -> None:
     original = client.cookies.get("twf_session")
     login(client)
     current = client.cookies.get("twf_session")
+    assert original and current
     assert original != current
     with session_scope(cast(FastAPI, client.app).state.session_factory) as session:
         old_session = session.get(AuthSession, token_digest(original))
@@ -151,6 +152,7 @@ def test_auth_logging_redacts_secrets(client: TestClient) -> None:
     login(client, "disabled")
     client.post("/api/v1/auth/logout", headers={"Origin": ORIGIN})
     output = stream.getvalue()
+    assert token is not None
     assert PASSWORD not in output and token not in output and "$argon2" not in output
     for name in (
         "auth_login_succeeded",

@@ -43,7 +43,8 @@ UX maturity — parallel workstream
 
 Broker Workspace Architecture v0.3                        ✅ REVIEWED / ACCEPTED / TAGGED
 Broker Workspace Workstream — mapped into TWF-2/TWF-6; no BW runtime accepted
-├── BW-1 Synthetic Broker Read-Only Foundation             NEXT
+├── Broker V1 coherent read-only rebuild                    ACTIVE / PENDING REVIEW
+├── BW-1 Synthetic Broker Read-Only Foundation             historical gate
 ├── BW-2 One real broker read-only                          PENDING
 ├── BW-3 Broker watchlists and draft/preview               PENDING
 ├── BW-4 Synthetic command and recovery foundation         PENDING
@@ -71,10 +72,14 @@ the previously stale status pages against this repository evidence. Broker Works
 Architecture v0.3 was independently reviewed and accepted at annotated tag
 `twf-broker-workspace-architecture-v0.3` (`0b73492`); its [bounded gates](docs/TWF_BROKER_WORKSPACE_ARCHITECTURE.md#34-bounded-delivery-and-acceptance-gates)
 are an implementation workstream, not replacement TWF milestone IDs. UX-B1 is still
-partial and no broker runtime is accepted. **ACTIVE / NEXT: BW-1 — Synthetic Broker
-Read-Only Foundation.** It proves broker-neutral read-only rooms and a unified
-overview with synthetic providers/accounts only; it authorizes no real broker
-credentials, real authentication, live orders or live execution.
+partial and no broker runtime is accepted. **ACTIVE: Broker V1 read-only vertical
+slice** on `rebuild/simple-broker-workspace`, following the user-approved desktop
+v2 wireframe prompt. It includes Zerodha setup/authentication and read-only
+Overview, Holdings, Positions, Orders, Funds and Instruments. It remains pending
+independent review and user-driven real smoke; trading is disabled. See the
+[implementation and exact local setup](docs/TWF_BROKER_V1_VERTICAL_SLICE.md).
+Earlier work is preserved on `archive/broker-work-before-simplification`; this
+rebuild does not relabel historical BW gates as newly accepted.
 Broker Workspace → Basic Execution Safety → TM → Scanner → TI is the reviewed
 delivery priority; existing TWF milestone numbers retain their original meanings.
 Real providers and live commands have separate gates.
@@ -300,9 +305,11 @@ architecture updates must keep both formats in sync, with Markdown normative. Se
 
 TWF-0 is tagged `twf-0-architecture-baseline`; TWF-1 is tagged
 `twf-1-application-foundation`; Broker Workspace Architecture v0.3 is tagged
-`twf-broker-workspace-architecture-v0.3`. The next bounded target is BW-1 under
-TWF-2 workspace foundations. `GO_BROKER_WORKSPACE` accepts the reconciled design
-and synthetic-first plan; no Broker Workspace runtime has been delivered or frozen.
+`twf-broker-workspace-architecture-v0.3`. The current rebuild target is the
+[Broker V1 read-only vertical slice](docs/TWF_BROKER_V1_VERTICAL_SLICE.md), pending
+independent acceptance and user-driven real smoke. `GO_BROKER_WORKSPACE` retains
+its historical architectural meaning; this implementation does not freeze a new
+milestone or enable trading.
 
 ---
 

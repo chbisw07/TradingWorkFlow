@@ -100,6 +100,13 @@ def test_lifecycle_and_contracts(settings: Settings) -> None:
         }
         schema = client.get("/openapi.json").json()
         assert set(schema["paths"]) == {
+            "/api/v1/brokers/providers",
+            "/api/v1/brokers/setup",
+            "/api/v1/brokers/accounts",
+            "/api/v1/brokers/accounts/{account_id}/connect",
+            "/api/v1/brokers/accounts/{account_id}/disconnect",
+            "/api/v1/brokers/accounts/{account_id}/{kind}",
+            "/api/v1/brokers/callback",
             "/health",
             "/ready",
             "/api/v1/status",

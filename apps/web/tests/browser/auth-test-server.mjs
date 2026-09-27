@@ -2,6 +2,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { randomBytes } from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
 
 const directory = mkdtempSync(join(tmpdir(), "twf-auth-e2e-"));
@@ -12,6 +13,8 @@ const env = Object.fromEntries(
 );
 Object.assign(env, {
   TWF_ENVIRONMENT: "test",
+  TWF_CREDENTIAL_MASTER_KEY: randomBytes(32).toString("base64url") + "=",
+  TWF_BROKER_CALLBACK_URL: "http://127.0.0.1:3100/brokers/callback",
   TWF_SERVICE_CLIENTS: JSON.stringify(
     ["SCANNER", "TI", "TM", "LLM"].map((kind) => ({
       identity: {
@@ -42,6 +45,7 @@ with session_scope(create_session_factory(engine)) as session:
     create_user(session, 'browser-user', 'Browser Trader', 'test-only-browser-password')
     for browser in ('chromium', 'webkit'):
         for width in (390,768,1024,1440,1920,2560):
+            create_user(session, f'broker-{browser}-{width}', 'Broker Trader', 'test-only-browser-password')
             create_user(session, f'settings-{browser}-{width}', 'Settings Trader', 'test-only-browser-password')
     session.commit()
 engine.dispose()`,
