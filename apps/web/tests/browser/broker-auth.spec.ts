@@ -1,9 +1,12 @@
+import { selectBroker, contained } from "./broker-navigation";
 import { test, expect } from "@playwright/test";
 
 test("Zerodha setup, cross-site callback, read-only binding, catalog pagination, disconnect and reauth", async ({
   page,
   browserName,
 }, info) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
   const width = info.project.use.viewport!.width;
   const apiPort = browserName === "chromium" ? 8102 : 8103;
   let expired = false;
@@ -35,11 +38,12 @@ test("Zerodha setup, cross-site callback, read-only binding, catalog pagination,
   await expect(
     page.getByRole("heading", { name: "Workspace overview" }),
   ).toBeVisible();
-  await page.goto("/brokers");
+  await page.goto("/brokers/manage");
   await expect(
-    page.getByRole("heading", { name: "Zerodha connection", exact: true }),
+    page.getByRole("heading", { name: "Manage Brokers", exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Add Zerodha account" }).click();
+  await page.getByText("Manage My Zerodha", { exact: true }).click();
   await page.getByText("Configure Zerodha", { exact: true }).click();
   await page
     .getByLabel("API key / app identifier")
@@ -66,32 +70,97 @@ test("Zerodha setup, cross-site callback, read-only binding, catalog pagination,
   expect(callbackCookie).not.toContain("twf_session=");
   expect(page.url()).not.toContain("request_token");
   await page.getByRole("link", { name: "Return to Brokers" }).click();
-  await expect(page.getByText("CONNECTED", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: /Connected · Open workspace/ }),
+  ).toBeVisible();
   await expect(
     page.getByText("LIVE DATA · READ ONLY", { exact: true }),
   ).toBeVisible();
+  await expect(page.getByRole("link", { name: /Alpha/ })).toHaveCount(0);
+  for (const theme of ["dark", "light"]) {
+    await page.evaluate((value) => {
+      document.documentElement.dataset.theme = value;
+      localStorage.setItem("twf-theme", value);
+    }, theme);
+    for (const [destination, heading, screenshot] of [
+      ["Overview", "Brokers", "overview"],
+      ["Manage Brokers", "Manage Brokers", "manage"],
+      ["Zerodha", "Zerodha", "room"],
+    ] as const) {
+      await selectBroker(page, destination);
+      await expect(
+        page.getByRole("heading", {
+          level: 1,
+          name: new RegExp(`^${heading}`),
+        }),
+      ).toBeVisible();
+      await expect(page.getByText("Loading broker connections…")).toHaveCount(
+        0,
+      );
+      await expect(page.getByText("Loading broker accounts…")).toHaveCount(0);
+      if (destination === "Zerodha")
+        await expect(page.getByText("550", { exact: true })).toBeVisible();
+      await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+      await contained(page);
+      await page.screenshot({
+        path: info.outputPath(`broker-${screenshot}-${theme}.png`),
+        fullPage: true,
+      });
+    }
+  }
+  const inspector = page.getByRole("button", {
+    name: "Workspace details",
+    exact: true,
+  });
+  await inspector.focus();
+  await page.keyboard.press("Enter");
   await expect(
-    page.getByRole("heading", { name: "Development / Synthetic" }),
+    page.getByRole("dialog", { name: "Workspace details" }),
   ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toBeHidden();
+  await expect(inspector).toBeFocused();
+
+  const functions = page.getByRole("navigation", { name: "Zerodha functions" });
+  await expect(page.getByText("550", { exact: true })).toBeVisible();
   for (const theme of ["light", "dark"]) {
     await page.evaluate((value) => {
       document.documentElement.dataset.theme = value;
+      localStorage.setItem("twf-theme", value);
     }, theme);
-    expect(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth <= window.innerWidth,
-      ),
-    ).toBe(true);
-    await expect(
-      page.getByRole("button", { name: "Disconnect from TWF" }),
-    ).toBeVisible();
-    await page.screenshot({
-      path: info.outputPath(`zerodha-${theme}.png`),
-      fullPage: true,
-    });
+    for (const view of ["Dashboard", "Holdings", "Positions"]) {
+      await functions.getByRole("link", { name: view, exact: true }).click();
+      await expect(
+        page.getByRole("heading", { level: 2, name: view, exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByText("TRADING DISABLED", { exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByText("LIVE DATA · READ ONLY", { exact: true }),
+      ).toBeVisible();
+      if (view !== "Dashboard") {
+        await expect(page.getByRole("table").first()).toContainText(
+          view === "Holdings" ? "HAL" : "HAL26OCT4500CE",
+        );
+      }
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      ).toBe(true);
+      if (width >= 1440) {
+        const workspace = await page.locator(".broker-room").boundingBox();
+        expect(workspace!.width).toBeGreaterThan(width * 0.6);
+      }
+      await page.screenshot({
+        path: info.outputPath(`zerodha-${view}-${theme}.png`),
+        fullPage: true,
+      });
+    }
   }
-  await page
-    .getByRole("link", { name: "Instrument Search", exact: true })
+  await functions
+    .getByRole("link", { name: "Instruments", exact: true })
     .click();
   await expect(
     page.getByRole("heading", { name: "Instrument Search", exact: true }),
@@ -111,7 +180,7 @@ test("Zerodha setup, cross-site callback, read-only binding, catalog pagination,
     .selectOption("CE");
   await page.getByRole("button", { name: "Search catalog" }).click();
   await expect(
-    page.getByRole("heading", { name: "HAL26OCT4500CE", exact: true }),
+    page.getByRole("rowheader", { name: /HAL26OCT4500CE/ }),
   ).toBeVisible();
   await expect(
     page.getByText("1 matching instruments", { exact: true }),
@@ -119,6 +188,7 @@ test("Zerodha setup, cross-site callback, read-only binding, catalog pagination,
   for (const theme of ["light", "dark"]) {
     await page.evaluate((value) => {
       document.documentElement.dataset.theme = value;
+      localStorage.setItem("twf-theme", value);
     }, theme);
     expect(
       await page.evaluate(
@@ -136,7 +206,7 @@ test("Zerodha setup, cross-site callback, read-only binding, catalog pagination,
     .selectOption("PE");
   await page.getByRole("button", { name: "Search catalog" }).click();
   await expect(
-    page.getByRole("heading", { name: "HAL26OCT4500PE", exact: true }),
+    page.getByRole("rowheader", { name: /HAL26OCT4500PE/ }),
   ).toBeVisible();
   await test.step("pagination retains A after B reuses native tokens", async () => {
     await page.getByLabel("Search instruments", { exact: true }).fill("PAGE");
@@ -162,7 +232,7 @@ test("Zerodha setup, cross-site callback, read-only binding, catalog pagination,
       ),
     ).toBe(true);
     await expect(
-      page.getByRole("heading", { name: "PAGEA00", exact: true }),
+      page.getByRole("rowheader", { name: /PAGEA00/ }),
     ).toBeVisible();
     const publication = page.waitForResponse(
       (response) =>
@@ -191,7 +261,7 @@ test("Zerodha setup, cross-site callback, read-only binding, catalog pagination,
       ),
     );
     await expect(
-      page.getByRole("heading", { name: "PAGEA25", exact: true }),
+      page.getByRole("rowheader", { name: /PAGEA25/ }),
     ).toBeVisible();
     response = nextResponse();
     await page.getByRole("button", { name: "Previous", exact: true }).click();
@@ -199,9 +269,10 @@ test("Zerodha setup, cross-site callback, read-only binding, catalog pagination,
     expect(new URL(previous.url()).searchParams.get("version")).toBe(versionA);
     expect((await previous.json()).instruments).toEqual(first.instruments);
     await expect(
-      page.getByRole("heading", { name: "PAGEA00", exact: true }),
+      page.getByRole("rowheader", { name: /PAGEA00/ }),
     ).toBeVisible();
     await page.getByLabel("Search instruments", { exact: true }).fill("PAGEB");
+    await page.getByText("More filters", { exact: true }).click();
     await page.getByLabel("Exchange", { exact: true }).fill("NSE");
     response = nextResponse();
     await page.getByRole("button", { name: "Search catalog" }).click();
@@ -214,10 +285,15 @@ test("Zerodha setup, cross-site callback, read-only binding, catalog pagination,
     );
     expect(current.instruments[0].symbol).toBe("PAGEB00");
     await expect(
-      page.getByRole("heading", { name: "PAGEB00", exact: true }),
+      page.getByRole("rowheader", { name: /PAGEB00/ }),
     ).toBeVisible();
   });
-  await page.getByRole("link", { name: "Brokers / connection" }).click();
+  await functions.getByRole("link", { name: "Positions", exact: true }).click();
+  await expect(
+    page.getByText("HAL · 2026-10-29 · 4,500 CE", { exact: true }),
+  ).toBeVisible();
+  await selectBroker(page, "Manage Brokers");
+  await page.getByText("Manage My Zerodha", { exact: true }).click();
   await page.getByRole("button", { name: "Disconnect from TWF" }).click();
   await expect(page.getByText("DISCONNECTED", { exact: true })).toBeVisible();
   expired = true;
@@ -231,6 +307,12 @@ test("Zerodha setup, cross-site callback, read-only binding, catalog pagination,
   await expect(page.getByRole("status")).toContainText("could not be verified");
   await page.getByRole("link", { name: "Return to Brokers" }).click();
   await expect(
+    page.getByRole("heading", { name: "Brokers", exact: true }),
+  ).toBeVisible();
+  await selectBroker(page, "Manage Brokers");
+  await page.getByText("Manage My Zerodha", { exact: true }).click();
+  await expect(
     page.getByRole("button", { name: "Reauthenticate with Zerodha" }),
   ).toBeEnabled();
+  expect(errors).toEqual([]);
 });

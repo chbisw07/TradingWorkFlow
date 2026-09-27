@@ -98,7 +98,7 @@ export function PrimaryNavigation() {
           ))}
         </ul>
         <p className="nav-note">
-          Foundation preview
+          Read-only workspace
           <br />
           Trading is not enabled.
         </p>

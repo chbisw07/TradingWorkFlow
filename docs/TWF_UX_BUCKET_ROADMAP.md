@@ -16,7 +16,9 @@ Implementation checkpoint, 2026-09-26: BW-1 now supplies an initial UX-B2
 contribution, accepted/frozen at `twf-bw1-synthetic-broker-readonly`. The
 v0.3 gate definitions remain unchanged; that checkpoint records BW-1 acceptance.
 The subsequent BW-2.3 catalog/search checkpoint is accepted after focused
-independent rereview, with Git freeze pending. BW-2 and UX-B2 remain in progress.
+independent rereview and frozen at `twf-bw2-3-zerodha-catalog-search` (`3546d7a`).
+BW-2.4 holdings/positions and broker-room UX are implemented; progression is on hold for a reproduced SQLite
+authentication-cleanup defect. BW-2 and UX-B2 remain in progress.
 
 UX-B1, UX-B2 and UX-B3 track the completeness of the user experience across
 functional milestones. They preserve the accepted trading application design
@@ -36,7 +38,7 @@ govern workspace semantics, visual quality and recomposition. The
 | Track | Current evidence                                                                     | Remaining work                                                                |
 | ----- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
 | UX-B1 | Partial: accepted shell, themes, login and TWF-1.5 settings; accepted TWF-1.6 status | Broader Setup, console behavior and bucket acceptance                         |
-| UX-B2 | In progress: BW-1 and BW-2.1 accepted/frozen; BW-2.2 accepted/frozen; BW-2.3 accepted (freeze pending)           | Operational settings and trader workflows as TWF-2–7 mature                   |
+| UX-B2 | In progress: BW-1 and BW-2.1 accepted/frozen; BW-2.2 accepted/frozen; BW-2.3 accepted/frozen; BW-2.4 implemented / on hold           | Operational settings and trader workflows as TWF-2–7 mature                   |
 | UX-B3 | Planned architecture hooks                                                           | Mature APS/ACS administration, subscriptions, diagnostics, IFL and operations |
 
 TWF-1.5 is **accepted and committed at `664d4cf`**; see its historical
@@ -185,8 +187,11 @@ maps to UX maturity as follows. [BW-1](TWF_BW1_SYNTHETIC_BROKER_READ_ONLY_FOUNDA
 is accepted/frozen, advancing UX-B2 with three owned
 synthetic rooms, qualified overview, both themes and six-width Chromium evidence.
 BW-2.1 is **ACCEPTED / FROZEN**. BW-2.2 authentication/account binding is **ACCEPTED / FROZEN**.
-BW-2.3 catalog/search is **ACCEPTED / FREEZE PENDING**; real activation remains deployment-gated, portfolio
-reads are deferred, and trading and BW-3–6 remain pending.
+BW-2.3 catalog/search is **ACCEPTED / FROZEN**.
+[BW-2.4](TWF_BW2_4_ZERODHA_HOLDINGS_POSITIONS.md) implements holdings/positions, a
+useful Zerodha room, function tabs, separate Manage Brokers and secondary synthetic
+accounts. Progression is on hold for a reproduced SQLite authentication-cleanup defect. Real activation remains deployment-gated;
+orders/funds, watchlists and command work remain deferred. Trading is disabled.
 Neither BW-1/BW-2.3 acceptance nor the architecture tag completes a UX bucket.
 
 | Broker gate                                    | Source-backed UX contribution                                                                                                              | Bucket boundary                                                                     |
@@ -311,6 +316,6 @@ dependency, framework, deployment service or new freeze requirement. The histori
 [configuration review](TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md) records the
 TWF-1.5 planning gate; the current [Broker Workspace review](TWF_BROKER_WORKSPACE_ARCHITECTURE_REVIEW.md)
 records the historical BW-1 implementation recommendation. BW-1 is now
-accepted/frozen at `twf-bw1-synthetic-broker-readonly`; BW-2.1 is accepted/frozen; BW-2.2 authentication is accepted/frozen; BW-2.3 catalog/search is accepted after focused independent rereview under its [bounded record](TWF_BW2_3_ZERODHA_NATIVE_CATALOG_SEARCH.md); Git freeze is pending.
+accepted/frozen at `twf-bw1-synthetic-broker-readonly`; BW-2.1 is accepted/frozen; BW-2.2 authentication is accepted/frozen; BW-2.3 catalog/search is accepted after focused independent rereview under its [bounded record](TWF_BW2_3_ZERODHA_NATIVE_CATALOG_SEARCH.md) and frozen at `twf-bw2-3-zerodha-catalog-search` (`3546d7a`).
 
-BW-2.3 adds [native catalog/search](TWF_BW2_3_ZERODHA_NATIVE_CATALOG_SEARCH.md). Portfolio reads, watchlists and order draft/preview remain deferred; trading remains disabled.
+BW-2.3 adds [native catalog/search](TWF_BW2_3_ZERODHA_NATIVE_CATALOG_SEARCH.md). [BW-2.4](TWF_BW2_4_ZERODHA_HOLDINGS_POSITIONS.md) implements real holdings/positions and bounded broker-room UX alignment. Orders/funds reads, watchlists and order draft/preview remain deferred; trading remains disabled.

@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 
 from fastapi import FastAPI
-from broker_fixture import BrowserVault, BrowserProvider, BrowserCatalog, add_provider_return
+from broker_fixture import BrowserVault, BrowserProvider, BrowserCatalog, BrowserPortfolio, add_provider_return
 
 from twf.config.settings import Settings
 from twf.integrations.adapters import (
@@ -32,6 +32,7 @@ def create_app() -> FastAPI:
         secret_store=BrowserVault(),
         broker_auth_provider=BrowserProvider(),
         catalog_provider=BrowserCatalog(),
+        portfolio_provider=BrowserPortfolio(),
         service_registry=ServiceRegistry(settings.service_clients, clients=clients),
     )
 

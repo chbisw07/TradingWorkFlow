@@ -113,6 +113,7 @@ def test_lifecycle_and_contracts(settings: Settings) -> None:
             "/api/v1/broker-auth/accounts/{account_id}/cleanup",
             "/api/v1/broker-auth/finalize",
             "/api/v1/broker-catalog/accounts/{account_id}/instruments",
+            "/api/v1/broker-portfolio/accounts/{account_id}",
             "/api/v1/broker-catalog/accounts/{account_id}/refresh",
             "/api/v1/broker-providers",
             "/api/v1/broker-accounts",

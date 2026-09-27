@@ -858,3 +858,8 @@ h3 {
 .service-status .service-list dd {
   flex-shrink: 0;
 }
+
+/* Keep an unfocused skip link clipped during full-page/mobile rendering. */
+.skip-link:not(:focus) {
+  clip-path: inset(50%);
+}

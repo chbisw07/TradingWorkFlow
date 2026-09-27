@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 type Connection = {
   account: {
@@ -100,114 +100,113 @@ function ConnectionCard({
       className="broker-real-card"
       aria-label={`${account.label} connection`}
     >
-      <div className="broker-room-heading">
-        <div>
-          <p className="eyebrow">ZERODHA / PERSONAL ACCOUNT</p>
-          <h3>{account.label}</h3>
-        </div>
-        <span className="broker-mode">LIVE DATA · READ ONLY</span>
-      </div>
-      <p className="broker-safety-label">TRADING DISABLED</p>
+      <h2>
+        Zerodha <small>{account.label}</small>
+      </h2>
       <p role="status">
-        <strong>{state}</strong> ·{" "}
-        {account.configured ? "Configured" : "Not configured"}
+        <strong>{state}</strong>
       </p>
-      {account.provider_account_id && (
-        <p>
-          Verified provider account:{" "}
-          <strong>{account.provider_account_id}</strong>
-        </p>
-      )}
-      <p className="panel-intro">
-        Native catalog search is available below. Real holdings, positions,
-        orders and funds are not available yet. Read health:{" "}
-        {account.read_health}.
-      </p>
-      {value.can_configure && (
-        <details>
-          <summary>Configure Zerodha</summary>
-          <p className="broker-account-id">
-            Register this callback with your Kite app: {value.callback_url}
-          </p>
-          <form className="broker-credential-form" onSubmit={save}>
-            <label>
-              API key / app identifier
-              <input
-                name="api_key"
-                autoComplete="off"
-                required
-                maxLength={128}
-                pattern="[A-Za-z0-9_-]+"
-              />
-            </label>
-            <label>
-              API secret
-              <input
-                name="api_secret"
-                type="password"
-                autoComplete="new-password"
-                required
-                maxLength={4096}
-              />
-            </label>
-            <p className="panel-intro">
-              Saving replaces the stored credentials and requires a fresh
-              connection.
-            </p>
-            <button className="quiet-button" disabled={busy} type="submit">
-              Save configuration
-            </button>
-          </form>
-        </details>
-      )}
-      <Link
-        className="quiet-button"
-        href={`/brokers/${account.broker_account_id}/instruments`}
+      <p className="broker-capability">Read only · Trading disabled</p>
+      <details
+        className="broker-manage-details"
+        id={`connection-${account.broker_account_id}`}
       >
-        Instrument Search
-      </Link>
-      <div className="broker-connection-actions">
-        <button
+        <summary>Manage {account.label}</summary>
+        <p>{account.configured ? "Configured" : "Not configured"}</p>
+        {account.provider_account_id && (
+          <p>
+            Verified provider account:{" "}
+            <strong>{account.provider_account_id}</strong>
+          </p>
+        )}
+        <p className="panel-intro">Orders and funds are deferred.</p>
+        {value.can_configure && (
+          <details>
+            <summary>Configure Zerodha</summary>
+            <p className="broker-account-id">
+              Register this callback with your Kite app: {value.callback_url}
+            </p>
+            <form className="broker-credential-form" onSubmit={save}>
+              <label>
+                API key / app identifier
+                <input
+                  name="api_key"
+                  autoComplete="off"
+                  required
+                  maxLength={128}
+                  pattern="[A-Za-z0-9_-]+"
+                />
+              </label>
+              <label>
+                API secret
+                <input
+                  name="api_secret"
+                  type="password"
+                  autoComplete="new-password"
+                  required
+                  maxLength={4096}
+                />
+              </label>
+              <p className="panel-intro">
+                Saving replaces the stored credentials and requires a fresh
+                connection.
+              </p>
+              <button className="quiet-button" disabled={busy} type="submit">
+                Save configuration
+              </button>
+            </form>
+          </details>
+        )}
+        <Link
           className="quiet-button"
-          disabled={busy || !value.can_connect}
-          onClick={() => void action("connect")}
+          href={`/brokers/zerodha/${account.broker_account_id}/dashboard`}
         >
-          {account.authentication_state === "REAUTH_REQUIRED"
-            ? "Reauthenticate with Zerodha"
-            : "Connect Zerodha"}
-        </button>
-        {value.can_disconnect && account.configured && (
+          Open broker room
+        </Link>
+        <div className="broker-connection-actions">
           <button
             className="quiet-button"
-            disabled={busy}
-            onClick={() =>
-              void action("disconnect", {
-                expected_generation: account.connection_generation,
-              })
-            }
+            disabled={busy || !value.can_connect}
+            onClick={() => void action("connect")}
           >
-            Disconnect from TWF
+            {account.authentication_state === "REAUTH_REQUIRED"
+              ? "Reauthenticate with Zerodha"
+              : "Connect Zerodha"}
           </button>
+          {value.can_disconnect && account.configured && (
+            <button
+              className="quiet-button"
+              disabled={busy}
+              onClick={() =>
+                void action("disconnect", {
+                  expected_generation: account.connection_generation,
+                })
+              }
+            >
+              Disconnect from TWF
+            </button>
+          )}
+          {value.cleanup_pending > 0 && (
+            <button
+              className="quiet-button"
+              disabled={busy}
+              onClick={() => void action("cleanup")}
+            >
+              Retry secret cleanup ({value.cleanup_pending})
+            </button>
+          )}
+        </div>
+        {value.unavailable_reason && (
+          <p className="panel-intro">{value.unavailable_reason}</p>
         )}
-        {value.cleanup_pending > 0 && (
-          <button
-            className="quiet-button"
-            disabled={busy}
-            onClick={() => void action("cleanup")}
-          >
-            Retry secret cleanup ({value.cleanup_pending})
-          </button>
-        )}
-      </div>
-      {value.unavailable_reason && (
-        <p className="panel-intro">{value.unavailable_reason}</p>
-      )}
-      {message && <p role="status">{message}</p>}
+        {message && <p role="status">{message}</p>}
+      </details>
     </article>
   );
 }
 
 export function RealBrokers() {
+  const addDisclosure = useRef<HTMLDetailsElement>(null);
   const [connections, setConnections] = useState<Connection[] | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -249,45 +248,72 @@ export function RealBrokers() {
     <section
       id="real-brokers"
       className="broker-real"
-      aria-labelledby="real-brokers-title"
+      aria-label="Broker connections"
     >
-      <div className="broker-room-heading">
-        <div>
-          <p className="eyebrow">REAL BROKERS</p>
-          <h2 id="real-brokers-title">Zerodha connection</h2>
-        </div>
-        <span className="broker-mode">TRADING DISABLED</span>
-      </div>
       <p className="panel-intro">
-        Connect your own Kite account for verified, read-only access. Portfolio
-        views arrive in a later milestone.
+        Manage connections here. Use your broker room for daily work.
       </p>
-      {connections?.map((value) => (
-        <ConnectionCard
-          key={value.account.broker_account_id}
-          value={value}
-          reload={reload}
-        />
-      ))}
+      <div className="broker-provider-grid">
+        {connections?.map((value) => (
+          <ConnectionCard
+            key={value.account.broker_account_id}
+            value={value}
+            reload={reload}
+          />
+        ))}
+        {connections && connections.length === 0 && (
+          <article className="broker-real-card">
+            <h2>Zerodha</h2>
+            <p>Not configured</p>
+            <p className="broker-capability">Read only · Trading disabled</p>
+            <button
+              className="quiet-button"
+              onClick={() => {
+                if (addDisclosure.current) {
+                  addDisclosure.current.open = true;
+                  addDisclosure.current.querySelector("input")?.focus();
+                }
+              }}
+            >
+              Configure Zerodha
+            </button>
+          </article>
+        )}
+        {["Fyers", "Angel One"].map((provider) => (
+          <article className="broker-real-card" key={provider}>
+            <h2>{provider}</h2>
+            <p>Coming later</p>
+            <p className="panel-intro">Connections are not available yet.</p>
+          </article>
+        ))}
+      </div>
       {connections && (
-        <form onSubmit={add} className="broker-add-account">
-          <label>
-            Account label
-            <input
-              name="label"
-              required
-              minLength={1}
-              maxLength={80}
-              defaultValue="My Zerodha"
-            />
-          </label>
-          <button className="quiet-button" disabled={busy}>
-            Add Zerodha account
-          </button>
-        </form>
+        <details
+          ref={addDisclosure}
+          className="broker-add-disclosure"
+          id="add-broker"
+          open={connections.length === 0 || undefined}
+        >
+          <summary>Add Zerodha account</summary>
+          <form onSubmit={add} className="broker-add-account">
+            <label>
+              Account label
+              <input
+                name="label"
+                required
+                minLength={1}
+                maxLength={80}
+                defaultValue="My Zerodha"
+              />
+            </label>
+            <button className="quiet-button" disabled={busy}>
+              Add Zerodha account
+            </button>
+          </form>
+        </details>
       )}
       {!connections && !error && (
-        <p role="status">Loading real broker setup…</p>
+        <p role="status">Loading broker connections…</p>
       )}
       {error && <p role="alert">{error}</p>}
     </section>

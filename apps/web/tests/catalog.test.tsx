@@ -51,7 +51,7 @@ test("instrument identity, provenance and read-only safety remain visible", asyn
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json(result)));
   render(<InstrumentSearch accountId={id} />);
   expect(
-    await screen.findByRole("heading", { name: item.symbol }),
+    await screen.findByRole("rowheader", { name: new RegExp(item.symbol) }),
   ).toBeVisible();
   for (const text of [
     "LIVE DATA · READ ONLY",
@@ -69,6 +69,10 @@ test("instrument identity, provenance and read-only safety remain visible", asyn
     ).toBeGreaterThan(0);
   expect(screen.getByText("4500", { exact: true })).toBeVisible();
   expect(screen.getByText("0.05", { exact: true })).toBeVisible();
+  expect(
+    screen.getByText(/Unmapped · native identity retained/),
+  ).not.toBeVisible();
+  fireEvent.click(screen.getByText("Instrument details", { exact: true }));
   expect(screen.getByText(/Unmapped · native identity retained/)).toBeVisible();
   expect(
     screen.queryByRole("button", { name: /order/i }),
@@ -81,7 +85,7 @@ test("text and derivative filters reach the bounded typed search endpoint", asyn
     .mockImplementation(() => Promise.resolve(Response.json(result)));
   vi.stubGlobal("fetch", fetcher);
   render(<InstrumentSearch accountId={id} />);
-  await screen.findByRole("heading", { name: item.symbol });
+  await screen.findByRole("rowheader", { name: new RegExp(item.symbol) });
   for (const [label, value] of [
     ["Search instruments", "HAL"],
     ["Underlying / name", "HAL"],
@@ -234,18 +238,18 @@ test("active search pins Next, Previous and refresh; query, filter and account r
     }),
   );
   const view = render(<InstrumentSearch accountId={id} />);
-  await screen.findByRole("heading", { name: "A-0" });
+  await screen.findByRole("rowheader", { name: /A-0/ });
   expect(requests.at(-1)!.searchParams.has("version")).toBe(false);
   fireEvent.click(screen.getByRole("button", { name: "Refresh catalog" }));
   await waitFor(() => expect(requests).toHaveLength(2));
   expect(requests.at(-1)!.searchParams.get("version")).toBe(id);
-  await screen.findByRole("heading", { name: "A-0" });
+  await screen.findByRole("rowheader", { name: /A-0/ });
   fireEvent.click(screen.getByRole("button", { name: "Next" }));
-  await screen.findByRole("heading", { name: "A-25" });
+  await screen.findByRole("rowheader", { name: /A-25/ });
   expect(requests.at(-1)!.searchParams.get("version")).toBe(id);
   expect(requests.at(-1)!.searchParams.get("offset")).toBe("25");
   fireEvent.click(screen.getByRole("button", { name: "Previous" }));
-  await screen.findByRole("heading", { name: "A-0" });
+  await screen.findByRole("rowheader", { name: /A-0/ });
   expect(requests.at(-1)!.searchParams.get("version")).toBe(id);
   expect(requests.at(-1)!.searchParams.get("offset")).toBe("0");
   for (const [label, value] of [
@@ -253,20 +257,20 @@ test("active search pins Next, Previous and refresh; query, filter and account r
     ["Segment", "NFO-OPT"],
   ]) {
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
-    await screen.findByRole("heading", { name: /-25$/ });
+    await screen.findByRole("rowheader", { name: /-25/ });
     fireEvent.change(screen.getByLabelText(label, { exact: true }), {
       target: { value },
     });
     fireEvent.submit(screen.getByRole("form", { name: "Instrument filters" }));
-    await screen.findByRole("heading", { name: "B-0" });
+    await screen.findByRole("rowheader", { name: /B-0/ });
     expect(requests.at(-1)!.searchParams.has("version")).toBe(false);
     expect(requests.at(-1)!.searchParams.has("offset")).toBe(false);
   }
   fireEvent.click(screen.getByRole("button", { name: "Next" }));
-  await screen.findByRole("heading", { name: "B-25" });
+  await screen.findByRole("rowheader", { name: /B-25/ });
   expect(requests.at(-1)!.searchParams.get("version")).toBe(newer);
   view.rerender(<InstrumentSearch accountId={newer} />);
-  await screen.findByRole("heading", { name: "B-0" });
+  await screen.findByRole("rowheader", { name: /B-0/ });
   expect(requests.at(-1)!.pathname).toContain(`/accounts/${newer}/`);
   expect(Object.fromEntries(requests.at(-1)!.searchParams)).toEqual({
     limit: "25",

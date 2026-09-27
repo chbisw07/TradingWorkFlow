@@ -33,7 +33,7 @@ test("overview preserves account context, synthetic mode and qualified analytica
   api(brokerFixture());
   render(<BrokerWorkspace />);
   expect(screen.getByRole("status")).toHaveTextContent("Loading");
-  await screen.findByRole("heading", { name: "Broker overview" });
+  await screen.findByRole("heading", { name: "Synthetic overview" });
   expect(
     screen.getByRole("heading", { name: "Analytical position aggregate" }),
   ).toBeVisible();
@@ -136,7 +136,7 @@ test("safe failure offers retry without retaining old observations", async () =>
     "Broker observations unavailable",
   );
   fireEvent.click(screen.getByRole("button", { name: "Try again" }));
-  await screen.findByRole("heading", { name: "Broker overview" });
+  await screen.findByRole("heading", { name: "Synthetic overview" });
 });
 
 test("unmount aborts observation requests during account navigation", async () => {
@@ -175,10 +175,8 @@ test.each(["SYNTHETIC", "SANDBOX", "LIVE"] as const)(
     data.accounts[0].positions.metadata.revision = "provider-alpha.snapshot.v2";
     api(data);
     const overview = render(<BrokerWorkspace />);
-    await screen.findByRole("heading", { name: "Broker overview" });
-    expect(
-      screen.getByRole("navigation", { name: "Broker accounts" }),
-    ).toHaveTextContent(mode);
+    await screen.findByRole("heading", { name: "Synthetic overview" });
+
     expect(document.querySelector(".broker-card .eyebrow")).toHaveTextContent(
       mode,
     );

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { RealBrokers } from "./real-brokers";
+import { BrokerLinks } from "./broker-navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   brokerViews,
@@ -140,7 +140,7 @@ function Room({ snapshot, view }: { snapshot: Snapshot; view: BrokerView }) {
     <>
       <div className="broker-room-heading">
         <div>
-          <p className="eyebrow">{account.provider_id} / Personal room</p>
+          <p className="eyebrow">{account.provider_id} / Account</p>
           <h1>{account.label}</h1>
         </div>
         <span className="broker-mode">{account.mode}</span>
@@ -340,19 +340,29 @@ function OverviewView({ data }: { data: Overview }) {
       <div className="broker-room-heading">
         <div>
           <p className="eyebrow">BROKER WORKSPACE / READ ONLY</p>
-          <h1>Broker overview</h1>
+          <h1>Synthetic overview</h1>
         </div>
+      </div>
+      <p className="broker-lead">
+        Your broker connections and separate account rooms.
+      </p>
+      <div className="broker-room-heading">
+        <h2 id="development">Development / Synthetic</h2>
         <span className="broker-mode">
           {[...new Set(data.accounts.map(({ account }) => account.mode))].join(
             " / ",
           )}
         </span>
       </div>
-      <p className="broker-lead">
-        Your broker connections and separate account rooms.
+      <p className="broker-fixture-clock">
+        {data.accounts.every(({ account }) => account.mode === "SYNTHETIC")
+          ? "Deterministic synthetic snapshots · Scenario clock "
+          : "Snapshot reference time "}
+        {stamp(data.scenario_time)}
+        {data.accounts.every(({ account }) => account.mode === "SYNTHETIC")
+          ? " · No live market data"
+          : ""}
       </p>
-      <RealBrokers />
-      <h2>Development / Synthetic</h2>
       <div className="broker-cards">
         {data.accounts.map((item) => (
           <section key={item.account.broker_account_id} className="broker-card">
@@ -529,43 +539,9 @@ export function BrokerWorkspace({
       </section>
     );
   return (
-    <div className="broker-workspace">
-      <nav className="broker-account-nav" aria-label="Broker accounts">
-        <p className="eyebrow">PERSONAL ROOMS</p>
-        <Link href="/brokers" aria-current={!accountId ? "page" : undefined}>
-          Overview
-        </Link>
-        <Link href="/brokers#real-brokers">
-          Zerodha<small>LIVE · READ ONLY</small>
-        </Link>
-        <p className="eyebrow">DEVELOPMENT / SYNTHETIC</p>
-        {result.overview.accounts.map(({ account }) => (
-          <Link
-            key={account.broker_account_id}
-            href={`/brokers/${account.broker_account_id}/dashboard`}
-            aria-current={
-              accountId === account.broker_account_id ? "page" : undefined
-            }
-          >
-            {account.label}
-            <small>{account.mode}</small>
-          </Link>
-        ))}
-      </nav>
+    <div className="broker-workspace broker-room">
+      <BrokerLinks active="development" />
       <div className="broker-content">
-        <p className="broker-fixture-clock">
-          {result.overview.accounts.every(
-            ({ account }) => account.mode === "SYNTHETIC",
-          )
-            ? "Deterministic synthetic snapshots · Scenario clock "
-            : "Snapshot reference time "}
-          {stamp(result.overview.scenario_time)}
-          {result.overview.accounts.every(
-            ({ account }) => account.mode === "SYNTHETIC",
-          )
-            ? " · No live market data"
-            : ""}
-        </p>
         {result.room ? (
           <Room snapshot={result.room} view={view} />
         ) : (

@@ -14,7 +14,7 @@ TWF-1.5 ACCEPTED / committed 664d4cf
 TWF-1.6 ACCEPTED / committed e3852d3
 TWF-1 ACCEPTED / FROZEN (twf-1-application-foundation)
 Broker Workspace Architecture v0.3 REVIEWED / ACCEPTED / TAGGED (twf-broker-workspace-architecture-v0.3)
-BW-1 Synthetic Broker Read-Only Foundation ACCEPTED / FROZEN (twf-bw1-synthetic-broker-readonly); BW-2.1 secure provider/account foundation ACCEPTED / FROZEN; BW-2.2 authentication ACCEPTED / FROZEN; BW-2.3 catalog/search ACCEPTED / FREEZE PENDING; BW-3–BW-6 PENDING
+BW-1 Synthetic Broker Read-Only Foundation ACCEPTED / FROZEN (twf-bw1-synthetic-broker-readonly); BW-2.1 secure provider/account foundation ACCEPTED / FROZEN; BW-2.2 authentication ACCEPTED / FROZEN; BW-2.3 catalog/search ACCEPTED / FROZEN; BW-2.4 holdings/positions IMPLEMENTED / HOLD; BW-3–BW-6 PENDING
 ```
 
 ---
@@ -86,13 +86,16 @@ Companions are not synchronized v0.6 deliverables.
 
 ### Broker Workspace
 
+- [Broker UX Information Architecture](TWF_BROKER_UX_INFORMATION_ARCHITECTURE.md) — presentation correction implemented / pending user UX review; preserves BW-2.4 HOLD and architecture v0.3
+
 - [Broker Workspace Architecture](TWF_BROKER_WORKSPACE_ARCHITECTURE.md) — sole normative broker design v0.3, independently reviewed and accepted at annotated tag `twf-broker-workspace-architecture-v0.3`
 - `TWF_BROKER_WORKSPACE_ARCHITECTURE.docx` — synchronized v0.3 presentation companion
 - [Broker Workspace Architecture Review](TWF_BROKER_WORKSPACE_ARCHITECTURE_REVIEW.md) — evidence, findings, reconciliation, gap timing and implementation gates; no competing design
 - [BW-2 Zerodha Read-Only Planning and Design Gate](TWF_BW2_ONE_REAL_BROKER_READ_ONLY_PLAN.md) — v0.2 provider-specific gate resolution; real activation remains separately gated
 - [BW-2.1 Secure Provider / Account Foundation](TWF_BW2_1_SECURE_PROVIDER_ACCOUNT_FOUNDATION.md) — accepted/frozen at `twf-bw2-1-secure-provider-account-foundation`; historical implementation record
-- [BW-2.2 Zerodha Authentication and Account Binding](TWF_BW2_2_ZERODHA_AUTH_ACCOUNT_BINDING.md) — accepted/frozen at `twf-bw2-2-zerodha-auth-account-binding`; real activation gated; portfolio reads deferred; trading disabled
-- [BW-2.3 Zerodha Native Catalog / Instrument Search](TWF_BW2_3_ZERODHA_NATIVE_CATALOG_SEARCH.md) — accepted after focused independent rereview; Git freeze pending; portfolio, watchlists, order preview deferred; trading disabled
+- [BW-2.2 Zerodha Authentication and Account Binding](TWF_BW2_2_ZERODHA_AUTH_ACCOUNT_BINDING.md) — accepted/frozen at `twf-bw2-2-zerodha-auth-account-binding`; historical authentication checkpoint; real activation gated; trading disabled
+- [BW-2.3 Zerodha Native Catalog / Instrument Search](TWF_BW2_3_ZERODHA_NATIVE_CATALOG_SEARCH.md) — accepted/frozen at `twf-bw2-3-zerodha-catalog-search` (`3546d7a`); historical implementation record
+- [BW-2.4 Zerodha Holdings / Positions and Broker Room](TWF_BW2_4_ZERODHA_HOLDINGS_POSITIONS.md) — implemented / on hold; on-demand real holdings/positions, exact catalog enrichment and bounded room UX; orders/funds deferred; trading disabled
 
 ### Data
 
@@ -194,13 +197,13 @@ TWF-1 — APPLICATION FOUNDATION / ACCEPTED / FROZEN (twf-1-application-foundati
 
 UX workstream (parallel to functional milestones)
 ├── UX-B1 — FOUNDATIONAL COMPLETE UX / PARTIAL
-├── UX-B2 — OPERATIONALLY USEFUL TRADING UX / IN PROGRESS (BW-1 accepted; BW-2.1 accepted; BW-2.2 accepted; BW-2.3 accepted; freeze pending)
+├── UX-B2 — OPERATIONALLY USEFUL TRADING UX / IN PROGRESS (BW-1 accepted; BW-2.1 accepted; BW-2.2 accepted; BW-2.3 accepted/frozen; BW-2.4 implemented / on hold)
 └── UX-B3 — ARCHITECTURE-COMPLETE UX / PLANNED
 
 Broker Workspace Architecture v0.3 — REVIEWED / ACCEPTED / TAGGED
 Broker Workspace Workstream — BW-1 synthetic runtime accepted
 ├── BW-1 Synthetic Broker Read-Only Foundation — ACCEPTED / FROZEN
-├── BW-2 Zerodha read-only — IN PROGRESS (BW-2.1 accepted; BW-2.2 accepted; BW-2.3 accepted; freeze pending)
+├── BW-2 Zerodha read-only — IN PROGRESS (BW-2.1 accepted; BW-2.2 accepted; BW-2.3 accepted/frozen; BW-2.4 implemented / on hold)
 ├── BW-3 Broker watchlists and draft/preview — PENDING
 ├── BW-4 Synthetic command and recovery foundation — PENDING
 ├── BW-5 Controlled live manual orders — PENDING

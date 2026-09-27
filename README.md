@@ -38,13 +38,14 @@ TWF-1 — Application Foundation                            ✅ ACCEPTED / FROZE
 
 UX maturity — parallel workstream
 ├── UX-B1 Foundational Complete UX                        PARTIAL (TWF-1.x / TWF-2)
-├── UX-B2 Operationally Useful Trading UX                  IN PROGRESS (BW-1 accepted; BW-2.1 accepted; BW-2.2 accepted; BW-2.3 accepted; freeze pending)
+├── UX-B2 Operationally Useful Trading UX                  IN PROGRESS (BW-1 accepted; BW-2.1 accepted; BW-2.2 accepted; BW-2.3 accepted/frozen; BW-2.4 implemented / on hold)
 └── UX-B3 Architecture-Complete UX                        PLANNED (progressive TWF-8–10)
 
 Broker Workspace Architecture v0.3                        ✅ REVIEWED / ACCEPTED / TAGGED
 Broker Workspace Workstream — mapped into TWF-2/TWF-6; BW-1 accepted
 ├── BW-1 Synthetic Broker Read-Only Foundation             ✅ ACCEPTED / FROZEN
-├── BW-2 One real broker read-only                          IN PROGRESS (BW-2.1 accepted; BW-2.2 accepted; BW-2.3 accepted; freeze pending)
+├── BW-2 One real broker read-only                          IN PROGRESS (BW-2.1 accepted; BW-2.2 accepted; BW-2.3 accepted/frozen; BW-2.4 implemented / on hold)
+│   └── BW-2.4 Holdings / Positions + Broker Room           IMPLEMENTED / HOLD
 ├── BW-3 Broker watchlists and draft/preview               PENDING
 ├── BW-4 Synthetic command and recovery foundation         PENDING
 ├── BW-5 Controlled live manual orders                     PENDING
@@ -75,9 +76,12 @@ partial. **BW-1 — Synthetic Broker Read-Only Foundation is accepted/frozen** a
 `twf-bw1-synthetic-broker-readonly`; its broker-neutral rooms and overview use
 synthetic providers/accounts only. **BW-2.1 is accepted/frozen** at `twf-bw2-1-secure-provider-account-foundation`.
 **BW-2.2 is accepted/frozen** at `twf-bw2-2-zerodha-auth-account-binding` (`58ed806`).
-**ACCEPTED: BW-2.3 — Zerodha Native Catalog / Instrument Search; Git freeze pending**
+**ACCEPTED / FROZEN: BW-2.3 — Zerodha Native Catalog / Instrument Search**
+at `twf-bw2-3-zerodha-catalog-search` (`3546d7a`)
 under the [BW-2.3 implementation record](docs/TWF_BW2_3_ZERODHA_NATIVE_CATALOG_SEARCH.md).
-Portfolio reads, watchlists and order draft/preview remain deferred; trading remains disabled.
+[BW-2.4 — Real Holdings / Positions](docs/TWF_BW2_4_ZERODHA_HOLDINGS_POSITIONS.md) implements real holdings/positions and bounded broker-room UX alignment; progression is on hold for a reproduced SQLite authentication-cleanup defect. Orders/funds reads, watchlists and order draft/preview remain deferred; trading remains disabled.
+
+[Broker UX Information Architecture](docs/TWF_BROKER_UX_INFORMATION_ARCHITECTURE.md) records the compact navigation, daily broker room, separate setup and secondary synthetic area. UX implementation is pending user review; the BW-2.4 authentication blocker and HOLD remain.
 BW-1 acceptance authorizes no real broker
 credentials, real authentication, live orders or live execution.
 Broker Workspace → Basic Execution Safety → TM → Scanner → TI is the reviewed
@@ -315,7 +319,7 @@ TWF-0 is tagged `twf-0-architecture-baseline`; TWF-1 is tagged
 `twf-broker-workspace-architecture-v0.3`. BW-1 under TWF-2 workspace foundations is
 accepted/frozen at `twf-bw1-synthetic-broker-readonly`. `GO_BROKER_WORKSPACE` was the
 prior architecture decision; the BW-1 freeze tag supplies separate runtime acceptance.
-BW-2.1 is accepted/frozen. BW-2.2 authentication is accepted/frozen; BW-2.3 catalog/search is accepted after focused independent rereview; Git freeze is pending; real portfolio reads remain unimplemented and trading remains disabled. BW-3–6 and the
+BW-2.1 is accepted/frozen. BW-2.2 authentication is accepted/frozen; BW-2.3 catalog/search is accepted/frozen at `twf-bw2-3-zerodha-catalog-search` (`3546d7a`). BW-2.4 holdings/positions and broker-room UX are implemented; progression is on hold for a reproduced SQLite authentication-cleanup defect. Orders/funds, watchlists and draft/preview remain deferred; trading remains disabled. BW-3–6 and the
 separate managed-workflow gate remain pending.
 
 ---

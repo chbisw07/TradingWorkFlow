@@ -32,16 +32,13 @@ test("real broker setup explains unavailable Connect without implying trading au
       .mockImplementation(() => Promise.resolve(Response.json([connection]))),
   );
   render(<RealBrokers />);
+  fireEvent.click(await screen.findByText("Manage My Zerodha"));
   expect(
-    await screen.findByRole("button", { name: "Connect Zerodha" }),
+    screen.getByRole("button", { name: "Connect Zerodha" }),
   ).toBeDisabled();
   expect(screen.getByText("Approved store unavailable.")).toBeVisible();
-  expect(screen.getAllByText("TRADING DISABLED").length).toBeGreaterThan(0);
-  expect(
-    screen.getByText(
-      /Real holdings, positions, orders and funds are not available/,
-    ),
-  ).toBeVisible();
+  expect(screen.getAllByText(/Trading disabled/).length).toBeGreaterThan(0);
+  expect(screen.getByText(/Orders and funds are deferred/)).toBeVisible();
 });
 
 test("configuration clears the secret input immediately and sends revision fences", async () => {
@@ -56,7 +53,7 @@ test("configuration clears the secret input immediately and sends revision fence
     );
   vi.stubGlobal("fetch", fetcher);
   render(<RealBrokers />);
-  await screen.findByRole("button", { name: "Connect Zerodha" });
+  fireEvent.click(await screen.findByText("Manage My Zerodha"));
   fireEvent.click(screen.getByText("Configure Zerodha"));
   fireEvent.change(screen.getByLabelText("API key / app identifier"), {
     target: { value: "appkey" },

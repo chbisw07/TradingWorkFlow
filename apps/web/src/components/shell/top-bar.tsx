@@ -25,7 +25,9 @@ export function TopBar() {
       <dl className="session-strip" aria-label="Session context">
         <div>
           <dt>Broker</dt>
-          <dd>Not connected</dd>
+          <dd>
+            <Link href="/brokers">Account rooms</Link>
+          </dd>
         </div>
         <div>
           <dt>Market / session</dt>

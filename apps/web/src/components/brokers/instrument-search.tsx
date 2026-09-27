@@ -54,11 +54,29 @@ const decimal = (value: string) =>
     ? value.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "")
     : value;
 
-export function InstrumentSearch({ accountId }: { accountId: string }) {
-  return <InstrumentSearchSession key={accountId} accountId={accountId} />;
+export function InstrumentSearch({
+  accountId,
+  embedded = false,
+}: {
+  accountId: string;
+  embedded?: boolean;
+}) {
+  return (
+    <InstrumentSearchSession
+      key={accountId}
+      accountId={accountId}
+      embedded={embedded}
+    />
+  );
 }
 
-function InstrumentSearchSession({ accountId }: { accountId: string }) {
+function InstrumentSearchSession({
+  accountId,
+  embedded,
+}: {
+  accountId: string;
+  embedded: boolean;
+}) {
   // A search owns one immutable snapshot, including refreshes of its first page.
   const pinnedVersion = useRef<string | null>(null);
   const [query, setQuery] = useState("limit=25");
@@ -147,26 +165,30 @@ function InstrumentSearchSession({ accountId }: { accountId: string }) {
       className="broker-surface catalog-room"
       aria-labelledby="catalog-title"
     >
-      <nav className="broker-tabs" aria-label="Zerodha broker room">
-        <Link href="/brokers#real-brokers">Brokers / connection</Link>
-        <a href="#catalog-title" aria-current="page">
-          Instrument Search
-        </a>
-      </nav>
+      {!embedded && (
+        <nav className="broker-tabs" aria-label="Zerodha broker room">
+          <Link href="/brokers/manage">Brokers / connection</Link>
+          <a href="#catalog-title" aria-current="page">
+            Instrument Search
+          </a>
+        </nav>
+      )}
       <div className="broker-room-heading">
         <div>
-          <p className="eyebrow">
-            ZERODHA / {catalog?.account_label || "PERSONAL ACCOUNT"}
-          </p>
-          <h1 id="catalog-title">Instrument Search</h1>
+          {embedded ? (
+            <h2 id="catalog-title">Instrument Search</h2>
+          ) : (
+            <h1 id="catalog-title">Instrument Search</h1>
+          )}
         </div>
-        <span className="broker-mode">LIVE DATA · READ ONLY</span>
+        {!embedded && (
+          <span className="broker-mode">LIVE DATA · READ ONLY</span>
+        )}
       </div>
-      <p className="broker-safety-label">TRADING DISABLED</p>
+      {!embedded && <p className="broker-safety-label">TRADING DISABLED</p>}
       <p className="panel-intro">
-        Search native listings and derivative contracts. Catalog values are
-        reference data, not live quotes. Portfolio views, watchlists and order
-        previews are deferred.
+        Find equities and derivative contracts. Reference prices are not live
+        quotes.
       </p>
       <form
         className="catalog-filters"
@@ -183,11 +205,7 @@ function InstrumentSearchSession({ accountId }: { accountId: string }) {
         </label>
         <label>
           Underlying / name
-          <input
-            name="name"
-            maxLength={128}
-            placeholder="Provider-supplied name"
-          />
+          <input name="name" maxLength={128} placeholder="HAL" />
         </label>
         <label>
           Segment
@@ -228,47 +246,55 @@ function InstrumentSearchSession({ accountId }: { accountId: string }) {
             <option value="FUT">FUT · Future</option>
           </select>
         </label>
-        <label>
-          Exchange
-          <input name="exchange" maxLength={32} placeholder="NFO" />
-        </label>
-        <label>
-          Instrument type
-          <input
-            name="instrument_type"
-            maxLength={32}
-            placeholder="EQ, CE, PE, FUT"
-          />
-        </label>
-        <label>
-          Trading symbol
-          <input name="symbol" maxLength={128} />
-        </label>
+        <details className="catalog-more-filters">
+          <summary>More filters</summary>
+          <div>
+            <label>
+              Exchange
+              <input name="exchange" maxLength={32} placeholder="NFO" />
+            </label>
+            <label>
+              Instrument type
+              <input
+                name="instrument_type"
+                maxLength={32}
+                placeholder="EQ, CE, PE, FUT"
+              />
+            </label>
+            <label>
+              Trading symbol
+              <input name="symbol" maxLength={128} />
+            </label>
+          </div>
+        </details>
         <button className="quiet-button" type="submit">
           Search catalog
         </button>
       </form>
-      <p className="panel-intro">
-        Underlying names can be absent in the provider catalog. Use the trading
-        symbol when a name is unavailable.
-      </p>
       {error && <p role="alert">{error}</p>}
       {!data && !error && <p role="status">Loading instrument catalog…</p>}
       {catalog && (
         <div className="broker-provenance" aria-label="Catalog provenance">
           <p role="status">
-            Acquisition: <strong>{catalog.freshness}</strong> ·{" "}
+            Catalog: <strong>{catalog.freshness}</strong> ·{" "}
             {catalog.completeness} · {catalog.row_count} native instruments
           </p>
-          <p>
-            Provider: {catalog.provider_id} · Source: Kite instrument master ·
-            Catalog version: {catalog.version || "Not published"}
-          </p>
-          <p>
-            Fetched: {stamp(catalog.fetched_at)} · Last verified:{" "}
-            {stamp(catalog.verified_at)} · Source timestamp:{" "}
-            {stamp(catalog.source_at)}
-          </p>
+          <details className="broker-diagnostics">
+            <summary>Catalog details</summary>
+            <p>
+              Provider: {catalog.provider_id} · Source: Kite instrument master ·
+              Catalog version: {catalog.version || "Not published"}
+            </p>
+            <p>
+              Fetched: {stamp(catalog.fetched_at)} · Last verified:{" "}
+              {stamp(catalog.verified_at)} · Source timestamp:{" "}
+              {stamp(catalog.source_at)}
+            </p>
+            <p>
+              Underlying names may be absent. Search by trading symbol when
+              needed.
+            </p>
+          </details>
           {catalog.failure_code && (
             <p role="status">
               {catalog.failure_code === "AUTH_REQUIRED"
@@ -303,56 +329,67 @@ function InstrumentSearchSession({ accountId }: { accountId: string }) {
                 : "No catalog is available yet. Connect Zerodha and refresh the catalog."}
             </p>
           )}
-          <div className="catalog-results">
-            {data.instruments.map((row) => (
-              <article
-                key={row.id}
-                className="catalog-instrument"
-                aria-label={`${row.exchange}:${row.symbol}`}
-              >
-                <p className="eyebrow">
-                  {row.provider_id.toUpperCase()} / {row.exchange} /{" "}
-                  {row.segment}
-                </p>
-                <h2>{row.symbol}</h2>
-                <p>{row.name || "Name / underlying unavailable"}</p>
-                <dl>
-                  <div>
-                    <dt>Type / contract</dt>
-                    <dd>
-                      {row.instrument_type} / {row.derivative_kind || "—"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Expiry</dt>
-                    <dd>{row.expiry || "—"}</dd>
-                  </div>
-                  <div>
-                    <dt>Strike</dt>
-                    <dd>{row.strike === null ? "—" : decimal(row.strike)}</dd>
-                  </div>
-                  <div>
-                    <dt>Lot size</dt>
-                    <dd>{row.lot_size}</dd>
-                  </div>
-                  <div>
-                    <dt>Tick size</dt>
-                    <dd>{decimal(row.tick_size)}</dd>
-                  </div>
-                  <div>
-                    <dt>Native identity</dt>
-                    <dd>
-                      {row.native_id} / {row.exchange_id || "—"}
-                    </dd>
-                  </div>
-                </dl>
-                <p className="panel-intro">
-                  Canonical mapping:{" "}
-                  {row.canonical_id || "Unmapped · native identity retained"}
-                </p>
-              </article>
-            ))}
-          </div>
+          {data.instruments.length > 0 && (
+            <div
+              className="broker-table-scroll catalog-results"
+              role="region"
+              aria-label="Instrument results"
+              tabIndex={0}
+            >
+              <table>
+                <caption>Instruments · Reference data</caption>
+                <thead>
+                  <tr>
+                    {[
+                      "Instrument",
+                      "Exchange / Segment",
+                      "Type",
+                      "Expiry",
+                      "Strike",
+                      "Lot",
+                      "Tick",
+                    ].map((label) => (
+                      <th scope="col" key={label}>
+                        {label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.instruments.map((row) => (
+                    <tr key={row.id}>
+                      <th scope="row">
+                        <strong>{row.symbol}</strong>
+                        <small>{row.name || "Name unavailable"}</small>
+                        <details className="broker-instrument-details">
+                          <summary>Instrument details</summary>
+                          <p>
+                            Native identity: {row.native_id} /{" "}
+                            {row.exchange_id || "—"}
+                          </p>
+                          <p>
+                            Canonical mapping:{" "}
+                            {row.canonical_id ||
+                              "Unmapped · native identity retained"}
+                          </p>
+                          <p>Catalog version: {row.catalog_version}</p>
+                        </details>
+                      </th>
+                      <td>
+                        {row.exchange}
+                        <small>{row.segment}</small>
+                      </td>
+                      <td>{row.derivative_kind || row.instrument_type}</td>
+                      <td>{row.expiry || "—"}</td>
+                      <td>{row.strike === null ? "—" : decimal(row.strike)}</td>
+                      <td>{row.lot_size}</td>
+                      <td>{decimal(row.tick_size)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
           <nav
             className="broker-connection-actions"
             aria-label="Instrument result pages"

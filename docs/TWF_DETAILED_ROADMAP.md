@@ -11,7 +11,7 @@ Later functional targets remain pending. The
 [configuration review](TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md) records
 `GO_TWF1_5` for the bounded scope below. Broker Workspace Architecture v0.3 is independently reviewed and accepted at
 annotated tag `twf-broker-workspace-architecture-v0.3` (`0b73492`). BW-1 is accepted/frozen at `twf-bw1-synthetic-broker-readonly`; see its
-[implementation record](TWF_BW1_SYNTHETIC_BROKER_READ_ONLY_FOUNDATION.md). BW-2.1 is accepted/frozen at `twf-bw2-1-secure-provider-account-foundation`. BW-2.2 authentication is accepted/frozen; BW-2.3 catalog/search is accepted after focused independent rereview; Git freeze is pending; real activation remains deployment-gated and BW-3–6 remain pending. Architecture
+[implementation record](TWF_BW1_SYNTHETIC_BROKER_READ_ONLY_FOUNDATION.md). BW-2.1 is accepted/frozen at `twf-bw2-1-secure-provider-account-foundation`. BW-2.2 authentication is accepted/frozen; BW-2.3 catalog/search is accepted/frozen at `twf-bw2-3-zerodha-catalog-search` (`3546d7a`); BW-2.4 holdings/positions and broker-room UX are implemented; progression is on hold for a reproduced SQLite authentication-cleanup defect; real activation remains deployment-gated and BW-3–6 remain pending. Architecture
 acceptance is not runtime acceptance.
 
 ## 1. Roadmap Objective
@@ -325,9 +325,10 @@ TWF-0 and TWF-1 are accepted/frozen from repository commit/tag evidence recorded
 the [Broker Workspace review](TWF_BROKER_WORKSPACE_ARCHITECTURE_REVIEW.md).
 TWF-1.4 `ba9bb8b`, TWF-1.5 `664d4cf` and TWF-1.6 `e3852d3` keep their histories.
 UX-B1 remains partial; UX-B2 has an accepted BW-1 synthetic read-only contribution;
-UX-B3 remains planned. BW-2.3 catalog/search is accepted; the next action is its
-Git freeze, followed by a separately scoped next BW-2 slice. No later slice is
-implemented or accepted by this status update.
+UX-B3 remains planned. BW-2.3 catalog/search is accepted/frozen.
+[BW-2.4 holdings/positions and broker-room UX](TWF_BW2_4_ZERODHA_HOLDINGS_POSITIONS.md)
+are implemented; progression is on hold for a reproduced SQLite authentication-cleanup defect. Next work requires a separately scoped
+BW-2 prompt; real orders/funds and all command work remain deferred.
 
 ## 18. Broker Workspace Delivery Overlay
 
@@ -358,7 +359,7 @@ workstream, **not replacements for TWF milestone IDs**.
 | Status                              | Gate                                           | Exact bounded delivery                                                                                                                                                                                                                   | Required evidence / next gate                                                                                                                                                                                      |
 | ----------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | ACCEPTED / FROZEN                   | BW-1 Synthetic Broker Read-Only Foundation     | Versioned broker identity, capability, auth/operation health, observations and typed query contract; deterministic injected-clock adapter; authenticated personal room/overview showing Dashboard, Holdings, Positions, Orders and Funds | Three fixture accounts across two fictional providers, including two accounts of one provider; both themes/six widths; negative ownership and failure/isolation tests; no provider network or real credential path |
-| IN PROGRESS — BW-2.3 ACCEPTED / FREEZE PENDING | BW-2 One real broker read-only                 | One chosen provider's verified auth/account binding, vault references, bounded read adapters and versioned catalog/search; optional canonical mapping                                                                                    | Official public API mapping, credential/callback/revocation review, source/completeness/rate-limit fixtures, isolated real read smoke; provider and permission selected before implementation                      |
+| IN PROGRESS — BW-2.4 IMPLEMENTED / HOLD | BW-2 One real broker read-only                 | One chosen provider's verified auth/account binding, vault references, bounded read adapters and versioned catalog/search; optional canonical mapping                                                                                    | Official public API mapping, credential/callback/revocation review, source/completeness/rate-limit fixtures, isolated real read smoke; provider and permission selected before implementation                      |
 | PENDING                             | BW-3 Broker watchlists and draft/preview       | Revisioned owned watchlists; exact native instrument resolution; backend draft validation and preview, no live dispatch                                                                                                                  | Persistence/migration/isolation tests, duplicate/stale/expired/token-reuse cases; no generic global-watchlist routing                                                                                              |
 | PENDING                             | BW-4 Synthetic command and recovery foundation | Durable intent/request/confirmation/audit, synthetic accept/reject/partial/unknown/cancel/modify, dispatch claims and reconciliation                                                                                                     | Crash/restart and multi-worker tests, policy-expiry and concurrent commands; actual secret-free synthetic behavior remains labelled                                                                                |
 | PENDING                             | BW-5 Controlled live manual orders             | One provider, explicit personal ownership, restricted segments/order types, separately enabled LIVE mode and approved safety policy                                                                                                      | All live prerequisites in sections 7, 18, 19, 23 and 26; provider contract/sandbox evidence where available; operator recovery runbook; explicit approval and independent acceptance before live activation        |
@@ -388,8 +389,8 @@ shared ACS account, live/draft command endpoint, catalog import, watchlist CRUD,
 persistence rollout or streaming platform. Exact acceptance is section 34.1 of the
 broker architecture. The [BW-1 implementation record](TWF_BW1_SYNTHETIC_BROKER_READ_ONLY_FOUNDATION.md)
 records the bounded runtime and validation. BW-1 is accepted/frozen.
-[BW-2.3 catalog/search](TWF_BW2_3_ZERODHA_NATIVE_CATALOG_SEARCH.md) is accepted
-after focused independent rereview; its Git freeze is pending. Real-broker
+[BW-2.3 catalog/search](TWF_BW2_3_ZERODHA_NATIVE_CATALOG_SEARCH.md) is accepted/frozen
+at `twf-bw2-3-zerodha-catalog-search` (`3546d7a`). Real-broker
 activation remains separately gated. No later milestone is completed by this acceptance.
 
 Basic Execution Safety protects manual submission; TM retains managed-trade
@@ -398,4 +399,4 @@ fallback bypasses TM. A live activation requires its own bounded prompt and
 independent acceptance. Global watchlists, advanced provider administration and
 commercial quotas remain later scope, not dependencies of BW-1.
 
-BW-2.3 adds [native catalog/search](TWF_BW2_3_ZERODHA_NATIVE_CATALOG_SEARCH.md). Portfolio reads, watchlists and order draft/preview remain deferred; trading remains disabled.
+BW-2.3 adds [native catalog/search](TWF_BW2_3_ZERODHA_NATIVE_CATALOG_SEARCH.md). [BW-2.4](TWF_BW2_4_ZERODHA_HOLDINGS_POSITIONS.md) implements real holdings/positions and bounded broker-room UX alignment. Orders/funds reads, watchlists and order draft/preview remain deferred; trading remains disabled.
