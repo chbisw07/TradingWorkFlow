@@ -1,7 +1,7 @@
 from typing import Literal, Self
 from urllib.parse import urlsplit
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
@@ -27,38 +27,28 @@ class Settings(BaseSettings):
     database_url: str = Field(default="sqlite+pysqlite:///./twf.db", repr=False)
     session_ttl_seconds: int = Field(default=28800, ge=60, le=604800)
 
-    zerodha_auth_enabled: bool = False
-    zerodha_web_origin: str = "http://localhost:3000"
-    zerodha_callback_url: str = "http://localhost:8000/api/v1/broker-auth/callback"
+    credential_master_key: SecretStr | None = Field(default=None, repr=False)
+    # Legacy name retained so existing encrypted records remain readable.
+    broker_secret_key: SecretStr | None = Field(default=None, repr=False)
+    broker_callback_url: str = "http://localhost:3000/brokers/callback"
+    broker_deadline_seconds: float = Field(default=20, ge=0.05, le=60)
 
-    @model_validator(mode="after")
-    def validate_broker_callback(self) -> Self:
-        origin = urlsplit(self.zerodha_web_origin)
-        callback = urlsplit(self.zerodha_callback_url)
+    @field_validator("broker_callback_url")
+    @classmethod
+    def validate_callback(cls, value: str) -> str:
+        url = urlsplit(value)
         if (
-            origin.scheme not in {"http", "https"}
-            or not origin.hostname
-            or origin.username
-            or origin.password
-            or origin.path
-            or origin.query
-            or origin.fragment
-            or callback.scheme != origin.scheme
-            or callback.hostname != origin.hostname
-            or callback.username
-            or callback.password
-            or callback.query
-            or callback.fragment
-            or callback.path != "/api/v1/broker-auth/callback"
-            or (
-                self.zerodha_auth_enabled
-                and self.environment == "production"
-                and origin.scheme != "https"
-            )
+            url.scheme not in {"http", "https"}
+            or not url.hostname
+            or url.username
+            or url.password
+            or url.query
+            or url.fragment
+            or url.path != "/brokers/callback"
+            or (url.scheme == "http" and url.hostname not in {"localhost", "127.0.0.1"})
         ):
-            raise ValueError("Broker callback requires the same web host and fixed callback path")
-        _ = origin.port, callback.port
-        return self
+            raise ValueError("Broker callback requires HTTPS or loopback and /brokers/callback")
+        return value
 
     service_clients: tuple[ServiceDescriptor, ...] = ()
     service_allowed_origins: tuple[str, ...] = Field(default=(), repr=False)

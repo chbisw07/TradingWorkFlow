@@ -7,198 +7,255 @@ import {
 } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { BrokerWorkspace } from "../src/components/brokers/broker-workspace";
-import type { BrokerView, Overview } from "../src/lib/brokers";
-import { brokerFixture } from "./broker-fixtures";
-
-afterEach(() => vi.unstubAllGlobals());
-function api(data: Overview) {
-  const fetcher = vi
-    .fn()
-    .mockImplementation((url: string) =>
-      Promise.resolve(
-        Response.json(
-          url.includes("broker-auth")
-            ? []
-            : url.endsWith("overview")
-              ? data
-              : data.accounts[0],
-        ),
-      ),
-    );
-  vi.stubGlobal("fetch", fetcher);
-  return fetcher;
-}
-
-test("overview preserves account context, synthetic mode and qualified analytical totals", async () => {
-  api(brokerFixture());
-  render(<BrokerWorkspace />);
-  expect(screen.getByRole("status")).toHaveTextContent("Loading");
-  await screen.findByRole("heading", { name: "Synthetic overview" });
-  expect(
-    screen.getByRole("heading", { name: "Analytical position aggregate" }),
-  ).toBeVisible();
-  expect(screen.getByText(/Qualified subtotal/)).toBeVisible();
-  expect(screen.getByText(/1 unmapped position rows/)).toBeVisible();
-  expect(screen.getAllByText(/SYNTHETIC/).length).toBeGreaterThan(1);
-  expect(screen.getByRole("link", { name: "Open Alpha A1 →" })).toHaveAttribute(
-    "href",
-    expect.stringContaining("/dashboard"),
+import {
+  Account,
+  newer,
+  operational,
+  readLabel,
+  Snapshot,
+} from "../src/lib/brokers";
+const account: Account = {
+  id: "11111111-1111-1111-1111-111111111111",
+  provider: "zerodha",
+  name: "Zerodha – Primary",
+  identity: "AB1234",
+  state: "connected",
+  health: "healthy",
+  generation: 3,
+  updated_at: "2026-09-27T12:00:00Z",
+  last_read_at: "2026-09-27T12:00:00Z",
+};
+const snapshot: Snapshot = {
+  account,
+  fetched_at: "2026-09-27T12:00:00Z",
+  data: [],
+};
+afterEach(() => vi.restoreAllMocks());
+test("new authoritative session state overrides retained healthy data", () => {
+  const now = Date.parse(snapshot.fetched_at);
+  expect(readLabel(account, snapshot, false, now)).toBe(
+    "LIVE DATA · READ ONLY",
   );
+  expect(
+    readLabel({ ...account, state: "reauth_required" }, snapshot, false, now),
+  ).toBe("REAUTH REQUIRED");
+  expect(
+    readLabel({ ...account, state: "disconnected" }, snapshot, false, now),
+  ).toBe("NOT CONNECTED");
+  expect(
+    readLabel({ ...account, health: "degraded" }, snapshot, false, now),
+  ).toBe("READ ONLY · DEGRADED");
+  expect(readLabel(account, snapshot, true, now)).toBe("READ ONLY · DEGRADED");
+  expect(readLabel(account, snapshot, false, now + 31_000)).toBe(
+    "READ ONLY · STALE DATA",
+  );
+  expect(
+    readLabel({ ...account, generation: 4 }, snapshot, false, now),
+  ).not.toContain("LIVE");
+});
+test("out-of-order responses cannot revive disconnected accounts", () => {
+  const disconnected: Account = {
+    ...account,
+    state: "disconnected",
+    generation: 4,
+  };
+  expect(newer(account, disconnected)).toEqual(disconnected);
+  expect(operational(disconnected)).toBe(false);
+  expect(operational({ ...account, identity: null })).toBe(false);
+  expect(operational({ ...account, state: "reauth_required" })).toBe(true);
+});
+function mock(accounts: Account[], storageMessage: string | null = null) {
+  vi.spyOn(global, "fetch").mockImplementation(async (input) => {
+    const path = String(input);
+    if (path.endsWith("/accounts")) return Response.json(accounts);
+    if (path.endsWith("/providers"))
+      return Response.json([
+        { id: "zerodha", name: "Zerodha", supported: true },
+        { id: "fyers", name: "Fyers", supported: false },
+      ]);
+    if (path.endsWith("/setup"))
+      return Response.json({
+        callback_url: "http://localhost:3000/brokers/callback",
+        storage_available: storageMessage === null,
+        storage_message: storageMessage,
+      });
+    return Response.json({
+      ...snapshot,
+      fetched_at: new Date().toISOString(),
+      data: [
+        {
+          instrument: { symbol: "HAL", reference: "ZERODHA:NSE:HAL" },
+          quantity: null,
+          average: 0,
+        },
+      ],
+    });
+  });
+}
+test("empty UX only exposes Overview and Manage Brokers", async () => {
+  mock([]);
+  render(<BrokerWorkspace path={[]} />);
+  await waitFor(() =>
+    expect(
+      screen.queryByText("Loading broker connections…"),
+    ).not.toBeInTheDocument(),
+  );
+  const nav = screen.getByRole("navigation", { name: "Broker accounts" });
+  expect(within(nav).getAllByRole("link")).toHaveLength(2);
+  expect(screen.getByText("No broker connected yet")).toBeInTheDocument();
+});
+test("provider remains visible and unsupported cards cannot be set up", async () => {
+  mock([account]);
+  render(<BrokerWorkspace path={["manage"]} />);
+  await screen.findByRole("heading", { name: "Fyers" });
+  expect(screen.getByRole("button", { name: "Coming later" })).toBeDisabled();
+  expect(screen.getByRole("link", { name: /^Manage$/ })).toHaveAttribute(
+    "href",
+    "/brokers/manage/my",
+  );
+  fireEvent.change(screen.getByRole("textbox", { name: "Search brokers" }), {
+    target: { value: "fyers" },
+  });
+  expect(
+    screen.queryByRole("heading", { name: "Zerodha" }),
+  ).not.toBeInTheDocument();
+});
+test("setup uses only official app credentials and hides the secret", async () => {
+  mock([]);
+  render(<BrokerWorkspace path={["setup", "zerodha"]} />);
+  await screen.findByText("http://localhost:3000/brokers/callback");
+  expect(screen.getByLabelText("API Secret")).toHaveAttribute(
+    "type",
+    "password",
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Show API secret" }));
+  expect(screen.getByLabelText("API Secret")).toHaveAttribute("type", "text");
+  expect(screen.queryByLabelText("TOTP")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Connect Broker" })).toBeEnabled();
+});
+test("mounted room drops LIVE when a focus refresh discovers auth loss", async () => {
+  const current = [{ ...account }];
+  mock(current);
+  render(<BrokerWorkspace path={["accounts", account.id, "holdings"]} />);
+  await screen.findByText(/LIVE DATA · READ ONLY/);
+  current[0] = { ...account, generation: 4, state: "reauth_required" };
+  fireEvent(window, new Event("focus"));
+  await screen.findByText(/REAUTH REQUIRED · TRADING DISABLED/);
+  expect(screen.queryByText(/LIVE DATA/)).not.toBeInTheDocument();
+  expect(screen.getByText("HAL")).toBeInTheDocument();
+});
+
+test("missing master key disables setup and shows the actionable configuration message", async () => {
+  const message =
+    "Credential encryption key is not configured. Set TWF_CREDENTIAL_MASTER_KEY and restart TWF.";
+  mock([], message);
+  render(<BrokerWorkspace path={["setup", "zerodha"]} />);
+  await screen.findByText(/Set TWF_CREDENTIAL_MASTER_KEY and restart TWF/);
+  expect(screen.getByRole("alert")).toHaveTextContent(message);
+  expect(screen.getByRole("button", { name: "Connect Broker" })).toBeDisabled();
 });
 
 test.each([
-  "dashboard",
-  "holdings",
-  "positions",
-  "orders",
-  "funds",
-] as BrokerView[])(
-  "room %s renders normalized observations and meaningful provenance",
-  async (view) => {
-    const data = brokerFixture();
-    const fetcher = api(data);
-    render(
-      <BrokerWorkspace
-        accountId={data.accounts[0].account.broker_account_id}
-        view={view}
-      />,
-    );
-    await screen.findByRole("heading", { level: 1, name: "Alpha A1" });
-    expect(
-      screen.getByRole("navigation", { name: "Broker room views" }),
-    ).toHaveTextContent("DashboardHoldingsPositionsOrdersFunds");
-    expect(screen.getAllByText(/FRESH.*COMPLETE/).length).toBeGreaterThan(0);
-    expect(
-      screen.getByText(/Unavailable in this foundation/),
-    ).toHaveTextContent("New Order");
-    expect(fetcher.mock.calls.map(([url]) => url)).toContain(
-      `/api/v1/brokers/accounts/${data.accounts[0].account.broker_account_id}`,
-    );
-    if (view === "dashboard") expect(screen.getByText("41,000")).toBeVisible();
-    if (view === "orders")
-      expect(screen.getByRole("table")).toHaveTextContent("PARTIALLY_FILLED");
-    if (view === "funds") expect(screen.getByText("Unknown")).toBeVisible();
-  },
-);
-
-test("stale, degraded and partial states do not become healthy or zero", async () => {
-  const data = brokerFixture();
-  data.accounts[0].operation.read = "DEGRADED";
-  data.accounts[0].positions.metadata = {
-    ...data.accounts[0].positions.metadata,
-    freshness: "STALE",
-    completeness: "PARTIAL",
-    health: "DEGRADED",
-  };
-  data.accounts[0].positions.rows![0].instrument.canonical_id = null;
-  api(data);
-  render(
-    <BrokerWorkspace
-      accountId={data.accounts[0].account.broker_account_id}
-      view="positions"
-    />,
-  );
-  expect(
-    await screen.findByText("Unmapped — excluded from canonical netting"),
-  ).toBeVisible();
-  expect(screen.getByText(/STALE.*PARTIAL/)).toHaveTextContent("DEGRADED");
-});
-
-test.each([null, []])(
-  "missing and empty dataset %s have distinct copy",
-  async (rows) => {
-    const data = brokerFixture();
-    data.accounts[0].holdings.rows = rows;
-    api(data);
-    render(
-      <BrokerWorkspace
-        accountId={data.accounts[0].account.broker_account_id}
-        view="holdings"
-      />,
-    );
-    expect(
-      await screen.findByText(
-        rows === null ? /Holdings unavailable/ : /No holdings in this snapshot/,
+  [
+    "mixed settlement",
+    {
+      quantity: "20",
+      average: "100",
+      last_price: "120",
+      value: "2400",
+      pnl: "400",
+      pnl_percent: "20",
+    },
+    ["20", "100", "120", "2,400", "400", "20"],
+  ],
+  [
+    "MTF with unknown combined cost",
+    {
+      quantity: "15",
+      average: null,
+      last_price: "120",
+      value: "1800",
+      pnl: "200",
+      pnl_percent: null,
+    },
+    ["15", "—", "120", "1,800", "200", "—"],
+  ],
+  [
+    "unknown ownership",
+    {
+      quantity: null,
+      average: null,
+      last_price: "120",
+      value: null,
+      pnl: "200",
+      pnl_percent: null,
+    },
+    ["—", "—", "120", "—", "200", "—"],
+  ],
+  [
+    "missing last price",
+    {
+      quantity: "20",
+      average: "100",
+      last_price: null,
+      value: null,
+      pnl: "400",
+      pnl_percent: "20",
+    },
+    ["20", "100", "—", "—", "400", "20"],
+  ],
+] as const)(
+  "Holdings renders %s without zeroing unknowns",
+  async (_name, values, expected) => {
+    vi.spyOn(global, "fetch").mockImplementation(async (input) =>
+      Response.json(
+        String(input).endsWith("/accounts")
+          ? [account]
+          : {
+              ...snapshot,
+              fetched_at: new Date().toISOString(),
+              data: [
+                {
+                  instrument: { symbol: "HAL", reference: "ZERODHA:NSE:HAL" },
+                  ...values,
+                },
+              ],
+            },
       ),
-    ).toBeVisible();
-    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    );
+    render(<BrokerWorkspace path={["accounts", account.id, "holdings"]} />);
+    const header = await screen.findByRole("rowheader", { name: /HAL/ });
+    expect(
+      within(header.closest("tr")!)
+        .getAllByRole("cell")
+        .map((cell) => cell.textContent),
+    ).toEqual(expected);
   },
 );
 
-test("safe failure offers retry without retaining old observations", async () => {
-  const fetcher = vi
-    .fn()
-    .mockResolvedValueOnce(new Response(null, { status: 503 }))
-    .mockResolvedValue(Response.json(brokerFixture()));
-  vi.stubGlobal("fetch", fetcher);
-  render(<BrokerWorkspace />);
-  expect(await screen.findByRole("alert")).toHaveTextContent(
-    "Broker observations unavailable",
+test.each([
+  ["2400", "2,400"],
+  [null, "—"],
+])("Overview renders holdings value %s truthfully", async (value, expected) => {
+  vi.spyOn(global, "fetch").mockImplementation(async (input) =>
+    Response.json(
+      String(input).endsWith("/accounts")
+        ? [account]
+        : {
+            ...snapshot,
+            fetched_at: new Date().toISOString(),
+            data: {
+              cash: null,
+              holdings_value: value,
+              positions: 0,
+              open_orders: 0,
+            },
+          },
+    ),
   );
-  fireEvent.click(screen.getByRole("button", { name: "Try again" }));
-  await screen.findByRole("heading", { name: "Synthetic overview" });
-});
-
-test("unmount aborts observation requests during account navigation", async () => {
-  const fetcher = vi.fn().mockImplementation(() => new Promise(() => {}));
-  vi.stubGlobal("fetch", fetcher);
-  const { unmount } = render(<BrokerWorkspace />);
-  await waitFor(() => expect(fetcher).toHaveBeenCalled());
-  unmount();
-  expect(fetcher.mock.calls[0][1].signal.aborted).toBe(true);
-});
-
-test("room navigation identifies active view and only read views are links", async () => {
-  const data = brokerFixture();
-  api(data);
-  render(
-    <BrokerWorkspace
-      accountId={data.accounts[0].account.broker_account_id}
-      view="orders"
-    />,
+  render(<BrokerWorkspace path={["accounts", account.id, "overview"]} />);
+  const label = await screen.findByText("Holdings value");
+  expect(label.parentElement?.querySelector("strong")).toHaveTextContent(
+    expected!,
   );
-  const nav = await screen.findByRole("navigation", {
-    name: "Broker room views",
-  });
-  expect(within(nav).getByRole("link", { name: "Orders" })).toHaveAttribute(
-    "aria-current",
-    "page",
-  );
-  expect(within(nav).getAllByRole("link")).toHaveLength(5);
 });
-
-test.each(["SYNTHETIC", "SANDBOX", "LIVE"] as const)(
-  "%s account mode drives overview, navigation and room identity",
-  async (mode) => {
-    const data = brokerFixture();
-    data.accounts[0].account.mode = mode;
-    data.accounts[0].positions.metadata.revision = "provider-alpha.snapshot.v2";
-    api(data);
-    const overview = render(<BrokerWorkspace />);
-    await screen.findByRole("heading", { name: "Synthetic overview" });
-
-    expect(document.querySelector(".broker-card .eyebrow")).toHaveTextContent(
-      mode,
-    );
-    expect(
-      document.querySelector(".broker-room-heading .broker-mode"),
-    ).toHaveTextContent(mode);
-    overview.unmount();
-    render(
-      <BrokerWorkspace
-        accountId={data.accounts[0].account.broker_account_id}
-        view="positions"
-      />,
-    );
-    await screen.findByRole("heading", { name: "Alpha A1", level: 1 });
-    expect(
-      document.querySelector(".broker-room-heading .broker-mode"),
-    ).toHaveTextContent(mode);
-    expect(screen.getByText(/provider-alpha.snapshot.v2/)).toBeVisible();
-    if (mode !== "SYNTHETIC") {
-      expect(
-        screen.queryByText(/Deterministic synthetic snapshots/),
-      ).not.toBeInTheDocument();
-    }
-  },
-);

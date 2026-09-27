@@ -1,199 +1,139 @@
-"""Versioned broker read models; no command or provider-native payloads."""
-
 from datetime import datetime
 from decimal import Decimal
-from enum import StrEnum
-from typing import Annotated, Literal, Protocol
+from typing import Literal, Protocol
 from uuid import UUID
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, StringConstraints
-
-
-class Contract(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-
-class Health(StrEnum):
-    AVAILABLE = "AVAILABLE"
-    DEGRADED = "DEGRADED"
-    UNAVAILABLE = "UNAVAILABLE"
-    UNKNOWN = "UNKNOWN"
-
-
-class FailureCode(StrEnum):
-    UNAVAILABLE = "UNAVAILABLE"
-    AUTH_EXPIRED = "AUTH_EXPIRED"
-    RATE_LIMITED = "RATE_LIMITED"
-    TIMEOUT = "TIMEOUT"
-    DENIED = "DENIED"
-    INCOMPATIBLE = "INCOMPATIBLE"
+from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 
 class BrokerFailure(Exception):
-    def __init__(self, code: FailureCode) -> None:
-        self.code = code
-        super().__init__(code.value)
+    def __init__(self, code: str, message: str, status: int = 502) -> None:
+        super().__init__(code)
+        self.code, self.message, self.status = code, message, status
 
 
-class BrokerProvider(Contract):
-    provider_id: str
+class Credentials(BaseModel):
+    api_key: SecretStr
+    api_secret: SecretStr
+    access_token: SecretStr | None = None
+
+
+class Binding(BaseModel):
+    identity: str
+    access_token: SecretStr
+
+
+class Account(BaseModel):
+    id: UUID
+    provider: str
     name: str
+    identity: str | None
+    state: Literal["configured", "connecting", "connected", "reauth_required", "disconnected"]
+    health: Literal["unknown", "healthy", "degraded"]
+    generation: int
+    updated_at: datetime
+    last_read_at: datetime | None
 
 
-class BrokerCapability(Contract):
-    dashboard: Literal[True] = True
-    holdings: Literal[True] = True
-    positions: Literal[True] = True
-    orders: Literal[True] = True
-    funds: Literal[True] = True
-    commands: Literal[False] = False
+class Provider(BaseModel):
+    id: str
+    name: str
+    supported: bool = False
 
 
-class AccountMode(StrEnum):
-    SYNTHETIC = "SYNTHETIC"
-    SANDBOX = "SANDBOX"
-    LIVE = "LIVE"
-
-
-class BrokerAccount(Contract):
-    broker_account_id: UUID
-    provider_id: str
-    owner_user_id: UUID
-    label: str
-    mode: AccountMode = AccountMode.SYNTHETIC
-    capabilities: BrokerCapability = BrokerCapability()
-
-
-class OperationHealth(Contract):
-    connection: Literal["CONNECTED", "AUTH_EXPIRED", "UNAVAILABLE"]
-    read: Health
-    error: FailureCode | None = None
-
-
-class ObservationMetadata(Contract):
-    source: str
-    broker_account_id: UUID
-    source_as_of: AwareDatetime | None
-    fetched_at: AwareDatetime
-    health: Health
-    freshness: Literal["FRESH", "STALE", "UNKNOWN"]
-    completeness: Literal["COMPLETE", "PARTIAL", "MISSING"]
-    revision: Annotated[
-        str,
-        StringConstraints(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]*$"),
-    ]
-    freshness_policy_seconds: int
-
-
-class Instrument(Contract):
-    canonical_id: str | None
+class Instrument(BaseModel):
+    symbol: str
     exchange: str
-    broker_symbol: str
-    native_id: str
-    currency: Literal["INR"] = "INR"
-    quantity_unit: Literal["SHARES"] = "SHARES"
+    reference: str
+    native_token: str | None = None
+    name: str | None = None
+    underlying: str | None = None
+    expiry: str | None = None
+    strike: Decimal | None = None
+    kind: str | None = None
+    segment: str | None = None
+    lot_size: Decimal | None = None
 
 
-class Holding(Contract):
+class Holding(BaseModel):
     instrument: Instrument
-    quantity: Decimal
-    average_cost: Decimal
-    last_price: Decimal
-    current_value: Decimal
-    pnl: Decimal
+    quantity: Decimal | None
+    average: Decimal | None
+    last_price: Decimal | None
+    value: Decimal | None
+    pnl: Decimal | None
     pnl_percent: Decimal | None
 
 
-class Position(Contract):
+class Position(BaseModel):
     instrument: Instrument
-    product: str
-    quantity: Decimal
-    average_price: Decimal
-    last_price: Decimal
-    realized_pnl: Decimal | None
-    unrealized_pnl: Decimal | None
-    broker_state: str
+    product: str | None
+    quantity: Decimal | None
+    average: Decimal | None
+    last_price: Decimal | None
+    realized: Decimal | None
+    unrealized: Decimal | None
+    pnl: Decimal | None
 
 
-class BrokerOrder(Contract):
-    broker_order_id: str
+class Order(BaseModel):
+    id: str
     instrument: Instrument
-    side: Literal["BUY", "SELL"]
-    quantity: Decimal
-    filled_quantity: Decimal
-    remaining_quantity: Decimal
+    time: str | None
+    side: str | None
+    quantity: Decimal | None
+    kind: str | None
     price: Decimal | None
-    status: Literal[
-        "OPEN", "PENDING", "PARTIALLY_FILLED", "COMPLETE", "REJECTED", "CANCELLED", "UNKNOWN"
-    ]
-    observed_at: AwareDatetime
-    reason: str | None = None
+    status: str | None
 
 
-class FundsSnapshot(Contract):
-    currency: Literal["INR"] = "INR"
-    available_cash: Decimal | None
+class Funds(BaseModel):
+    segment: str
+    enabled: bool
+    cash: Decimal | None
     used_margin: Decimal | None
+    available_margin: Decimal | None
     collateral: Decimal | None
 
 
-class HoldingsDataset(Contract):
-    metadata: ObservationMetadata
-    rows: tuple[Holding, ...] | None
+class Overview(BaseModel):
+    cash: Decimal | None
+    holdings_value: Decimal | None
+    positions: int | None
+    open_orders: int | None
 
 
-class PositionsDataset(Contract):
-    metadata: ObservationMetadata
-    rows: tuple[Position, ...] | None
+class Search(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    q: str = Field(default="", max_length=80)
+    underlying: str = Field(default="", max_length=80)
+    expiry: str = Field(default="", pattern=r"^(\d{4}-\d{2}-\d{2})?$")
+    strike: Decimal | None = Field(default=None, ge=0, allow_inf_nan=False)
+    kind: Literal["", "EQ", "CE", "PE", "FUT"] = ""
+    page: int = Field(default=1, ge=1, le=10000)
+    limit: int = Field(default=50, ge=1, le=100)
 
 
-class OrdersDataset(Contract):
-    metadata: ObservationMetadata
-    rows: tuple[BrokerOrder, ...] | None
+class CatalogPage(BaseModel):
+    items: list[Instrument]
+    total: int
+    page: int
+    limit: int
+    fetched_at: datetime
 
 
-class FundsDataset(Contract):
-    metadata: ObservationMetadata
-    values: FundsSnapshot | None
+class Snapshot[T](BaseModel):
+    account: Account
+    fetched_at: datetime
+    data: T
 
 
-class BrokerSnapshot(Contract):
-    contract_version: Literal["broker.read.v1"] = "broker.read.v1"
-    request_id: str
-    account: BrokerAccount
-    operation: OperationHealth
-    holdings: HoldingsDataset
-    positions: PositionsDataset
-    orders: OrdersDataset
-    funds: FundsDataset
-
-
-class PositionContribution(Contract):
-    broker_account_id: UUID
-    quantity: Decimal
-    metadata: ObservationMetadata
-
-
-class CanonicalPositionAggregate(Contract):
-    canonical_id: str
-    exchange: str
-    product: str
-    currency: str
-    quantity_unit: str
-    quantity: Decimal
-    contributions: tuple[PositionContribution, ...]
-    qualified: bool
-
-
-class UnifiedBrokerSnapshot(Contract):
-    contract_version: Literal["broker.read.v1"] = "broker.read.v1"
-    providers: tuple[BrokerProvider, ...]
-    accounts: tuple[BrokerSnapshot, ...]
-    position_aggregates: tuple[CanonicalPositionAggregate, ...]
-    unmapped_position_count: int
-    missing_position_accounts: int
-    scenario_time: AwareDatetime
-
-
-class BrokerReadClient(Protocol):
-    def read(self, account: BrokerAccount, request_id: str, now: datetime) -> BrokerSnapshot: ...
+class BrokerAdapter(Protocol):
+    async def authenticate(self, credentials: Credentials, request_token: str) -> Binding: ...
+    async def get_profile(self, credentials: Credentials) -> str: ...
+    async def get_holdings(self, credentials: Credentials) -> list[Holding]: ...
+    async def get_positions(self, credentials: Credentials) -> list[Position]: ...
+    async def get_orders(self, credentials: Credentials) -> list[Order]: ...
+    async def get_funds(self, credentials: Credentials) -> list[Funds]: ...
+    async def search_instruments(self, credentials: Credentials, query: Search) -> CatalogPage: ...
+    async def disconnect(self, credentials: Credentials) -> None: ...

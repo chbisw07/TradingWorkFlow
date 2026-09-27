@@ -1,1 +1,1 @@
-"""BW-1 synthetic, account-owned broker read foundation."""
+"""Small read-only broker boundary. No order execution capabilities."""

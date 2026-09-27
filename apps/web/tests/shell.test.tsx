@@ -23,7 +23,7 @@ test("shell renders product, semantic regions, target, and honest service states
   ).toBeInTheDocument();
   expect(screen.getByRole("main")).toHaveTextContent("TWF-1.1 Frontend Shell");
   expect(screen.getByRole("banner")).toHaveTextContent("Not signed in");
-  expect(screen.getByRole("contentinfo")).toHaveTextContent("Trading disabled");
+  expect(screen.getByRole("contentinfo")).toHaveTextContent("No live data");
   expect(
     screen.getByRole("region", { name: "System console" }),
   ).toBeInTheDocument();

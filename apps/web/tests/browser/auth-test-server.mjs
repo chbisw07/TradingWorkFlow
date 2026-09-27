@@ -2,9 +2,9 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { randomBytes } from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
 
-const [apiPort = "8100", webPort = "3100"] = process.argv.slice(2);
 const directory = mkdtempSync(join(tmpdir(), "twf-auth-e2e-"));
 const api = resolve("../api");
 const python = join(api, ".venv/bin/python");
@@ -13,9 +13,8 @@ const env = Object.fromEntries(
 );
 Object.assign(env, {
   TWF_ENVIRONMENT: "test",
-  TWF_ZERODHA_AUTH_ENABLED: "true",
-  TWF_ZERODHA_WEB_ORIGIN: `http://127.0.0.1:${webPort}`,
-  TWF_ZERODHA_CALLBACK_URL: `http://127.0.0.1:${apiPort}/api/v1/broker-auth/callback`,
+  TWF_CREDENTIAL_MASTER_KEY: randomBytes(32).toString("base64url") + "=",
+  TWF_BROKER_CALLBACK_URL: "http://127.0.0.1:3100/brokers/callback",
   TWF_SERVICE_CLIENTS: JSON.stringify(
     ["SCANNER", "TI", "TM", "LLM"].map((kind) => ({
       identity: {
@@ -29,7 +28,7 @@ Object.assign(env, {
     })),
   ),
   TWF_DATABASE_URL: `sqlite+pysqlite:///${directory}/auth.db`,
-  TWF_CORS_ORIGINS: JSON.stringify([`http://127.0.0.1:${webPort}`]),
+  TWF_CORS_ORIGINS: '["http://127.0.0.1:3100"]',
 });
 const setup = spawnSync(
   python,
@@ -46,9 +45,8 @@ with session_scope(create_session_factory(engine)) as session:
     create_user(session, 'browser-user', 'Browser Trader', 'test-only-browser-password')
     for browser in ('chromium', 'webkit'):
         for width in (390,768,1024,1440,1920,2560):
+            create_user(session, f'broker-{browser}-{width}', 'Broker Trader', 'test-only-browser-password')
             create_user(session, f'settings-{browser}-{width}', 'Settings Trader', 'test-only-browser-password')
-            create_user(session, f'brokers-{browser}-{width}', 'Broker Trader', 'test-only-browser-password')
-            create_user(session, f'zerodha-{browser}-{width}', 'Connection Trader', 'test-only-browser-password')
     session.commit()
 engine.dispose()`,
   ],
@@ -70,7 +68,7 @@ const child = spawn(
     "--host",
     "127.0.0.1",
     "--port",
-    apiPort,
+    "8100",
     "--no-access-log",
   ],
   { cwd: directory, env, stdio: "inherit" },

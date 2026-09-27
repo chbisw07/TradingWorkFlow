@@ -60,7 +60,7 @@ def test_settings_default_and_environment(monkeypatch: pytest.MonkeyPatch) -> No
     assert Settings().database_url == "sqlite+pysqlite:///./twf.db"
     monkeypatch.setenv("TWF_DATABASE_URL", "sqlite+pysqlite:///:memory:")
     assert Settings(environment="test").database_url.endswith(":memory:")
-    value = "postgresql://placeholder:secret@db.invalid:5432/twf"
+    value = "postgresql://placeholder:credential_marker_123@db.invalid:5432/twf"
     monkeypatch.setenv("TWF_DATABASE_URL", value)
     settings = Settings(environment="production")
     assert settings.database_url.startswith("postgresql+psycopg://")
@@ -227,16 +227,9 @@ def test_migration_history_and_metadata() -> None:
         "user_preferences",
         "preference_profiles",
         "preference_changes",
-        "broker_provider_configurations",
         "broker_accounts",
-        "broker_auth_attempts",
-        "broker_auth_configurations",
-        "broker_secret_lifecycle",
-        "catalog_snapshots",
-        "catalog_instruments",
-        "catalog_pointers",
-        "broker_connections",
-        "broker_audit_events",
+        "broker_attempts",
+        "broker_secrets",
     }
     assert set(Base.metadata.naming_convention) == {"pk", "fk", "ix", "uq", "ck"}
     command.upgrade(config, "head")
@@ -247,28 +240,19 @@ def test_migration_history_and_metadata() -> None:
         with db.connect() as connection:
             assert (
                 MigrationContext.configure(connection).get_current_revision()
-                == "0006_native_catalog"
+                == "0005_credential_metadata"
             )
-            assert inspect(connection).get_table_names() == sorted(
-                [
-                    "alembic_version",
-                    "auth_sessions",
-                    "broker_accounts",
-                    "broker_audit_events",
-                    "broker_auth_attempts",
-                    "broker_auth_configurations",
-                    "broker_connections",
-                    "broker_provider_configurations",
-                    "broker_secret_lifecycle",
-                    "catalog_snapshots",
-                    "catalog_instruments",
-                    "catalog_pointers",
-                    "preference_changes",
-                    "preference_profiles",
-                    "user_preferences",
-                    "users",
-                ]
-            )
+            assert inspect(connection).get_table_names() == [
+                "alembic_version",
+                "auth_sessions",
+                "broker_accounts",
+                "broker_attempts",
+                "broker_secrets",
+                "preference_changes",
+                "preference_profiles",
+                "user_preferences",
+                "users",
+            ]
         command.downgrade(config, "base")
         with db.connect() as connection:
             assert MigrationContext.configure(connection).get_current_revision() is None
@@ -276,17 +260,19 @@ def test_migration_history_and_metadata() -> None:
         with db.connect() as connection:
             assert (
                 MigrationContext.configure(connection).get_current_revision()
-                == "0006_native_catalog"
+                == "0005_credential_metadata"
             )
     finally:
         db.dispose()
 
 
 def test_offline_postgresql_migration(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("TWF_DATABASE_URL", "postgresql+psycopg://placeholder:secret@db.invalid/twf")
+    monkeypatch.setenv(
+        "TWF_DATABASE_URL", "postgresql+psycopg://placeholder:credential_marker_123@db.invalid/twf"
+    )
     output = io.StringIO()
     config = Config(str(Path(__file__).parents[1] / "alembic.ini"), output_buffer=output)
     command.upgrade(config, "head", sql=True)
     sql = output.getvalue()
     assert "0001_empty_baseline" in sql and "alembic_version" in sql
-    assert "placeholder:secret.invalid" not in sql and "db.invalid" not in sql
+    assert "credential_marker_123" not in sql and "db.invalid" not in sql

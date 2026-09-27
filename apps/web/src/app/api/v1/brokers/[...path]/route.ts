@@ -1,80 +1,77 @@
 import { apiOrigin } from "../../../../../lib/auth-server";
-
 export const dynamic = "force-dynamic";
-
-export async function GET(
+async function forward(
   request: Request,
-  { params }: { params: Promise<{ path: string[] }> },
+  context: { params: Promise<{ path: string[] }> },
 ) {
-  const { path } = await params;
+  const { path } = await context.params;
+  const route = path.join("/");
+  const id = "[0-9a-fA-F-]{36}";
   const allowed =
-    (path.length === 1 && path[0] === "overview") ||
-    (path.length === 2 &&
-      path[0] === "accounts" &&
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        path[1],
-      ));
-  const supplied = request.headers.get("X-Request-ID") || "";
-  const requestId = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(supplied)
-    ? supplied
-    : crypto.randomUUID();
-  const headers = new Headers({ "X-Request-ID": requestId });
-  const pairs = (request.headers.get("cookie") || "")
-    .split(";")
-    .map((part) => part.trim());
-  for (const name of ["__Host-twf_session", "twf_session"]) {
-    const matches = pairs.filter((pair) => pair.startsWith(`${name}=`));
-    if (!matches.length) continue;
-    const value = matches[0].slice(name.length + 1);
-    if (
-      matches.length === 1 &&
-      /^[\x21\x23-\x2B\x2D-\x3A\x3C-\x5B\x5D-\x7E]+$/.test(value)
-    )
-      headers.set("Cookie", `${name}=${value}`);
-    break;
-  }
-  const output = new Headers({
+    request.method === "GET"
+      ? /^(providers|accounts|setup)$/.test(route) ||
+        new RegExp(
+          `^accounts/${id}/(overview|holdings|positions|orders|funds|instruments)$`,
+        ).test(route)
+      : request.method === "POST" &&
+        (/^(accounts|callback)$/.test(route) ||
+          new RegExp(`^accounts/${id}/(connect|disconnect)$`).test(route));
+  const output = {
     "Content-Type": "application/json",
     "Cache-Control": "no-store",
-    "X-Request-ID": requestId,
-  });
+    "Referrer-Policy": "no-referrer",
+  };
   if (!allowed)
     return Response.json(
-      {
-        error: {
-          code: "HTTP_404",
-          message: "Not Found",
-          request_id: requestId,
-          details: null,
-        },
-      },
+      { error: { message: "Not found" } },
       { status: 404, headers: output },
     );
+  const headers = new Headers();
+  const pairs = (request.headers.get("cookie") || "")
+    .split(";")
+    .map((x) => x.trim());
+  for (const name of ["__Host-twf_session", "twf_session"]) {
+    const matches = pairs.filter((x) => x.startsWith(name + "="));
+    if (!matches.length) continue;
+    if (
+      matches.length === 1 &&
+      /^[A-Za-z0-9_-]{43}$/.test(matches[0].slice(name.length + 1))
+    )
+      headers.set("Cookie", matches[0]);
+    break;
+  }
+  for (const name of ["origin", "content-type"]) {
+    const value = request.headers.get(name);
+    if (value) headers.set(name, value);
+  }
   try {
-    const response = await fetch(
-      `${apiOrigin()}/api/v1/brokers/${path.join("/")}`,
+    const body = request.method === "GET" ? undefined : await request.text();
+    if (body && body.length > 4096)
+      return new Response(null, { status: 413, headers: output });
+    const search = new URL(request.url).search;
+    if (search.length > 1024)
+      return new Response(null, { status: 414, headers: output });
+    const upstream = await fetch(
+      apiOrigin() + "/api/v1/brokers/" + route + search,
       {
+        method: request.method,
         headers,
+        body,
         cache: "no-store",
         redirect: "error",
-        signal: AbortSignal.timeout(12000),
+        signal: AbortSignal.timeout(65000),
       },
     );
-    return new Response(await response.text(), {
-      status: response.status,
+    return new Response(await upstream.text(), {
+      status: upstream.status,
       headers: output,
     });
   } catch {
     return Response.json(
-      {
-        error: {
-          code: "SERVICE_UNAVAILABLE",
-          message: "Broker observations unavailable",
-          request_id: requestId,
-          details: null,
-        },
-      },
+      { error: { message: "Broker service is unavailable. Please retry." } },
       { status: 503, headers: output },
     );
   }
 }
+export const GET = forward;
+export const POST = forward;

@@ -54,24 +54,21 @@ export function PrimaryNavigation() {
               {index === 0 || label === "Settings" || label === "Brokers" ? (
                 <Link
                   href={
-                    label === "Settings"
-                      ? "/settings"
-                      : label === "Brokers"
-                        ? "/brokers"
+                    label === "Brokers"
+                      ? "/brokers"
+                      : label === "Settings"
+                        ? "/settings"
                         : "/"
                   }
                   className="nav-item"
                   aria-current={
-                    (
-                      label === "Brokers"
-                        ? pathname.startsWith("/brokers")
-                        : pathname ===
-                          (label === "Settings"
-                            ? "/settings"
-                            : label === "Brokers"
-                              ? "/brokers"
-                              : "/")
-                    )
+                    (label === "Brokers" && pathname.startsWith("/brokers")) ||
+                    pathname ===
+                      (label === "Brokers"
+                        ? "/brokers"
+                        : label === "Settings"
+                          ? "/settings"
+                          : "/")
                       ? "page"
                       : undefined
                   }
@@ -98,7 +95,9 @@ export function PrimaryNavigation() {
           ))}
         </ul>
         <p className="nav-note">
-          Read-only workspace
+          {pathname.startsWith("/brokers")
+            ? "Broker workspace"
+            : "Foundation preview"}
           <br />
           Trading is not enabled.
         </p>

@@ -1,104 +1,107 @@
-export type BrokerView =
-  "dashboard" | "holdings" | "positions" | "orders" | "funds";
-export const brokerViews: BrokerView[] = [
-  "dashboard",
+export type Account = {
+  id: string;
+  provider: string;
+  name: string;
+  identity: string | null;
+  state:
+    | "configured"
+    | "connecting"
+    | "connected"
+    | "reauth_required"
+    | "disconnected";
+  health: "unknown" | "healthy" | "degraded";
+  generation: number;
+  updated_at: string;
+  last_read_at: string | null;
+};
+export type Provider = { id: string; name: string; supported: boolean };
+export type Instrument = {
+  symbol: string;
+  exchange: string;
+  reference: string;
+  native_token: string | null;
+  name?: string | null;
+  underlying?: string | null;
+  expiry?: string | null;
+  strike?: string | null;
+  kind?: string | null;
+  segment?: string | null;
+};
+export type Row = Record<string, string | number | boolean | null | Instrument>;
+export type Snapshot = {
+  account: Account;
+  fetched_at: string;
+  data:
+    | Row[]
+    | Record<string, number | string | null>
+    | {
+        items: Instrument[];
+        total: number;
+        page: number;
+        limit: number;
+        fetched_at: string;
+      };
+};
+export const functions = [
+  "overview",
   "holdings",
   "positions",
   "orders",
   "funds",
-];
-export type Observation = {
-  source: string;
-  broker_account_id: string;
-  source_as_of: string | null;
-  fetched_at: string;
-  health: string;
-  freshness: "FRESH" | "STALE" | "UNKNOWN";
-  completeness: "COMPLETE" | "PARTIAL" | "MISSING";
-  revision: string;
-  freshness_policy_seconds: number;
-};
-export type Instrument = {
-  canonical_id: string | null;
-  exchange: string;
-  broker_symbol: string;
-  native_id: string;
-  currency: string;
-  quantity_unit: string;
-};
-export type Holding = {
-  instrument: Instrument;
-  quantity: string;
-  average_cost: string;
-  last_price: string;
-  current_value: string;
-  pnl: string;
-  pnl_percent: string | null;
-};
-export type Position = {
-  instrument: Instrument;
-  product: string;
-  quantity: string;
-  average_price: string;
-  last_price: string;
-  realized_pnl: string | null;
-  unrealized_pnl: string | null;
-  broker_state: string;
-};
-export type Order = {
-  broker_order_id: string;
-  instrument: Instrument;
-  side: string;
-  quantity: string;
-  filled_quantity: string;
-  remaining_quantity: string;
-  price: string | null;
-  status: string;
-  observed_at: string;
-  reason: string | null;
-};
-export type Funds = {
-  currency: string;
-  available_cash: string | null;
-  used_margin: string | null;
-  collateral: string | null;
-};
-export type Dataset<T> = { metadata: Observation; rows: T[] | null };
-export type Snapshot = {
-  contract_version: "broker.read.v1";
-  request_id: string;
-  account: {
-    broker_account_id: string;
-    provider_id: string;
-    owner_user_id: string;
-    label: string;
-    mode: "SYNTHETIC" | "SANDBOX" | "LIVE";
-  };
-  operation: { connection: string; read: string; error: string | null };
-  holdings: Dataset<Holding>;
-  positions: Dataset<Position>;
-  orders: Dataset<Order>;
-  funds: { metadata: Observation; values: Funds | null };
-};
-export type Overview = {
-  contract_version: "broker.read.v1";
-  scenario_time: string;
-  providers: { provider_id: string; name: string }[];
-  accounts: Snapshot[];
-  position_aggregates: {
-    canonical_id: string;
-    exchange: string;
-    product: string;
-    currency: string;
-    quantity_unit: string;
-    quantity: string;
-    qualified: boolean;
-    contributions: {
-      broker_account_id: string;
-      quantity: string;
-      metadata: Observation;
-    }[];
-  }[];
-  unmapped_position_count: number;
-  missing_position_accounts: number;
-};
+  "instruments",
+] as const;
+export type BrokerFunction = (typeof functions)[number];
+export const title = (value: string) =>
+  value.charAt(0).toUpperCase() + value.slice(1);
+export const stateLabel = (a: Account) =>
+  ({
+    configured: "Not connected",
+    connected: "Connected",
+    connecting: "Connecting",
+    reauth_required: "Re-authentication required",
+    disconnected: "Not connected",
+  })[a.state];
+export const operational = (a: Account) =>
+  !!a.identity && !["configured", "disconnected"].includes(a.state);
+export function newer(a: Account, b?: Account): Account {
+  return !b ||
+    a.generation > b.generation ||
+    (a.generation === b.generation && a.updated_at >= b.updated_at)
+    ? a
+    : b;
+}
+export function readLabel(
+  account: Account,
+  snapshot: Snapshot | null,
+  failed: boolean,
+  now: number,
+) {
+  if (account.state === "reauth_required") return "REAUTH REQUIRED";
+  if (account.state === "connecting") return "CONNECTING";
+  if (account.state !== "connected") return "NOT CONNECTED";
+  if (failed || account.health === "degraded") return "READ ONLY · DEGRADED";
+  if (!snapshot || snapshot.account.generation !== account.generation)
+    return "READ ONLY · AWAITING DATA";
+  if (now - Date.parse(snapshot.fetched_at) > 30_000)
+    return "READ ONLY · STALE DATA";
+  return "LIVE DATA · READ ONLY";
+}
+export async function brokerApi<T>(
+  path: string,
+  body?: unknown,
+  signal?: AbortSignal,
+): Promise<T> {
+  const response = await fetch("/api/v1/brokers/" + path, {
+    method: body === undefined ? "GET" : "POST",
+    headers: body === undefined ? {} : { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    cache: "no-store",
+    signal,
+  });
+  const data = await response.json();
+  if (!response.ok)
+    throw new Error(
+      data?.error?.message || "Broker request failed. Please retry.",
+    );
+  return data as T;
+}

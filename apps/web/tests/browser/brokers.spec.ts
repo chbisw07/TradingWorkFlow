@@ -1,87 +1,133 @@
-import { selectDevelopment, contained } from "./broker-navigation";
 import { expect, test } from "@playwright/test";
-
-test("owned synthetic broker rooms and overview recompose in both themes", async ({
+test("complete broker journey, both themes, responsive tables and disconnect", async ({
   page,
-}, info) => {
-  const errors: string[] = [];
-  page.on("pageerror", (error) => errors.push(error.message));
-  expect((await page.request.get("/api/v1/brokers/overview")).status()).toBe(
-    401,
+}, testInfo) => {
+  const callback = await page.request.get(
+    "/brokers/callback?request_token=test-only-marker",
   );
+  expect(callback.headers()["referrer-policy"]).toBe("no-referrer");
+  expect(callback.headers()["cache-control"]).toContain("no-store");
   await page.goto("/login");
-  await page.getByLabel("Username").fill(`brokers-${info.project.name}`);
-  await page.getByLabel("Password").fill("test-only-browser-password");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByLabel("Username").fill(`broker-${testInfo.project.name}`);
+  await page
+    .getByLabel("Password", { exact: true })
+    .fill("test-only-browser-password");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL("/");
+  await page.goto("/brokers");
+  await expect(page.getByText("No broker connected yet")).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Workspace overview" }),
-  ).toBeVisible();
-  const nav = page.getByRole("navigation", { name: "Primary navigation" });
-  const toggle = nav.getByRole("button", { name: "Workspace navigation" });
-  if (await toggle.isVisible()) await toggle.click();
-  await nav.getByRole("link", { name: "Brokers", exact: true }).click();
+    page.getByRole("navigation", { name: "Broker accounts" }).getByRole("link"),
+  ).toHaveCount(2);
+  await page
+    .getByRole("link", { name: "Manage Brokers", exact: true })
+    .last()
+    .click();
   await expect(
-    page.getByRole("heading", { name: "Brokers", exact: true }),
+    page.getByRole("button", { name: "Coming later", exact: true }),
+  ).toHaveCount(4);
+  await page.getByRole("link", { name: "Setup", exact: true }).click();
+  await page.getByLabel("Connection name").fill("Zerodha – Primary");
+  await page.getByLabel("API Key", { exact: true }).fill("testapikey123");
+  await page.getByLabel("API Secret", { exact: true }).fill("testsecret123");
+  await page.route(
+    "https://kite.zerodha.com/connect/login?**",
+    async (route) => {
+      const url = new URL(route.request().url());
+      const state = new URLSearchParams(
+        url.searchParams.get("redirect_params") || "",
+      ).get("state");
+      await route.fulfill({
+        status: 302,
+        headers: {
+          location: `http://127.0.0.1:3100/brokers/callback?status=success&request_token=request123&state=${state}`,
+        },
+      });
+    },
+  );
+  await page.getByRole("button", { name: "Connect Broker" }).click();
+  await expect(page).toHaveURL(/\/brokers\/accounts\/[^/]+\/overview/);
+  await expect(
+    page
+      .getByRole("navigation", { name: "Broker accounts" })
+      .getByRole("link", { name: "Zerodha – Primary" }),
   ).toBeVisible();
-  await expect(page.getByRole("link", { name: /Alpha/ })).toHaveCount(0);
-  await expect(page.getByText("Analytical position aggregate")).toHaveCount(0);
-  await selectDevelopment(page, "Synthetic overview");
   for (const theme of ["dark", "light"]) {
-    if (theme === "light")
-      await page.getByRole("button", { name: "Light theme" }).click();
-    await expect(
-      page.getByRole("heading", { name: "Synthetic overview" }),
-    ).toBeVisible();
-    await expect(page.getByText("105", { exact: true })).toBeVisible();
-    await expect(page.getByText(/1 unmapped position rows/)).toBeVisible();
-    await contained(page);
-    await page.screenshot({
-      path: info.outputPath(`brokers-overview-${theme}.png`),
-      fullPage: true,
-    });
-    await page.getByRole("link", { name: "Open Alpha A1 →" }).click();
-    await expect(
-      page.getByRole("heading", { level: 1, name: "Alpha A1" }),
-    ).toBeVisible();
-    for (const view of ["Holdings", "Positions", "Orders", "Funds"]) {
+    await page.evaluate((theme) => {
+      document.documentElement.dataset.theme = theme;
+      localStorage.setItem("twf-theme", theme);
+    }, theme);
+    for (const view of [
+      "Overview",
+      "Holdings",
+      "Positions",
+      "Orders",
+      "Funds",
+      "Instruments",
+    ]) {
       await page
-        .getByRole("navigation", { name: "Broker room views" })
+        .getByRole("navigation", { name: "Broker functions" })
         .getByRole("link", { name: view, exact: true })
         .click();
+      await expect(page).toHaveURL(
+        new RegExp(`/accounts/[^/]+/${view.toLowerCase()}$`),
+      );
       await expect(
-        page.getByRole("heading", { level: 2, name: view, exact: true }),
+        page.getByRole("heading", { name: view, exact: true }),
       ).toBeVisible();
-      expect(
-        await page.evaluate(
-          () => document.documentElement.scrollWidth <= innerWidth,
+      await expect(
+        page.getByText(
+          view === "Instruments"
+            ? /READ ONLY · DAILY INSTRUMENT LIST/
+            : /LIVE DATA · READ ONLY/,
         ),
-      ).toBe(true);
+      ).toBeVisible();
+      if (view === "Instruments") {
+        await page
+          .getByLabel("Search instruments", { exact: true })
+          .fill("HAL");
+        await page.getByRole("button", { name: "Search", exact: true }).click();
+        await expect(
+          page.getByRole("rowheader", { name: /HAL/ }),
+        ).toBeVisible();
+      }
+      if (view === "Holdings") {
+        const row = page.getByRole("row", { name: /HAL/ });
+        await expect(row.getByRole("cell")).toHaveText([
+          "20",
+          "100",
+          "120",
+          "2,400",
+          "400",
+          "20",
+        ]);
+      }
+      if (view === "Overview") {
+        await expect(
+          page
+            .locator(".broker-summary > div")
+            .filter({ hasText: "Holdings value" })
+            .locator("strong"),
+        ).toHaveText("2,400");
+      }
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () => document.documentElement.scrollWidth <= window.innerWidth,
+          ),
+        )
+        .toBe(true);
+      await page.screenshot({
+        path: testInfo.outputPath(`${theme}-${view}.png`),
+        fullPage: true,
+      });
     }
-    await selectDevelopment(page, "Alpha A2 SYNTHETIC");
-    await expect(
-      page.getByRole("heading", { level: 1, name: "Alpha A2" }),
-    ).toBeVisible();
-    await selectDevelopment(page, "Beta B1 SYNTHETIC");
-    await expect(page.getByText(/Read health: DEGRADED/)).toBeVisible();
-    await page
-      .getByRole("navigation", { name: "Broker room views" })
-      .getByRole("link", { name: "Positions", exact: true })
-      .click();
-    await expect(
-      page.getByText("Unmapped — excluded from canonical netting"),
-    ).toBeVisible();
-    await expect(page.getByText(/DEGRADED.*STALE.*PARTIAL/)).toBeVisible();
-    await contained(page);
-    await page.screenshot({
-      path: info.outputPath(`brokers-positions-${theme}.png`),
-      fullPage: true,
-    });
-    expect(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth <= innerWidth,
-      ),
-    ).toBe(true);
-    await selectDevelopment(page, "Synthetic overview");
   }
-  expect(errors).toEqual([]);
+  await page.getByRole("button", { name: "Disconnect", exact: true }).click();
+  await expect(
+    page.getByText(/NOT CONNECTED · TRADING DISABLED/),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "Broker accounts" }).getByRole("link"),
+  ).toHaveCount(2);
 });

@@ -3,7 +3,7 @@ import { UserMenu } from "../auth/user-session";
 import { StateBadge } from "../ui/surface-state";
 import { ThemeToggle } from "./theme-toggle";
 
-export function TopBar() {
+export function TopBar({ broker = false }: { broker?: boolean }) {
   return (
     <header className="top-bar">
       <div className="top-bar-primary">
@@ -18,34 +18,34 @@ export function TopBar() {
         </span>
         <div className="top-bar-user">
           <ThemeToggle />
-          <StateBadge state="COMING_SOON" label="Development" />
+          {!broker && <StateBadge state="COMING_SOON" label="Development" />}
           <UserMenu />
         </div>
       </div>
-      <dl className="session-strip" aria-label="Session context">
-        <div>
-          <dt>Broker</dt>
-          <dd>
-            <Link href="/brokers">Account rooms</Link>
-          </dd>
-        </div>
-        <div>
-          <dt>Market / session</dt>
-          <dd>Not selected</dd>
-        </div>
-        <div>
-          <dt>Active LLM</dt>
-          <dd>Not configured</dd>
-        </div>
-        <div>
-          <dt>Alerts</dt>
-          <dd>Not enabled</dd>
-        </div>
-        <div className="session-services">
-          <dt>Services</dt>
-          <dd>On-demand status</dd>
-        </div>
-      </dl>
+      {!broker && (
+        <dl className="session-strip" aria-label="Session context">
+          <div>
+            <dt>Broker</dt>
+            <dd>Not connected</dd>
+          </div>
+          <div>
+            <dt>Market / session</dt>
+            <dd>Not selected</dd>
+          </div>
+          <div>
+            <dt>Active LLM</dt>
+            <dd>Not configured</dd>
+          </div>
+          <div>
+            <dt>Alerts</dt>
+            <dd>Not enabled</dd>
+          </div>
+          <div className="session-services">
+            <dt>Services</dt>
+            <dd>On-demand status</dd>
+          </div>
+        </dl>
+      )}
     </header>
   );
 }

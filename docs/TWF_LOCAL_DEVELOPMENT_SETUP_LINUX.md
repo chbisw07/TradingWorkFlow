@@ -12,6 +12,52 @@ and [login foundation record](TWF_TWF1_4_USER_LOGIN_FOUNDATION.md) for migration
 first-user bootstrap and authentication. Configuration/realm/UX bucket architecture
 does not add new local services or setup steps.
 
+Broker V1 now adds read-only Zerodha setup. Follow the
+[Broker V1 setup record](TWF_BROKER_V1_VERTICAL_SLICE.md#exact-local-setup-and-real-smoke)
+for the branch-specific database and login flow, and the key instructions below.
+
+### Broker V1 credential master key
+
+If setup shows “Credential encryption key is not configured”, configure the API's
+stable encryption key and restart it. From `apps/api`, for a setup that has **never
+had a key**, generate a private, ignored file once (the exclusive `x` mode refuses
+to overwrite an existing file):
+
+```bash
+umask 077
+.venv/bin/python -c 'from pathlib import Path; from cryptography.fernet import Fernet; Path(".env.credential-key").open("x").write("TWF_CREDENTIAL_MASTER_KEY=" + Fernet.generate_key().decode() + "\n")'
+```
+
+Load your existing database/API configuration first, then load this file in the
+same terminal used to start the backend:
+
+```bash
+set -a
+source .env.credential-key
+set +a
+.venv/bin/alembic upgrade head
+.venv/bin/uvicorn twf.main:create_app --factory --host 127.0.0.1 --port 8000 --no-access-log
+```
+
+This adds no plaintext credentials to the DB. The master key remains outside it;
+only authenticated ciphertext and safe metadata are stored. The key file is ignored
+by Git and excluded from Docker build context. Keep it private and back it up
+separately under restricted access. Do not regenerate it on restart.
+
+**Existing credentials:** reuse the original key. `TWF_BROKER_SECRET_KEY` remains
+compatible if the new setting is absent. Rename the variable locally, preserving
+its value, or keep the old setting. If both are present the new one wins, including
+when invalid. Losing/changing the key makes existing ciphertext unreadable. A wrong
+key or tampered record blocks connect safely; restore the correct key or replace
+credentials in Setup. There is no automatic recovery or plaintext fallback.
+
+For Docker Compose, export the same `TWF_CREDENTIAL_MASTER_KEY` before starting the
+API; Compose passes it at runtime (never as a build argument). Keep your chosen DB
+volume/URL and key stable when replacing containers. Deployment secret managers can
+inject the same setting in production. No managed vault or automatic rotation is
+implemented. A configured key enables setup; it does not imply Zerodha authentication
+or provider availability. Enter real broker credentials only in the local setup UI.
+
 Run commands from the repository root unless a section changes directories.
 
 ## 2. Supported and verified environment
@@ -369,18 +415,9 @@ dependency-maintenance change.
 
 ### Backend TestClient deprecation notice
 
-Starlette TestClient uses `httpx2`, declared in the API development extra and pinned
-in `requirements-dev.lock`. If the deprecated `httpx` fallback warning appears,
-install the development lock into the same environment that runs pytest. From the
-repository root:
-
-```bash
-apps/api/.venv/bin/python -m pip install -r apps/api/requirements-dev.lock
-apps/api/.venv/bin/python -m pytest -q -W error
-```
-
-Do not suppress the warning. The application service transport still uses its
-separate runtime `httpx` dependency; no runtime transport migration is required.
+Backend tests may emit a Starlette notice that its current `httpx` TestClient path
+is deprecated. The tests pass. Treat the notice as non-blocking until the
+compatible test-client migration is taken as a dependency-maintenance change.
 
 ### Frontend dependency deprecation notices
 
@@ -451,7 +488,8 @@ cp .env.example .env
 - Do not place production secrets in this guide, committed files, or shell
   history.
 - Never commit `.env` or credentials.
-- The current scaffold requires no broker credentials or LLM provider keys.
+- Broker V1 requires a stable external master key and Kite app credentials for
+  Zerodha setup; automated tests use disposable dummy values only.
 - Keep local development services loopback-bound where the supplied Compose file
   does so.
 - Treat future service credentials as server-side configuration; never expose
@@ -461,12 +499,12 @@ cp .env.example .env
 
 The current scaffold does not yet include:
 
-- real login;
 - scanner integration;
 - TradingIntelligence integration;
 - TradeMonitor integration;
 - an LLM provider integration;
-- broker integration; or
 - production PostgreSQL deployment.
 
-These capabilities remain assigned to later gated targets.
+These capabilities remain assigned to later gated targets. Login and the Broker V1
+read-only Zerodha implementation are now present; Broker V1 remains pending acceptance
+and a user-driven real-provider smoke.

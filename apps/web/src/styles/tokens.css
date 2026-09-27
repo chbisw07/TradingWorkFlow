@@ -1,5 +1,7 @@
 :root {
   color-scheme: dark;
+  --broker-action: #83b6ff;
+  --broker-on-action: #101820;
   --background: #0c1013;
   --surface: #12181c;
   --surface-raised: #181f24;
@@ -42,6 +44,8 @@
 
 :root[data-theme="light"] {
   color-scheme: light;
+  --broker-action: #0664de;
+  --broker-on-action: #fff;
   --background: #edf0ee;
   --surface: #fafbf9;
   --surface-raised: #e6ece7;

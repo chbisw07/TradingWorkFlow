@@ -1,13 +1,10 @@
 "use client";
 
-import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { StateBadge } from "../ui/surface-state";
 
 export function ConsoleRegion() {
-  const broker = usePathname().startsWith("/brokers");
-  const [open, setOpen] = useState<boolean | null>(null);
-  const expanded = open ?? !broker;
+  const [expanded, setExpanded] = useState(true);
   return (
     <section className="console-region panel" aria-labelledby="console-title">
       <div className="console-heading">
@@ -20,7 +17,7 @@ export function ConsoleRegion() {
           type="button"
           aria-expanded={expanded}
           aria-controls="console-content"
-          onClick={() => setOpen(!expanded)}
+          onClick={() => setExpanded(!expanded)}
         >
           {expanded ? "Collapse console" : "Expand console"}
           <span aria-hidden="true">{expanded ? "−" : "+"}</span>
