@@ -1,10 +1,14 @@
 # Broker V1 — complete read-only vertical slice
 
-Status: implementation on `rebuild/simple-broker-workspace`; pending independent
-acceptance and user-driven real Zerodha smoke. Starting HEAD:
-`e8bbcbe7f51dcac65c4fa6d4072495cd02dc7866`. No commit, tag, push, merge or
-cherry-pick is part of this implementation. Earlier implementation work remains
-on `archive/broker-work-before-simplification`.
+Status: **ACCEPTED / FROZEN**, integrated into `main` at `aae52e9`
+(accepted implementation `4ffff9d`). The following sections record the accepted
+read-only V1 boundary and its implementation history. Earlier work remains on
+`archive/broker-work-before-simplification`.
+
+[Broker V2](TWF_BROKER_V2_MANUAL_ORDER_ENTRY.md) is the accepted/frozen manual
+trading foundation (`twf-broker-v2`), extending Orders and Instruments. Its opt-in execution
+capability and order-intent ledger do not alter V1 holdings valuation, credentials
+or connection lifecycle. References below to no trading describe the frozen V1 scope.
 
 The user-authorized Broker V1 desktop v2 prompt and supplied six-panel wireframe
 are the delivery scope for this rebuild. The accepted TWF-0/TWF-1 history remains
@@ -176,6 +180,20 @@ and [Zerodha's quantity clarification](https://kite.trade/forum/discussion/comme
 
 - Positions: net positions, product, quantity, average, LTP, realised/unrealised
   and total P&L. Day and net positions are not summed together.
+  The existing `realized`, `unrealized`, `pnl` fields retain provider snapshot
+  amounts for open/partially closed positions when their split is consistent.
+  Kite's legacy split can put closed P&L under `unrealised`: when net quantity
+  is explicitly zero, TWF classifies known provider `pnl` as realized and sets
+  unrealized to zero. Total P&L is never replaced by `m2m` (day P&L), recalculated
+  from orders, or refreshed using separate quotes. If total is missing, it stays
+  unknown; closed realized P&L is retained only if the supplied unrealized value
+  is explicitly zero. Missing/invalid amounts remain null (`—`); missing quantity
+  does not establish closure. A split contradicting known total is unknown rather
+  than corrected by inventing amounts. When all three amounts are known, realized
+  plus unrealized equals total. Overview counts open positions, not position P&L.
+  See the [Kite positions contract](https://kite.trade/docs/connect/v3/portfolio/#positions)
+  and [Zerodha's legacy-field clarification](https://kite.trade/forum/discussion/13535/realised-field-update)
+  (checked 2026-09-28).
 - Orders: today's broker order book, time (IST), instrument, side, quantity,
   type, price and status. Raw status messages and private provider fields are dropped.
 - Funds: equity/commodity segments, enabled state, raw available cash, utilised

@@ -11,6 +11,7 @@ from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 
 from twf.api.auth import router as auth_router
+from twf.api.broker_orders import router as broker_orders_router
 from twf.api.brokers import broker_error
 from twf.api.brokers import router as brokers_router
 from twf.api.errors import http_error, unexpected_error, validation_error
@@ -98,6 +99,7 @@ def create_app(
     app.add_exception_handler(Exception, unexpected_error)
     app.include_router(create_router(settings))
     app.include_router(brokers_router)
+    app.include_router(broker_orders_router)
     app.add_exception_handler(BrokerFailure, broker_error)
     app.include_router(auth_router)
     app.include_router(preferences_router)

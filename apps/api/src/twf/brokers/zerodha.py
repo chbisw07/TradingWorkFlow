@@ -1,4 +1,4 @@
-"""All Kite syntax is confined here. No order-writing endpoints exist."""
+"""Kite syntax: accepted reads plus explicit single-attempt manual placement."""
 
 import asyncio
 import csv
@@ -6,8 +6,10 @@ import hashlib
 import io
 import json
 import re
+import time
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
+from threading import Lock
 from typing import Any
 
 import httpx
@@ -25,10 +27,40 @@ from twf.brokers.contracts import (
     Position,
     Search,
 )
+from twf.brokers.order_contracts import Capability, OrderDraft, TypeRule
+from twf.brokers.quotes import Quote
 
 
 def invalid() -> BrokerFailure:
     return BrokerFailure("PROVIDER_RESPONSE_INVALID", "Broker returned an invalid response.")
+
+
+def order_permission_reason(message: object) -> str:
+    """Classify known Kite rejections without exposing any provider-supplied text."""
+    normalized = " ".join(message.casefold().split()) if isinstance(message, str) else ""
+    if normalized.startswith("no ips configured for this app."):
+        return (
+            "Zerodha has no IP whitelist configured. Add the TWF API server's public static IP "
+            "in Kite Connect > Profile > IP Whitelist."
+        )
+    if re.match(
+        r"ip \([^()]{1,64}\) is not allowed to place orders for this app(?:\.|$)", normalized
+    ):
+        return (
+            "Zerodha rejected the API server's outgoing IP. Match its public IPv4/IPv6 "
+            "with Kite Connect > Profile > IP Whitelist."
+        )
+    if normalized.startswith(
+        ("the user is not enabled on the app.", "the user is not enabled for the app.")
+    ):
+        return (
+            "Zerodha has not enabled this user for the Kite app. "
+            "Check the app's linked client ID in Kite Connect."
+        )
+    return (
+        "Zerodha denied order permission. Check Kite Connect's IP Whitelist and app/account "
+        "access; the exact cause was not identified."
+    )
 
 
 def text(value: object) -> str | None:
@@ -49,6 +81,26 @@ def number(value: object) -> Decimal | None:
         return None
 
 
+def position_pnl(
+    row: dict[str, Any], quantity: Decimal | None
+) -> tuple[Decimal | None, Decimal | None, Decimal | None]:
+    realized, unrealized, total = (number(row.get(k)) for k in ("realised", "unrealised", "pnl"))
+    if quantity == 0:
+        # Kite's legacy split can leave closed P&L under unrealised. Net zero
+        # establishes no open exposure; the provider total is the closed P&L.
+        # Without a total, retain only an explicitly closed, consistent split.
+        return (
+            total if total is not None else realized if unrealized == 0 else None,
+            Decimal(0),
+            total,
+        )
+    if realized is not None and unrealized is not None and total is not None:
+        if realized + unrealized != total:
+            # Keep broker total; an inconsistent split has no safe correction.
+            return None, None, total
+    return realized, unrealized, total
+
+
 def rows(value: object) -> list[dict[str, Any]]:
     if (
         not isinstance(value, list)
@@ -66,6 +118,8 @@ class ZerodhaAdapter:
         self.catalog_index: dict[tuple[str, str, str | None], Instrument] = {}
         self.catalog_at: datetime | None = None
         self.catalog_lock = asyncio.Lock()
+        self.quote_gate = Lock()
+        self.quote_next: dict[bytes, float] = {}
 
     async def _request(
         self,
@@ -75,6 +129,8 @@ class ZerodhaAdapter:
         data: dict[str, str] | None = None,
         *,
         csv_response: bool = False,
+        params: list[tuple[str, str]] | None = None,
+        json_payload: list[dict[str, str | int | float]] | None = None,
     ) -> Any:
         headers = {"X-Kite-Version": "3"}
         if credentials.access_token:
@@ -91,7 +147,12 @@ class ZerodhaAdapter:
                 timeout=httpx.Timeout(8, connect=4, pool=2),
             ) as client:
                 async with client.stream(
-                    method, "https://api.kite.trade" + path, headers=headers, data=data
+                    method,
+                    "https://api.kite.trade" + path,
+                    headers=headers,
+                    data=data,
+                    json=json_payload,
+                    params=tuple(params) if params else None,
                 ) as response:
                     if response.status_code in (401, 403):
                         raise BrokerFailure(
@@ -125,6 +186,52 @@ class ZerodhaAdapter:
             raise BrokerFailure("PROVIDER_TIMEOUT", "Broker request timed out.", 504) from None
         except (httpx.HTTPError, ValueError, UnicodeError, csv.Error):
             raise invalid() from None
+
+    async def quote(self, credentials: Credentials, instruments: list[Instrument]) -> list[Quote]:
+        if not 1 <= len(instruments) <= 30:
+            raise invalid()
+        # Per API key, bounded process-local admission; no sleeping queues or hidden retries.
+        key = hashlib.sha256(credentials.api_key.get_secret_value().encode()).digest()
+        now = time.monotonic()
+        with self.quote_gate:
+            self.quote_next = {k: until for k, until in self.quote_next.items() if until > now}
+            if key in self.quote_next or len(self.quote_next) >= 1024:
+                raise BrokerFailure(
+                    "PROVIDER_RATE_LIMITED", "Quotes are refreshing. Retry shortly.", 503
+                )
+            self.quote_next[key] = now + 1.05
+        try:
+            payload = await self._request(
+                "GET",
+                "/quote/ltp",
+                credentials,
+                params=[("i", f"{x.exchange}:{x.symbol}") for x in instruments],
+            )
+        except BrokerFailure as exc:
+            if exc.code == "PROVIDER_RATE_LIMITED":
+                with self.quote_gate:
+                    self.quote_next[key] = time.monotonic() + 10
+            raise
+        if not isinstance(payload, dict):
+            raise invalid()
+        result: list[Quote] = []
+        for item in instruments:
+            row = payload.get(f"{item.exchange}:{item.symbol}")
+            price = None
+            if row is not None:
+                if (
+                    not isinstance(row, dict)
+                    or str(row.get("instrument_token")) != item.native_token
+                ):
+                    raise invalid()
+                price = number(row.get("last_price"))
+                if price is not None and (price <= 0 or price >= 1_000_000_000):
+                    price = None
+            assert item.native_token is not None
+            result.append(
+                Quote(reference=item.reference, native_token=item.native_token, price=price)
+            )
+        return result
 
     async def authenticate(self, credentials: Credentials, request_token: str) -> Binding:
         checksum = hashlib.sha256(
@@ -225,19 +332,23 @@ class ZerodhaAdapter:
         payload = await self._request("GET", "/portfolio/positions", credentials)
         if not isinstance(payload, dict):
             raise invalid()
-        return [
-            Position(
-                instrument=self._instrument(row),
-                product=text(row.get("product")),
-                quantity=number(row.get("quantity")),
-                average=number(row.get("average_price")),
-                last_price=number(row.get("last_price")),
-                realized=number(row.get("realised")),
-                unrealized=number(row.get("unrealised")),
-                pnl=number(row.get("pnl")),
+        result = []
+        for row in rows(payload.get("net")):
+            quantity = number(row.get("quantity"))
+            realized, unrealized, pnl = position_pnl(row, quantity)
+            result.append(
+                Position(
+                    instrument=self._instrument(row),
+                    product=text(row.get("product")),
+                    quantity=quantity,
+                    average=number(row.get("average_price")),
+                    last_price=number(row.get("last_price")),
+                    realized=realized,
+                    unrealized=unrealized,
+                    pnl=pnl,
+                )
             )
-            for row in rows(payload.get("net"))
-        ]
+        return result
 
     async def get_orders(self, credentials: Credentials) -> list[Order]:
         result = []
@@ -255,6 +366,10 @@ class ZerodhaAdapter:
                     kind=text(row.get("order_type")),
                     price=number(row.get("price")),
                     status=text(row.get("status")),
+                    tag=text(row.get("tag")),
+                    product=text(row.get("product")),
+                    validity=text(row.get("validity")),
+                    trigger_price=number(row.get("trigger_price")),
                 )
             )
         return result
@@ -334,6 +449,7 @@ class ZerodhaAdapter:
                     kind=kind,
                     segment=text(row.get("segment")),
                     lot_size=number(row.get("lot_size")),
+                    tick_size=number(row.get("tick_size")),
                 )
             )
         if not result:
@@ -368,3 +484,125 @@ class ZerodhaAdapter:
         # Local token destruction is authoritative. No tokens in URL; remote invalidation is
         # deliberately not claimed (Kite documents query-token DELETE). User can revoke in Kite.
         return None
+
+    async def execution_catalog(self, credentials: Credentials) -> list[Instrument]:
+        await self.search_instruments(credentials, Search(limit=1))
+        return self.catalog
+
+    def order_capability(self, instrument: Instrument) -> Capability:
+        # Deliberately bounded V2.1 subset: price-protected regular LIMIT and SL.
+        # No market orders, MTF, autoslice, AMO, icebergs or managed exits.
+        return Capability(
+            enabled=True,
+            products=["CNC", "MIS"] if instrument.kind == "EQ" else ["NRML", "MIS"],
+            quantity_unit="shares" if instrument.kind == "EQ" else "lots",
+            instrument=instrument,
+            order_types=[
+                TypeRule(
+                    name="LIMIT",
+                    price_required=True,
+                    trigger_required=False,
+                    validities=["DAY", "IOC"],
+                ),
+                TypeRule(name="SL", price_required=True, trigger_required=True, validities=["DAY"]),
+            ],
+        )
+
+    async def estimate_margin(
+        self, credentials: Credentials, instrument: Instrument, order: OrderDraft
+    ) -> Decimal | None:
+        payload = await self._request(
+            "POST",
+            "/margins/orders",
+            credentials,
+            json_payload=[
+                {
+                    "exchange": instrument.exchange,
+                    "tradingsymbol": instrument.symbol,
+                    "transaction_type": order.side,
+                    "variety": "regular",
+                    "product": order.product,
+                    "order_type": order.order_type,
+                    "quantity": order.quantity,
+                    "price": float(order.price),
+                    "trigger_price": float(order.trigger_price or 0),
+                }
+            ],
+        )
+        result = rows(payload)
+        if (
+            len(result) != 1
+            or result[0].get("exchange") != instrument.exchange
+            or result[0].get("tradingsymbol") != instrument.symbol
+        ):
+            raise invalid()
+        total = number(result[0].get("total"))
+        return total if total is not None and total >= 0 else None
+
+    async def place_order(
+        self, credentials: Credentials, instrument: Instrument, order: OrderDraft, tag: str
+    ) -> str:
+        # There is intentionally no transport retry. The service claims a durable
+        # intent before entering here; any non-definitive outcome stays uncertain.
+        assert credentials.access_token
+        payload = {
+            "exchange": instrument.exchange,
+            "tradingsymbol": instrument.symbol,
+            "transaction_type": order.side,
+            "quantity": str(order.quantity),
+            "product": order.product,
+            "order_type": order.order_type,
+            "price": str(order.price),
+            "validity": order.validity,
+            "tag": tag,
+        }
+        if order.trigger_price is not None:
+            payload["trigger_price"] = str(order.trigger_price)
+        async with httpx.AsyncClient(
+            transport=self.transport,
+            trust_env=False,
+            follow_redirects=False,
+            timeout=httpx.Timeout(8, connect=4, pool=2),
+        ) as client:
+            async with client.stream(
+                "POST",
+                "https://api.kite.trade/orders/regular",
+                data=payload,
+                headers={
+                    "X-Kite-Version": "3",
+                    "Authorization": f"token {credentials.api_key.get_secret_value()}:"
+                    f"{credentials.access_token.get_secret_value()}",
+                },
+            ) as response:
+                body = bytearray()
+                async for chunk in response.aiter_bytes(16384):
+                    if len(body) + len(chunk) > 65536:
+                        raise invalid()
+                    body.extend(chunk)
+                parsed = await asyncio.to_thread(json.loads, body)
+                # Only a well-formed explicit provider rejection is definitive.
+                # Never reflect provider text: it may echo credentials/order inputs.
+                if isinstance(parsed, dict) and parsed.get("status") == "error":
+                    error = parsed.get("error_type")
+                    reasons = {
+                        "InputException": (
+                            "Broker rejected parameters. Check quantity, price and product."
+                        ),
+                        "OrderException": (
+                            "Broker rejected the order. Check funds and restrictions in Kite."
+                        ),
+                        "TokenException": "Broker rejected authentication. Reconnect your account.",
+                        "PermissionException": order_permission_reason(parsed.get("message")),
+                    }
+                    if response.status_code in (400, 401, 403) and error in reasons:
+                        raise BrokerFailure("ORDER_REJECTED", reasons[error], 409)
+                if (
+                    response.status_code == 200
+                    and isinstance(parsed, dict)
+                    and parsed.get("status") == "success"
+                ):
+                    data = parsed.get("data")
+                    order_id = text(data.get("order_id")) if isinstance(data, dict) else None
+                    if order_id and re.fullmatch(r"[A-Za-z0-9_-]{1,160}", order_id):
+                        return order_id
+                raise invalid()

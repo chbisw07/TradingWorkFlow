@@ -69,6 +69,7 @@ def test_database_boundary() -> None:
             "preference_changes",
             "broker_accounts",
             "broker_attempts",
+            "broker_order_intents",
             "broker_secrets",
         }
         assert not inspect(engine).get_table_names()

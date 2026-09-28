@@ -229,6 +229,7 @@ def test_migration_history_and_metadata() -> None:
         "preference_changes",
         "broker_accounts",
         "broker_attempts",
+        "broker_order_intents",
         "broker_secrets",
     }
     assert set(Base.metadata.naming_convention) == {"pk", "fk", "ix", "uq", "ck"}
@@ -240,13 +241,14 @@ def test_migration_history_and_metadata() -> None:
         with db.connect() as connection:
             assert (
                 MigrationContext.configure(connection).get_current_revision()
-                == "0005_credential_metadata"
+                == "0006_order_intents"
             )
             assert inspect(connection).get_table_names() == [
                 "alembic_version",
                 "auth_sessions",
                 "broker_accounts",
                 "broker_attempts",
+                "broker_order_intents",
                 "broker_secrets",
                 "preference_changes",
                 "preference_profiles",
@@ -260,7 +262,7 @@ def test_migration_history_and_metadata() -> None:
         with db.connect() as connection:
             assert (
                 MigrationContext.configure(connection).get_current_revision()
-                == "0005_credential_metadata"
+                == "0006_order_intents"
             )
     finally:
         db.dispose()

@@ -53,6 +53,7 @@ class Instrument(BaseModel):
     kind: str | None = None
     segment: str | None = None
     lot_size: Decimal | None = None
+    tick_size: Decimal | None = None
 
 
 class Holding(BaseModel):
@@ -85,6 +86,10 @@ class Order(BaseModel):
     kind: str | None
     price: Decimal | None
     status: str | None
+    tag: str | None = None
+    product: str | None = None
+    validity: str | None = None
+    trigger_price: Decimal | None = None
 
 
 class Funds(BaseModel):

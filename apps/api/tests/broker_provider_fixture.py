@@ -8,6 +8,23 @@ CSV = (
     "2,NIFTY26OCT25000CE,NIFTY,2026-10-29,25000,65,CE,NFO-OPT,NFO\n"
 )
 
+# Synthetic quantities/values; no personal account or order identifiers.
+CLOSED_POSITION = {
+    "tradingsymbol": "HDFCBANK26OCT730PE",
+    "exchange": "NFO",
+    "product": "NRML",
+    "quantity": 0,
+    "average_price": 0,
+    "last_price": 20.15,
+    "pnl": -1007.5,
+    "realised": 0,
+    "unrealised": -1007.5,
+    "buy_quantity": 1300,
+    "sell_quantity": 1300,
+    "buy_value": 28600,
+    "sell_value": 27592.5,
+}
+
 
 def provider(request: httpx.Request) -> httpx.Response:
     path = request.url.path
@@ -46,7 +63,8 @@ def provider(request: httpx.Request) -> httpx.Response:
                     "product": "NRML",
                     "realised": 10,
                     "unrealised": 30,
-                }
+                },
+                CLOSED_POSITION,
             ]
         }
     elif path == "/orders":

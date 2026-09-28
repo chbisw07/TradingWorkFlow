@@ -1,4 +1,11 @@
 "use client";
+import { OrderTicket } from "./order-ticket";
+import {
+  canOrder,
+  type Capability,
+  type Intent,
+  type Side,
+} from "../../lib/broker-orders";
 import Link from "next/link";
 import {
   useCallback,
@@ -541,6 +548,19 @@ function Room({
   disconnect: () => void;
   busy: boolean;
 }) {
+  const [capability, setCapability] = useState<{
+    key: string;
+    enabled: boolean;
+  } | null>(null);
+  const [ticket, setTicket] = useState<
+    { instrument: Instrument; side: Side } | null | false
+  >(false);
+  const [recovery, setRecovery] = useState<Intent | null>(null);
+  const [intents, setIntents] = useState<Intent[]>([]);
+  const [orderFilter, setOrderFilter] = useState("All");
+  const capKey = `${account.id}:${account.generation}:${account.state}`;
+  const enabled =
+    capability?.key === capKey && capability.enabled && !statusFailed;
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [loadedKey, setLoadedKey] = useState("");
   const [error, setError] = useState("");
@@ -556,6 +576,25 @@ function Room({
     kind: "",
   });
   const [page, setPage] = useState(1);
+  useEffect(() => {
+    const controller = new AbortController();
+    void brokerApi<Capability>(
+      `accounts/${account.id}/order-entry/capabilities`,
+      undefined,
+      controller.signal,
+    )
+      .then((c) => setCapability({ key: capKey, enabled: c.enabled === true }))
+      .catch(() => setCapability(null));
+    if (view === "orders")
+      void brokerApi<Intent[]>(
+        `accounts/${account.id}/order-entry/intents`,
+        undefined,
+        controller.signal,
+      )
+        .then((rows) => setIntents(Array.isArray(rows) ? rows : []))
+        .catch(() => setIntents([]));
+    return () => controller.abort();
+  }, [account.id, capKey, view, refresh]);
   const sequence = useRef(0);
   const key = `${view}?${query}&page=${page}`;
   useEffect(() => {
@@ -657,7 +696,9 @@ function Room({
             </span>
           </h2>
           <p role="status" className="broker-read-status">
-            {label} · TRADING DISABLED
+            {enabled
+              ? `${label.replace(" · READ ONLY", "").replace("READ ONLY · ", "")} · MANUAL TRADING ENABLED`
+              : `${label} · TRADING DISABLED`}
           </p>
         </div>
         <div className="broker-actions">
@@ -687,7 +728,73 @@ function Room({
         </p>
       )}
       {loading && <p role="status">Loading {view}…</p>}
-      <h3 className="broker-view-title">{title(view)}</h3>
+      <div className="broker-toolbar">
+        <h3 className="broker-view-title">{title(view)}</h3>
+        {view === "orders" && (
+          <button
+            className="primary"
+            disabled={!enabled}
+            onClick={() => setTicket(null)}
+          >
+            + New Order
+          </button>
+        )}
+      </div>
+      {view === "orders" && (
+        <>
+          <div
+            className="broker-actions order-filters"
+            role="group"
+            aria-label="Order filter"
+          >
+            {["All", "Open", "Completed", "Cancelled", "Rejected"].map(
+              (value) => (
+                <button
+                  key={value}
+                  aria-pressed={orderFilter === value}
+                  onClick={() => setOrderFilter(value)}
+                >
+                  {value}
+                </button>
+              ),
+            )}
+          </div>
+          {intents.length > 0 && (
+            <details className="order-recent">
+              <summary>Recent manual submissions ({intents.length})</summary>
+              <p>
+                Submission receipts are separate from the broker order book
+                below. Refresh a receipt to check broker status.
+              </p>
+              {intents.map((i) => (
+                <div key={i.id}>
+                  <span>
+                    {i.order.side} {i.order.quantity} {i.instrument.symbol} ·{" "}
+                    {i.status.replaceAll("_", " ")}{" "}
+                    {i.broker_order_id && `· ${i.broker_order_id}`}
+                  </span>
+                  <button onClick={() => setRecovery(i)}>
+                    Check submission
+                  </button>
+                </div>
+              ))}
+            </details>
+          )}
+        </>
+      )}
+      {(ticket !== false || recovery) && (
+        <OrderTicket
+          key={`${capKey}:${recovery?.id || "new"}`}
+          account={account}
+          initial={ticket || undefined}
+          recovery={recovery || undefined}
+          close={() => {
+            setTicket(false);
+            setRecovery(null);
+            setRefresh((x) => x + 1);
+          }}
+        />
+      )}
       {view === "instruments" && (
         <form
           className="broker-instrument-filters"
@@ -790,11 +897,37 @@ function Room({
       {view !== "overview" && current && (
         <ReadTable
           view={view}
+          trade={
+            view === "instruments" && enabled
+              ? (instrument, side) => setTicket({ instrument, side })
+              : undefined
+          }
           rows={
             catalog
               ? catalog.items.map((i) => ({ instrument: i }))
               : Array.isArray(data)
-                ? data
+                ? data.filter(
+                    (row) =>
+                      view !== "orders" ||
+                      orderFilter === "All" ||
+                      (orderFilter === "Completed"
+                        ? row.status === "COMPLETE"
+                        : orderFilter === "Cancelled"
+                          ? row.status === "CANCELLED"
+                          : orderFilter === "Rejected"
+                            ? row.status === "REJECTED"
+                            : [
+                                "OPEN",
+                                "TRIGGER PENDING",
+                                "VALIDATION PENDING",
+                                "OPEN PENDING",
+                                "MODIFY VALIDATION PENDING",
+                                "MODIFY PENDING",
+                                "CANCEL PENDING",
+                                "AMO REQ RECEIVED",
+                                "PUT ORDER REQ RECEIVED",
+                              ].includes(String(row.status))),
+                  )
                 : []
           }
         />
@@ -891,7 +1024,15 @@ const columns: Record<string, [string, string][]> = {
     ["native_token", "Native token"],
   ],
 };
-function ReadTable({ view, rows }: { view: string; rows: Row[] }) {
+function ReadTable({
+  view,
+  rows,
+  trade,
+}: {
+  view: string;
+  rows: Row[];
+  trade?: (i: Instrument, side: Side) => void;
+}) {
   if (!rows.length)
     return <p className="broker-empty-row">No {view} to show.</p>;
   return (
@@ -910,6 +1051,7 @@ function ReadTable({ view, rows }: { view: string; rows: Row[] }) {
                 {label}
               </th>
             ))}
+            {trade && <th scope="col">Action</th>}
           </tr>
         </thead>
         <tbody>
@@ -949,6 +1091,28 @@ function ReadTable({ view, rows }: { view: string; rows: Row[] }) {
                       : display(record[key])}
                   </td>
                 ))}
+                {trade && (
+                  <td>
+                    {instrument && canOrder(instrument) ? (
+                      <div className="order-side">
+                        <button
+                          className="order-buy"
+                          onClick={() => trade(instrument, "BUY")}
+                        >
+                          Buy
+                        </button>
+                        <button
+                          className="order-sell"
+                          onClick={() => trade(instrument, "SELL")}
+                        >
+                          Sell
+                        </button>
+                      </div>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                )}
               </tr>
             );
           })}

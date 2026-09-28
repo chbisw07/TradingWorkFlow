@@ -26,6 +26,8 @@ export type Instrument = {
   strike?: string | null;
   kind?: string | null;
   segment?: string | null;
+  lot_size?: string | null;
+  tick_size?: string | null;
 };
 export type Row = Record<string, string | number | boolean | null | Instrument>;
 export type Snapshot = {

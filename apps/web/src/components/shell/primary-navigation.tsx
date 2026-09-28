@@ -99,7 +99,9 @@ export function PrimaryNavigation() {
             ? "Broker workspace"
             : "Foundation preview"}
           <br />
-          Trading is not enabled.
+          {pathname.startsWith("/brokers")
+            ? "Permissions are shown per account."
+            : "Trading is not enabled."}
         </p>
       </div>
     </nav>

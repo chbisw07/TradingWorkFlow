@@ -11,11 +11,13 @@ async function forward(
     request.method === "GET"
       ? /^(providers|accounts|setup)$/.test(route) ||
         new RegExp(
-          `^accounts/${id}/(overview|holdings|positions|orders|funds|instruments)$`,
+          `^accounts/${id}/((overview|holdings|positions|orders|funds|instruments)|order-entry/(capabilities|choices|intents(?:/${id})?))$`,
         ).test(route)
       : request.method === "POST" &&
         (/^(accounts|callback)$/.test(route) ||
-          new RegExp(`^accounts/${id}/(connect|disconnect)$`).test(route));
+          new RegExp(
+            `^accounts/${id}/((connect|disconnect)|order-entry/(quotes|preview|intents/${id}/(confirm|reconcile)))$`,
+          ).test(route));
   const output = {
     "Content-Type": "application/json",
     "Cache-Control": "no-store",
@@ -46,7 +48,10 @@ async function forward(
   }
   try {
     const body = request.method === "GET" ? undefined : await request.text();
-    if (body && body.length > 4096)
+    if (
+      body &&
+      body.length > (route.endsWith("/order-entry/quotes") ? 10000 : 4096)
+    )
       return new Response(null, { status: 413, headers: output });
     const search = new URL(request.url).search;
     if (search.length > 1024)

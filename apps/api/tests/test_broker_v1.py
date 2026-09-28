@@ -114,6 +114,15 @@ def test_full_readonly_journey_and_secret_containment(client: TestClient) -> Non
     position = client.get(f"/api/v1/brokers/accounts/{account_id}/positions").json()["data"][0]
     assert position["instrument"]["expiry"] == "2026-10-29"
     assert position["instrument"]["strike"] == "25000"
+    assert (position["realized"], position["unrealized"], position["pnl"]) == ("10", "30", "40")
+    closed = client.get(f"/api/v1/brokers/accounts/{account_id}/positions").json()["data"][1]
+    assert closed["instrument"]["symbol"] == "HDFCBANK26OCT730PE"
+    assert (closed["quantity"], closed["realized"], closed["unrealized"], closed["pnl"]) == (
+        "0",
+        "-1007.5",
+        "0",
+        "-1007.5",
+    )
     with service(client).factory() as db:
         saved = db.scalar(select(BrokerSecret))
         assert (

@@ -78,8 +78,8 @@ test("complete broker journey, both themes, responsive tables and disconnect", a
       await expect(
         page.getByText(
           view === "Instruments"
-            ? /READ ONLY · DAILY INSTRUMENT LIST/
-            : /LIVE DATA · READ ONLY/,
+            ? /DAILY INSTRUMENT LIST · MANUAL TRADING ENABLED/
+            : /LIVE DATA · MANUAL TRADING ENABLED/,
         ),
       ).toBeVisible();
       if (view === "Instruments") {
@@ -88,7 +88,7 @@ test("complete broker journey, both themes, responsive tables and disconnect", a
           .fill("HAL");
         await page.getByRole("button", { name: "Search", exact: true }).click();
         await expect(
-          page.getByRole("rowheader", { name: /HAL/ }),
+          page.getByRole("rowheader", { name: /ZERODHA:NSE:HAL/ }),
         ).toBeVisible();
       }
       if (view === "Holdings") {
@@ -109,6 +109,17 @@ test("complete broker journey, both themes, responsive tables and disconnect", a
             .filter({ hasText: "Holdings value" })
             .locator("strong"),
         ).toHaveText("2,400");
+      }
+      if (view === "Positions") {
+        await expect(
+          page
+            .getByRole("row", { name: /HDFCBANK26OCT730PE/ })
+            .getByRole("cell"),
+        ).toHaveText(["NRML", "0", "0", "20.15", "-1,007.5", "0", "-1,007.5"]);
+        const open = page.getByRole("row", { name: /NIFTY26OCT25000CE/ });
+        await expect(open.getByRole("cell").nth(4)).toHaveText("10");
+        await expect(open.getByRole("cell").nth(5)).toHaveText("30");
+        await expect(open.getByRole("cell").nth(6)).toHaveText("40");
       }
       await expect
         .poll(() =>

@@ -8,7 +8,7 @@ import httpx
 from twf.brokers.zerodha import ZerodhaAdapter
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "api" / "tests"))
-from broker_provider_fixture import provider
+from order_provider_fixture import OrderProvider
 from fastapi import FastAPI
 from twf.config.settings import Settings
 from twf.integrations.adapters import (
@@ -25,7 +25,7 @@ REFERENCE_TIME = datetime(2026, 9, 25, 12, tzinfo=UTC)
 
 
 def create_app() -> FastAPI:
-    settings = Settings()
+    settings = Settings(broker_manual_trading_enabled=True)
     clients = (
         SyntheticScannerService(reference_time=REFERENCE_TIME),
         SyntheticTIService(
@@ -40,6 +40,6 @@ def create_app() -> FastAPI:
     )
     return application(
         settings,
-        broker_adapter=ZerodhaAdapter(transport=httpx.MockTransport(provider)),
+        broker_adapter=ZerodhaAdapter(transport=httpx.MockTransport(OrderProvider())),
         service_registry=ServiceRegistry(settings.service_clients, clients=clients),
     )

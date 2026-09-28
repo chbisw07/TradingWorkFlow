@@ -5,12 +5,19 @@ services:
       dockerfile: deploy/Dockerfile.api
     environment:
       TWF_ENVIRONMENT: development
+      TWF_BROKER_MANUAL_TRADING_ENABLED: ${TWF_BROKER_MANUAL_TRADING_ENABLED:-false}
       TWF_CREDENTIAL_MASTER_KEY: ${TWF_CREDENTIAL_MASTER_KEY:-}
       TWF_DATABASE_URL: ${TWF_DATABASE_URL:-sqlite+pysqlite:////app/twf.db}
     ports:
       - "127.0.0.1:8000:8000"
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')",
+        ]
       interval: 10s
       timeout: 3s
       retries: 3

@@ -422,3 +422,347 @@
     min-height: 44px;
   }
 }
+
+/* Broker V2: compact, staged terminal ticket; colors remain centralized tokens. */
+.order-dialog {
+  width: min(30rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: var(--shadow-panel);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.order-dialog::backdrop {
+  background: var(--order-overlay);
+}
+.order-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.35rem 0.8rem;
+  background: var(--broker-action);
+  color: var(--broker-on-action);
+}
+.order-titlebar h2 {
+  font-size: 1rem;
+  margin: 0;
+}
+.order-titlebar h2:focus {
+  outline: none;
+}
+.order-titlebar button {
+  background: transparent;
+  color: inherit;
+  border: 0;
+  font-size: 1.3rem;
+}
+.order-steps {
+  display: flex;
+  justify-content: space-between;
+  list-style: none;
+  padding: 0.75rem 1rem;
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+.order-steps [aria-current] {
+  color: var(--broker-action);
+  font-weight: bold;
+}
+.order-body {
+  padding: 1rem;
+}
+.order-body form,
+.order-picker {
+  display: grid;
+  gap: 0.85rem;
+}
+.order-selection-group {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.order-selection-group legend {
+  margin-bottom: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+.order-selection-group > div {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+.order-selection-group label {
+  position: relative;
+  cursor: pointer;
+}
+.order-selection-group input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.order-selection-group span {
+  display: block;
+  padding: 0.6rem 0.3rem;
+  text-align: center;
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+}
+.order-selection-group input:checked + span {
+  color: var(--broker-action);
+  border-color: var(--broker-action);
+  font-weight: 600;
+}
+.order-selection-group input:focus-visible + span {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.order-contract {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 0;
+  overflow-wrap: anywhere;
+}
+.order-contract strong {
+  font-size: 0.95rem;
+}
+.order-contract small {
+  display: block;
+  margin-top: 0.3rem;
+  color: var(--text-secondary);
+}
+.order-initials {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 2.3rem;
+  height: 2.3rem;
+  border-radius: 0.3rem;
+  background: var(--broker-action);
+  color: var(--broker-on-action);
+  font-weight: bold;
+}
+.order-side {
+  display: flex;
+  gap: 0.5rem;
+}
+.order-side button {
+  flex: 1;
+  min-width: 4.25rem;
+}
+.broker-workspace .order-buy {
+  color: var(--order-buy);
+  border-color: var(--order-buy);
+}
+.broker-workspace .order-sell {
+  color: var(--order-sell);
+  border-color: var(--order-sell);
+}
+.broker-workspace .order-buy[aria-pressed="true"],
+.broker-workspace .order-buy.order-confirm {
+  background: var(--order-buy);
+  color: var(--order-on-side);
+}
+.broker-workspace .order-sell[aria-pressed="true"],
+.broker-workspace .order-sell.order-confirm {
+  background: var(--order-sell);
+  color: var(--order-on-side);
+}
+.order-fields {
+  display: grid;
+  gap: 0.6rem;
+}
+.order-fields > label {
+  grid-template-columns: 8rem minmax(0, 1fr);
+  align-items: center;
+}
+.order-fields small {
+  grid-column: 1 / -1;
+  color: var(--text-secondary);
+}
+.order-lots {
+  display: grid;
+  gap: 0.4rem;
+  padding-bottom: 0.4rem;
+}
+.order-lots span,
+.order-summary > div,
+.order-totals > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.order-lots strong,
+.order-lots output {
+  font-weight: 600;
+}
+.order-totals,
+.order-summary {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0.8rem 0;
+  border-top: 1px solid var(--border);
+}
+.order-summary dt,
+.order-totals dt {
+  color: var(--text-secondary);
+}
+.order-summary dd,
+.order-totals dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.order-exits {
+  min-width: 0;
+  border: 1px solid var(--border);
+  padding: 0.65rem;
+  border-radius: 0.25rem;
+}
+.order-exits legend {
+  padding: 0 0.25rem;
+}
+.order-exits > div {
+  display: grid;
+  grid-template-columns: 1fr 1fr 0.7fr;
+  align-items: end;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.order-exits input {
+  opacity: 0.65;
+}
+.order-exits p,
+.order-disclaimer {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+.order-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  justify-content: space-between;
+}
+.order-footer button {
+  flex: 1;
+}
+.order-preview {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.85rem;
+  background: var(--surface-raised);
+  border-left: 3px solid;
+}
+.order-preview span {
+  color: var(--text-secondary);
+}
+.order-choice {
+  border: 1px solid var(--border);
+  padding: 0.5rem 0.75rem 0.75rem;
+  border-radius: 0.25rem;
+}
+.order-result {
+  display: grid;
+  gap: 1rem;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.order-result h3 {
+  font-size: 1.1rem;
+}
+.order-result p {
+  margin: 0;
+  line-height: 1.6;
+}
+.order-result small {
+  color: var(--text-muted);
+}
+.order-id {
+  display: block;
+  font-variant-numeric: tabular-nums;
+}
+.order-filters {
+  margin-bottom: 1rem;
+}
+.order-filters [aria-pressed="true"] {
+  color: var(--broker-action);
+  border-color: var(--broker-action);
+}
+.order-recent {
+  border: 1px solid var(--border);
+  padding: 0.7rem;
+  margin-block: 0.7rem;
+}
+.order-recent summary {
+  cursor: pointer;
+}
+.order-recent p {
+  color: var(--text-secondary);
+}
+.order-recent > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+@media (max-width: 767px) {
+  .order-dialog {
+    width: calc(100vw - 1rem);
+    max-height: calc(100dvh - 1rem);
+  }
+  .order-body {
+    padding: 0.8rem;
+  }
+  .order-fields > label {
+    grid-template-columns: 7rem minmax(0, 1fr);
+  }
+  .order-recent > div {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+.order-success-mark {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  margin-inline: auto;
+  border-radius: 50%;
+  background: var(--order-buy);
+  color: var(--order-on-side);
+  font-size: 1.2rem;
+  font-weight: bold;
+}
+
+.order-choices {
+  display: grid;
+  gap: 0.85rem;
+}
+.order-ltp {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.order-set-price {
+  padding: 0.3rem 0.65rem;
+  min-height: 2rem;
+}

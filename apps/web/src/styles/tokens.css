@@ -1,6 +1,10 @@
 :root {
   color-scheme: dark;
   --broker-action: #83b6ff;
+  --order-buy: #8cddb4;
+  --order-sell: #ffaba5;
+  --order-on-side: #101820;
+  --order-overlay: #00000080;
   --broker-on-action: #101820;
   --background: #0c1013;
   --surface: #12181c;
@@ -45,6 +49,9 @@
 :root[data-theme="light"] {
   color-scheme: light;
   --broker-action: #0664de;
+  --order-buy: #007943;
+  --order-sell: #bb2828;
+  --order-on-side: #fff;
   --broker-on-action: #fff;
   --background: #edf0ee;
   --surface: #fafbf9;

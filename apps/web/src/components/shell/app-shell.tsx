@@ -30,7 +30,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <p role="status">
           <span className="status-indicator" aria-hidden="true" />
           {broker
-            ? "Broker workspace · Read only · Trading disabled"
+            ? "Broker workspace · Account-specific trading permissions"
             : "Development shell · No live data"}
         </p>
         <span>

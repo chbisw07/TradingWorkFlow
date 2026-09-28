@@ -234,6 +234,60 @@ test.each([
 );
 
 test.each([
+  [
+    "closed loss",
+    "0",
+    "-1007.5",
+    "0",
+    "-1007.5",
+    ["-1,007.5", "0", "-1,007.5"],
+  ],
+  ["closed gain", "0", "100", "0", "100", ["100", "0", "100"]],
+  ["partial", "5", "10", "30", "40", ["10", "30", "40"]],
+  ["unknown open split", "5", null, null, "40", ["—", "—", "40"]],
+  ["unknown closed total", "0", null, "0", null, ["—", "0", "—"]],
+] as const)(
+  "Positions renders %s truthfully",
+  async (_name, quantity, realized, unrealized, pnl, expected) => {
+    vi.spyOn(global, "fetch").mockImplementation(async (input) =>
+      Response.json(
+        String(input).endsWith("/accounts")
+          ? [account]
+          : {
+              ...snapshot,
+              fetched_at: new Date().toISOString(),
+              data: [
+                {
+                  instrument: {
+                    symbol: "HDFCBANK26OCT730PE",
+                    reference: "ZERODHA:NFO:HDFCBANK26OCT730PE",
+                  },
+                  product: "NRML",
+                  quantity,
+                  average: "0",
+                  last_price: "20.15",
+                  realized,
+                  unrealized,
+                  pnl,
+                },
+              ],
+            },
+      ),
+    );
+    render(<BrokerWorkspace path={["accounts", account.id, "positions"]} />);
+    const header = await screen.findByRole("rowheader", {
+      name: /HDFCBANK26OCT730PE/,
+    });
+    expect(
+      within(header.closest("tr")!)
+        .getAllByRole("cell")
+        .slice(-3)
+        .map((cell) => cell.textContent),
+    ).toEqual(expected);
+  },
+);
+
+test.each([
   ["2400", "2,400"],
   [null, "—"],
 ])("Overview renders holdings value %s truthfully", async (value, expected) => {
@@ -258,4 +312,73 @@ test.each([
   expect(label.parentElement?.querySelector("strong")).toHaveTextContent(
     expected!,
   );
+});
+
+test("Orders filters preserve raw MODIFY VALIDATION PENDING and existing broker states", async () => {
+  const active = [
+    "OPEN",
+    "TRIGGER PENDING",
+    "VALIDATION PENDING",
+    "OPEN PENDING",
+    "MODIFY VALIDATION PENDING",
+    "MODIFY PENDING",
+    "CANCEL PENDING",
+    "AMO REQ RECEIVED",
+    "PUT ORDER REQ RECEIVED",
+  ];
+  const all = [
+    ...active,
+    "COMPLETE",
+    "CANCELLED",
+    "REJECTED",
+    "UNKNOWN STATUS",
+  ];
+  const fetch = vi.spyOn(global, "fetch").mockImplementation(async (input) => {
+    const path = String(input);
+    if (path.endsWith("/accounts")) return Response.json([account]);
+    if (path.endsWith("/providers") || path.endsWith("/intents"))
+      return Response.json([]);
+    if (path.endsWith("/capabilities"))
+      return Response.json({ enabled: false });
+    if (path.includes("/orders?"))
+      return Response.json({
+        ...snapshot,
+        fetched_at: new Date().toISOString(),
+        data: all.map((status, index) => ({
+          id: `order-${index}`,
+          instrument: {
+            symbol: `ORDER${index}`,
+            reference: `ZERODHA:NSE:ORDER${index}`,
+          },
+          status,
+        })),
+      });
+    throw new Error(`Unexpected request: ${path}`);
+  });
+  render(<BrokerWorkspace path={["accounts", account.id, "orders"]} />);
+  await screen.findByRole("cell", {
+    name: "MODIFY VALIDATION PENDING",
+  });
+  const filters = within(screen.getByRole("group", { name: "Order filter" }));
+  for (const [filter, expected] of [
+    ["All", all],
+    ["Open", active],
+    ["Completed", ["COMPLETE"]],
+    ["Cancelled", ["CANCELLED"]],
+    ["Rejected", ["REJECTED"]],
+    ["All", all],
+  ] as const) {
+    fireEvent.click(filters.getByRole("button", { name: filter }));
+    expect(filters.getByRole("button", { name: filter })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
+    expect(
+      rows.map((row) => within(row).getAllByRole("cell").at(-1)?.textContent),
+    ).toEqual(expected);
+  }
+  expect(
+    fetch.mock.calls.filter(([url]) => String(url).includes("/orders?")),
+  ).toHaveLength(1);
 });

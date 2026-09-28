@@ -38,12 +38,13 @@ TWF-1 — Application Foundation                            ✅ ACCEPTED / FROZE
 
 UX maturity — parallel workstream
 ├── UX-B1 Foundational Complete UX                        PARTIAL (TWF-1.x / TWF-2)
-├── UX-B2 Operationally Useful Trading UX                  PLANNED (TWF-2–7)
+├── UX-B2 Operationally Useful Trading UX                  PARTIAL (bounded Broker V1/V2 evidence)
 └── UX-B3 Architecture-Complete UX                        PLANNED (progressive TWF-8–10)
 
 Broker Workspace Architecture v0.3                        ✅ REVIEWED / ACCEPTED / TAGGED
-Broker Workspace Workstream — mapped into TWF-2/TWF-6; no BW runtime accepted
-├── Broker V1 coherent read-only rebuild                    ACTIVE / PENDING REVIEW
+Broker Workspace Workstream — mapped into TWF-2/TWF-6
+├── Broker V1 coherent read-only rebuild                    ✅ ACCEPTED / FROZEN (main)
+├── Broker V2 manual trading foundation                     ✅ ACCEPTED / FROZEN (twf-broker-v2)
 ├── BW-1 Synthetic Broker Read-Only Foundation             historical gate
 ├── BW-2 One real broker read-only                          PENDING
 ├── BW-3 Broker watchlists and draft/preview               PENDING
@@ -72,12 +73,16 @@ the previously stale status pages against this repository evidence. Broker Works
 Architecture v0.3 was independently reviewed and accepted at annotated tag
 `twf-broker-workspace-architecture-v0.3` (`0b73492`); its [bounded gates](docs/TWF_BROKER_WORKSPACE_ARCHITECTURE.md#34-bounded-delivery-and-acceptance-gates)
 are an implementation workstream, not replacement TWF milestone IDs. UX-B1 is still
-partial and no broker runtime is accepted. **ACTIVE: Broker V1 read-only vertical
-slice** on `rebuild/simple-broker-workspace`, following the user-approved desktop
-v2 wireframe prompt. It includes Zerodha setup/authentication and read-only
-Overview, Holdings, Positions, Orders, Funds and Instruments. It remains pending
-independent review and user-driven real smoke; trading is disabled. See the
-[implementation and exact local setup](docs/TWF_BROKER_V1_VERTICAL_SLICE.md).
+partial. **Broker V1 is accepted/frozen and integrated into `main`**
+(`aae52e9`; accepted implementation `4ffff9d`). Its Zerodha authentication,
+encrypted credentials and six read-only views are the baseline.
+**[Broker V2](docs/TWF_BROKER_V2_MANUAL_ORDER_ENTRY.md) is accepted/frozen:** manual
+Equity/Futures/Options order entry, refined instrument search, live LTP, mandatory
+Preview, durable OrderIntent and safe submission/reconciliation. A controlled real
+Zerodha order smoke succeeded. Manual placement remains disabled by default until
+explicitly enabled by the operator; broker acknowledgement does not guarantee execution.
+See [Broker V1 setup](docs/TWF_BROKER_V1_VERTICAL_SLICE.md) and the V2 record for
+scope, the additive migration, capability configuration and validation.
 Earlier work is preserved on `archive/broker-work-before-simplification`; this
 rebuild does not relabel historical BW gates as newly accepted.
 Broker Workspace → Basic Execution Safety → TM → Scanner → TI is the reviewed
@@ -305,11 +310,14 @@ architecture updates must keep both formats in sync, with Markdown normative. Se
 
 TWF-0 is tagged `twf-0-architecture-baseline`; TWF-1 is tagged
 `twf-1-application-foundation`; Broker Workspace Architecture v0.3 is tagged
-`twf-broker-workspace-architecture-v0.3`. The current rebuild target is the
-[Broker V1 read-only vertical slice](docs/TWF_BROKER_V1_VERTICAL_SLICE.md), pending
-independent acceptance and user-driven real smoke. `GO_BROKER_WORKSPACE` retains
-its historical architectural meaning; this implementation does not freeze a new
-milestone or enable trading.
+`twf-broker-workspace-architecture-v0.3`. [Broker V1](docs/TWF_BROKER_V1_VERTICAL_SLICE.md) is accepted/frozen on main.
+[Broker V2](docs/TWF_BROKER_V2_MANUAL_ORDER_ENTRY.md), the manual trading foundation,
+is accepted/frozen under `twf-broker-v2`, following independent review, user-driven
+real Zerodha smoke and bounded correctness fixes. Automated validation uses fake
+broker transports only. Historical BW gates remain an inventory of the original
+plan; their pending labels do not override the accepted V1/V2 delivery records.
+Modify/cancel, additional brokers, Alerts-managed exits and Scanner/TI/TM integration
+remain future work.
 
 ---
 

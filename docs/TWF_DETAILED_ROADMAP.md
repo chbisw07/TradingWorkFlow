@@ -11,11 +11,12 @@ Later functional targets remain pending. The
 [configuration review](TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md) records
 `GO_TWF1_5` for the bounded scope below. Broker Workspace Architecture v0.3 is independently reviewed and accepted at
 annotated tag `twf-broker-workspace-architecture-v0.3` (`0b73492`). Its BW-1
-through BW-6 remain the historical delivery gates. On the rebuild branch the
-user-authorized [Broker V1 vertical slice](TWF_BROKER_V1_VERTICAL_SLICE.md) is the
-active coherent read-only implementation, pending independent acceptance and real
-Zerodha smoke. Prior work is archived separately. This does not accept trading or
-renumber the TWF milestones. Architecture acceptance is not runtime completion.
+through BW-6 remain the historical delivery gates.
+[Broker V1](TWF_BROKER_V1_VERTICAL_SLICE.md) is the accepted/frozen real broker
+read-only foundation (`twf-broker-v1`). [Broker V2](TWF_BROKER_V2_MANUAL_ORDER_ENTRY.md)
+is the accepted/frozen manual trading foundation (`twf-broker-v2`), including a
+successful controlled real Zerodha smoke and bounded read-model corrections.
+Prior work remains archived; original TWF milestone identities are unchanged.
 
 ## 1. Roadmap Objective
 
@@ -55,44 +56,57 @@ TWF-10 Production Hardening
 ## 3. TWF-0 — Product / Architecture Foundation
 
 ### TWF-0.1 Product Vision and Boundaries
+
 Product purpose, north star, goals/non-goals, trader workflows and responsibility boundaries.
 
 ### TWF-0.2 System Architecture
+
 Frontend/backend split, service architecture, logical/local/remote adapters, DB abstraction, realtime model and identity/correlation principles.
 
 ### TWF-0.3 Technology Decisions
+
 Frontend, backend, DB, migrations, testing, realtime and deployment baseline.
 
 ### TWF-0.4 UX Architecture
+
 Shell layout, navigation, workspace, panels, console model and degraded states.
 
 ### TWF-0.5 Data / Security / Deployment Architecture
+
 User/workspace ownership, DB repository model, auth/security boundaries, cloud evolution and secrets.
 
 ### TWF-0.6 Repository / Engineering Standards
+
 Repo structure, coding standards, docs structure, testing policy and branch/release conventions.
 
 ### Acceptance
+
 Coding can begin without unresolved foundational contradictions.
 
 ## 4. TWF-1 — Application Foundation
 
 ### TWF-1.0 Repository and Project Scaffold
+
 Accepted repository layout, runnable shells, development tooling and container baseline.
 
 ### TWF-1.1 Frontend Shell
+
 Next.js/React/TypeScript shell, layout, navigation, error/loading states.
 
 ### TWF-1.1A Theme Switching Foundation
+
 Accepted centralized dark/light tokens, dark default and safe browser-local restoration.
 
 ### TWF-1.2 Backend Shell
+
 FastAPI app, health endpoint, config, structured logging and API version base.
 
 ### TWF-1.3 Database Foundation
+
 Repository interfaces, SQLAlchemy, SQLite and Alembic with migration tests.
 
 ### TWF-1.4 User / Login Foundation
+
 User identity, login/session and initial authorization boundary.
 
 ### TWF-1.5 Settings Foundation
@@ -127,28 +141,35 @@ logical contracts as needed to prove foundation behavior; full domain payloads m
 in their integration milestones. No real integrations or authority shortcuts.
 
 ### Acceptance
+
 User can log in, see the shell, persist workspace/settings and see configured service status.
 
 ## 5. TWF-2 — Trader Workspace
 
 ### TWF-2.1 Workspace Layout
+
 Panel system, navigation and selected-instrument context.
 
 ### TWF-2.2 Watchlists
+
 Prioritize broker-owned-context watchlists under BW-3; create/edit/delete TWF-owned
 lists with exact broker-native references. A future canonical/global watchlist is
 separate and deferred; it never selects a broker implicitly.
 
 ### TWF-2.3 Candidate Workspace
+
 Candidate summary, selected instrument and workflow context.
 
 ### TWF-2.4 Web Console Foundation
+
 Reusable console, filters, realtime append and correlation IDs.
 
 ### TWF-2.5 Persisted UX Preferences
+
 Panel/layout preferences and defaults.
 
 ### Acceptance
+
 Trader can navigate a responsive workspace, manage watchlists, select a candidate and use the base console.
 Broker rooms and synthetic read-only observations can arrive through BW-1 before the
 full TWF-2 scope closes; no placeholder tab counts as an implemented feature.
@@ -156,78 +177,101 @@ full TWF-2 scope closes; no placeholder tab counts as an implemented feature.
 ## 6. TWF-3 — Scanner Integration
 
 ### TWF-3.1 Scanner Service Contract
+
 Capabilities, request/result, identity/version and local/remote adapter.
 
 ### TWF-3.2 Synthetic Scanner Adapter
+
 Deterministic candidate feed for development/tests.
 
 ### TWF-3.3 Candidate List UX
+
 List/grid, filters, sort and status.
 
 ### TWF-3.4 Candidate → Workspace
+
 Preserve scanner provenance and create/open workflow.
 
 ### Acceptance
+
 Scanner results can create/open candidates without TWF knowing scanner internals.
 
 ## 7. TWF-4 — TI + Active LLM Integration
 
 ### TWF-4.1 TI Service Client
+
 IntelligenceResponse, producer/version/provenance and local/remote semantics.
 
 ### TWF-4.2 Active LLM Configuration
+
 Provider-neutral configuration with one active primary LLM.
 
 ### TWF-4.3 TI Analysis UX
+
 Thesis, claims, horizon, evidence and producer/model identity.
 
 ### TWF-4.4 Trade Expression UX
+
 Display advisory trade expression distinctly from execution authority.
 
 ### TWF-4.5 TI / LLM Console
+
 Reasoning/activity/event surface with provider identity where appropriate.
 
 ### Acceptance
+
 Candidate can be analyzed by TI and displayed correctly with provenance and no authority leakage.
 
 ## 8. TWF-5 — TM Integration
 
 ### TWF-5.1 TM Service Client
+
 Authority/risk/position state and workflow correlation.
 
 ### TWF-5.2 Risk / Authority Panel
+
 Explicit status and reasons.
 
 ### TWF-5.3 External / Existing Position View
+
 Broker-external vs managed/adopted distinction.
 
 ### TWF-5.4 Manual Approval Handoff
+
 Trader action, idempotent handoff and TM authority preservation.
 
 ### TWF-5.5 Position Monitoring View
+
 Status, P&L, risk and monitoring state.
 
 ### Acceptance
+
 TWF can hand an analyzed candidate to TM and present TM truth without duplicating ownership.
 
 ## 9. TWF-6 — Minimal Complete Trading Workflow
 
 ### TWF-6.1 Candidate Workflow State
+
 Discovered → analyzed → reviewed → sent to TM → approved/rejected → monitored → closed.
 
 ### TWF-6.2 Correlation / Audit
+
 Candidate, TI response, TM, order and position references where applicable.
 
 ### TWF-6.3 Manual Approval Flow
+
 Manual trader approval remains mandatory.
 
 ### TWF-6.4 Outcome / Closure
+
 Workflow closure, final state and audit history.
 
 ### TWF-6.5 E2E Acceptance Corpus
+
 Synthetic/local scanner → TI → TM → monitored/closed scenarios.
 
 ### Acceptance
+
 One coherent intelligence/TM trading workflow works end-to-end. Broker manual workflow
 value may arrive earlier under BW gates; it does not satisfy this managed-workflow acceptance.
 
@@ -259,11 +303,11 @@ observability, migration safety, contract tests, documentation and backward comp
 
 The [UX Bucket Roadmap](TWF_UX_BUCKET_ROADMAP.md) defines an additional maturity track:
 
-| Bucket | Milestone mapping | Dependency rule |
-|---|---|---|
-| UX-B1 Foundational Complete UX | TWF-1.x plus workspace/console foundations in TWF-2 | Partial today; synthetic/local UX does not require live services or admin backend |
+| Bucket                                | Milestone mapping                                                                                                        | Dependency rule                                                                              |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| UX-B1 Foundational Complete UX        | TWF-1.x plus workspace/console foundations in TWF-2                                                                      | Partial today; synthetic/local UX does not require live services or admin backend            |
 | UX-B2 Operationally Useful Trading UX | Broker Workspace BW-1–6 across TWF-2/6 first; TM (TWF-5), then Scanner (TWF-3), TI (TWF-4); realtime refinement in TWF-7 | Separate manual broker submission from TM-managed authority; each slice has acceptance gates |
-| UX-B3 Architecture-Complete UX | Progressive administration/subscriptions, IFL and operations in TWF-8/9/10 | Individual features advance when justified; the whole bucket never blocks core integrations |
+| UX-B3 Architecture-Complete UX        | Progressive administration/subscriptions, IFL and operations in TWF-8/9/10                                               | Individual features advance when justified; the whole bucket never blocks core integrations  |
 
 Configuration checkpoint before TWF-1.5: reviewed v0.6 separates realms, scopes,
 capability/entitlement gates, desired/effective/applied state, profiles and operations.
@@ -284,15 +328,19 @@ Use ChatGPT web for architecture, planning, docs, reviews, acceptance reasoning 
 TWF-0 and TWF-1 are accepted/frozen from repository commit/tag evidence recorded in
 the [Broker Workspace review](TWF_BROKER_WORKSPACE_ARCHITECTURE_REVIEW.md).
 TWF-1.4 `ba9bb8b`, TWF-1.5 `664d4cf` and TWF-1.6 `e3852d3` keep their histories.
-UX-B1 remains partial; UX-B2/B3 remain planned. Current implementation: Broker V1
-read-only rebuild, pending review and real-account smoke; see its linked record above.
+UX-B1 remains partial; UX-B2 has bounded V1/V2 broker evidence but is not complete;
+UX-B3 remains planned. Broker V1 and Broker V2 are accepted/frozen. Future work
+includes modify/cancel extensions, additional brokers, Alerts-managed exits and
+Scanner/TI/TM integration, each separately scoped and accepted.
 
 ## 18. Broker Workspace Delivery Overlay
 
 [Broker Workspace v0.3](TWF_BROKER_WORKSPACE_ARCHITECTURE.md#34-bounded-delivery-and-acceptance-gates)
-records the accepted historical scope/gates. The user-authorized Broker V1 desktop
-prompt now governs this branch’s coherent read-only delivery; it does not authorize
-trading. The original delivery sequence is retained for reference:
+records the accepted historical scope/gates. Broker V1 delivered the read-only
+foundation; Broker V2 separately delivered opt-in manual Equity/Futures/Options
+trading with Preview, durable intent, bounded LTP and broker-truth reconciliation.
+This does not complete managed/automated trading or all original BW gates.
+The original delivery sequence is retained for reference:
 
 ```text
 Broker contracts + Synthetic Broker read-only rooms (BW-1)
@@ -312,18 +360,20 @@ Broker contracts + Synthetic Broker read-only rooms (BW-1)
 The bounded delivery and required evidence below are copied from
 [Broker Workspace Architecture v0.3, section 34](TWF_BROKER_WORKSPACE_ARCHITECTURE.md#34-bounded-delivery-and-acceptance-gates).
 The gate inventory below preserves the historical planning boundaries. The current
-Broker V1 implementation is recorded separately and has not received acceptance. BW labels are a broker
+Broker V1 and Broker V2 acceptances are recorded separately and supersede stale
+runtime-status readings of this inventory. Pending labels below describe the
+original gate plan, not the current V1/V2 milestone status. BW labels are a broker
 workstream, **not replacements for TWF milestone IDs**.
 
-| Status | Gate | Exact bounded delivery | Required evidence / next gate |
-|---|---|---|---|
-| HISTORICAL GATE | BW-1 Synthetic Broker Read-Only Foundation | Versioned broker identity, capability, auth/operation health, observations and typed query contract; deterministic injected-clock adapter; authenticated personal room/overview showing Dashboard, Holdings, Positions, Orders and Funds | Three fixture accounts across two fictional providers, including two accounts of one provider; both themes/six widths; negative ownership and failure/isolation tests; no provider network or real credential path |
-| PENDING | BW-2 One real broker read-only | One chosen provider's verified auth/account binding, vault references, bounded read adapters and versioned catalog/search; optional canonical mapping | Official public API mapping, credential/callback/revocation review, source/completeness/rate-limit fixtures, isolated real read smoke; provider and permission selected before implementation |
-| PENDING | BW-3 Broker watchlists and draft/preview | Revisioned owned watchlists; exact native instrument resolution; backend draft validation and preview, no live dispatch | Persistence/migration/isolation tests, duplicate/stale/expired/token-reuse cases; no generic global-watchlist routing |
-| PENDING | BW-4 Synthetic command and recovery foundation | Durable intent/request/confirmation/audit, synthetic accept/reject/partial/unknown/cancel/modify, dispatch claims and reconciliation | Crash/restart and multi-worker tests, policy-expiry and concurrent commands; actual secret-free synthetic behavior remains labelled |
-| PENDING | BW-5 Controlled live manual orders | One provider, explicit personal ownership, restricted segments/order types, separately enabled LIVE mode and approved safety policy | All live prerequisites in sections 7, 18, 19, 23 and 26; provider contract/sandbox evidence where available; operator recovery runbook; explicit approval and independent acceptance before live activation |
-| PENDING | BW-6 Second real broker proof | Add second provider adapter/manifest and contract fixtures | Section 34.3 proof before claiming multi-provider operational acceptance |
-| PENDING | Later managed workflow | Reviewed TM public-contract integration and exclusive command transfer | No automatic manual/TM fallback; separate TWF-5 acceptance |
+| Status          | Gate                                           | Exact bounded delivery                                                                                                                                                                                                                   | Required evidence / next gate                                                                                                                                                                                      |
+| --------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| HISTORICAL GATE | BW-1 Synthetic Broker Read-Only Foundation     | Versioned broker identity, capability, auth/operation health, observations and typed query contract; deterministic injected-clock adapter; authenticated personal room/overview showing Dashboard, Holdings, Positions, Orders and Funds | Three fixture accounts across two fictional providers, including two accounts of one provider; both themes/six widths; negative ownership and failure/isolation tests; no provider network or real credential path |
+| PENDING         | BW-2 One real broker read-only                 | One chosen provider's verified auth/account binding, vault references, bounded read adapters and versioned catalog/search; optional canonical mapping                                                                                    | Official public API mapping, credential/callback/revocation review, source/completeness/rate-limit fixtures, isolated real read smoke; provider and permission selected before implementation                      |
+| PENDING         | BW-3 Broker watchlists and draft/preview       | Revisioned owned watchlists; exact native instrument resolution; backend draft validation and preview, no live dispatch                                                                                                                  | Persistence/migration/isolation tests, duplicate/stale/expired/token-reuse cases; no generic global-watchlist routing                                                                                              |
+| PENDING         | BW-4 Synthetic command and recovery foundation | Durable intent/request/confirmation/audit, synthetic accept/reject/partial/unknown/cancel/modify, dispatch claims and reconciliation                                                                                                     | Crash/restart and multi-worker tests, policy-expiry and concurrent commands; actual secret-free synthetic behavior remains labelled                                                                                |
+| PENDING         | BW-5 Controlled live manual orders             | One provider, explicit personal ownership, restricted segments/order types, separately enabled LIVE mode and approved safety policy                                                                                                      | All live prerequisites in sections 7, 18, 19, 23 and 26; provider contract/sandbox evidence where available; operator recovery runbook; explicit approval and independent acceptance before live activation        |
+| PENDING         | BW-6 Second real broker proof                  | Add second provider adapter/manifest and contract fixtures                                                                                                                                                                               | Section 34.3 proof before claiming multi-provider operational acceptance                                                                                                                                           |
+| PENDING         | Later managed workflow                         | Reviewed TM public-contract integration and exclusive command transfer                                                                                                                                                                   | No automatic manual/TM fallback; separate TWF-5 acceptance                                                                                                                                                         |
 
 BW-1–3 contribute to the TWF-2 broker workspace progression; BW-4/5 provide
 the synthetic recovery and controlled manual execution foundations mapped to
