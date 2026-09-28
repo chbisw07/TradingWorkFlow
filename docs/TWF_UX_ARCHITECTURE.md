@@ -1,5 +1,7 @@
 # TradingWorkFlow (TWF) — UX Architecture
 
+> **2026-09-29 S&D architecture acceptance:** The dated S&D extension below is **ACCEPTED / IMPLEMENTATION AUTHORIZED** within the [Sprint-2 delivery plan](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md). The [independent acceptance record](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) supersedes its 2026-09-28 proposal status. Sprint 2 is **ACTIVE / NEXT; implementation not started**. Earlier acceptance history and separate TI/TM/provider/security gates remain unchanged; proposal wording in the dated extension records its origin, not the current review status.
+
 ## Status
 **TWF-0 accepted UX baseline, reconciled with configuration and UX buckets on 2026-09-25**
 
@@ -256,3 +258,39 @@ The [configuration architecture v0.6](TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLE
 Work/Administration contexts are useful in both APS and ACS when backend rights exist. Show realm, account and acting identity persistently. Switching context cannot elevate privilege. Unsupported administration remains an honest unavailable preview. Discovery may show sanitized unavailable/upgrade cards; internal capabilities stay hidden. Configuration repair must remain available to authorized actors even while capability use is disabled.
 
 The [UX Bucket Roadmap](TWF_UX_BUCKET_ROADMAP.md) defines UX-B1 foundation, UX-B2 operational trading and UX-B3 mature architecture coverage. These complement functional milestones; TWF-1 completion does not require trading screens or all UX-B1 features assigned to TWF-2. UX-B2/B3 panel details evolve with real contracts. Preserve accepted token/theme quality, all eight shell states, responsive recomposition and authority/provenance across devices. Synthetic fixtures must be labelled and contract-tested; a successful mock is not live service or trading authorization.
+
+
+## 22. Scan and discovery UX proposal — 2026-09-28
+
+The [S&D architecture](TWF_SCAN_AND_DISCOVER_ARCHITECTURE.md) defines a proposed
+finished workspace with Scan, Discovery and Scan + Discover modes; universe/profile
+selection, custom criteria, capability-aware controls, matches, candidate queue,
+details/evidence/context, S1…Sn history and first-class settings. The older generic
+Candidate screen describes a broader future workflow; it is not all Sprint-2 scope.
+
+Show intent/horizon, exact exchange/listing or source-scoped identity, as-of/source
+mode, freshness, coverage, Discovery Relevance and lifecycle reasons. Relevance
+is fit to the discovery policy, never probability of profit. Any future TI forecast
+must retain its own producer/horizon/uncertainty labels rather than inheriting a
+DiscoveryCandidate score. S1 is provisional; stale is not invalid; defunct is not
+terminal; expired windows cannot be hidden by fresh quotes.
+
+Optional LLM panels show GROUNDED, PARTIALLY_GROUNDED or CONTEXT_ONLY and open actual
+supplied evidence citations. Missing context and failed interpretation do not erase
+deterministic results. NL filter drafts require user review/validation. Save,
+dismiss, review and explicit refresh are allowed; Buy/Sell, auto-LOB and execution
+are absent from this delivery. A discovery screen must work without a broker login.
+
+Reuse accepted responsive shell, eight state primitives, centralized dark/light
+tokens, heading hierarchy, keyboard/focus and contained table overflow. At 390,
+768, 1024, 1440, 1920 and 2560+ widths recompose lists/detail panes while retaining
+identity/provenance and primary actions. Preserve current Broker V2 layouts and
+account-specific manual permissions. This contributes to UX-B2 without claiming
+the whole bucket complete. The UX DOCX requires regeneration after acceptance.
+
+### Revision history addition
+
+| Revision | Date | Status | Role / change |
+| --- | --- | --- | --- |
+| S&D reconciliation 1 | 2026-09-28 | PROPOSED / RECONCILED / READY FOR REVIEW | Normative design/planning extension: Scan and discovery UX proposal; prior history and acceptance preserved |
+| S&D acceptance 1 | 2026-09-29 | ACCEPTED / IMPLEMENTATION AUTHORIZED | Independent S&D architecture acceptance; staged Sprint-2 scope only, no runtime delivery or prior milestone change; see [review](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) |

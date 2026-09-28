@@ -1,5 +1,7 @@
 # TradingWorkFlow (TWF) — Technology Decision Record
 
+> **2026-09-29 S&D architecture acceptance:** The dated S&D extension below is **ACCEPTED / IMPLEMENTATION AUTHORIZED** within the [Sprint-2 delivery plan](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md). The [independent acceptance record](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) supersedes its 2026-09-28 proposal status. Sprint 2 is **ACTIVE / NEXT; implementation not started**. Earlier acceptance history and separate TI/TM/provider/security gates remain unchanged; proposal wording in the dated extension records its origin, not the current review status.
+
 ## Status
 
 **Accepted TWF-0 technology baseline, with implementation/configuration clarifications dated 2026-09-25**
@@ -210,3 +212,33 @@ The [configuration architecture v0.6](TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLE
 TWF-1.4 has selected local password authentication and revocable server-owned sessions. Its limited Next.js same-origin auth transport is not a second backend authority; FastAPI remains responsible for identity/session decisions. Production IdP/MFA/recovery remain later choices. Realm/admin features require their own design gate, not reinterpretation of the existing user model.
 
 The accepted TWF-1.1A centralized dark/light tokens and guarded browser-local restoration remain the theme baseline. TWF-1.5 must specify user/device preference precedence and hydration/first-paint preservation before integrating persisted appearance settings. [UX buckets](TWF_UX_BUCKET_ROADMAP.md) do not preselect chart/grid/docking libraries. Synthetic contract adapters are required for early UX/testing; no real service SDK is added by this decision.
+
+
+## 29. S&D technology direction — proposed ADR — 2026-09-28
+
+Reuse the accepted Next.js/React, FastAPI/Pydantic, SQLAlchemy/Alembic and portable
+SQLite/PostgreSQL foundation for [S&D](TWF_SCAN_AND_DISCOVER_ARCHITECTURE.md).
+Start with logical modules and bounded durable user-triggered runs; do not prescribe
+microservices, a queue/broker, scheduling framework or a market-data warehouse.
+Stable IDs, typed contracts, immutable captures and optimistic revisions are design
+requirements independent of provider SDK selection.
+
+TradingView MCP is a planned scan adapter, separate from the earlier chart/widget
+technology discussion. No specific MCP server, SDK, tool schema or entitlement is
+selected here; verify those before implementation. Internal V0 requires an approved
+independent data input and bounded deterministic indicator functions, not a clone of
+all vendor features. Provider-neutral hosted LLM adapters are optional; no OpenAI,
+Anthropic/Claude, Google or local inference framework is mandated or installed.
+
+Discovery Relevance initially uses an explicit deterministic versioned policy and
+coverage/dependence rules. Optional LLM output has zero score/authority weight.
+Production ML ranking and self-learning remain later research/governance choices.
+See [Sprint-2 S2-0](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md) for source, licensing,
+calendar, profile and operating-limit decisions needed before dependent coding.
+
+### Revision history addition
+
+| Revision | Date | Status | Role / change |
+| --- | --- | --- | --- |
+| S&D reconciliation 1 | 2026-09-28 | PROPOSED / RECONCILED / READY FOR REVIEW | Normative design/planning extension: S&D technology direction — proposed ADR; prior history and acceptance preserved |
+| S&D acceptance 1 | 2026-09-29 | ACCEPTED / IMPLEMENTATION AUTHORIZED | Independent S&D architecture acceptance; staged Sprint-2 scope only, no runtime delivery or prior milestone change; see [review](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) |

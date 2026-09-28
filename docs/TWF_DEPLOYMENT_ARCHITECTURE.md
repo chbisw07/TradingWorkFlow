@@ -1,5 +1,7 @@
 # TradingWorkFlow (TWF) — Deployment Architecture
 
+> **2026-09-29 S&D architecture acceptance:** The dated S&D extension below is **ACCEPTED / IMPLEMENTATION AUTHORIZED** within the [Sprint-2 delivery plan](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md). The [independent acceptance record](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) supersedes its 2026-09-28 proposal status. Sprint 2 is **ACTIVE / NEXT; implementation not started**. Earlier acceptance history and separate TI/TM/provider/security gates remain unchanged; proposal wording in the dated extension records its origin, not the current review status.
+
 ## Status
 **TWF-0 accepted deployment baseline, with configuration operations clarification dated 2026-09-25**
 
@@ -249,3 +251,32 @@ Rolling/blue-green production releases require mixed-version API/config-schema c
 Migrate, restore, restart, secret rotation and cache invalidation are separately authorized/audited operations. Migration/backup/service principals have task-specific scope; they are not shared owner accounts. Secret-manager bootstrap remains external; tenant settings cannot rewrite database URLs, auth trust, origins or platform key material.
 
 The accepted `/ready` reports application initialization only. Database and capability/service health are separate observations. Runtime rollout and entitlement caches must have bounded freshness/invalidation before horizontal scale; account/realm keys and current checks prevent cross-tenant or stale-grant access. See [configuration reconciliation](TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md) for staged delivery gates.
+
+
+## 25. Bounded S&D runtime proposal — 2026-09-28
+
+The proposed [S&D components](TWF_SCAN_AND_DISCOVER_ARCHITECTURE.md) initially fit
+the existing API/web deployment. Logical provider families do not mandate services.
+In-process internal scans, optional remote TradingView MCP and optional hosted LLM
+retain explicit configuration and identical domain/failure semantics; no cloud or
+provider is required for app startup. Synthetic modes remain visibly labelled.
+
+User-triggered runs are bounded by total deadlines and resource limits. Durable run
+status, attempt identity, generation fencing and restart interruption recovery are
+required before claiming dependable history; no perpetual scheduler/worker platform
+is assumed. Network I/O does not hold DB write transactions. Use explicit Alembic
+migration and disposable PostgreSQL/SQLite acceptance; no startup schema mutation.
+
+The accepted application-only `/ready` semantics remain. External provider outages
+surface in capability/run health and degraded S&D UX, without falsely declaring
+Broker V2 unavailable. Endpoint/secret/egress deployment policy, data rights and
+licensed retention are gates before real provider activation. This proposal adds
+no Docker service, dependency or deployment artifact. The deployment DOCX requires
+regeneration after the Markdown extension is accepted.
+
+### Revision history addition
+
+| Revision | Date | Status | Role / change |
+| --- | --- | --- | --- |
+| S&D reconciliation 1 | 2026-09-28 | PROPOSED / RECONCILED / READY FOR REVIEW | Normative design/planning extension: Bounded S&D runtime proposal; prior history and acceptance preserved |
+| S&D acceptance 1 | 2026-09-29 | ACCEPTED / IMPLEMENTATION AUTHORIZED | Independent S&D architecture acceptance; staged Sprint-2 scope only, no runtime delivery or prior milestone change; see [review](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) |

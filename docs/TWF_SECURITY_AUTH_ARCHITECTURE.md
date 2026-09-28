@@ -1,5 +1,7 @@
 # TradingWorkFlow (TWF) — Security and Authentication Architecture
 
+> **2026-09-29 S&D architecture acceptance:** The dated S&D extension below is **ACCEPTED / IMPLEMENTATION AUTHORIZED** within the [Sprint-2 delivery plan](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md). The [independent acceptance record](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) supersedes its 2026-09-28 proposal status. Sprint 2 is **ACTIVE / NEXT; implementation not started**. Earlier acceptance history and separate TI/TM/provider/security gates remain unchanged; proposal wording in the dated extension records its origin, not the current review status.
+
 ## Status
 **TWF-0 accepted security baseline, with configuration realm clarification dated 2026-09-25 and Broker Workspace clarification dated 2026-09-26**
 
@@ -341,3 +343,37 @@ These additions do not expand TWF-1.5 into a realm/RBAC implementation. It uses 
 Before real authentication, implement one-use expiring callback state tied to session/owner, provider, account, environment and connection/configuration revision; validate exact redirects, issuer and PKCE where supported, and verify the broker account returned. Prevent replay, account swaps, concurrent refresh races and late callbacks after disable. Validate fixed provider destinations/TLS and redirect/DNS behavior; user-entered endpoints do not authorize SSRF. Provider payloads and instrument masters are untrusted input.
 
 Before live commands, require server-side execution permission, immutable confirmation binding, current policy and durable command ownership. TM failure cannot unlock manual execution. Revocation/disable blocks new dispatch but must not erase submitted commands, audit or safe reconciliation; define limited safety access and ownership handoff before live exposure. Entitlement never supplies trading authority. Stream credentials stay server-side; browser subscriptions reauthorize account scope.
+
+
+## 31. S&D provider and interpretation boundary — 2026-09-28
+
+[S&D](TWF_SCAN_AND_DISCOVER_ARCHITECTURE.md) uses existing authenticated personal
+ownership and server-side capability/permission checks. No new realm, shared-tenant
+membership, broker credential access or trading authority is implied. Enforce owner
+scope on runs, snapshots, profiles, citations, caches, histories and later exports;
+a prompt or external source cannot nominate another user's private evidence.
+
+Allowlist verified provider destinations and MCP tools; validate transport, redirects,
+DNS/private-network egress and response schema/size/deadlines. User-authored scan
+criteria are bounded typed expressions, never executable code/SQL or arbitrary MCP
+commands. Provider names, metadata and LLM output are untrusted text, rendered safely.
+Provider credentials remain authorized secret references resolved server-side.
+
+Optional hosted LLM egress needs explicit data rights/policy and minimization; do
+not send broker tokens, account secrets, credentials or unrelated portfolio records.
+Validate grounding/citations against authorized eligible supplied evidence. Neither
+MCP tool output nor an LLM can alter permissions, configuration, source facts,
+relevance/lifecycle decisions or execution authority. NL-generated definitions
+remain drafts until explicit human review and normal validation.
+
+Bound rate/work/token/cost budgets and audit metadata without raw secrets/request
+bodies. Handle retention/deletion and provider corrections honestly. No live broker
+submission is part of S&D acceptance tests. The security DOCX needs regeneration
+after acceptance of this proposed extension.
+
+### Revision history addition
+
+| Revision | Date | Status | Role / change |
+| --- | --- | --- | --- |
+| S&D reconciliation 1 | 2026-09-28 | PROPOSED / RECONCILED / READY FOR REVIEW | Normative design/planning extension: S&D provider and interpretation boundary; prior history and acceptance preserved |
+| S&D acceptance 1 | 2026-09-29 | ACCEPTED / IMPLEMENTATION AUTHORIZED | Independent S&D architecture acceptance; staged Sprint-2 scope only, no runtime delivery or prior milestone change; see [review](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) |

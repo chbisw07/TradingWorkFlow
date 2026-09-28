@@ -1,5 +1,7 @@
 # TradingWorkFlow (TWF) — Service Contract Architecture
 
+> **2026-09-29 S&D architecture acceptance:** The dated S&D extension below is **ACCEPTED / IMPLEMENTATION AUTHORIZED** within the [Sprint-2 delivery plan](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md). The [independent acceptance record](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) supersedes its 2026-09-28 proposal status. Sprint 2 is **ACTIVE / NEXT; implementation not started**. Earlier acceptance history and separate TI/TM/provider/security gates remain unchanged; proposal wording in the dated extension records its origin, not the current review status.
+
 ## Status
 **TWF-0 accepted service-contract baseline, with configuration clarification dated 2026-09-25 and Broker Workspace clarification dated 2026-09-26**
 
@@ -170,8 +172,11 @@ TWF should maintain lightweight configured service instances linked to the APS-o
 Do not build a dynamic plugin marketplace in the miniature.
 
 ## 15. Scanner Contract Boundary
-Scanner owns discovery logic.
-TWF consumes candidates with:
+Historical TWF-0 wording: “Scanner owns discovery logic.” For proposed S&D,
+section 26 refines this into provider-owned scan criteria/native outputs and
+TWF-owned discovery evaluation. This older generic candidate payload inventory
+is historical, not the new DiscoveryCandidate contract:
+
 - candidate/source identity
 - instrument
 - timestamp
@@ -274,3 +279,43 @@ SyntheticScannerService, SyntheticTIService, SyntheticTMService and SyntheticLLM
 TWF-1.6 actually implements `foundation.health.v1` for SCANNER, TI, TM and LLM only. Its process-scoped descriptors, health timeout/failure model and 16-descriptor bound are not a BrokerAccount registry, broker quota or trading contract. Preserve that accepted surface. Introduce separately versioned broker contracts under the same layering principles; reuse safe transport/correlation mechanisms only where semantics match.
 
 Read failures are distinct from uncertain command outcomes: a timeout after possible dispatch means `SUBMISSION_UNKNOWN`, not a retryable rejection. Durable request identity, exact confirmed payload, fenced dispatch, scoped broker IDs and restart reconciliation are mandatory before live commands. Provider client tags alone do not promise idempotency. Contract-level tests cover two synthetic providers and multiple accounts before a real provider; no real provider support is asserted by this architecture.
+
+
+## 26. Scan and discovery contracts — 2026-09-28
+
+The historical section 15 shorthand is refined: a ScanProvider owns declared
+criteria execution and native results; TWF S&D owns cross-source normalization,
+intent/context evaluation and DiscoveryCandidate lifecycle. TWF does not reconstruct
+an external scanner's internals. A provider-native ranking is retained as source
+evidence, not relabelled as TWF Discovery Relevance or TI confidence.
+
+Proposed families are UniverseProvider, CandidateSource, ScanProvider,
+MarketIntelligenceProvider, CandidateIntelligenceProvider and LLMService. Define
+separately versioned `sd.*.v1` domain contracts at implementation; preserve the
+accepted `foundation.health.v1` surface and existing Broker V2 contracts. A healthy
+service is not proof of scan support, data rights, entitlement or execution authority.
+
+Every request/result carries schema/provider/capability/configuration identity,
+correlation, owner scope, exact native subject/listing references, observation/source
+mode, source/available/received times, completeness and safe typed errors. Unknown
+and partial cannot collapse into successful empty. Bound total time, body/pages,
+work size and retries; cancellation/restart fencing rejects obsolete results.
+Local, remote and synthetic adapters retain identical semantics and actual provenance.
+
+TradingView MCP tools/transport are adapter details, not core DTOs. Select and verify
+the actual service, schemas/auth/capabilities/data rights before implementing it.
+MCP is not a promise of official TradingView support. Internal V0 and synthetic
+adapters prove an independent path. No LLM is required for scans/discovery; optional
+Level-0 returns server-validated grounding/citation metadata and has no authority.
+
+See [S&D provider contracts](TWF_SCAN_AND_DISCOVER_ARCHITECTURE.md) and the
+[shared domain](TWF_OPPORTUNITY_DOMAIN_ARCHITECTURE.md). TI analysis and TM management
+still require their own public-contract gates; no later API is invented by this
+proposal. The service-contract DOCX needs regeneration after acceptance.
+
+### Revision history addition
+
+| Revision | Date | Status | Role / change |
+| --- | --- | --- | --- |
+| S&D reconciliation 1 | 2026-09-28 | PROPOSED / RECONCILED / READY FOR REVIEW | Normative design/planning extension: Scan and discovery contracts; prior history and acceptance preserved |
+| S&D acceptance 1 | 2026-09-29 | ACCEPTED / IMPLEMENTATION AUTHORIZED | Independent S&D architecture acceptance; staged Sprint-2 scope only, no runtime delivery or prior milestone change; see [review](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) |

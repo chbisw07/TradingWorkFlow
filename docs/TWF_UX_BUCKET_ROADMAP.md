@@ -1,8 +1,10 @@
 # TWF UX Bucket Roadmap
 
+> **2026-09-29 S&D architecture acceptance:** The dated S&D extension below is **ACCEPTED / IMPLEMENTATION AUTHORIZED** within the [Sprint-2 delivery plan](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md). The [independent acceptance record](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) supersedes its 2026-09-28 proposal status. Sprint 2 is **ACTIVE / NEXT; implementation not started**. Earlier acceptance history and separate TI/TM/provider/security gates remain unchanged; proposal wording in the dated extension records its origin, not the current review status.
+
 ## Status and purpose
 
-**Normative cross-cutting UX plan, version 0.3; delivery status reconciled on 2026-09-28.**
+**Normative cross-cutting UX plan, version 0.4; S&D design contribution accepted on 2026-09-29.**
 
 Version history: v0.2 established the broker contribution and bucket boundaries;
 v0.3 adds a source-backed BW-1–BW-6 mapping after Broker Workspace Architecture
@@ -303,3 +305,38 @@ dependency, framework, deployment service or new freeze requirement. The histori
 [configuration review](TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md) records the
 TWF-1.5 planning gate; the historical [Broker Workspace review](TWF_BROKER_WORKSPACE_ARCHITECTURE_REVIEW.md)
 records the then-next BW-1 recommendation. Current V1/V2 acceptance is recorded above.
+
+
+## Proposed S&D contribution — v0.4 — 2026-09-28
+
+Version 0.4 accepts a bounded discovery design contribution after accepted Broker V2;
+v0.3's broker mapping and accepted evidence remain unchanged. UX-B1 is still partial,
+UX-B2 still partial and UX-B3 planned. There is no bucket completion claim.
+
+[Sprint-2 S&D](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md) contributes operationally
+useful Scan-only, Scan + Discover, candidate queue/details/evidence/history and
+settings to UX-B2, with responsive/accessibility refinements supporting UX-B1.
+The earlier TM-then-Scanner scheduling is superseded for this accepted workstream,
+not the full future workflow criteria elsewhere in this roadmap.
+
+The new domain distinguishes ScanMatch, DiscoveryCandidate, Opportunity,
+TradeOpportunity and LOBEntry. Initial UX ends at DiscoveryCandidate. Show source,
+identity, intent/horizon, market context, relevance/coverage, immutable history,
+freshness/tolerance/expiry and optional LLM grounding. No probability-of-profit or
+trade readiness can be inferred from relevance, and no execution affordance ships
+in S&D. Complete deterministic utility with LLM OFF and TV absent is required.
+
+Use the existing themes/state primitives and all six representative viewport widths.
+Test empty/partial/offline/denied/stale/failed states and keyboard workflows, not
+only visual happy paths. Architecture is ACCEPTED / IMPLEMENTATION AUTHORIZED;
+Sprint 2 is ACTIVE / NEXT, implementation not started. The next gate is a bounded
+S2-1 contracts/fixtures prompt. The acceptance review records the non-blocking
+relevance-colour specification for S2-6. Full TI/TM, LOB, ML and mature
+administration remain future UX-B2/B3 work.
+
+### Revision history addition
+
+| Revision | Date | Status | Role / change |
+| --- | --- | --- | --- |
+| 0.4 proposal | 2026-09-28 | PROPOSED / RECONCILED / READY FOR REVIEW | Normative design/planning extension: Proposed S&D contribution — v0.4; prior history and acceptance preserved |
+| 0.4 acceptance | 2026-09-29 | ACCEPTED / IMPLEMENTATION AUTHORIZED | Independent S&D architecture acceptance; staged Sprint-2 scope only, no runtime delivery or prior milestone change; see [review](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) |

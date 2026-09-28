@@ -1,5 +1,7 @@
 # TradingWorkFlow (TWF) — Product Vision and System Architecture
 
+> **2026-09-29 S&D architecture acceptance:** The dated S&D extension below is **ACCEPTED / IMPLEMENTATION AUTHORIZED** within the [Sprint-2 delivery plan](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md). The [independent acceptance record](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) supersedes its 2026-09-28 proposal status. Sprint 2 is **ACTIVE / NEXT; implementation not started**. Earlier acceptance history and separate TI/TM/provider/security gates remain unchanged; proposal wording in the dated extension records its origin, not the current review status.
+
 ## Status
 
 **Accepted TWF-0 product baseline, extended by configuration reconciliation on 2026-09-25**
@@ -415,4 +417,66 @@ The [UX Bucket Roadmap](TWF_UX_BUCKET_ROADMAP.md) tracks foundational, operation
 
 The manual path is trader → TWF backend/BrokerClient → selected account adapter → broker, with explicit unmanaged status, authorization, revision-bound confirmation, durable command identity and recovery before any live submission. TM-managed accounts use trader → TWF → TM → broker; TWF never bypasses TM or falls back to direct execution. Initial TM coexistence is exclusive command ownership per broker account, with explicit reconciled handoff; read-only observations may coexist. Login, entitlement and broker authentication do not independently authorize a trade.
 
-Current priority is Broker Workspace → Basic Execution Safety → TM → Scanner → TI. [Detailed Roadmap section 18](TWF_DETAILED_ROADMAP.md#18-broker-workspace-delivery-overlay) governs the bounded gates without renumbering existing milestones or declaring all UX-B1 complete. Synthetic read-only contracts/UI come first; secrets, real orders, trading safety, provider verification and recovery each retain a separate gate.
+The 2026-09-26 priority was Broker Workspace → Basic Execution Safety → TM → Scanner → TI. The proposed S&D delivery update in section 36 supersedes that immediate scheduling order. [Detailed Roadmap section 18](TWF_DETAILED_ROADMAP.md#18-broker-workspace-delivery-overlay) governs the bounded gates without renumbering existing milestones or declaring all UX-B1 complete. Synthetic read-only contracts/UI come first; secrets, real orders, trading safety, provider verification and recovery each retain a separate gate.
+
+
+## 36. Product progression and delivery reconciliation — 2026-09-28
+
+The next proposed independent product capability after accepted Broker V2 is
+**Scan & Discover (Sprint 2)**. This delivery proposal supersedes the immediate
+TM-before-Scanner scheduling statement in section 35, not TM's authority or the
+existing TWF milestone IDs. The earlier sequence is retained as dated history.
+
+```mermaid
+flowchart TB
+    Data[Market and data] --> SD[Scan and Discover]
+    SD --> DC[DiscoveryCandidate]
+    DC -. future .-> TI[TI deeper intelligence]
+    TI --> O[Opportunity]
+    O --> C[Trade Construction]
+    C --> TO[TradeOpportunity]
+    TO --> LOB[Live Opportunity Book]
+    LOB --> Gate[Governed execution]
+    Gate --> Broker[Broker truth]
+    Broker --> TM[TM managed supervision]
+    Broker --> Eval[Outcome evaluation]
+    TM --> Eval
+    DC --> Eval
+    Eval -. future reviewed ML and IFL .-> SD
+```
+
+This is a conceptual progression, not one implemented pipeline. Managed execution
+requires TM assessment/approval before dispatch and explicit adoption afterward;
+manual Broker V2 remains independently enabled and unmanaged. S&D grants neither.
+
+| Delivery state | Product meaning |
+| --- | --- |
+| Implemented / frozen | TWF-0/TWF-1 and Broker V1/V2; accepted manual order intent/preview/reconciliation and broker-native identity remain unchanged |
+| Sprint-2 proposed | Scan-only and Scan + Discover, provider-neutral adapters, internal V0 scanner, verified TradingView MCP adapter, bounded market context, optional LLM Level-0, intent-relative DiscoveryCandidate, snapshots/history/settings/UX |
+| Future target | TI qualification, Opportunity, construction, TradeOpportunity, LOB, TM-managed trading, outcome evaluation and governed ML/IFL |
+
+The older generic Candidate in sections 11–13 now has stage-specific semantics
+for new work. ScanMatch is a criteria match; DiscoveryCandidate is attention-worthy
+relative to intent/horizon/evidence; Opportunity is a qualified thesis;
+TradeOpportunity is a prepared structure; LOBEntry is its readiness projection.
+They are distinct objects with explicit lineage, not renamed statuses of one row.
+
+TWF owns S&D orchestration/evaluation; external ScanProviders retain their native
+scan logic, TI its intelligence claims, TM its managed authority and brokers their
+execution truth. Discovery Relevance is not probability of profit. The internal
+scanner and approved independent data path keep S&D useful without TradingView;
+deterministic discovery works with LLM OFF. Bounded market intelligence belongs
+in Sprint 2 without replacing future TI. Future evaluation includes untraded episodes.
+
+Read the [S&D architecture](TWF_SCAN_AND_DISCOVER_ARCHITECTURE.md),
+[Opportunity domain](TWF_OPPORTUNITY_DOMAIN_ARCHITECTURE.md) and
+[Sprint-2 delivery plan](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md) for the proposed
+normative contracts. Master/component DOCX files are historical and require
+regeneration after Markdown acceptance; no publication companion was edited here.
+
+### Revision history addition
+
+| Revision | Date | Status | Role / change |
+| --- | --- | --- | --- |
+| S&D reconciliation 1 | 2026-09-28 | PROPOSED / RECONCILED / READY FOR REVIEW | Normative design/planning extension: Product progression and delivery reconciliation; prior history and acceptance preserved |
+| S&D acceptance 1 | 2026-09-29 | ACCEPTED / IMPLEMENTATION AUTHORIZED | Independent S&D architecture acceptance; staged Sprint-2 scope only, no runtime delivery or prior milestone change; see [review](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) |

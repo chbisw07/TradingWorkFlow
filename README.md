@@ -53,6 +53,11 @@ Broker Workspace Workstream — mapped into TWF-2/TWF-6
 ├── BW-6 Second real broker proof                          PENDING
 └── Later managed workflow                                 PENDING (separate TWF-5 gate)
 
+Scan & Discover Architecture                              ACCEPTED / IMPLEMENTATION AUTHORIZED
+├── Scan-only, discovery and Opportunity-domain design     ACCEPTED / runtime not implemented
+├── Sprint 2                                               ACTIVE / NEXT; implementation not started
+└── S2-1 contracts/fixtures next; provider/data gates       REQUIRED before dependent slices
+
 Later functional milestones — separately gated
 ├── TWF-2 Trader Workspace
 ├── TWF-3 Scanner Integration
@@ -85,9 +90,15 @@ See [Broker V1 setup](docs/TWF_BROKER_V1_VERTICAL_SLICE.md) and the V2 record fo
 scope, the additive migration, capability configuration and validation.
 Earlier work is preserved on `archive/broker-work-before-simplification`; this
 rebuild does not relabel historical BW gates as newly accepted.
-Broker Workspace → Basic Execution Safety → TM → Scanner → TI is the reviewed
-delivery priority; existing TWF milestone numbers retain their original meanings.
-Real providers and live commands have separate gates.
+The earlier Broker Workspace → Basic Execution Safety → TM → Scanner → TI
+sequence remains dated planning history. The next workstream is
+[Sprint-2 Scan & Discover](docs/TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md), with
+architecture accepted by the [independent review](docs/TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md).
+Sprint 2 is ACTIVE / NEXT; implementation has not started. Provider/data/policy
+gates remain required before dependent slices. It ends at
+DiscoveryCandidate, works without LLM/TradingView dependencies in the core, and
+preserves Broker V2 and TI/TM authority. Existing TWF milestone numbers retain their
+meanings; real providers and live commands have separate gates.
 
 ### Current Implementation Status
 
@@ -140,8 +151,7 @@ operator-configured service status, bounded transport, safe errors and a minimal
 authenticated status panel. Defaults contain no services; no real integrations or
 new persistence were introduced. Its implementation record preserves the historical
 pre-review evidence; the existing TWF-1 tag records the later accepted foundation.
-The [UX bucket roadmap](docs/TWF_UX_BUCKET_ROADMAP.md) tracks partial UX-B1 and planned
-UX-B2/B3 alongside functional milestones; mature administration does not block core
+The [UX bucket roadmap](docs/TWF_UX_BUCKET_ROADMAP.md) tracks partial UX-B1/UX-B2 and planned UX-B3 alongside functional milestones; mature administration does not block core
 trading integration.
 
 Local development (Python 3.12+ and Node.js 20.19+ / 22.13+ / 24+):
@@ -237,8 +247,22 @@ Then review the specialist architecture documents as needed.
 
 ### Configuration / Setup
 
-- [Configuration, Setup, Capability, Entitlement and Pluggability Architecture](docs/TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLEMENT_PLUGGABILITY_ARCHITECTURE.md) — current normative v0.6
+- [Configuration, Setup, Capability, Entitlement and Pluggability Architecture](docs/TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLEMENT_PLUGGABILITY_ARCHITECTURE.md) — accepted design basis v0.6 with accepted v0.7 S&D extension
 - [Configuration Architecture Review](docs/TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md) — decisions, SaaS gap review and TWF-1.5 readiness
+
+### Scan & Discover — accepted architecture
+
+- [Scan & Discover Architecture](docs/TWF_SCAN_AND_DISCOVER_ARCHITECTURE.md) — subsystem, providers, evidence, lifecycle, relevance, optional LLM and UX
+- [Opportunity Domain Architecture](docs/TWF_OPPORTUNITY_DOMAIN_ARCHITECTURE.md) — shared identities and the future DiscoveryCandidate → Opportunity → TradeOpportunity → LOB progression
+- [Sprint-2 Delivery Plan](docs/TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md) — bounded scope, dependencies and acceptance gates
+- [Architecture Reconciliation Record](docs/TWF_SCAN_DISCOVER_ARCHITECTURE_RECONCILIATION.md) — repository evidence, resolved contradictions, exact change inventory and stale DOCX companions
+- [Independent Architecture Acceptance](docs/TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) — decision, findings, authorization and next gate
+
+The normative architecture is **ACCEPTED / IMPLEMENTATION AUTHORIZED**; the
+reconciliation record remains historical. Sprint 2 is **ACTIVE / NEXT; implementation
+not started**, bounded by its delivery plan. No S&D runtime completion or new Git
+freeze is claimed. Sprint 2 stops at DiscoveryCandidate; later intelligence, construction,
+LOB, managed execution and learning remain separate gates.
 
 ### Data
 
@@ -300,9 +324,13 @@ DOCX
 
 Where both exist, Markdown is normative unless a later decision explicitly states
 otherwise. DOCX files remain reference snapshots: the supplied configuration DOCX is
-v0.5, while its Markdown is now v0.6; other architecture DOCX companions retain their
-TWF-0 content; the broker Markdown and DOCX are synchronized at v0.3. Broker
-architecture updates must keep both formats in sync, with Markdown normative. See the [index](docs/TWF_DOCUMENTATION_INDEX.md) for current authority.
+v0.5, while its Markdown has the accepted v0.6 basis and accepted v0.7 S&D extension.
+Affected product/component/data/contract/UX/security/deployment DOCX companions are
+stale for the accepted S&D architecture and await regeneration. Four additional
+untracked S&D/product DOCX companions were present at review start; their
+synchronization is unverified. No DOCX was created or edited by this review. The unchanged broker
+Markdown/DOCX pair remains synchronized at v0.3. See the exact companion inventory
+and authority rules in the [index](docs/TWF_DOCUMENTATION_INDEX.md).
 
 ---
 
@@ -316,8 +344,14 @@ is accepted/frozen under `twf-broker-v2`, following independent review, user-dri
 real Zerodha smoke and bounded correctness fixes. Automated validation uses fake
 broker transports only. Historical BW gates remain an inventory of the original
 plan; their pending labels do not override the accepted V1/V2 delivery records.
-Modify/cancel, additional brokers, Alerts-managed exits and Scanner/TI/TM integration
-remain future work.
+Scan & Discover and Opportunity-domain architecture are accepted. Sprint 2 is
+ACTIVE / NEXT; implementation has not started. The next gate is a bounded S2-1
+domain/contracts and synthetic-fixture prompt under the accepted delivery plan. Modify/cancel, additional brokers, Alerts-managed exits, full TI/TM,
+Trade Construction, LOB and ML/IFL remain separately gated future work.
+
+Documentation revision: **2026-09-29 / S&D acceptance 1 / ACCEPTED, IMPLEMENTATION
+AUTHORIZED**. This supersedes the 2026-09-28 proposal status without changing any
+prior accepted milestone, runtime source, DOCX companion or Git freeze.
 
 ---
 

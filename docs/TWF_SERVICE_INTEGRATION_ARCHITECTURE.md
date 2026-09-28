@@ -1,5 +1,7 @@
 # TradingWorkFlow (TWF) — Service Integration Architecture
 
+> **2026-09-29 S&D architecture acceptance:** The dated S&D extension below is **ACCEPTED / IMPLEMENTATION AUTHORIZED** within the [Sprint-2 delivery plan](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md). The [independent acceptance record](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) supersedes its 2026-09-28 proposal status. Sprint 2 is **ACTIVE / NEXT; implementation not started**. Earlier acceptance history and separate TI/TM/provider/security gates remain unchanged; proposal wording in the dated extension records its origin, not the current review status.
+
 ## Status
 
 **Accepted TWF-0 integration baseline, clarified for configuration and UX planning on 2026-09-25**
@@ -212,7 +214,7 @@ Every service integration should have:
 
 # 13. Initial Integration Order
 
-Recommended:
+Historical 2026-09-26 recommendation; section 16 supplies the proposed next S&D overlay:
 
 ```text
 1. Two synthetic broker providers / three isolated account rooms (BW-1)
@@ -253,3 +255,37 @@ SyntheticScannerService, SyntheticTIService, SyntheticTMService and SyntheticLLM
 Broker domain/application → versioned BrokerClient → broker adapter registry → provider adapter. This is a sibling integration boundary, not new methods silently added to `foundation.health.v1`. Keep provider credentials/headers, endpoint trust policy, parsing and SDKs inside the server-side adapter. Share transport utilities only when they preserve account ownership, typed operation outcomes, bounded per-provider/account concurrency, pagination and rate budgets.
 
 A read endpoint being healthy does not prove order submission is available. A cancelled UI request does not cancel a broker order. A possibly sent command must be reconciled, not retried by generic timeout middleware. No automatic broker switch or credential reuse across account rooms is permitted. Connection generations prevent late callbacks/refreshes from resurrecting disabled sessions. Initial TM integration requires one durable command owner per broker account and an audited handoff with outstanding commands resolved; see Broker Workspace sections 18–19.
+
+
+## 16. S&D integration and delivery overlay — 2026-09-28
+
+The proposed next work after frozen Broker V2 is [Sprint-2 Scan & Discover](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md).
+This supersedes section 13's immediate TM-before-Scanner schedule for this workstream;
+it does not permit bypassing TM on managed accounts or renumber TWF-3/4/5.
+
+S&D composes universe/candidate inputs, scan, market context, candidate intelligence
+and optional LLM through separate contracts. Use the accepted registry/adapter,
+correlation, configuration and error principles; TWF-1.6's implemented health-only
+clients are not already domain integrations. Publish separate versioned S&D DTOs
+and fixtures. Synthetic external CandidateSource tests prove Discovery without Scan.
+
+Internal V0 scans and bounded benchmark/session intelligence use an independently
+approved data reader, not a disguised TradingView dependency. The TradingView MCP
+adapter requires a pinned verified server/tool contract and rights review. Failure
+is explicit; switching providers requires an eligible applied profile and a new
+run, never silent substitution. Optional hosted LLM inference is a separate adapter
+binding; local LLM remains experimental and disabled by default.
+
+Use bounded user-triggered runs, persist interrupted attempts and fence late
+responses. Capture actual source/capability/profile revisions and immutable evidence;
+do not span provider I/O with DB write transactions. Initial components fit the
+existing API process; local/remote placement is a deployment choice, not semantic
+authority. [S&D architecture](TWF_SCAN_AND_DISCOVER_ARCHITECTURE.md) defines the
+proposed contract/failure/grounding rules; no SDK or new service was installed here.
+
+### Revision history addition
+
+| Revision | Date | Status | Role / change |
+| --- | --- | --- | --- |
+| S&D reconciliation 1 | 2026-09-28 | PROPOSED / RECONCILED / READY FOR REVIEW | Normative design/planning extension: S&D integration and delivery overlay; prior history and acceptance preserved |
+| S&D acceptance 1 | 2026-09-29 | ACCEPTED / IMPLEMENTATION AUTHORIZED | Independent S&D architecture acceptance; staged Sprint-2 scope only, no runtime delivery or prior milestone change; see [review](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) |

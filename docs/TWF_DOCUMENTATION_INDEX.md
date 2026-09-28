@@ -17,6 +17,9 @@ Broker Workspace Architecture v0.3 REVIEWED / ACCEPTED / TAGGED (twf-broker-work
 Broker V1 real broker read-only foundation ACCEPTED / FROZEN (twf-broker-v1)
 Broker V2 manual trading foundation ACCEPTED / FROZEN (twf-broker-v2)
 BW-1–BW-6 retained as historical gate inventory; V1/V2 acceptance recorded separately
+S&D / Opportunity-domain / Sprint-2 architecture ACCEPTED / IMPLEMENTATION AUTHORIZED
+Sprint 2 ACTIVE / NEXT; implementation not started
+Next gate: S2-1 contracts/fixtures; provider/data/policy gates before dependent slices
 ```
 
 ---
@@ -40,13 +43,16 @@ DOCX     = polished visual/reference companion
 
 Historical/accepted records remain historical unless an explicit later record supersedes them.
 The [configuration review](TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md) records the
-2026-09-25 clarification without reopening TWF-0. Current normative configuration is
-Markdown v0.6; its supplied DOCX is retained unchanged as a **v0.5 reference snapshot**.
-Broker Workspace Markdown and its DOCX presentation companion are synchronized at
-v0.3; Markdown remains the sole normative source and both formats must be updated together. Other DOCX companions, including master/component diagrams,
-retain their TWF-0 content.
-Read the updated normative Markdown for current realm/configuration/UX decisions.
-Companions are not synchronized v0.6 deliverables.
+2026-09-25 clarification without reopening TWF-0. Configuration Markdown v0.6
+is the accepted design basis, with an accepted v0.7 S&D
+extension. Its supplied DOCX remains an unchanged **v0.5 reference snapshot**.
+Broker Workspace Markdown/DOCX remain synchronized at v0.3 and unchanged here.
+The 2026-09-28 S&D reconciliation is Markdown-only: affected DOCX companions below
+are stale and await regeneration. Four additional untracked DOCX companions were
+present at the 2026-09-29 review start; their synchronization has not been verified.
+No historical acceptance record is rewritten. The current S&D acceptance authorizes
+only bounded implementation under the delivery plan, without reopening or falsely
+freezing the baseline. Markdown remains normative; no DOCX overrides it.
 
 ---
 
@@ -320,3 +326,61 @@ When new documents are added:
 4. preserve prior acceptance/history;
 5. avoid duplicate competing normative documents;
 6. keep the broker DOCX synchronized with its normative Markdown when that architecture changes.
+
+
+## 11. Scan & Discover acceptance — 2026-09-29
+
+| Document | Authority / status |
+| --- | --- |
+| [Scan & Discover Architecture](TWF_SCAN_AND_DISCOVER_ARCHITECTURE.md) | Accepted normative subsystem design: providers, evidence, temporal/lifecycle/relevance policies, optional LLM, UX and diagrams |
+| [Opportunity Domain Architecture](TWF_OPPORTUNITY_DOMAIN_ARCHITECTURE.md) | Accepted normative shared identities, stage distinctions and ownership; future objects are not implemented |
+| [Sprint-2 Delivery Plan](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md) | Accepted normative bounded delivery/gates; ends at DiscoveryCandidate |
+| [Architecture Reconciliation Record](TWF_SCAN_DISCOVER_ARCHITECTURE_RECONCILIATION.md) | Reference audit: baseline, affected/unchanged documents, contradictions, companion staleness and review matrix |
+| [Independent Architecture Acceptance Review](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) | Acceptance authority: scorecard, findings, bounded implementation authorization and next gate |
+
+The three normative documents are version 0.2, **ACCEPTED / IMPLEMENTATION
+AUTHORIZED**; their v0.1 proposal entries remain historical. The reconciliation
+record remains a v0.1 reference audit. Sprint 2 is **ACTIVE / NEXT; implementation
+not started**. Read product/system, domain, S&D, delivery plan and the review.
+Domain identity/ownership,
+subsystem behavior and delivery scope each have one designated owner document;
+the audit record is not a fourth competing architecture. Existing TI/TM/Broker
+contracts retain their authority gates. If review finds a conflict outside the
+explicitly reconciled scope, resolve it before implementation rather than assuming
+a newer date silently overrides a security or execution rule.
+
+### DOCX companions awaiting later regeneration
+
+| Unchanged reference artifact | Staleness / required later synchronization |
+| --- | --- |
+| `TWF_MASTER_PRODUCT_ARCHITECTURE.docx` | TWF-0 product diagram/generic Candidate predates configuration, broker and accepted S&D/domain progression |
+| `TWF_COMPONENT_ARCHITECTURE.docx` | TWF-0 components predate accepted separate scan/discovery/context/LLM boundaries and current manual broker path |
+| `TWF_DATA_ARCHITECTURE.docx` | Accepted intents/episodes/immutable snapshots, stage identities, lineage and retention rules |
+| `TWF_SERVICE_CONTRACT_ARCHITECTURE.docx` | Accepted provider families and provider-scan vs TWF-discovery ownership |
+| `TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLEMENT_PLUGGABILITY_ARCHITECTURE.docx` | Already a v0.5 reference; accepted v0.6 and accepted v0.7 settings extension are not reflected |
+| `TWF_UX_ARCHITECTURE.docx` | Accepted independent S&D modes, discovery history/relevance/grounding semantics |
+| `TWF_SECURITY_AUTH_ARCHITECTURE.docx` | Accepted read-only MCP/LLM egress, citation isolation and untrusted-input rules |
+| `TWF_DEPLOYMENT_ARCHITECTURE.docx` | Accepted bounded S&D runs, provider independence and restart/fencing behavior |
+
+No DOCX was created or edited by this review. The 2026-09-28 reconciliation was
+Markdown-only; the following additional files were already present and untracked
+at the 2026-09-29 review start. Their content parity and rendered layout have not
+been verified, and current acceptance/status changes are Markdown-only:
+
+- `TWF_OPPORTUNITY_DOMAIN_ARCHITECTURE.docx`
+- `TWF_PRODUCT_VISION_AND_SYSTEM_ARCHITECTURE.docx`
+- `TWF_SCAN_AND_DISCOVER_ARCHITECTURE.docx`
+- `TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.docx`
+
+Regenerate/verify reference companions against the accepted Markdown in a separate
+document-artifact task; do not present these as synchronized accepted deliverables.
+The unchanged broker v0.3 pair and historical
+TWF-0 acceptance/engineering companions retain their existing reference roles;
+they are not relabelled as newly accepted S&D artifacts.
+
+### Revision history addition
+
+| Revision | Date | Status | Role / change |
+| --- | --- | --- | --- |
+| S&D reconciliation 1 | 2026-09-28 | PROPOSED / RECONCILED / READY FOR REVIEW | Documentation-map revision; new scoped authorities, preserved milestone hierarchy and explicit stale companions |
+| S&D acceptance 1 | 2026-09-29 | ACCEPTED / IMPLEMENTATION AUTHORIZED | Independent review, current status reconciliation and truthful untracked-DOCX inventory; see [review](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) |

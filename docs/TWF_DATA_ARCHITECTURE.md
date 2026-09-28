@@ -1,5 +1,7 @@
 # TradingWorkFlow (TWF) — Data Architecture
 
+> **2026-09-29 S&D architecture acceptance:** The dated S&D extension below is **ACCEPTED / IMPLEMENTATION AUTHORIZED** within the [Sprint-2 delivery plan](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md). The [independent acceptance record](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) supersedes its 2026-09-28 proposal status. Sprint 2 is **ACTIVE / NEXT; implementation not started**. Earlier acceptance history and separate TI/TM/provider/security gates remain unchanged; proposal wording in the dated extension records its origin, not the current review status.
+
 ## Status
 **TWF-0 accepted data baseline, with configuration ownership clarification dated 2026-09-25**
 
@@ -296,3 +298,45 @@ Canonical mapping is optional for a valid native order; native identity and curr
 Before live submission, commit durable intent/confirmation/idempotency and an exclusive fenced dispatch claim before external I/O. No DB transaction spans broker network calls. Crash recovery treats possibly sent work as unknown and reconciles before considering another command; a stale worker cannot reclaim dispatch rights by itself. Reconciliation and audit survive process restart, backups and retention jobs. A bounded backend recovery loop is sufficient initially; no queue framework is mandated.
 
 Alembic remains the schema authority. Test uniqueness, optimistic concurrency, rollback, worker fencing and restart recovery on PostgreSQL before live use, with SQLite as the development/test path. BW-1 can use immutable deterministic fixtures without new broker tables; durable persistence becomes mandatory at the specific later gates in the Broker Workspace architecture.
+
+
+## 28. Discovery data ownership and immutable history — 2026-09-28
+
+For new discovery work, section 6's generic Candidate becomes the distinct
+[Opportunity-domain objects](TWF_OPPORTUNITY_DOMAIN_ARCHITECTURE.md), not a schema
+rename. TWF owns scan definitions/profile revisions, run/attempt records,
+normalized match captures, discovery decisions (including declined nominations),
+intents, episodes, immutable S1…Sn snapshots, relevance/lifecycle decisions,
+annotations and configuration references. Providers retain authority over source
+facts/native algorithms; TI/TM/broker ownership in sections 2–3 remains unchanged.
+
+Stable underlying identity is distinct from venue listing, derivative contract and
+broker-native execution identity. Ambiguous cross-source mappings cannot merge by
+symbol. One subject can support multiple intents/horizons and recurring episodes;
+terminal rejection is never undone. At least two comparable distinct observations
+are necessary for evolution; repeat delivery of the same data is not a new sample.
+
+Snapshots preserve original source, availability, received and evaluation times,
+units, quality, evidence lineage/dependence, market context and exact policy/profile
+versions. Corrections append superseding records. Persist snapshot/event/head-CAS
+atomically; enforce active-episode uniqueness and reject late generations. Provider
+calls stay outside write transactions. GET derives time-based freshness/expiry
+without hidden commits. Test SQLite and PostgreSQL contention/restart semantics.
+
+Licensed raw captures, normalized evidence, decision history and future evaluation
+labels have separate explicit retention policies selected before production. Keep
+audited tombstones/references when deletion or licensing prevents full replay;
+never claim complete reproducibility afterward. No broad market-data warehouse is
+introduced, and ephemeral Broker V2 LTP caches are not historical scanner data.
+Future evaluation must include untraded candidates and missing/censored outcomes.
+
+The [S&D persistence design](TWF_SCAN_AND_DISCOVER_ARCHITECTURE.md) is proposed;
+no tables/migrations are created here. Alembic and existing ownership/session
+boundaries remain mandatory. The data DOCX companion needs post-acceptance regeneration.
+
+### Revision history addition
+
+| Revision | Date | Status | Role / change |
+| --- | --- | --- | --- |
+| S&D reconciliation 1 | 2026-09-28 | PROPOSED / RECONCILED / READY FOR REVIEW | Normative design/planning extension: Discovery data ownership and immutable history; prior history and acceptance preserved |
+| S&D acceptance 1 | 2026-09-29 | ACCEPTED / IMPLEMENTATION AUTHORIZED | Independent S&D architecture acceptance; staged Sprint-2 scope only, no runtime delivery or prior milestone change; see [review](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) |

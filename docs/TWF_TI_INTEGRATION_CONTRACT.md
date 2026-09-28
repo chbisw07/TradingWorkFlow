@@ -1,5 +1,7 @@
 # TradingWorkFlow (TWF) — TI Integration Contract
 
+> **2026-09-29 S&D architecture acceptance:** The dated S&D extension below is **ACCEPTED / IMPLEMENTATION AUTHORIZED** within the [Sprint-2 delivery plan](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md). The [independent acceptance record](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) supersedes its 2026-09-28 proposal status. Sprint 2 is **ACTIVE / NEXT; implementation not started**. Earlier acceptance history and separate TI/TM/provider/security gates remain unchanged; proposal wording in the dated extension records its origin, not the current review status.
+
 ## Status
 
 **Architecture-stage integration contract — proposed, not yet implementation-frozen**
@@ -534,3 +536,36 @@ Before implementation freeze:
 The [configuration architecture](TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLEMENT_PLUGGABILITY_ARCHITECTURE.md) governs TWF-side provider/profile selection, dependency/entitlement checks and HOT/WARM apply. TI still owns its intelligence/model semantics and authoritative output provenance. A TWF preference cannot rewrite TI's claimed producer, horizon or schema. Show the actual applied profile/configuration version; never silently substitute another LLM/provider after failure or entitlement loss.
 
 SyntheticTIService/SyntheticLLMService fixtures advance UX-B2 under the [UX Bucket Roadmap](TWF_UX_BUCKET_ROADMAP.md), preserving synthetic labels, typed claims, evidence, timestamps, failure states and correlation. Exact real API/schema mapping remains a TWF-4 gate. Profile availability never creates execution authority; in-flight analysis and revocation policy must be explicit before real integration.
+
+
+## 27. Discovery-to-intelligence handoff proposal — 2026-09-28
+
+[S&D](TWF_SCAN_AND_DISCOVER_ARCHITECTURE.md) ends at an intent/horizon-relative
+DiscoveryCandidate. Its bounded benchmark/regime/session context and optional LLM
+Level-0 explanations are not TI qualification, scientific forecasts, thesis
+validation or trade recommendations. They do not replace TI or reinterpret its
+confidence/claim semantics. Discovery Relevance is never probability of profit.
+
+A future explicit TI request references exact candidate, episode and immutable
+snapshot IDs, subject/listing mapping, intent/HorizonSpec, evidence availability,
+market context and applied policy/configuration revisions. TI validates its own
+input contract; insufficient/stale or unmappable evidence cannot silently become
+qualified analysis. TI retains request/response/claim identities and advisory authority.
+
+The future TWF Opportunity record captures a separate qualification decision and
+references TI's authoritative output; it does not overwrite DiscoveryCandidate or
+TI claims. Trade Construction then creates a distinct TradeOpportunity; LOB projects
+readiness later. Analysis horizon, discovery window, trade duration and order validity
+remain distinct. No handoff auto-executes or authorizes TM/broker commands.
+
+This is a proposed domain alignment, not a verified TI public schema or a new
+runtime endpoint. Section 24's actual public-contract reconciliation remains the
+TWF-4 gate. See [Opportunity domain](TWF_OPPORTUNITY_DOMAIN_ARCHITECTURE.md) for
+ownership and lineage; deeper intelligence is out of Sprint 2.
+
+### Revision history addition
+
+| Revision | Date | Status | Role / change |
+| --- | --- | --- | --- |
+| S&D reconciliation 1 | 2026-09-28 | PROPOSED / RECONCILED / READY FOR REVIEW | Normative design/planning extension: Discovery-to-intelligence handoff proposal; prior history and acceptance preserved |
+| S&D acceptance 1 | 2026-09-29 | ACCEPTED / IMPLEMENTATION AUTHORIZED | Independent S&D architecture acceptance; staged Sprint-2 scope only, no runtime delivery or prior milestone change; see [review](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) |

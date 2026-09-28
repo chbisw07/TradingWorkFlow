@@ -1,5 +1,7 @@
 # TradingWorkFlow (TWF) — TradeMonitor Integration Contract
 
+> **2026-09-29 S&D architecture acceptance:** The dated S&D extension below is **ACCEPTED / IMPLEMENTATION AUTHORIZED** within the [Sprint-2 delivery plan](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md). The [independent acceptance record](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) supersedes its 2026-09-28 proposal status. Sprint 2 is **ACTIVE / NEXT; implementation not started**. Earlier acceptance history and separate TI/TM/provider/security gates remain unchanged; proposal wording in the dated extension records its origin, not the current review status.
+
 ## Status
 
 **Architecture-stage integration contract — provisional pending committed TradeMonitor public-surface reconciliation**
@@ -610,3 +612,35 @@ SyntheticTMService fixtures may show deterministic risk/adoption/approval/monito
 The first TM integration must assign exclusive command ownership per broker account. Read-only views may coexist, but direct TWF submit/cancel/modify is blocked on a TM-managed account. A finer position/instrument partition is deferred until the public TM contract proves it safe. Transfer is explicit and durable, reconciles outstanding orders/unknown submissions, records an ownership revision and rejects late commands against an old revision. Unknown ownership blocks commands. TM downtime never enables manual fallback.
 
 No runtime TM API or transfer operation is claimed implemented by this reconciliation. Actual committed TM contracts, authority checks, entitlement-loss safety access and transfer/recovery tests remain prerequisites before the TM integration gate.
+
+
+## 29. Future opportunity execution and TM boundary — 2026-09-28
+
+The [Opportunity domain](TWF_OPPORTUNITY_DOMAIN_ARCHITECTURE.md) adds proposed
+DiscoveryCandidate → Opportunity → TradeOpportunity → LOBEntry lineage. None of
+these is a TM assessment, approval, broker order, fill or ManagedPosition. LOB is a
+prepared-opportunity/readiness view, not an execution owner or broker order book.
+
+Future managed execution must obtain verified TM assessment and explicit approval
+before dispatch under the committed public contract; explicit adoption/managed
+scope is required afterward. Merely discovering a candidate, assigning HIGH
+relevance, qualifying a thesis or displaying a position cannot authorize management.
+TM owns managed risk/supervision; brokers retain order/fill/position truth.
+
+Broker V2's independent unmanaged manual path remains unchanged. Section 28's
+exclusive command ownership, revisioned handoff and no TM-outage fallback remain
+binding. A manual order needs no discovery lineage and is never silently adopted.
+The product ladder's TM-after-broker node depicts post-execution supervision, not
+permission to skip pre-execution TM governance on managed accounts.
+
+S&D runtime ends at DiscoveryCandidate; it has no TM call or broker command in
+Sprint 2. ManagedPosition is a future external reference whose exact schema and
+lifecycle require committed TM public-surface reconciliation. This amendment
+leaves the provisional TM integration status and section 20 gate intact.
+
+### Revision history addition
+
+| Revision | Date | Status | Role / change |
+| --- | --- | --- | --- |
+| S&D reconciliation 1 | 2026-09-28 | PROPOSED / RECONCILED / READY FOR REVIEW | Normative design/planning extension: Future opportunity execution and TM boundary; prior history and acceptance preserved |
+| S&D acceptance 1 | 2026-09-29 | ACCEPTED / IMPLEMENTATION AUTHORIZED | Independent S&D architecture acceptance; staged Sprint-2 scope only, no runtime delivery or prior milestone change; see [review](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) |

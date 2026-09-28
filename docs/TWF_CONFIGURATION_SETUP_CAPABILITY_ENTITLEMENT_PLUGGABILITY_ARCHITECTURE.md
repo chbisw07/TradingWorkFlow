@@ -1,5 +1,7 @@
 # TradingWorkFlow (TWF) — Configuration, Setup, Capability, Entitlement & Pluggability Architecture
 
+> **2026-09-29 S&D architecture acceptance:** The dated S&D extension below is **ACCEPTED / IMPLEMENTATION AUTHORIZED** within the [Sprint-2 delivery plan](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md). The [independent acceptance record](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) supersedes its 2026-09-28 proposal status. Sprint 2 is **ACTIVE / NEXT; implementation not started**. Earlier acceptance history and separate TI/TM/provider/security gates remain unchanged; proposal wording in the dated extension records its origin, not the current review status.
+
 ## Status
 
 **Normative architecture — Version 0.6, reconciled for bounded TWF-1.5 planning on 2026-09-25; Broker Workspace clarification dated 2026-09-26**
@@ -1175,3 +1177,56 @@ Supported capability, saved configuration, enabled policy, authenticated connect
 WARM reconnect/disable uses a connection generation and applied configuration revision; old callbacks/refresh results cannot resurrect disabled sessions. Rebinding cannot retarget an existing confirmed order. Manual and TM-managed connections preserve their separate secret and command-ownership boundaries. Before real broker use, implement vault, callback/endpoint security and safe connection recovery; before live orders, implement durable intent/reconciliation, Basic Execution Safety and revocation/handoff policy. These are design gates, not capabilities added to the accepted Settings Foundation.
 
 The v0.6 configuration rules and historical review remain intact; this dated clarification resolves the formerly unqualified TM-only broker assumptions and points to the single current Broker Workspace authority.
+
+
+## 52. S&D settings extension — proposed v0.7 — 2026-09-28
+
+Version 0.7 is a **proposed extension** of the accepted v0.6 design; it does not
+revoke that acceptance or claim that the broader framework is implemented.
+S&D uses this configuration system, not a second preferences/profile registry.
+TWF-1.5 currently implements bounded personal preferences and TWF-1.6 process-scoped
+health descriptors; domain settings need explicit schema/API/migration acceptance.
+
+| S&D area | Class / initial scope | Configuration boundary |
+| --- | --- | --- |
+| General | Presentation or User/Workflow; USER | View defaults and approved profile selection; theme remains accepted browser-local behavior |
+| Universe | User/Workflow; USER | Authorized universe and exact reference listing/mapping policy; data entitlement checked separately |
+| Scan Providers | System/Integration; permitted operator/provider scope | Deployed adapter/capabilities, endpoint and secret references; user cannot install arbitrary MCP tools/code |
+| Market-Intelligence Providers | System/Integration binding plus User/Workflow selection | Available benchmark/sector/session coverage and freshness; unavailable feature cannot be enabled by preference |
+| Candidate-Intelligence Providers | System/Integration binding plus User/Workflow selection | Bounded read-only analysis contract; no TI or execution authority inferred |
+| LLM | System/Integration binding; User/Workflow enabled/selected revision | One applied active binding per context, model/cost/egress policy, grounded/context-only behavior; OFF is fully supported |
+| Scan Profiles | User/Workflow; USER | Named versioned universe/criteria/intent/horizon profile; saved DRAFT differs from validated APPLIED |
+| Discovery / Ranking | User/Workflow within system policy constraints | Features/weights/bands, evidence requirements and multidimensional tolerance; no provider probability relabelling |
+| Freshness | User/Workflow within source/system limits | Source-specific age, session/calendar/window rules; user setting cannot fabricate live data |
+| Persistence / Retention | System/security policy with permitted bounded user choice | Rights, limits/deletion/tombstones, capture granularity; not an unlimited history switch |
+| Experimental | Authorized development/operator configuration | Synthetic/local LLM flags, clearly labelled, never a production entitlement bypass |
+
+Each descriptor must specify legal scopes, defaults/locks, bounds, schema version,
+permission and entitlement prerequisites, HOT/WARM apply behavior and validation.
+The framework's workflow > workspace > user > account > platform resolution applies
+only where the descriptor permits those scopes. Initial S&D uses personal USER
+ownership; WORKSPACE/ACCOUNT shared overrides remain inactive until verified
+membership/admin support exists. PLATFORM/security limits cannot be relaxed by a
+lower-scope profile. Capability publication remains APS/COLD, not subscriber setup.
+
+Pin the applied descriptor/profile/capability/policy revisions in each run/snapshot.
+Edits use expected revision and explicit activation; running work stays pinned or
+is cancelled according to policy, with revocation checked before use. Rebinding a
+provider requires validation, does not rewrite old provenance and cannot silently
+restore revoked rights. Provider secrets use authorized secret references and the
+accepted secret-store/security model, never ordinary settings or browser storage.
+Production secret handling retains its security gate.
+
+HorizonSpec extends beyond `default_horizon=5d/15d`; do not silently reinterpret
+these existing ambiguous day values as calendar/trading-session windows. Introduce
+versioned descriptors and explicit mapping/user confirmation. Complete operational
+bounds and retention values at the [Sprint-2 gates](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md).
+Commercial plan names and billing remain TBD. The DOCX stays an unchanged v0.5
+snapshot pending regeneration after the Markdown extension is accepted.
+
+### Revision history addition
+
+| Revision | Date | Status | Role / change |
+| --- | --- | --- | --- |
+| 0.7 proposal | 2026-09-28 | PROPOSED / RECONCILED / READY FOR REVIEW | Normative design/planning extension: S&D settings extension — proposed v0.7; prior history and acceptance preserved |
+| 0.7 acceptance | 2026-09-29 | ACCEPTED / IMPLEMENTATION AUTHORIZED | Independent S&D architecture acceptance; staged Sprint-2 scope only, no runtime delivery or prior milestone change; see [review](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) |
