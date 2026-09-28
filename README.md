@@ -53,10 +53,29 @@ Broker Workspace Workstream — mapped into TWF-2/TWF-6
 ├── BW-6 Second real broker proof                          PENDING
 └── Later managed workflow                                 PENDING (separate TWF-5 gate)
 
-Scan & Discover Architecture                              ACCEPTED / IMPLEMENTATION AUTHORIZED
-├── Scan-only, discovery and Opportunity-domain design     ACCEPTED / runtime not implemented
-├── Sprint 2                                               ACTIVE / NEXT; implementation not started
-└── S2-1 contracts/fixtures next; provider/data gates       REQUIRED before dependent slices
+Scan & Discover Workstream                              ✅ ARCHITECTURE ACCEPTED
+│
+├── S2-0  Architecture / implementation readiness       ✅ ACCEPTED
+│
+├── S2-1  Domain Contracts & Synthetic Provider
+│         Foundation                                    ▶ ACTIVE / NEXT
+│
+├── S2-2  Internal Scanner V0                           PENDING
+│
+├── S2-3  Real Scan Provider Integration
+│         (TradingView MCP first)                       PENDING
+│
+├── S2-4  Market Context / Market Intelligence          PENDING
+│
+├── S2-5  Discovery Engine
+│         Relevance / Evidence / Lifecycle              PENDING
+│
+├── S2-6  Optional LLM Level-0 Intelligence             PENDING
+│
+├── S2-7  Product UX / History / Settings /
+│         Persistence                                   PENDING
+│
+└── S2-8  End-to-End Acceptance / Freeze                PENDING
 
 Later functional milestones — separately gated
 ├── TWF-2 Trader Workspace
