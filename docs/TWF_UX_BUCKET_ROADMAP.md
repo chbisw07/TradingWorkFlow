@@ -1,6 +1,6 @@
 # TWF UX Bucket Roadmap
 
-> **2026-09-29 S&D architecture acceptance:** The dated S&D extension below is **ACCEPTED / IMPLEMENTATION AUTHORIZED** within the [Sprint-2 delivery plan](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md). The [independent acceptance record](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) supersedes its 2026-09-28 proposal status. Sprint 2 is **ACTIVE / NEXT; implementation not started**. Earlier acceptance history and separate TI/TM/provider/security gates remain unchanged; proposal wording in the dated extension records its origin, not the current review status.
+> **2026-09-29 S&D architecture acceptance:** The dated S&D extension below is **ACCEPTED / IMPLEMENTATION AUTHORIZED** within the [Sprint-2 delivery plan](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md). The [independent acceptance record](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) supersedes its 2026-09-28 proposal status. Sprint 2 is **ACTIVE**. S2-1 is **ACCEPTED / FROZEN** after [focused re-review](TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_REREVIEW.md); S2-2 Internal Scanner V0 is **ACTIVE / NEXT**, with implementation not started; S2-3 through S2-8 remain PENDING. Earlier acceptance history and separate TI/TM/provider/security gates remain unchanged; proposal wording in the dated extension records its origin, not the current review status.
 
 ## Status and purpose
 
@@ -329,8 +329,9 @@ in S&D. Complete deterministic utility with LLM OFF and TV absent is required.
 Use the existing themes/state primitives and all six representative viewport widths.
 Test empty/partial/offline/denied/stale/failed states and keyboard workflows, not
 only visual happy paths. Architecture is ACCEPTED / IMPLEMENTATION AUTHORIZED;
-Sprint 2 is ACTIVE / NEXT, implementation not started. The next gate is a bounded
-S2-1 contracts/fixtures prompt. The acceptance review records the non-blocking
+Sprint 2 is ACTIVE. S2-1 is ACCEPTED / FROZEN; S2-2 Internal Scanner V0 is
+ACTIVE / NEXT, and S2-3 through S2-8 remain PENDING. No discovery product UX
+or bucket completion is claimed. The acceptance review records the non-blocking
 relevance-colour specification for S2-6. Full TI/TM, LOB, ML and mature
 administration remain future UX-B2/B3 work.
 
@@ -340,3 +341,4 @@ administration remain future UX-B2/B3 work.
 | --- | --- | --- | --- |
 | 0.4 proposal | 2026-09-28 | PROPOSED / RECONCILED / READY FOR REVIEW | Normative design/planning extension: Proposed S&D contribution — v0.4; prior history and acceptance preserved |
 | 0.4 acceptance | 2026-09-29 | ACCEPTED / IMPLEMENTATION AUTHORIZED | Independent S&D architecture acceptance; staged Sprint-2 scope only, no runtime delivery or prior milestone change; see [review](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) |
+| S2-1 acceptance | 2026-09-29 | ACCEPTED / FROZEN | Focused remediation re-review records GO_S2_2; Internal Scanner V0 ACTIVE / NEXT only; see [re-review](TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_REREVIEW.md) |

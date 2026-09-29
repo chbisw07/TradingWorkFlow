@@ -58,9 +58,9 @@ Scan & Discover Workstream                              ✅ ARCHITECTURE ACCEPTE
 ├── S2-0  Architecture / implementation readiness       ✅ ACCEPTED
 │
 ├── S2-1  Domain Contracts & Synthetic Provider
-│         Foundation                                    ▶ ACTIVE / NEXT
+│         Foundation                                    ✅ ACCEPTED / FROZEN
 │
-├── S2-2  Internal Scanner V0                           PENDING
+├── S2-2  Internal Scanner V0                           ▶ ACTIVE / NEXT
 │
 ├── S2-3  Real Scan Provider Integration
 │         (TradingView MCP first)                       PENDING
@@ -113,8 +113,10 @@ The earlier Broker Workspace → Basic Execution Safety → TM → Scanner → T
 sequence remains dated planning history. The next workstream is
 [Sprint-2 Scan & Discover](docs/TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md), with
 architecture accepted by the [independent review](docs/TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md).
-Sprint 2 is ACTIVE / NEXT; implementation has not started. Provider/data/policy
-gates remain required before dependent slices. It ends at
+Sprint 2 is ACTIVE. [S2-1 domain contracts and synthetic providers](docs/TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION.md)
+are ACCEPTED / FROZEN following focused independent re-review. S2-2 Internal Scanner V0
+is ACTIVE / NEXT. Provider/data/policy gates remain required
+before dependent slices. It ends at
 DiscoveryCandidate, works without LLM/TradingView dependencies in the core, and
 preserves Broker V2 and TI/TM authority. Existing TWF milestone numbers retain their
 meanings; real providers and live commands have separate gates.
@@ -276,11 +278,14 @@ Then review the specialist architecture documents as needed.
 - [Sprint-2 Delivery Plan](docs/TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md) — bounded scope, dependencies and acceptance gates
 - [Architecture Reconciliation Record](docs/TWF_SCAN_DISCOVER_ARCHITECTURE_RECONCILIATION.md) — repository evidence, resolved contradictions, exact change inventory and stale DOCX companions
 - [Independent Architecture Acceptance](docs/TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) — decision, findings, authorization and next gate
+- [S2-1 Domain Contracts & Synthetic Provider Foundation](docs/TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION.md) — implementation/remediation evidence, fixture policies and deferred scope; independently accepted
+- [S2-1 Focused Re-review](docs/TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_REREVIEW.md) — closes S21-01/02/03; GO_S2_2 for Internal Scanner V0 only
 
 The normative architecture is **ACCEPTED / IMPLEMENTATION AUTHORIZED**; the
-reconciliation record remains historical. Sprint 2 is **ACTIVE / NEXT; implementation
-not started**, bounded by its delivery plan. No S&D runtime completion or new Git
-freeze is claimed. Sprint 2 stops at DiscoveryCandidate; later intelligence, construction,
+reconciliation record remains historical. Sprint 2 is **ACTIVE**, with S2-1
+**ACCEPTED / FROZEN** and S2-2 **ACTIVE / NEXT**; S2-3 through S2-8 remain pending. This is a
+backend synthetic contract foundation; no production S&D product completion or
+new Git freeze is claimed. Sprint 2 stops at DiscoveryCandidate; later intelligence, construction,
 LOB, managed execution and learning remain separate gates.
 
 ### Data
@@ -364,13 +369,15 @@ real Zerodha smoke and bounded correctness fixes. Automated validation uses fake
 broker transports only. Historical BW gates remain an inventory of the original
 plan; their pending labels do not override the accepted V1/V2 delivery records.
 Scan & Discover and Opportunity-domain architecture are accepted. Sprint 2 is
-ACTIVE / NEXT; implementation has not started. The next gate is a bounded S2-1
-domain/contracts and synthetic-fixture prompt under the accepted delivery plan. Modify/cancel, additional brokers, Alerts-managed exits, full TI/TM,
+ACTIVE. S2-1 domain contracts and synthetic providers are **ACCEPTED / FROZEN**. The historical [S2-1 acceptance review](docs/TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_ACCEPTANCE_REVIEW.md)
+returned `HOLD_S2_1`; the [focused re-review](docs/TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_REREVIEW.md)
+closes its three blocking findings and records `GO_S2_2`. S2-2 Internal Scanner V0
+is ACTIVE / NEXT; implementation has not begun. S2-3 through S2-8 remain PENDING. Modify/cancel, additional brokers, Alerts-managed exits, full TI/TM,
 Trade Construction, LOB and ML/IFL remain separately gated future work.
 
-Documentation revision: **2026-09-29 / S&D acceptance 1 / ACCEPTED, IMPLEMENTATION
-AUTHORIZED**. This supersedes the 2026-09-28 proposal status without changing any
-prior accepted milestone, runtime source, DOCX companion or Git freeze.
+Documentation revision: **2026-09-29 / S2-1 independent acceptance / GO_S2_2**.
+S2-1 is ACCEPTED / FROZEN as a reviewed milestone; no new Git commit or tag was created.
+Prior accepted milestones and Git freezes remain unchanged.
 
 ---
 

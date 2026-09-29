@@ -1,6 +1,6 @@
 # TradingWorkFlow (TWF) — Detailed Roadmap
 
-> **2026-09-29 S&D architecture acceptance:** The dated S&D extension below is **ACCEPTED / IMPLEMENTATION AUTHORIZED** within the [Sprint-2 delivery plan](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md). The [independent acceptance record](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) supersedes its 2026-09-28 proposal status. Sprint 2 is **ACTIVE / NEXT; implementation not started**. Earlier acceptance history and separate TI/TM/provider/security gates remain unchanged; proposal wording in the dated extension records its origin, not the current review status.
+> **2026-09-29 S&D architecture acceptance:** The dated S&D extension below is **ACCEPTED / IMPLEMENTATION AUTHORIZED** within the [Sprint-2 delivery plan](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md). The [independent acceptance record](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) supersedes its 2026-09-28 proposal status. Sprint 2 is **ACTIVE**. S2-1 is **ACCEPTED / FROZEN** after [focused re-review](TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_REREVIEW.md); S2-2 Internal Scanner V0 is **ACTIVE / NEXT**, with implementation not started; S2-3 through S2-8 remain PENDING. Earlier acceptance history and separate TI/TM/provider/security gates remain unchanged; proposal wording in the dated extension records its origin, not the current review status.
 
 ## Status
 
@@ -333,7 +333,7 @@ TWF-1.4 `ba9bb8b`, TWF-1.5 `664d4cf` and TWF-1.6 `e3852d3` keep their histories.
 UX-B1 remains partial; UX-B2 has bounded V1/V2 broker evidence but is not complete;
 UX-B3 remains planned. Broker V1 and Broker V2 are accepted/frozen. Future work
 includes modify/cancel extensions, additional brokers, Alerts-managed exits and
-Scanner/TI/TM integration, each separately scoped and accepted. Sprint-2 S&D architecture is accepted under section 19; implementation is ACTIVE / NEXT, not started. S2-1 contracts/fixtures are next, with provider/data/policy gates required for dependent slices.
+Scanner/TI/TM integration, each separately scoped and accepted. Sprint-2 S&D architecture is accepted under section 19; S2-1 is ACCEPTED / FROZEN and S2-2 Internal Scanner V0 is ACTIVE / NEXT. Provider/data/policy gates remain required for dependent slices.
 
 ## 18. Broker Workspace Delivery Overlay
 
@@ -426,16 +426,15 @@ and accepted/frozen evidence are unchanged; “Sprint 2” is not a rename of TW
 | TWF-5 / TWF-6 / TWF-7–10 | Future handoff/evaluation architecture only | TM, LOB, automatic execution, full alerts, ML or production hardening |
 
 The architecture part of S2-0 is accepted; provider/data/policy decisions remain
-required before dependent slices. The next bounded prompt covers S2-1 contracts
-and synthetic fixtures. Subsequent slices cover domain contracts, internal scan/context, verified
+required before dependent slices. The S2-1 contracts and synthetic foundation are accepted/frozen. The next bounded
+prompt covers S2-2 Internal Scanner V0. Subsequent slices cover market context, verified
 external adapter, discovery/history, optional interpretation/settings and integrated
 UX acceptance. Internal scanner usefulness needs an approved independent data source;
 fixtures alone cannot close a live-data gate. No architecture document selects an
 unverified TradingView MCP server or grants data/LLM egress rights.
 
 Current S&D architecture status is **ACCEPTED / IMPLEMENTATION AUTHORIZED**.
-Sprint 2 is **ACTIVE / NEXT; implementation not started**. This architecture
-acceptance does not claim runtime completion or create a new Git freeze. TI/TM managed
+Sprint 2 is **ACTIVE**. S2-1 is **ACCEPTED / FROZEN** after [focused re-review](TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_REREVIEW.md); S2-2 Internal Scanner V0 is **ACTIVE / NEXT**, with implementation not started; S2-3 through S2-8 remain PENDING. S2-1 acceptance does not complete Sprint 2 or create a new Git freeze. TI/TM managed
 contracts, construction/LOB and future learning remain separately gated.
 
 ### Revision history addition
@@ -444,3 +443,4 @@ contracts, construction/LOB and future learning remain separately gated.
 | --- | --- | --- | --- |
 | S&D reconciliation 1 | 2026-09-28 | PROPOSED / RECONCILED / READY FOR REVIEW | Normative design/planning extension: Proposed Sprint-2 Scan and Discover overlay; prior history and acceptance preserved |
 | S&D acceptance 1 | 2026-09-29 | ACCEPTED / IMPLEMENTATION AUTHORIZED | Independent S&D architecture acceptance; staged Sprint-2 scope only, no runtime delivery or prior milestone change; see [review](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) |
+| S2-1 acceptance | 2026-09-29 | ACCEPTED / FROZEN | Focused remediation re-review records GO_S2_2; Internal Scanner V0 ACTIVE / NEXT only; see [re-review](TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_REREVIEW.md) |
