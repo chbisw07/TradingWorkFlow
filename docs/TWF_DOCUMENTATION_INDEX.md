@@ -18,8 +18,8 @@ Broker V1 real broker read-only foundation ACCEPTED / FROZEN (twf-broker-v1)
 Broker V2 manual trading foundation ACCEPTED / FROZEN (twf-broker-v2)
 BW-1–BW-6 retained as historical gate inventory; V1/V2 acceptance recorded separately
 S&D / Opportunity-domain / Sprint-2 architecture ACCEPTED / IMPLEMENTATION AUTHORIZED
-Sprint 2 ACTIVE; S2-1 ACCEPTED / FROZEN
-Next slice: S2-2 Internal Scanner V0 ACTIVE / NEXT; S2-3 through S2-8 PENDING
+Sprint 2 ACTIVE; S2-1 ACCEPTED / FROZEN (twf-s2-1-discovery-foundation)
+S2-2 Internal Scanner V0 ACCEPTED / FROZEN; S2-3 ACTIVE / NEXT; S2-4 through S2-8 PENDING
 ```
 
 ---
@@ -340,11 +340,13 @@ When new documents are added:
 | [S2-1 Domain Contracts & Synthetic Provider Foundation](TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION.md) | Implementation record: contracts, deterministic synthetic proofs, validation and deferred scope; ACCEPTED / FROZEN, not acceptance authority |
 | [S2-1 Independent Acceptance Review](TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_ACCEPTANCE_REVIEW.md) | Historical HOLD_S2_1 decision and S21-01/02/03 findings; preserved unchanged; superseded for current status by focused re-review |
 | [S2-1 Focused Re-review](TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_REREVIEW.md) | Independent acceptance: GO_S2_2; closes S21-01/02/03; S2-2 Internal Scanner V0 only |
+| [S2-2 Internal Scanner V0](TWF_S2_2_INTERNAL_SCANNER_V0.md) | Implementation record: offline native provider, 23 metrics, five profiles, look-ahead and interoperability proofs; ACCEPTED / FROZEN; implementation evidence, not acceptance authority |
+| [S2-2 Focused Re-review](TWF_S2_2_INTERNAL_SCANNER_V0_REREVIEW.md) | Independent acceptance: closes S22-01; GO_S2_3 for Real Scan Provider Integration (TradingView MCP first) only |
 
 The three normative documents are version 0.2, **ACCEPTED / IMPLEMENTATION
 AUTHORIZED**; their v0.1 proposal entries remain historical. The reconciliation
 record remains a v0.1 reference audit. Sprint 2 is **ACTIVE**; S2-1 is
-**ACCEPTED / FROZEN**, with S2-2 **ACTIVE / NEXT** and S2-3 through S2-8 pending. Read product/system, domain, S&D, delivery plan and the review.
+**ACCEPTED / FROZEN**, with S2-2 **ACCEPTED / FROZEN** and S2-3 ACTIVE / NEXT and S2-4 through S2-8 pending. Read product/system, domain, S&D, delivery plan and the review.
 Domain identity/ownership,
 subsystem behavior and delivery scope each have one designated owner document;
 the audit record is not a fourth competing architecture. Existing TI/TM/Broker

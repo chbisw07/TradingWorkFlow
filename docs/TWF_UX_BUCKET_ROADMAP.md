@@ -1,6 +1,6 @@
 # TWF UX Bucket Roadmap
 
-> **2026-09-29 S&D architecture acceptance:** The dated S&D extension below is **ACCEPTED / IMPLEMENTATION AUTHORIZED** within the [Sprint-2 delivery plan](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md). The [independent acceptance record](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) supersedes its 2026-09-28 proposal status. Sprint 2 is **ACTIVE**. S2-1 is **ACCEPTED / FROZEN** after [focused re-review](TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_REREVIEW.md); S2-2 Internal Scanner V0 is **ACTIVE / NEXT**, with implementation not started; S2-3 through S2-8 remain PENDING. Earlier acceptance history and separate TI/TM/provider/security gates remain unchanged; proposal wording in the dated extension records its origin, not the current review status.
+> **2026-09-29 S&D architecture acceptance:** The dated S&D extension below is **ACCEPTED / IMPLEMENTATION AUTHORIZED** within the [Sprint-2 delivery plan](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md). The [independent acceptance record](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) supersedes its 2026-09-28 proposal status. Sprint 2 is **ACTIVE**. S2-1 is **ACCEPTED / FROZEN** after [focused re-review](TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_REREVIEW.md); S2-2 [Internal Scanner V0](TWF_S2_2_INTERNAL_SCANNER_V0.md) is **ACCEPTED / FROZEN** after [focused re-review](TWF_S2_2_INTERNAL_SCANNER_V0_REREVIEW.md); S2-3 is ACTIVE / NEXT; S2-4 through S2-8 remain PENDING. Earlier acceptance history and separate TI/TM/provider/security gates remain unchanged; proposal wording in the dated extension records its origin, not the current review status.
 
 ## Status and purpose
 
@@ -330,7 +330,7 @@ Use the existing themes/state primitives and all six representative viewport wid
 Test empty/partial/offline/denied/stale/failed states and keyboard workflows, not
 only visual happy paths. Architecture is ACCEPTED / IMPLEMENTATION AUTHORIZED;
 Sprint 2 is ACTIVE. S2-1 is ACCEPTED / FROZEN; S2-2 Internal Scanner V0 is
-ACTIVE / NEXT, and S2-3 through S2-8 remain PENDING. No discovery product UX
+ACCEPTED / FROZEN, and S2-3 is ACTIVE / NEXT; S2-4 through S2-8 remain PENDING. No discovery product UX
 or bucket completion is claimed. The acceptance review records the non-blocking
 relevance-colour specification for S2-6. Full TI/TM, LOB, ML and mature
 administration remain future UX-B2/B3 work.
