@@ -13,11 +13,18 @@ annotated-types==0.8.0
 anyio==4.15.1
     # via
     #   httpx
+    #   httpx2
+    #   mcp
+    #   sse-starlette
     #   starlette
 argon2-cffi==25.1.0
     # via twf-api (pyproject.toml)
 argon2-cffi-bindings==26.1.0
     # via argon2-cffi
+attrs==26.1.0
+    # via
+    #   jsonschema
+    #   referencing
 certifi==2026.7.22
     # via
     #   httpcore
@@ -29,7 +36,9 @@ cffi==2.1.1
 click==8.5.0
     # via uvicorn
 cryptography==47.0.0
-    # via twf-api (pyproject.toml)
+    # via
+    #   pyjwt
+    #   twf-api (pyproject.toml)
 fastapi==0.141.1
     # via twf-api (pyproject.toml)
 greenlet==3.5.6
@@ -37,19 +46,39 @@ greenlet==3.5.6
 h11==0.16.0
     # via
     #   httpcore
+    #   httpcore2
     #   uvicorn
 httpcore==1.0.9
     # via httpx
+httpcore2==2.13.1
+    # via httpx2
 httpx==0.28.1
     # via twf-api (pyproject.toml)
+httpx2==2.13.1
+    # via
+    #   mcp
+    #   twf-api (pyproject.toml)
 idna==3.20
     # via
     #   anyio
     #   httpx
+    #   httpx2
+jsonschema==4.26.0
+    # via
+    #   mcp
+    #   twf-api (pyproject.toml)
+jsonschema-specifications==2025.9.1
+    # via jsonschema
 mako==1.4.3
     # via alembic
 markupsafe==3.0.3
     # via mako
+mcp==2.2.0
+    # via twf-api (pyproject.toml)
+mcp-types==2.2.0
+    # via mcp
+opentelemetry-api==1.45.0
+    # via mcp
 psycopg[binary]==3.3.6
     # via twf-api (pyproject.toml)
 psycopg-binary==3.3.6
@@ -59,34 +88,65 @@ pycparser==3.0
 pydantic==2.13.5
     # via
     #   fastapi
+    #   mcp
+    #   mcp-types
     #   pydantic-settings
 pydantic-core==2.46.5
     # via pydantic
 pydantic-settings==2.15.0
     # via twf-api (pyproject.toml)
+pyjwt[crypto]==2.15.1
+    # via mcp
 python-dotenv==1.2.3
     # via pydantic-settings
+python-multipart==0.0.32
+    # via mcp
+referencing==0.37.0
+    # via
+    #   jsonschema
+    #   jsonschema-specifications
+rpds-py==2026.6.3
+    # via
+    #   jsonschema
+    #   referencing
 sqlalchemy==2.0.54
     # via
     #   alembic
     #   twf-api (pyproject.toml)
+sse-starlette==3.5.0
+    # via mcp
 starlette==1.7.0
-    # via fastapi
+    # via
+    #   fastapi
+    #   mcp
+    #   sse-starlette
+truststore==0.10.4
+    # via
+    #   httpcore2
+    #   httpx2
 typing-extensions==4.16.0
     # via
     #   alembic
     #   anyio
     #   fastapi
+    #   httpx2
+    #   mcp
+    #   mcp-types
+    #   opentelemetry-api
     #   psycopg
     #   pydantic
     #   pydantic-core
+    #   referencing
     #   sqlalchemy
     #   starlette
     #   typing-inspection
 typing-inspection==0.4.4
     # via
     #   fastapi
+    #   mcp
     #   pydantic
     #   pydantic-settings
 uvicorn==0.53.0
-    # via twf-api (pyproject.toml)
+    # via
+    #   mcp
+    #   twf-api (pyproject.toml)

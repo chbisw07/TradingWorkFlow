@@ -231,6 +231,10 @@ def test_migration_history_and_metadata() -> None:
         "broker_attempts",
         "broker_order_intents",
         "broker_secrets",
+        "mcp_connections",
+        "mcp_oauth_attempts",
+        "mcp_operations",
+        "mcp_secrets",
     }
     assert set(Base.metadata.naming_convention) == {"pk", "fk", "ix", "uq", "ck"}
     command.upgrade(config, "head")
@@ -241,7 +245,7 @@ def test_migration_history_and_metadata() -> None:
         with db.connect() as connection:
             assert (
                 MigrationContext.configure(connection).get_current_revision()
-                == "0006_order_intents"
+                == "0011_mcp_durable_reconciliation"
             )
             assert inspect(connection).get_table_names() == [
                 "alembic_version",
@@ -250,6 +254,10 @@ def test_migration_history_and_metadata() -> None:
                 "broker_attempts",
                 "broker_order_intents",
                 "broker_secrets",
+                "mcp_connections",
+                "mcp_oauth_attempts",
+                "mcp_operations",
+                "mcp_secrets",
                 "preference_changes",
                 "preference_profiles",
                 "user_preferences",
@@ -262,7 +270,7 @@ def test_migration_history_and_metadata() -> None:
         with db.connect() as connection:
             assert (
                 MigrationContext.configure(connection).get_current_revision()
-                == "0006_order_intents"
+                == "0011_mcp_durable_reconciliation"
             )
     finally:
         db.dispose()

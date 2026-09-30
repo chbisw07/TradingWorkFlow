@@ -62,10 +62,12 @@ Scan & Discover Workstream                              ✅ ARCHITECTURE ACCEPTE
 │
 ├── S2-2  Internal Scanner V0                           ✅ ACCEPTED / FROZEN
 │
-├── S2-3  Real Scan Provider Integration
-│         (TradingView MCP first)                       ▶ ACTIVE / NEXT
+├── S2-3A Generic MCP Connection & Authentication       ▶ DURABILITY REMEDIATED / INTEGRATED INTO S2-3
 │
-├── S2-4  Market Context / Market Intelligence          PENDING
+├── S2-3  Real Scan Provider Integration
+│         (TradingView MCP first)                       ✅ ACCEPTED / FROZEN WITH DEFERRED HARDENING
+│
+├── S2-4  Market Context / Market Intelligence          ▶ NEXT
 │
 ├── S2-5  Discovery Engine
 │         Relevance / Evidence / Lifecycle              PENDING
@@ -115,7 +117,7 @@ sequence remains dated planning history. The next workstream is
 architecture accepted by the [independent review](docs/TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md).
 Sprint 2 is ACTIVE. [S2-1 domain contracts and synthetic providers](docs/TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION.md)
 are ACCEPTED / FROZEN following focused independent re-review. S2-2 Internal Scanner V0
-is ACCEPTED / FROZEN after [focused re-review](docs/TWF_S2_2_INTERNAL_SCANNER_V0_REREVIEW.md); S2-3 Real Scan Provider Integration (TradingView MCP first) is ACTIVE / NEXT. Provider/data/policy gates remain required
+is ACCEPTED / FROZEN after [focused re-review](docs/TWF_S2_2_INTERNAL_SCANNER_V0_REREVIEW.md); S2-3A generic MCP connection/authentication is DURABILITY REMEDIATED / INTEGRATED INTO S2-3; S2-3 Real Scan Provider Integration (TradingView MCP first) is ACCEPTED / FROZEN WITH DEFERRED HARDENING; S2-4 Market Context / Market Intelligence is NEXT. Provider/data/policy gates remain required
 before dependent slices. It ends at
 DiscoveryCandidate, works without LLM/TradingView dependencies in the core, and
 preserves Broker V2 and TI/TM authority. Existing TWF milestone numbers retain their
@@ -281,11 +283,12 @@ Then review the specialist architecture documents as needed.
 - [S2-1 Domain Contracts & Synthetic Provider Foundation](docs/TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION.md) — implementation/remediation evidence, fixture policies and deferred scope; independently accepted
 - [S2-1 Focused Re-review](docs/TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_REREVIEW.md) — closes S21-01/02/03; GO_S2_2 for Internal Scanner V0 only
 - [S2-2 Internal Scanner V0](docs/TWF_S2_2_INTERNAL_SCANNER_V0.md) — offline native scanning, indicator/condition proofs and S2-1 interoperability; independently accepted / frozen
+- [S2-3A Generic MCP Connection & Authentication](docs/TWF_S2_3A_GENERIC_MCP_PROVIDER_CONNECTION_AUTH_FOUNDATION.md) — durability remediation incorporated into the integrated S2-3 review
 - [S2-2 Focused Re-review](docs/TWF_S2_2_INTERNAL_SCANNER_V0_REREVIEW.md) — closes S22-01; GO_S2_3 for Real Scan Provider Integration (TradingView MCP first) only
 
 The normative architecture is **ACCEPTED / IMPLEMENTATION AUTHORIZED**; the
 reconciliation record remains historical. Sprint 2 is **ACTIVE**, with S2-1
-**ACCEPTED / FROZEN** and S2-2 **ACCEPTED / FROZEN**; S2-3 is **ACTIVE / NEXT** and S2-4 through S2-8 remain pending. This is a
+**ACCEPTED / FROZEN** and S2-2 **ACCEPTED / FROZEN**; S2-3A is **DURABILITY REMEDIATED / INTEGRATED INTO S2-3**; S2-3 is **ACCEPTED / FROZEN WITH DEFERRED HARDENING**; S2-4 is NEXT and S2-5 through S2-8 remain pending. This is a
 backend synthetic contract foundation; no production S&D product completion or
 new Git freeze is claimed. Sprint 2 stops at DiscoveryCandidate; later intelligence, construction,
 LOB, managed execution and learning remain separate gates.
@@ -374,12 +377,12 @@ Scan & Discover and Opportunity-domain architecture are accepted. Sprint 2 is
 ACTIVE. S2-1 domain contracts and synthetic providers are **ACCEPTED / FROZEN**. The historical [S2-1 acceptance review](docs/TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_ACCEPTANCE_REVIEW.md)
 returned `HOLD_S2_1`; the [focused re-review](docs/TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_REREVIEW.md)
 closes its three blocking findings and records `GO_S2_2`. S2-2 Internal Scanner V0
-is ACCEPTED / FROZEN following [focused re-review](docs/TWF_S2_2_INTERNAL_SCANNER_V0_REREVIEW.md), which closes S22-01 and records `GO_S2_3`. S2-3 is ACTIVE / NEXT; S2-4 through S2-8 remain PENDING. Modify/cancel, additional brokers, Alerts-managed exits, full TI/TM,
+is ACCEPTED / FROZEN following [focused re-review](docs/TWF_S2_2_INTERNAL_SCANNER_V0_REREVIEW.md), which closes S22-01 and records `GO_S2_3`. S2-3A is DURABILITY REMEDIATED / INTEGRATED INTO S2-3; S2-3 is ACCEPTED / FROZEN WITH DEFERRED HARDENING; S2-4 is NEXT and S2-5 through S2-8 remain PENDING. Modify/cancel, additional brokers, Alerts-managed exits, full TI/TM,
 Trade Construction, LOB and ML/IFL remain separately gated future work.
 
-Documentation revision: **2026-09-29 / S2-2 focused acceptance / GO_S2_3**.
+Documentation revision: **2026-09-30 / S2-3 ACCEPTED / FROZEN WITH DEFERRED HARDENING / S2-4 NEXT**.
 S2-1 is ACCEPTED / FROZEN under `twf-s2-1-discovery-foundation` at `caadc9d`.
-S2-2 is accepted/frozen as a reviewed milestone and remains uncommitted; the historical HOLD review is preserved. No new Git freeze tag was created.
+S2-2 is ACCEPTED / FROZEN under `twf-s2-2-internal-scanner-v0` at `e22e17f`; its historical HOLD review is preserved. S2-3 is ACCEPTED / FROZEN WITH DEFERRED HARDENING and ready for its Git checkpoint, which this task does not create. MCP durability remediation is integrated into S2-3; the deferred successful-live-row proof and remote cleanup obligation are preserved in the [S2-3 review](docs/TWF_S2_3_ACCEPTANCE_REVIEW.md) and [hardening register](docs/TWF_S2_3_DEFERRED_ISSUES_AND_HARDENING_REGISTER.md).
 Prior accepted milestones and Git freezes remain unchanged.
 
 ---
@@ -410,3 +413,14 @@ Future document families may include:
 - security decision records;
 - deployment runbooks;
 - production hardening records.
+
+## S2-3 integrated delivery evidence
+
+- [TradingView MCP ScanProvider implementation](docs/TWF_S2_3_TRADINGVIEW_MCP_SCAN_PROVIDER_IMPLEMENTATION.md)
+- [S2-3 bounded acceptance review](docs/TWF_S2_3_ACCEPTANCE_REVIEW.md)
+- [S2-3 deferred issues and hardening register](docs/TWF_S2_3_DEFERRED_ISSUES_AND_HARDENING_REGISTER.md)
+
+Synthetic SDK-to-ScanMatch validation and durable MCP recovery are implemented.
+Live TradingView OAuth, tool discovery, column schema and one bounded India screener
+are verified. Exact requested-universe batch retrieval and local evaluation are implemented and synthetically validated through ScanRun, ScanMatch and lineage. Repeated real exact calls returned typed RATE_LIMITED before a row could normalize, with no evidence of a TWF defect. S2-3 is **ACCEPTED / FROZEN WITH DEFERRED HARDENING**; successful-live-row proof and remote cleanup remain mandatory hardening, and S2-4 is NEXT.
+No broker trading or frontend behavior changed.

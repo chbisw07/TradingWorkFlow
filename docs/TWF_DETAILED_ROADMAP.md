@@ -1,6 +1,6 @@
 # TradingWorkFlow (TWF) — Detailed Roadmap
 
-> **2026-09-29 S&D architecture acceptance:** The dated S&D extension below is **ACCEPTED / IMPLEMENTATION AUTHORIZED** within the [Sprint-2 delivery plan](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md). The [independent acceptance record](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) supersedes its 2026-09-28 proposal status. Sprint 2 is **ACTIVE**. S2-1 is **ACCEPTED / FROZEN** after [focused re-review](TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_REREVIEW.md); S2-2 [Internal Scanner V0](TWF_S2_2_INTERNAL_SCANNER_V0.md) is **ACCEPTED / FROZEN** after [focused re-review](TWF_S2_2_INTERNAL_SCANNER_V0_REREVIEW.md); S2-3 is ACTIVE / NEXT; S2-4 through S2-8 remain PENDING. Earlier acceptance history and separate TI/TM/provider/security gates remain unchanged; proposal wording in the dated extension records its origin, not the current review status.
+> **2026-09-29 S&D architecture acceptance:** The dated S&D extension below is **ACCEPTED / IMPLEMENTATION AUTHORIZED** within the [Sprint-2 delivery plan](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md). The [independent acceptance record](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) supersedes its 2026-09-28 proposal status. Sprint 2 is **ACTIVE**. S2-1 is **ACCEPTED / FROZEN** after [focused re-review](TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_REREVIEW.md); S2-2 [Internal Scanner V0](TWF_S2_2_INTERNAL_SCANNER_V0.md) is **ACCEPTED / FROZEN** after [focused re-review](TWF_S2_2_INTERNAL_SCANNER_V0_REREVIEW.md); S2-3A is DURABILITY REMEDIATED / INTEGRATED INTO S2-3; S2-3 is ACCEPTED / FROZEN WITH DEFERRED HARDENING; S2-4 is NEXT; S2-5 through S2-8 remain PENDING. Earlier acceptance history and separate TI/TM/provider/security gates remain unchanged; proposal wording in the dated extension records its origin, not the current review status.
 
 ## Status
 
@@ -305,11 +305,11 @@ observability, migration safety, contract tests, documentation and backward comp
 
 The [UX Bucket Roadmap](TWF_UX_BUCKET_ROADMAP.md) defines an additional maturity track:
 
-| Bucket                                | Milestone mapping                                                                                                        | Dependency rule                                                                              |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
-| UX-B1 Foundational Complete UX        | TWF-1.x plus workspace/console foundations in TWF-2                                                                      | Partial today; synthetic/local UX does not require live services or admin backend            |
+| Bucket                                | Milestone mapping                                                                                                                   | Dependency rule                                                                              |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| UX-B1 Foundational Complete UX        | TWF-1.x plus workspace/console foundations in TWF-2                                                                                 | Partial today; synthetic/local UX does not require live services or admin backend            |
 | UX-B2 Operationally Useful Trading UX | Accepted Broker V1/V2; accepted S&D architecture across TWF-3/TWF-2.3 next (section 19); TI/TM and realtime remain separately gated | Separate manual broker submission from TM-managed authority; each slice has acceptance gates |
-| UX-B3 Architecture-Complete UX        | Progressive administration/subscriptions, IFL and operations in TWF-8/9/10                                               | Individual features advance when justified; the whole bucket never blocks core integrations  |
+| UX-B3 Architecture-Complete UX        | Progressive administration/subscriptions, IFL and operations in TWF-8/9/10                                                          | Individual features advance when justified; the whole bucket never blocks core integrations  |
 
 Configuration checkpoint before TWF-1.5: reviewed v0.6 separates realms, scopes,
 capability/entitlement gates, desired/effective/applied state, profiles and operations.
@@ -406,7 +406,6 @@ fallback bypasses TM. A live activation requires its own bounded prompt and
 independent acceptance. Global watchlists, advanced provider administration and
 commercial quotas remain later scope, not dependencies of BW-1.
 
-
 ## 19. Proposed Sprint-2 Scan and Discover overlay — 2026-09-28
 
 After accepted/frozen Broker V2, the next accepted architecture target is
@@ -416,30 +415,43 @@ This accepted overlay supersedes the immediate TM-before-Scanner scheduling in s
 that earlier sequence and BW gate inventory remain historical. TWF milestone IDs
 and accepted/frozen evidence are unchanged; “Sprint 2” is not a rename of TWF-2.
 
-| Existing milestone / track | Bounded contribution | Not claimed complete |
-| --- | --- | --- |
-| TWF-3 Scanner Integration | ScanProvider contracts, TradingView MCP adapter after verification, independent internal V0, normalization and discovery | All future scanner/monitoring capabilities |
-| TWF-2.3 Candidate Workspace | Discovery queue, intent/horizon/evidence/details/history | Entire TWF-2, consoles, global watchlists or UX-B1 |
-| TWF-1.5 / TWF-1.6 extension seams | Versioned S&D settings and provider-domain contracts | Reopening frozen foundations or pretending health-only clients implement domain methods |
-| TWF-4 future integration | Optional bounded LLM Level-0 delivered early in S&D | TI deep intelligence or Opportunity qualification |
-| UX-B2 | Independently useful discovery with no LLM/TV dependency | Full end-to-end trading UX closure |
-| TWF-5 / TWF-6 / TWF-7–10 | Future handoff/evaluation architecture only | TM, LOB, automatic execution, full alerts, ML or production hardening |
+| Existing milestone / track        | Bounded contribution                                                                                                     | Not claimed complete                                                                    |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| TWF-3 Scanner Integration         | ScanProvider contracts, TradingView MCP adapter after verification, independent internal V0, normalization and discovery | All future scanner/monitoring capabilities                                              |
+| TWF-2.3 Candidate Workspace       | Discovery queue, intent/horizon/evidence/details/history                                                                 | Entire TWF-2, consoles, global watchlists or UX-B1                                      |
+| TWF-1.5 / TWF-1.6 extension seams | Versioned S&D settings and provider-domain contracts                                                                     | Reopening frozen foundations or pretending health-only clients implement domain methods |
+| TWF-4 future integration          | Optional bounded LLM Level-0 delivered early in S&D                                                                      | TI deep intelligence or Opportunity qualification                                       |
+| UX-B2                             | Independently useful discovery with no LLM/TV dependency                                                                 | Full end-to-end trading UX closure                                                      |
+| TWF-5 / TWF-6 / TWF-7–10          | Future handoff/evaluation architecture only                                                                              | TM, LOB, automatic execution, full alerts, ML or production hardening                   |
 
 The architecture part of S2-0 is accepted; provider/data/policy decisions remain
-required before dependent slices. The S2-1 contracts and synthetic foundation are accepted/frozen. S2-2 Internal Scanner V0 is accepted/frozen after [focused re-review](TWF_S2_2_INTERNAL_SCANNER_V0_REREVIEW.md). S2-3 Real Scan Provider Integration (TradingView MCP first) is ACTIVE / NEXT; implementation has not started. Subsequent slices cover market context, verified
+required before dependent slices. The S2-1 contracts and synthetic foundation are accepted/frozen. S2-2 Internal Scanner V0 is accepted/frozen after [focused re-review](TWF_S2_2_INTERNAL_SCANNER_V0_REREVIEW.md). S2-3A generic MCP connection/authentication is DURABILITY REMEDIATED / INTEGRATED INTO S2-3; S2-3 Real Scan Provider Integration (TradingView MCP first) is ACCEPTED / FROZEN WITH DEFERRED HARDENING; the bounded synthetic adapter is implemented and S2-4 is NEXT. Subsequent slices cover market context, verified
 external adapter, discovery/history, optional interpretation/settings and integrated
 UX acceptance. Internal scanner usefulness needs an approved independent data source;
 fixtures alone cannot close a live-data gate. No architecture document selects an
 unverified TradingView MCP server or grants data/LLM egress rights.
 
 Current S&D architecture status is **ACCEPTED / IMPLEMENTATION AUTHORIZED**.
-Sprint 2 is **ACTIVE**. S2-1 is **ACCEPTED / FROZEN** after [focused re-review](TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_REREVIEW.md); S2-2 [Internal Scanner V0](TWF_S2_2_INTERNAL_SCANNER_V0.md) is **ACCEPTED / FROZEN** after [focused re-review](TWF_S2_2_INTERNAL_SCANNER_V0_REREVIEW.md); S2-3 is ACTIVE / NEXT; S2-4 through S2-8 remain PENDING. S2-1 acceptance does not complete Sprint 2 or create a new Git freeze. TI/TM managed
+Sprint 2 is **ACTIVE**. S2-1 is **ACCEPTED / FROZEN** after [focused re-review](TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_REREVIEW.md); S2-2 [Internal Scanner V0](TWF_S2_2_INTERNAL_SCANNER_V0.md) is **ACCEPTED / FROZEN** after [focused re-review](TWF_S2_2_INTERNAL_SCANNER_V0_REREVIEW.md); S2-3A is DURABILITY REMEDIATED / INTEGRATED INTO S2-3; S2-3 is ACCEPTED / FROZEN WITH DEFERRED HARDENING; S2-4 is NEXT; S2-5 through S2-8 remain PENDING. S2-1 acceptance does not complete Sprint 2 or create a new Git freeze. TI/TM managed
 contracts, construction/LOB and future learning remain separately gated.
 
 ### Revision history addition
 
-| Revision | Date | Status | Role / change |
-| --- | --- | --- | --- |
-| S&D reconciliation 1 | 2026-09-28 | PROPOSED / RECONCILED / READY FOR REVIEW | Normative design/planning extension: Proposed Sprint-2 Scan and Discover overlay; prior history and acceptance preserved |
-| S&D acceptance 1 | 2026-09-29 | ACCEPTED / IMPLEMENTATION AUTHORIZED | Independent S&D architecture acceptance; staged Sprint-2 scope only, no runtime delivery or prior milestone change; see [review](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) |
-| S2-1 acceptance | 2026-09-29 | ACCEPTED / FROZEN | Focused remediation re-review records GO_S2_2; Internal Scanner V0 ACTIVE / NEXT only; see [re-review](TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_REREVIEW.md) |
+| Revision             | Date       | Status                                   | Role / change                                                                                                                                                                         |
+| -------------------- | ---------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S&D reconciliation 1 | 2026-09-28 | PROPOSED / RECONCILED / READY FOR REVIEW | Normative design/planning extension: Proposed Sprint-2 Scan and Discover overlay; prior history and acceptance preserved                                                              |
+| S&D acceptance 1     | 2026-09-29 | ACCEPTED / IMPLEMENTATION AUTHORIZED     | Independent S&D architecture acceptance; staged Sprint-2 scope only, no runtime delivery or prior milestone change; see [review](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) |
+| S2-1 acceptance      | 2026-09-29 | ACCEPTED / FROZEN                        | Focused remediation re-review records GO_S2_2; Internal Scanner V0 ACTIVE / NEXT only; see [re-review](TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_REREVIEW.md)           |
+
+## S2-3 exact-universe correction — 2026-09-30
+
+Generic MCP durability remediation and the TradingView exact-universe ScanProvider are
+implemented together. The [implementation record](TWF_S2_3_TRADINGVIEW_MCP_SCAN_PROVIDER_IMPLEMENTATION.md),
+[bounded review](TWF_S2_3_ACCEPTANCE_REVIEW.md) and
+[hardening register](TWF_S2_3_DEFERRED_ISSUES_AND_HARDENING_REGISTER.md) govern current
+status: **ACCEPT_S2_3_WITH_DEFERRED_HARDENING / ACCEPTED / FROZEN**. Live OAuth,
+35-tool discovery, column/result envelopes and one bounded India screener are verified.
+Exact requested-universe batch retrieval and local evaluation are implemented and synthetically validated through ScanRun, ScanMatch and lineage. Repeated minimal live exact calls reached the tool but returned typed RATE_LIMITED; no TWF defect was reproduced and the provider supplied no limit-scope metadata. Successful-live-row proof and remote revocation cleanup are mandatory Sprint-2 hardening. This is one integrated
+S2-3 completion effort, not a renewed standalone S2-3A micro-gate. S2-0/1/2/3 and Broker
+V2 acceptance remain unchanged; Sprint 2 is ACTIVE, S2-4 NEXT, S2-5 through S2-8 PENDING.
+Historical S2-3A reviews remain unchanged. The S2-3 Git checkpoint is ready but is not created by this documentation task.

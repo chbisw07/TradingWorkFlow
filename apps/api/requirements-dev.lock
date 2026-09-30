@@ -21,6 +21,8 @@ anyio==4.15.1
     #   -c requirements.lock
     #   httpx
     #   httpx2
+    #   mcp
+    #   sse-starlette
     #   starlette
 argon2-cffi==25.1.0
     # via
@@ -30,6 +32,11 @@ argon2-cffi-bindings==26.1.0
     # via
     #   -c requirements.lock
     #   argon2-cffi
+attrs==26.1.0
+    # via
+    #   -c requirements.lock
+    #   jsonschema
+    #   referencing
 certifi==2026.7.22
     # via
     #   -c requirements.lock
@@ -47,6 +54,7 @@ click==8.5.0
 cryptography==47.0.0
     # via
     #   -c requirements.lock
+    #   pyjwt
     #   twf-api (pyproject.toml)
 fastapi==0.141.1
     # via
@@ -67,13 +75,18 @@ httpcore==1.0.9
     #   -c requirements.lock
     #   httpx
 httpcore2==2.13.1
-    # via httpx2
+    # via
+    #   -c requirements.lock
+    #   httpx2
 httpx==0.28.1
     # via
     #   -c requirements.lock
     #   twf-api (pyproject.toml)
 httpx2==2.13.1
-    # via twf-api (pyproject.toml)
+    # via
+    #   -c requirements.lock
+    #   mcp
+    #   twf-api (pyproject.toml)
 idna==3.20
     # via
     #   -c requirements.lock
@@ -82,6 +95,15 @@ idna==3.20
     #   httpx2
 iniconfig==2.3.0
     # via pytest
+jsonschema==4.26.0
+    # via
+    #   -c requirements.lock
+    #   mcp
+    #   twf-api (pyproject.toml)
+jsonschema-specifications==2025.9.1
+    # via
+    #   -c requirements.lock
+    #   jsonschema
 librt==0.15.0
     # via mypy
 mako==1.4.3
@@ -92,10 +114,22 @@ markupsafe==3.0.3
     # via
     #   -c requirements.lock
     #   mako
+mcp==2.2.0
+    # via
+    #   -c requirements.lock
+    #   twf-api (pyproject.toml)
+mcp-types==2.2.0
+    # via
+    #   -c requirements.lock
+    #   mcp
 mypy==1.20.2
     # via twf-api (pyproject.toml)
 mypy-extensions==1.1.0
     # via mypy
+opentelemetry-api==1.45.0
+    # via
+    #   -c requirements.lock
+    #   mcp
 packaging==26.3
     # via pytest
 pathspec==1.1.1
@@ -118,6 +152,8 @@ pydantic==2.13.5
     # via
     #   -c requirements.lock
     #   fastapi
+    #   mcp
+    #   mcp-types
     #   pydantic-settings
 pydantic-core==2.46.5
     # via
@@ -129,12 +165,31 @@ pydantic-settings==2.15.0
     #   twf-api (pyproject.toml)
 pygments==2.21.0
     # via pytest
+pyjwt[crypto]==2.15.1
+    # via
+    #   -c requirements.lock
+    #   mcp
 pytest==9.1.1
     # via twf-api (pyproject.toml)
 python-dotenv==1.2.3
     # via
     #   -c requirements.lock
     #   pydantic-settings
+python-multipart==0.0.32
+    # via
+    #   -c requirements.lock
+    #   mcp
+referencing==0.37.0
+    # via
+    #   -c requirements.lock
+    #   jsonschema
+    #   jsonschema-specifications
+    #   types-jsonschema
+rpds-py==2026.6.3
+    # via
+    #   -c requirements.lock
+    #   jsonschema
+    #   referencing
 ruff==0.16.8
     # via twf-api (pyproject.toml)
 sqlalchemy==2.0.54
@@ -142,14 +197,23 @@ sqlalchemy==2.0.54
     #   -c requirements.lock
     #   alembic
     #   twf-api (pyproject.toml)
+sse-starlette==3.5.0
+    # via
+    #   -c requirements.lock
+    #   mcp
 starlette==1.7.0
     # via
     #   -c requirements.lock
     #   fastapi
+    #   mcp
+    #   sse-starlette
 truststore==0.10.4
     # via
+    #   -c requirements.lock
     #   httpcore2
     #   httpx2
+types-jsonschema==4.26.0.20260518
+    # via twf-api (pyproject.toml)
 typing-extensions==4.16.0
     # via
     #   -c requirements.lock
@@ -157,10 +221,14 @@ typing-extensions==4.16.0
     #   anyio
     #   fastapi
     #   httpx2
+    #   mcp
+    #   mcp-types
     #   mypy
+    #   opentelemetry-api
     #   psycopg
     #   pydantic
     #   pydantic-core
+    #   referencing
     #   sqlalchemy
     #   starlette
     #   typing-inspection
@@ -168,9 +236,11 @@ typing-inspection==0.4.4
     # via
     #   -c requirements.lock
     #   fastapi
+    #   mcp
     #   pydantic
     #   pydantic-settings
 uvicorn==0.53.0
     # via
     #   -c requirements.lock
+    #   mcp
     #   twf-api (pyproject.toml)

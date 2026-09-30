@@ -19,7 +19,7 @@ Broker V2 manual trading foundation ACCEPTED / FROZEN (twf-broker-v2)
 BW-1–BW-6 retained as historical gate inventory; V1/V2 acceptance recorded separately
 S&D / Opportunity-domain / Sprint-2 architecture ACCEPTED / IMPLEMENTATION AUTHORIZED
 Sprint 2 ACTIVE; S2-1 ACCEPTED / FROZEN (twf-s2-1-discovery-foundation)
-S2-2 Internal Scanner V0 ACCEPTED / FROZEN; S2-3 ACTIVE / NEXT; S2-4 through S2-8 PENDING
+S2-2 Internal Scanner V0 ACCEPTED / FROZEN; S2-3A DURABILITY REMEDIATED / INTEGRATED INTO S2-3; S2-3 ACCEPTED / FROZEN WITH DEFERRED HARDENING; S2-4 NEXT; S2-5 through S2-8 PENDING
 ```
 
 ---
@@ -327,26 +327,29 @@ When new documents are added:
 5. avoid duplicate competing normative documents;
 6. keep the broker DOCX synchronized with its normative Markdown when that architecture changes.
 
-
 ## 11. Scan & Discover acceptance — 2026-09-29
 
-| Document | Authority / status |
-| --- | --- |
-| [Scan & Discover Architecture](TWF_SCAN_AND_DISCOVER_ARCHITECTURE.md) | Accepted normative subsystem design: providers, evidence, temporal/lifecycle/relevance policies, optional LLM, UX and diagrams |
-| [Opportunity Domain Architecture](TWF_OPPORTUNITY_DOMAIN_ARCHITECTURE.md) | Accepted normative shared identities, stage distinctions and ownership; future objects are not implemented |
-| [Sprint-2 Delivery Plan](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md) | Accepted normative bounded delivery/gates; ends at DiscoveryCandidate |
-| [Architecture Reconciliation Record](TWF_SCAN_DISCOVER_ARCHITECTURE_RECONCILIATION.md) | Reference audit: baseline, affected/unchanged documents, contradictions, companion staleness and review matrix |
-| [Independent Architecture Acceptance Review](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) | Acceptance authority: scorecard, findings, bounded implementation authorization and next gate |
-| [S2-1 Domain Contracts & Synthetic Provider Foundation](TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION.md) | Implementation record: contracts, deterministic synthetic proofs, validation and deferred scope; ACCEPTED / FROZEN, not acceptance authority |
-| [S2-1 Independent Acceptance Review](TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_ACCEPTANCE_REVIEW.md) | Historical HOLD_S2_1 decision and S21-01/02/03 findings; preserved unchanged; superseded for current status by focused re-review |
-| [S2-1 Focused Re-review](TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_REREVIEW.md) | Independent acceptance: GO_S2_2; closes S21-01/02/03; S2-2 Internal Scanner V0 only |
-| [S2-2 Internal Scanner V0](TWF_S2_2_INTERNAL_SCANNER_V0.md) | Implementation record: offline native provider, 23 metrics, five profiles, look-ahead and interoperability proofs; ACCEPTED / FROZEN; implementation evidence, not acceptance authority |
-| [S2-2 Focused Re-review](TWF_S2_2_INTERNAL_SCANNER_V0_REREVIEW.md) | Independent acceptance: closes S22-01; GO_S2_3 for Real Scan Provider Integration (TradingView MCP first) only |
+| Document                                                                                                            | Authority / status                                                                                                                                                                      |
+| ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Scan & Discover Architecture](TWF_SCAN_AND_DISCOVER_ARCHITECTURE.md)                                               | Accepted normative subsystem design: providers, evidence, temporal/lifecycle/relevance policies, optional LLM, UX and diagrams                                                          |
+| [Opportunity Domain Architecture](TWF_OPPORTUNITY_DOMAIN_ARCHITECTURE.md)                                           | Accepted normative shared identities, stage distinctions and ownership; future objects are not implemented                                                                              |
+| [Sprint-2 Delivery Plan](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md)                                                | Accepted normative bounded delivery/gates; ends at DiscoveryCandidate                                                                                                                   |
+| [Architecture Reconciliation Record](TWF_SCAN_DISCOVER_ARCHITECTURE_RECONCILIATION.md)                              | Reference audit: baseline, affected/unchanged documents, contradictions, companion staleness and review matrix                                                                          |
+| [Independent Architecture Acceptance Review](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md)                   | Acceptance authority: scorecard, findings, bounded implementation authorization and next gate                                                                                           |
+| [S2-1 Domain Contracts & Synthetic Provider Foundation](TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION.md) | Implementation record: contracts, deterministic synthetic proofs, validation and deferred scope; ACCEPTED / FROZEN, not acceptance authority                                            |
+| [S2-1 Independent Acceptance Review](TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_ACCEPTANCE_REVIEW.md)  | Historical HOLD_S2_1 decision and S21-01/02/03 findings; preserved unchanged; superseded for current status by focused re-review                                                        |
+| [S2-1 Focused Re-review](TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_REREVIEW.md)                       | Independent acceptance: GO_S2_2; closes S21-01/02/03; S2-2 Internal Scanner V0 only                                                                                                     |
+| [S2-2 Internal Scanner V0](TWF_S2_2_INTERNAL_SCANNER_V0.md)                                                         | Implementation record: offline native provider, 23 metrics, five profiles, look-ahead and interoperability proofs; ACCEPTED / FROZEN; implementation evidence, not acceptance authority |
+| [S2-2 Focused Re-review](TWF_S2_2_INTERNAL_SCANNER_V0_REREVIEW.md)                                                  | Independent acceptance: closes S22-01; GO_S2_3 for Real Scan Provider Integration (TradingView MCP first) only                                                                          |
+| [S2-3A Generic MCP Connection & Authentication](TWF_S2_3A_GENERIC_MCP_PROVIDER_CONNECTION_AUTH_FOUNDATION.md)       | DURABILITY REMEDIATED / INTEGRATED INTO S2-3; provider-neutral auth/transport durability incorporated into S2-3; live response verification outstanding                                 |
+| [S2-3 TradingView MCP ScanProvider](TWF_S2_3_TRADINGVIEW_MCP_SCAN_PROVIDER_IMPLEMENTATION.md)                       | ACCEPTED / FROZEN WITH DEFERRED HARDENING; real OAuth/broad data/exact invocation verified; successful real exact row deferred                                                          |
+| [S2-3 Acceptance Record](TWF_S2_3_ACCEPTANCE_REVIEW.md)                                                             | Final disposition: ACCEPT_S2_3_WITH_DEFERRED_HARDENING; preserves historical HOLD and live 429 evidence                                                                                 |
+| [S2-3 Deferred/Hardening Register](TWF_S2_3_DEFERRED_ISSUES_AND_HARDENING_REGISTER.md)                              | Mandatory Sprint-2 Hardening input: successful-live-row proof, remote revocation, provider/dependency/MCP/time follow-ups                                                               |
 
 The three normative documents are version 0.2, **ACCEPTED / IMPLEMENTATION
 AUTHORIZED**; their v0.1 proposal entries remain historical. The reconciliation
 record remains a v0.1 reference audit. Sprint 2 is **ACTIVE**; S2-1 is
-**ACCEPTED / FROZEN**, with S2-2 **ACCEPTED / FROZEN** and S2-3 ACTIVE / NEXT and S2-4 through S2-8 pending. Read product/system, domain, S&D, delivery plan and the review.
+**ACCEPTED / FROZEN**, with S2-2 **ACCEPTED / FROZEN** and S2-3A DURABILITY REMEDIATED / INTEGRATED INTO S2-3; S2-3 ACCEPTED / FROZEN WITH DEFERRED HARDENING; S2-4 NEXT and S2-5 through S2-8 pending. Read product/system, domain, S&D, delivery plan and the review.
 Domain identity/ownership,
 subsystem behavior and delivery scope each have one designated owner document;
 the audit record is not a fourth competing architecture. Existing TI/TM/Broker
@@ -356,16 +359,16 @@ a newer date silently overrides a security or execution rule.
 
 ### DOCX companions awaiting later regeneration
 
-| Unchanged reference artifact | Staleness / required later synchronization |
-| --- | --- |
-| `TWF_MASTER_PRODUCT_ARCHITECTURE.docx` | TWF-0 product diagram/generic Candidate predates configuration, broker and accepted S&D/domain progression |
-| `TWF_COMPONENT_ARCHITECTURE.docx` | TWF-0 components predate accepted separate scan/discovery/context/LLM boundaries and current manual broker path |
-| `TWF_DATA_ARCHITECTURE.docx` | Accepted intents/episodes/immutable snapshots, stage identities, lineage and retention rules |
-| `TWF_SERVICE_CONTRACT_ARCHITECTURE.docx` | Accepted provider families and provider-scan vs TWF-discovery ownership |
-| `TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLEMENT_PLUGGABILITY_ARCHITECTURE.docx` | Already a v0.5 reference; accepted v0.6 and accepted v0.7 settings extension are not reflected |
-| `TWF_UX_ARCHITECTURE.docx` | Accepted independent S&D modes, discovery history/relevance/grounding semantics |
-| `TWF_SECURITY_AUTH_ARCHITECTURE.docx` | Accepted read-only MCP/LLM egress, citation isolation and untrusted-input rules |
-| `TWF_DEPLOYMENT_ARCHITECTURE.docx` | Accepted bounded S&D runs, provider independence and restart/fencing behavior |
+| Unchanged reference artifact                                                    | Staleness / required later synchronization                                                                      |
+| ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `TWF_MASTER_PRODUCT_ARCHITECTURE.docx`                                          | TWF-0 product diagram/generic Candidate predates configuration, broker and accepted S&D/domain progression      |
+| `TWF_COMPONENT_ARCHITECTURE.docx`                                               | TWF-0 components predate accepted separate scan/discovery/context/LLM boundaries and current manual broker path |
+| `TWF_DATA_ARCHITECTURE.docx`                                                    | Accepted intents/episodes/immutable snapshots, stage identities, lineage and retention rules                    |
+| `TWF_SERVICE_CONTRACT_ARCHITECTURE.docx`                                        | Accepted provider families and provider-scan vs TWF-discovery ownership                                         |
+| `TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLEMENT_PLUGGABILITY_ARCHITECTURE.docx` | Already a v0.5 reference; accepted v0.6 and accepted v0.7 settings extension are not reflected                  |
+| `TWF_UX_ARCHITECTURE.docx`                                                      | Accepted independent S&D modes, discovery history/relevance/grounding semantics                                 |
+| `TWF_SECURITY_AUTH_ARCHITECTURE.docx`                                           | Accepted read-only MCP/LLM egress, citation isolation and untrusted-input rules                                 |
+| `TWF_DEPLOYMENT_ARCHITECTURE.docx`                                              | Accepted bounded S&D runs, provider independence and restart/fencing behavior                                   |
 
 No DOCX was created or edited by this review. The 2026-09-28 reconciliation was
 Markdown-only; the following additional files were already present and untracked
@@ -385,7 +388,20 @@ they are not relabelled as newly accepted S&D artifacts.
 
 ### Revision history addition
 
-| Revision | Date | Status | Role / change |
-| --- | --- | --- | --- |
-| S&D reconciliation 1 | 2026-09-28 | PROPOSED / RECONCILED / READY FOR REVIEW | Documentation-map revision; new scoped authorities, preserved milestone hierarchy and explicit stale companions |
-| S&D acceptance 1 | 2026-09-29 | ACCEPTED / IMPLEMENTATION AUTHORIZED | Independent review, current status reconciliation and truthful untracked-DOCX inventory; see [review](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) |
+| Revision             | Date       | Status                                   | Role / change                                                                                                                                              |
+| -------------------- | ---------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S&D reconciliation 1 | 2026-09-28 | PROPOSED / RECONCILED / READY FOR REVIEW | Documentation-map revision; new scoped authorities, preserved milestone hierarchy and explicit stale companions                                            |
+| S&D acceptance 1     | 2026-09-29 | ACCEPTED / IMPLEMENTATION AUTHORIZED     | Independent review, current status reconciliation and truthful untracked-DOCX inventory; see [review](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) |
+
+## S2-3 exact-universe correction — 2026-09-30
+
+Generic MCP durability remediation and the TradingView exact-universe ScanProvider are
+implemented together. The [implementation record](TWF_S2_3_TRADINGVIEW_MCP_SCAN_PROVIDER_IMPLEMENTATION.md),
+[bounded review](TWF_S2_3_ACCEPTANCE_REVIEW.md) and
+[hardening register](TWF_S2_3_DEFERRED_ISSUES_AND_HARDENING_REGISTER.md) govern current
+status: **ACCEPT_S2_3_WITH_DEFERRED_HARDENING / ACCEPTED / FROZEN**. Live OAuth,
+35-tool discovery, column/result envelopes and one bounded India screener are verified.
+Exact requested-universe batch retrieval and local evaluation are implemented and synthetically validated through ScanRun, ScanMatch and lineage. Repeated minimal live exact calls reached the tool but returned typed RATE_LIMITED; no TWF defect was reproduced and limit scope remains unknown. Successful-live-row proof and remote revocation cleanup are mandatory Sprint-2 hardening. This is one integrated
+S2-3 completion effort, not a renewed standalone S2-3A micro-gate. S2-0/1/2/3 and Broker
+V2 acceptance remain unchanged; Sprint 2 is ACTIVE, S2-4 NEXT, S2-5 through S2-8 PENDING.
+Historical S2-3A reviews remain unchanged. The S2-3 Git checkpoint is ready but is not created by this documentation task.

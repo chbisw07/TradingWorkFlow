@@ -33,6 +33,8 @@ class JsonFormatter(logging.Formatter):
             "exception_type",
             "user_id",
             "service_id",
+            "connection_id",
+            "generation",
             "operation",
             "outcome",
             "operation_request_id",

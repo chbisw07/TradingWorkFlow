@@ -1,0 +1,20 @@
+{
+  "success": true,
+  "count": 2,
+  "groups": [
+    {
+      "group": "price",
+      "count": 1,
+      "columns": [
+        "close"
+      ]
+    },
+    {
+      "group": "volume_liquidity",
+      "count": 1,
+      "columns": [
+        "volume"
+      ]
+    }
+  ]
+}

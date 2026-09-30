@@ -71,6 +71,10 @@ def test_database_boundary() -> None:
             "broker_attempts",
             "broker_order_intents",
             "broker_secrets",
+            "mcp_connections",
+            "mcp_oauth_attempts",
+            "mcp_operations",
+            "mcp_secrets",
         }
         assert not inspect(engine).get_table_names()
     finally:

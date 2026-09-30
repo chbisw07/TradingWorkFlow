@@ -1,6 +1,6 @@
 # S2-2 — Internal Scanner V0
 
-> **Current status — 2026-09-29: ACCEPTED / FROZEN.** The [focused independent re-review](TWF_S2_2_INTERNAL_SCANNER_V0_REREVIEW.md) closes S22-01 and records `GO_S2_3`. S2-3 Real Scan Provider Integration (TradingView MCP first) is ACTIVE / NEXT, subject to its provider/data/security gates; S2-4 through S2-8 remain PENDING. Sprint 2 remains ACTIVE. No new Git commit or freeze tag was created. The implementation/remediation account below retains its earlier status, validation and gate history; the historical HOLD review is preserved unchanged.
+> **Current status — 2026-09-30: ACCEPTED / FROZEN.** The [focused independent re-review](TWF_S2_2_INTERNAL_SCANNER_V0_REREVIEW.md) closes S22-01 and records `GO_S2_3`. S2-3 Real Scan Provider Integration (TradingView MCP first) is now ACCEPTED / FROZEN WITH DEFERRED HARDENING; S2-4 is NEXT and S2-5 through S2-8 remain PENDING. Sprint 2 remains ACTIVE. The implementation/remediation account below retains its earlier status, validation and gate history; the historical HOLD review is preserved unchanged.
 
 **2026-09-29 — IMPLEMENTED / REMEDIATED / READY FOR RE-REVIEW.** Sprint 2 remains ACTIVE.
 S2-1 remains ACCEPTED / FROZEN. S2-3 through S2-8 remain PENDING; this record

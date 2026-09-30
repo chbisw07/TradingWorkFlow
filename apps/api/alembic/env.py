@@ -6,6 +6,7 @@ from twf.config.settings import Settings
 from twf.infrastructure import (  # noqa: F401 -- register metadata
     broker,
     identity,
+    mcp,
     order_intent,
     preferences,
 )

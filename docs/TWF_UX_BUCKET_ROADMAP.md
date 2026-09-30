@@ -1,6 +1,6 @@
 # TWF UX Bucket Roadmap
 
-> **2026-09-29 S&D architecture acceptance:** The dated S&D extension below is **ACCEPTED / IMPLEMENTATION AUTHORIZED** within the [Sprint-2 delivery plan](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md). The [independent acceptance record](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) supersedes its 2026-09-28 proposal status. Sprint 2 is **ACTIVE**. S2-1 is **ACCEPTED / FROZEN** after [focused re-review](TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_REREVIEW.md); S2-2 [Internal Scanner V0](TWF_S2_2_INTERNAL_SCANNER_V0.md) is **ACCEPTED / FROZEN** after [focused re-review](TWF_S2_2_INTERNAL_SCANNER_V0_REREVIEW.md); S2-3 is ACTIVE / NEXT; S2-4 through S2-8 remain PENDING. Earlier acceptance history and separate TI/TM/provider/security gates remain unchanged; proposal wording in the dated extension records its origin, not the current review status.
+> **2026-09-29 S&D architecture acceptance:** The dated S&D extension below is **ACCEPTED / IMPLEMENTATION AUTHORIZED** within the [Sprint-2 delivery plan](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md). The [independent acceptance record](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) supersedes its 2026-09-28 proposal status. Sprint 2 is **ACTIVE**. S2-1 is **ACCEPTED / FROZEN** after [focused re-review](TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_REREVIEW.md); S2-2 [Internal Scanner V0](TWF_S2_2_INTERNAL_SCANNER_V0.md) is **ACCEPTED / FROZEN** after [focused re-review](TWF_S2_2_INTERNAL_SCANNER_V0_REREVIEW.md); S2-3A is DURABILITY REMEDIATED / INTEGRATED INTO S2-3; S2-3 is ACCEPTED / FROZEN WITH DEFERRED HARDENING; S2-4 is NEXT; S2-5 through S2-8 remain PENDING. Earlier acceptance history and separate TI/TM/provider/security gates remain unchanged; proposal wording in the dated extension records its origin, not the current review status.
 
 ## Status and purpose
 
@@ -306,7 +306,6 @@ dependency, framework, deployment service or new freeze requirement. The histori
 TWF-1.5 planning gate; the historical [Broker Workspace review](TWF_BROKER_WORKSPACE_ARCHITECTURE_REVIEW.md)
 records the then-next BW-1 recommendation. Current V1/V2 acceptance is recorded above.
 
-
 ## Proposed S&D contribution — v0.4 — 2026-09-28
 
 Version 0.4 accepts a bounded discovery design contribution after accepted Broker V2;
@@ -330,15 +329,28 @@ Use the existing themes/state primitives and all six representative viewport wid
 Test empty/partial/offline/denied/stale/failed states and keyboard workflows, not
 only visual happy paths. Architecture is ACCEPTED / IMPLEMENTATION AUTHORIZED;
 Sprint 2 is ACTIVE. S2-1 is ACCEPTED / FROZEN; S2-2 Internal Scanner V0 is
-ACCEPTED / FROZEN, and S2-3 is ACTIVE / NEXT; S2-4 through S2-8 remain PENDING. No discovery product UX
+ACCEPTED / FROZEN, and S2-3A is DURABILITY REMEDIATED / INTEGRATED INTO S2-3; S2-3 is ACCEPTED / FROZEN WITH DEFERRED HARDENING; S2-4 is NEXT; S2-5 through S2-8 remain PENDING. No discovery product UX
 or bucket completion is claimed. The acceptance review records the non-blocking
 relevance-colour specification for S2-6. Full TI/TM, LOB, ML and mature
 administration remain future UX-B2/B3 work.
 
 ### Revision history addition
 
-| Revision | Date | Status | Role / change |
-| --- | --- | --- | --- |
-| 0.4 proposal | 2026-09-28 | PROPOSED / RECONCILED / READY FOR REVIEW | Normative design/planning extension: Proposed S&D contribution — v0.4; prior history and acceptance preserved |
-| 0.4 acceptance | 2026-09-29 | ACCEPTED / IMPLEMENTATION AUTHORIZED | Independent S&D architecture acceptance; staged Sprint-2 scope only, no runtime delivery or prior milestone change; see [review](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) |
-| S2-1 acceptance | 2026-09-29 | ACCEPTED / FROZEN | Focused remediation re-review records GO_S2_2; Internal Scanner V0 ACTIVE / NEXT only; see [re-review](TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_REREVIEW.md) |
+| Revision        | Date       | Status                                   | Role / change                                                                                                                                                                         |
+| --------------- | ---------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0.4 proposal    | 2026-09-28 | PROPOSED / RECONCILED / READY FOR REVIEW | Normative design/planning extension: Proposed S&D contribution — v0.4; prior history and acceptance preserved                                                                         |
+| 0.4 acceptance  | 2026-09-29 | ACCEPTED / IMPLEMENTATION AUTHORIZED     | Independent S&D architecture acceptance; staged Sprint-2 scope only, no runtime delivery or prior milestone change; see [review](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) |
+| S2-1 acceptance | 2026-09-29 | ACCEPTED / FROZEN                        | Focused remediation re-review records GO_S2_2; Internal Scanner V0 ACTIVE / NEXT only; see [re-review](TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_REREVIEW.md)           |
+
+## S2-3 exact-universe correction — 2026-09-30
+
+Generic MCP durability remediation and the TradingView exact-universe ScanProvider are
+implemented together. The [implementation record](TWF_S2_3_TRADINGVIEW_MCP_SCAN_PROVIDER_IMPLEMENTATION.md),
+[bounded review](TWF_S2_3_ACCEPTANCE_REVIEW.md) and
+[hardening register](TWF_S2_3_DEFERRED_ISSUES_AND_HARDENING_REGISTER.md) govern current
+status: **ACCEPT_S2_3_WITH_DEFERRED_HARDENING / ACCEPTED / FROZEN**. Live OAuth,
+35-tool discovery, column/result envelopes and one bounded India screener are verified.
+Exact requested-universe batch retrieval and local evaluation are implemented and synthetically validated through ScanRun, ScanMatch and lineage. Repeated minimal live exact calls reached the tool but returned typed RATE_LIMITED; no TWF defect was reproduced and the provider supplied no limit-scope metadata. Successful-live-row proof and remote revocation cleanup are mandatory Sprint-2 hardening. This is one integrated
+S2-3 completion effort, not a renewed standalone S2-3A micro-gate. S2-0/1/2/3 and Broker
+V2 acceptance remain unchanged; Sprint 2 is ACTIVE, S2-4 NEXT, S2-5 through S2-8 PENDING.
+Historical S2-3A reviews remain unchanged. The S2-3 Git checkpoint is ready but is not created by this documentation task.
