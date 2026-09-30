@@ -51,18 +51,30 @@ export function PrimaryNavigation() {
         <ul>
           {navigationItems.map(({ label, icon }, index) => (
             <li key={label}>
-              {index === 0 || label === "Settings" || label === "Brokers" ? (
+              {index === 0 ||
+              label === "Settings" ||
+              label === "Brokers" ||
+              label === "Scanners" ||
+              label === "Candidates" ? (
                 <Link
                   href={
                     label === "Brokers"
                       ? "/brokers"
-                      : label === "Settings"
-                        ? "/settings"
-                        : "/"
+                      : label === "Scanners"
+                        ? "/scanners"
+                        : label === "Candidates"
+                          ? "/candidates"
+                          : label === "Settings"
+                            ? "/settings"
+                            : "/"
                   }
                   className="nav-item"
                   aria-current={
                     (label === "Brokers" && pathname.startsWith("/brokers")) ||
+                    (label === "Scanners" &&
+                      pathname.startsWith("/scanners")) ||
+                    (label === "Candidates" &&
+                      pathname.startsWith("/candidates")) ||
                     pathname ===
                       (label === "Brokers"
                         ? "/brokers"
@@ -97,11 +109,17 @@ export function PrimaryNavigation() {
         <p className="nav-note">
           {pathname.startsWith("/brokers")
             ? "Broker workspace"
-            : "Foundation preview"}
+            : pathname.startsWith("/scanners") ||
+                pathname.startsWith("/candidates")
+              ? "Scan & Discover"
+              : "Foundation preview"}
           <br />
           {pathname.startsWith("/brokers")
             ? "Permissions are shown per account."
-            : "Trading is not enabled."}
+            : pathname.startsWith("/scanners") ||
+                pathname.startsWith("/candidates")
+              ? "Discovery has no trading authority."
+              : "Trading is not enabled."}
         </p>
       </div>
     </nav>

@@ -235,6 +235,14 @@ def test_migration_history_and_metadata() -> None:
         "mcp_oauth_attempts",
         "mcp_operations",
         "mcp_secrets",
+        "discovery_settings",
+        "discovery_scan_runs",
+        "discovery_scan_matches",
+        "discovery_market_context",
+        "discovery_episodes",
+        "discovery_snapshots",
+        "discovery_transitions",
+        "discovery_llm_explanations",
     }
     assert set(Base.metadata.naming_convention) == {"pk", "fk", "ix", "uq", "ck"}
     command.upgrade(config, "head")
@@ -245,7 +253,7 @@ def test_migration_history_and_metadata() -> None:
         with db.connect() as connection:
             assert (
                 MigrationContext.configure(connection).get_current_revision()
-                == "0011_mcp_durable_reconciliation"
+                == "0012_sprint2_scan_discover"
             )
             assert inspect(connection).get_table_names() == [
                 "alembic_version",
@@ -254,6 +262,14 @@ def test_migration_history_and_metadata() -> None:
                 "broker_attempts",
                 "broker_order_intents",
                 "broker_secrets",
+                "discovery_episodes",
+                "discovery_llm_explanations",
+                "discovery_market_context",
+                "discovery_scan_matches",
+                "discovery_scan_runs",
+                "discovery_settings",
+                "discovery_snapshots",
+                "discovery_transitions",
                 "mcp_connections",
                 "mcp_oauth_attempts",
                 "mcp_operations",
@@ -270,7 +286,7 @@ def test_migration_history_and_metadata() -> None:
         with db.connect() as connection:
             assert (
                 MigrationContext.configure(connection).get_current_revision()
-                == "0011_mcp_durable_reconciliation"
+                == "0012_sprint2_scan_discover"
             )
     finally:
         db.dispose()

@@ -3,7 +3,7 @@ import { UserMenu } from "../auth/user-session";
 import { StateBadge } from "../ui/surface-state";
 import { ThemeToggle } from "./theme-toggle";
 
-export function TopBar({ broker = false }: { broker?: boolean }) {
+export function TopBar({ focused = false }: { focused?: boolean }) {
   return (
     <header className="top-bar">
       <div className="top-bar-primary">
@@ -18,11 +18,11 @@ export function TopBar({ broker = false }: { broker?: boolean }) {
         </span>
         <div className="top-bar-user">
           <ThemeToggle />
-          {!broker && <StateBadge state="COMING_SOON" label="Development" />}
+          {!focused && <StateBadge state="COMING_SOON" label="Development" />}
           <UserMenu />
         </div>
       </div>
-      {!broker && (
+      {!focused && (
         <dl className="session-strip" aria-label="Session context">
           <div>
             <dt>Broker</dt>

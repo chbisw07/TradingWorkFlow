@@ -142,6 +142,14 @@ def test_lifecycle_and_contracts(settings: Settings) -> None:
             "/api/v1/settings/profiles",
             "/api/v1/settings/profiles/{profile_id}",
             "/api/v1/settings/profiles/{profile_id}/apply",
+            "/api/v1/discovery/status",
+            "/api/v1/discovery/settings",
+            "/api/v1/discovery/scans",
+            "/api/v1/discovery/candidates",
+            "/api/v1/discovery/candidates/{candidate_id}",
+            "/api/v1/discovery/candidates/{candidate_id}/lifecycle",
+            "/api/v1/discovery/candidates/{candidate_id}/explain",
+            "/api/v1/discovery/market-context",
         }
         assert schema["info"]["version"] == "1.2.3"
         for route in schema["paths"].values():
@@ -315,4 +323,25 @@ def test_structured_lifecycle_request_and_error_logs(settings: Settings) -> None
     assert records[2]["route"] == "/test/failure/{value}"
     assert records[2]["status_code"] == 500 and records[2]["duration_ms"] >= 0
     assert records[0]["request_id"] is None and records[3]["request_id"] is None
+
+    discovery_output = io.StringIO()
+    discovery_handler = logging.StreamHandler(discovery_output)
+    discovery_handler.setFormatter(JsonFormatter(settings))
+    discovery_logger = logging.Logger("discovery-test")
+    discovery_logger.addHandler(discovery_handler)
+    discovery_logger.info(
+        "discovery_scan_completed",
+        extra={
+            "provider": "internal",
+            "match_count": 2,
+            "candidate_count": 2,
+            "context_availability": "PARTIAL",
+            "untrusted_secret": "must-not-serialize",
+        },
+    )
+    discovery_record = json.loads(discovery_output.getvalue())
+    assert discovery_record["provider"] == "internal"
+    assert discovery_record["match_count"] == discovery_record["candidate_count"] == 2
+    assert discovery_record["context_availability"] == "PARTIAL"
+    assert "untrusted_secret" not in discovery_record
     assert create_app(Settings(log_level="ERROR")).state.logger.level == logging.ERROR

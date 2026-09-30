@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, type FormEvent } from "react";
 import { SurfaceState } from "../ui/surface-state";
+import { DiscoverySettingsSection } from "../discovery/discovery-settings";
 
 type Values = {
   density?: "comfortable" | "compact";
@@ -346,6 +347,7 @@ export function SettingsCenter() {
               here.
             </p>
           </section>
+          <DiscoverySettingsSection />
         </>
       )}
     </div>

@@ -18,8 +18,8 @@ Broker V1 real broker read-only foundation ACCEPTED / FROZEN (twf-broker-v1)
 Broker V2 manual trading foundation ACCEPTED / FROZEN (twf-broker-v2)
 BW-1–BW-6 retained as historical gate inventory; V1/V2 acceptance recorded separately
 S&D / Opportunity-domain / Sprint-2 architecture ACCEPTED / IMPLEMENTATION AUTHORIZED
-Sprint 2 ACTIVE; S2-1 ACCEPTED / FROZEN (twf-s2-1-discovery-foundation)
-S2-2 Internal Scanner V0 ACCEPTED / FROZEN; S2-3A DURABILITY REMEDIATED / INTEGRATED INTO S2-3; S2-3 ACCEPTED / FROZEN WITH DEFERRED HARDENING; S2-4 NEXT; S2-5 through S2-8 PENDING
+Sprint 2 IMPLEMENTED / READY FOR USER VALIDATION; final acceptance/freeze pending
+S2-1 and S2-2 ACCEPTED / FROZEN; S2-3A integrated; S2-3 ACCEPTED / FROZEN WITH DEFERRED HARDENING; S2-4 through S2-7 IMPLEMENTED; S2-8 IMPLEMENTED / INTERNAL VALIDATION COMPLETE
 ```
 
 ---
@@ -345,11 +345,13 @@ When new documents are added:
 | [S2-3 TradingView MCP ScanProvider](TWF_S2_3_TRADINGVIEW_MCP_SCAN_PROVIDER_IMPLEMENTATION.md)                       | ACCEPTED / FROZEN WITH DEFERRED HARDENING; real OAuth/broad data/exact invocation verified; successful real exact row deferred                                                          |
 | [S2-3 Acceptance Record](TWF_S2_3_ACCEPTANCE_REVIEW.md)                                                             | Final disposition: ACCEPT_S2_3_WITH_DEFERRED_HARDENING; preserves historical HOLD and live 429 evidence                                                                                 |
 | [S2-3 Deferred/Hardening Register](TWF_S2_3_DEFERRED_ISSUES_AND_HARDENING_REGISTER.md)                              | Mandatory Sprint-2 Hardening input: successful-live-row proof, remote revocation, provider/dependency/MCP/time follow-ups                                                               |
+| [Integrated Sprint-2 Implementation](TWF_SPRINT2_SCAN_DISCOVER_IMPLEMENTATION.md)                                   | S2-4 through S2-8 implementation record: market context, discovery, optional Level-0 LLM, persistence, APIs, UX, and internal validation                                                |
+| [Sprint-2 Hardening Register](TWF_SPRINT2_HARDENING_REGISTER.md)                                                    | Consolidated carried S2-3 obligations and nonblocking S2-4 through S2-8 implementation hardening                                                                                        |
+| [Sprint-2 User Validation Plan](TWF_SPRINT2_USER_VALIDATION_PLAN.md)                                                | Product-owner workflows required before adversarial review, consolidated hardening, and final acceptance                                                                                |
 
 The three normative documents are version 0.2, **ACCEPTED / IMPLEMENTATION
 AUTHORIZED**; their v0.1 proposal entries remain historical. The reconciliation
-record remains a v0.1 reference audit. Sprint 2 is **ACTIVE**; S2-1 is
-**ACCEPTED / FROZEN**, with S2-2 **ACCEPTED / FROZEN** and S2-3A DURABILITY REMEDIATED / INTEGRATED INTO S2-3; S2-3 ACCEPTED / FROZEN WITH DEFERRED HARDENING; S2-4 NEXT and S2-5 through S2-8 pending. Read product/system, domain, S&D, delivery plan and the review.
+record remains a v0.1 reference audit. Sprint 2 is **IMPLEMENTED / READY FOR USER VALIDATION**; S2-1 and S2-2 remain **ACCEPTED / FROZEN**, S2-3A is integrated, S2-3 remains **ACCEPTED / FROZEN WITH DEFERRED HARDENING**, S2-4 through S2-7 are **IMPLEMENTED**, and S2-8 is **IMPLEMENTED / INTERNAL VALIDATION COMPLETE**. Final acceptance and freeze remain pending. Read the implementation record, hardening register, and user validation plan with the accepted architecture.
 Domain identity/ownership,
 subsystem behavior and delivery scope each have one designated owner document;
 the audit record is not a fourth competing architecture. Existing TI/TM/Broker
@@ -405,3 +407,7 @@ Exact requested-universe batch retrieval and local evaluation are implemented an
 S2-3 completion effort, not a renewed standalone S2-3A micro-gate. S2-0/1/2/3 and Broker
 V2 acceptance remain unchanged; Sprint 2 is ACTIVE, S2-4 NEXT, S2-5 through S2-8 PENDING.
 Historical S2-3A reviews remain unchanged. The S2-3 Git checkpoint is ready but is not created by this documentation task.
+
+## Integrated S2-4 through S2-8 implementation — 2026-09-30
+
+The [implementation record](TWF_SPRINT2_SCAN_DISCOVER_IMPLEMENTATION.md), [consolidated hardening register](TWF_SPRINT2_HARDENING_REGISTER.md), and [user validation plan](TWF_SPRINT2_USER_VALIDATION_PLAN.md) are the current implementation-handoff documents. They do not supersede accepted S2-0 through S2-3 records. Sprint 2 is IMPLEMENTED / READY FOR USER VALIDATION and remains unaccepted/unfrozen until user testing, adversarial review, hardening, and verification complete.

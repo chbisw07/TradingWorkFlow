@@ -48,6 +48,7 @@ with session_scope(create_session_factory(engine)) as session:
             create_user(session, f'order-{browser}-{width}', 'Order Trader', 'test-only-browser-password')
             create_user(session, f'broker-{browser}-{width}', 'Broker Trader', 'test-only-browser-password')
             create_user(session, f'settings-{browser}-{width}', 'Settings Trader', 'test-only-browser-password')
+            create_user(session, f'discovery-{browser}-{width}', 'Discovery Analyst', 'test-only-browser-password')
     session.commit()
 engine.dispose()`,
   ],

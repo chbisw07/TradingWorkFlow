@@ -1,6 +1,6 @@
 # TWF UX Bucket Roadmap
 
-> **2026-09-29 S&D architecture acceptance:** The dated S&D extension below is **ACCEPTED / IMPLEMENTATION AUTHORIZED** within the [Sprint-2 delivery plan](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md). The [independent acceptance record](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) supersedes its 2026-09-28 proposal status. Sprint 2 is **ACTIVE**. S2-1 is **ACCEPTED / FROZEN** after [focused re-review](TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_REREVIEW.md); S2-2 [Internal Scanner V0](TWF_S2_2_INTERNAL_SCANNER_V0.md) is **ACCEPTED / FROZEN** after [focused re-review](TWF_S2_2_INTERNAL_SCANNER_V0_REREVIEW.md); S2-3A is DURABILITY REMEDIATED / INTEGRATED INTO S2-3; S2-3 is ACCEPTED / FROZEN WITH DEFERRED HARDENING; S2-4 is NEXT; S2-5 through S2-8 remain PENDING. Earlier acceptance history and separate TI/TM/provider/security gates remain unchanged; proposal wording in the dated extension records its origin, not the current review status.
+> **2026-09-29 S&D architecture acceptance:** The dated S&D extension below is **ACCEPTED / IMPLEMENTATION AUTHORIZED** within the [Sprint-2 delivery plan](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md). The [independent acceptance record](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) supersedes its 2026-09-28 proposal status. Sprint 2 is **IMPLEMENTED / READY FOR USER VALIDATION**. S2-1 is **ACCEPTED / FROZEN**; S2-2 Internal Scanner V0 is **ACCEPTED / FROZEN**; S2-3A is DURABILITY REMEDIATED / INTEGRATED INTO S2-3; S2-3 is **ACCEPTED / FROZEN WITH DEFERRED HARDENING**. S2-4 through S2-7 are **IMPLEMENTED** and S2-8 is **IMPLEMENTED / INTERNAL VALIDATION COMPLETE**. Final acceptance/freeze remains pending user validation, adversarial review, consolidated hardening, and verification. Earlier acceptance history and separate TI/TM/provider/security gates remain unchanged; proposal wording in the dated extension records its origin, not the current review status.
 
 ## Status and purpose
 
@@ -354,3 +354,7 @@ Exact requested-universe batch retrieval and local evaluation are implemented an
 S2-3 completion effort, not a renewed standalone S2-3A micro-gate. S2-0/1/2/3 and Broker
 V2 acceptance remain unchanged; Sprint 2 is ACTIVE, S2-4 NEXT, S2-5 through S2-8 PENDING.
 Historical S2-3A reviews remain unchanged. The S2-3 Git checkpoint is ready but is not created by this documentation task.
+
+## Integrated S2-4 through S2-8 implementation — 2026-09-30
+
+S2-4 Market Context, S2-5 Discovery Engine, S2-6 optional grounded Level-0 LLM, and S2-7 persistent product UX/history/settings are **IMPLEMENTED**. S2-8 is **IMPLEMENTED / INTERNAL VALIDATION COMPLETE**. Sprint 2 is **IMPLEMENTED / READY FOR USER VALIDATION**; it is not accepted or frozen. The [implementation record](TWF_SPRINT2_SCAN_DISCOVER_IMPLEMENTATION.md), [hardening register](TWF_SPRINT2_HARDENING_REGISTER.md), and [user validation plan](TWF_SPRINT2_USER_VALIDATION_PLAN.md) govern this handoff. S2-0 through S2-3 acceptance history is unchanged. Opportunity, LOB, TI/TM authority, autonomous execution, and production ML remain outside this delivery.

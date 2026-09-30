@@ -75,6 +75,14 @@ def test_database_boundary() -> None:
             "mcp_oauth_attempts",
             "mcp_operations",
             "mcp_secrets",
+            "discovery_settings",
+            "discovery_scan_runs",
+            "discovery_scan_matches",
+            "discovery_market_context",
+            "discovery_episodes",
+            "discovery_snapshots",
+            "discovery_transitions",
+            "discovery_llm_explanations",
         }
         assert not inspect(engine).get_table_names()
     finally:

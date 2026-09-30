@@ -38,6 +38,10 @@ class JsonFormatter(logging.Formatter):
             "operation",
             "outcome",
             "operation_request_id",
+            "provider",
+            "match_count",
+            "candidate_count",
+            "context_availability",
         ):
             if hasattr(record, key):
                 payload[key] = getattr(record, key)

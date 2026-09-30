@@ -5,6 +5,7 @@ from alembic import context
 from twf.config.settings import Settings
 from twf.infrastructure import (  # noqa: F401 -- register metadata
     broker,
+    discovery,
     identity,
     mcp,
     order_intent,

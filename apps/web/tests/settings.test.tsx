@@ -1,5 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
+vi.mock("../src/components/discovery/discovery-settings", () => ({
+  DiscoverySettingsSection: () => (
+    <section aria-label="Scan and Discover settings" />
+  ),
+}));
 import { SettingsCenter } from "../src/components/settings/settings-center";
 const initial = {
   revision: 0,

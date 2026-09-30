@@ -14,6 +14,8 @@ from twf.api.auth import router as auth_router
 from twf.api.broker_orders import router as broker_orders_router
 from twf.api.brokers import broker_error
 from twf.api.brokers import router as brokers_router
+from twf.api.discovery import product_error
+from twf.api.discovery import router as discovery_router
 from twf.api.errors import http_error, unexpected_error, validation_error
 from twf.api.mcp import mcp_error
 from twf.api.mcp import router as mcp_router
@@ -27,6 +29,7 @@ from twf.brokers.contracts import BrokerAdapter, BrokerFailure
 from twf.brokers.service import BrokerService
 from twf.brokers.zerodha import ZerodhaAdapter
 from twf.config.settings import Settings
+from twf.discovery.product_service import ProductFailure
 from twf.discovery.providers import ProviderFailure
 from twf.infrastructure.database import create_database_engine, create_session_factory
 from twf.integrations.mcp.connection import ConnectionManager
@@ -117,7 +120,9 @@ def create_app(
     app.include_router(services_router)
     app.include_router(mcp_router)
     app.include_router(tradingview_router)
+    app.include_router(discovery_router)
     app.add_exception_handler(ProviderFailure, scan_error)
+    app.add_exception_handler(ProductFailure, product_error)
     app.add_exception_handler(MCPFailure, mcp_error)
     app.add_exception_handler(SettingsFailure, settings_error)
     return app

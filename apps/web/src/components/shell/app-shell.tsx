@@ -7,13 +7,17 @@ import { ContextPanel } from "./context-panel";
 import { ConsoleRegion } from "./console-region";
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const broker = usePathname().startsWith("/brokers");
+  const pathname = usePathname();
+  const broker = pathname.startsWith("/brokers");
+  const discovery =
+    pathname.startsWith("/scanners") || pathname.startsWith("/candidates");
+  const focused = broker || discovery;
   return (
-    <div className={`app-shell${broker ? " broker-shell" : ""}`}>
+    <div className={`app-shell${focused ? " focused-shell" : ""}`}>
       <a className="skip-link" href="#workspace">
         Skip to workspace
       </a>
-      <TopBar broker={broker} />
+      <TopBar focused={focused} />
       <div className="shell-grid">
         <PrimaryNavigation />
         <div className="workspace-frame">
@@ -21,9 +25,9 @@ export function AppShell({ children }: { children: ReactNode }) {
             <main id="workspace" className="main-workspace" tabIndex={-1}>
               {children}
             </main>
-            {!broker && <ContextPanel />}
+            {!focused && <ContextPanel />}
           </div>
-          {!broker && <ConsoleRegion />}
+          {!focused && <ConsoleRegion />}
         </div>
       </div>
       <footer className="status-bar">
@@ -31,10 +35,12 @@ export function AppShell({ children }: { children: ReactNode }) {
           <span className="status-indicator" aria-hidden="true" />
           {broker
             ? "Broker workspace · Account-specific trading permissions"
-            : "Development shell · No live data"}
+            : discovery
+              ? "Scan & Discover · Evidence, context and candidate history"
+              : "Development shell · No live data"}
         </p>
         <span>
-          {broker ? "TradingWorkFlow" : "TWF-1 Application Foundation"}
+          {focused ? "TradingWorkFlow" : "TWF-1 Application Foundation"}
         </span>
       </footer>
     </div>
