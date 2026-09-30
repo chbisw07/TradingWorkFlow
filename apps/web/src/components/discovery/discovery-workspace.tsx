@@ -17,10 +17,27 @@ import {
   type ProviderChoice,
   type ProviderStatus,
   type ScanResult,
+  type ScanSummary,
 } from "../../lib/discovery";
 import { SurfaceState } from "../ui/surface-state";
 
 type View = "scan" | "candidates";
+type IntentValue =
+  "INTRADAY_LONG" | "INTRADAY_SHORT" | "POSITIONAL_LONG" | "POSITIONAL_SHORT";
+type HorizonValue = "intraday" | "1d" | "5d" | "15d";
+
+type ProfileRecommendation = {
+  intent: IntentValue;
+  horizon: HorizonValue;
+};
+
+const PROFILE_RECOMMENDATIONS: Record<string, ProfileRecommendation> = {
+  RELATIVE_VOLUME: { intent: "INTRADAY_LONG", horizon: "1d" },
+  MOMENTUM: { intent: "POSITIONAL_LONG", horizon: "5d" },
+  BREAKOUT_WITH_VOLUME: { intent: "POSITIONAL_LONG", horizon: "5d" },
+  PULLBACK_IN_UPTREND: { intent: "POSITIONAL_LONG", horizon: "5d" },
+  TREND_CONTINUATION: { intent: "POSITIONAL_LONG", horizon: "15d" },
+};
 
 function words(value: string) {
   return value
@@ -76,15 +93,68 @@ function contextValue(availability: string, value: string | number | null) {
 }
 
 function providerModeLabel(mode: ProviderStatus["mode"]) {
-  return mode === "REMOTE" ? "LIVE" : "SYNTHETIC";
+  if (mode === "REMOTE") return "LIVE";
+  if (mode === "SYNTHETIC_VALIDATION") return "VALIDATION / SYNTHETIC";
+  return "SYNTHETIC DATA";
 }
 
 function providerHealthLabel(
   health: ProviderStatus["health"],
   enabled: boolean,
 ) {
-  if (!enabled) return "UNAVAILABLE";
+  if (!enabled) return "DISABLED";
+  if (health === "AVAILABLE") return "READY";
   return health.replaceAll("_", " ");
+}
+
+function providerDescription(provider: ProviderStatus) {
+  if (provider.id === "internal")
+    return "Deterministic internal scanner · 5 scan profiles";
+  if (provider.mode === "REMOTE")
+    return "Live exact-batch provider integration";
+  return "Live-provider adapter exercised with synthetic validation responses";
+}
+
+function sourceLabel(value: string) {
+  if (value === "twf-native") return "TWF scan + market context";
+  if (value === "tradingview") return "TradingView";
+  return words(value);
+}
+
+function evidenceSummary(sources: string[]) {
+  if (sources.includes("tradingview") && sources.includes("twf-native"))
+    return "Scan + market context";
+  if (sources.includes("twf-native")) return "Scan + market context";
+  return `${sources.length} evidence source${sources.length === 1 ? "" : "s"}`;
+}
+
+function metricLabel(name: string) {
+  const labels: Record<string, string> = {
+    close: "Price",
+    "momentum.10": "Momentum",
+    "roc.10": "Momentum",
+    "relative_volume.20": "RVOL",
+    "rsi.14": "RSI",
+    "breakout.20": "20-day breakout",
+  };
+  return labels[name] || words(name);
+}
+
+function formatMetric(name: string, raw: string) {
+  const value = Number(raw);
+  if (!Number.isFinite(value)) return raw;
+  if (name === "close")
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 2,
+    }).format(value);
+  if (name.includes("relative_volume")) return `${value.toFixed(2)}×`;
+  if (name.includes("momentum") || name.startsWith("roc."))
+    return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
+  if (name.startsWith("rsi")) return value.toFixed(0);
+  if (name.startsWith("breakout")) return value === 1 ? "Yes" : "No";
+  return value.toLocaleString("en-IN", { maximumFractionDigits: 2 });
 }
 
 function contextHint(value: string) {
@@ -237,7 +307,13 @@ function CandidateTable({
                 </span>
               </td>
               <td data-label="Evidence">
-                {candidate.provider_sources.join(", ")}
+                <strong>{evidenceSummary(candidate.provider_sources)}</strong>
+                <details className="provenance-details">
+                  <summary>Sources</summary>
+                  <p>
+                    {candidate.provider_sources.map(sourceLabel).join(" · ")}
+                  </p>
+                </details>
               </td>
               <td data-label="Updated">{dateTime(candidate.updated_at)}</td>
               <td data-label="Review">
@@ -254,6 +330,142 @@ function CandidateTable({
         </tbody>
       </table>
     </div>
+  );
+}
+
+function CandidateQueue({
+  candidates,
+  selected,
+  onSelect,
+}: {
+  candidates: Candidate[];
+  selected: string | null;
+  onSelect: (id: string) => void;
+}) {
+  if (candidates.length === 0) {
+    return <p className="workspace-empty-copy">No discovery candidates yet.</p>;
+  }
+  return (
+    <div className="discovery-table-wrap" tabIndex={0}>
+      <table className="discovery-table candidate-queue-table">
+        <caption className="sr-only">Discovery queue</caption>
+        <thead>
+          <tr>
+            <th scope="col">Symbol</th>
+            <th scope="col">Setup</th>
+            <th scope="col">Relevance</th>
+            <th scope="col">Updated</th>
+            <th scope="col">State</th>
+            <th scope="col">Review</th>
+          </tr>
+        </thead>
+        <tbody>
+          {candidates.slice(0, 8).map((candidate) => (
+            <tr
+              key={candidate.candidate_id}
+              data-selected={selected === candidate.candidate_id}
+            >
+              <td data-label="Symbol">
+                <strong>{candidate.instrument.symbol}</strong>
+                <span>
+                  {candidate.instrument.exchange} ·{" "}
+                  {candidate.instrument.segment}
+                </span>
+              </td>
+              <td data-label="Setup">
+                <strong>{words(candidate.intent)}</strong>
+                <span>{candidate.horizon}</span>
+              </td>
+              <td data-label="Relevance">
+                <strong>{percent(candidate.relevance.value)}</strong>
+                <span>
+                  {candidate.relevance_explanation.band || "UNSCORED"}
+                </span>
+              </td>
+              <td data-label="Updated">{dateTime(candidate.updated_at)}</td>
+              <td data-label="State">
+                <span
+                  className={`discovery-badge is-${candidate.lifecycle.toLowerCase()}`}
+                >
+                  {candidate.lifecycle}
+                </span>
+              </td>
+              <td data-label="Review">
+                <button
+                  type="button"
+                  aria-pressed={selected === candidate.candidate_id}
+                  onClick={() => onSelect(candidate.candidate_id)}
+                >
+                  {selected === candidate.candidate_id ? "Reviewing" : "Review"}
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function RecentScans({
+  scans,
+  onReuse,
+}: {
+  scans: ScanSummary[];
+  onReuse: (scan: ScanSummary) => void;
+}) {
+  return (
+    <section className="recent-scans" aria-labelledby="recent-scans-heading">
+      <div className="section-heading-row compact-heading">
+        <div>
+          <p className="eyebrow">PERSISTED HISTORY</p>
+          <h2 id="recent-scans-heading">Recent scans</h2>
+        </div>
+      </div>
+      {scans.length === 0 ? (
+        <p className="workspace-empty-copy">
+          Completed scans will appear here.
+        </p>
+      ) : (
+        <div className="discovery-table-wrap" tabIndex={0}>
+          <table className="discovery-table recent-scans-table">
+            <caption className="sr-only">Recent discovery scans</caption>
+            <thead>
+              <tr>
+                <th scope="col">Profile</th>
+                <th scope="col">Universe</th>
+                <th scope="col">Results</th>
+                <th scope="col">Last run</th>
+                <th scope="col">Status</th>
+                <th scope="col">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {scans.map((scan) => (
+                <tr key={scan.run_id}>
+                  <td data-label="Profile">{words(scan.profile)}</td>
+                  <td data-label="Universe">{scan.universe_size} symbols</td>
+                  <td data-label="Results">{scan.match_count} matches</td>
+                  <td data-label="Last run">{dateTime(scan.completed_at)}</td>
+                  <td data-label="Status">
+                    <span
+                      className={`discovery-badge is-${scan.status.toLowerCase()}`}
+                    >
+                      {scan.status}
+                    </span>
+                  </td>
+                  <td data-label="Action">
+                    <button type="button" onClick={() => onReuse(scan)}>
+                      Use setup
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -644,17 +856,22 @@ export function DiscoveryWorkspace({
 }: {
   initialView?: View;
 }) {
-  const [view, setView] = useState<View>(initialView);
+  const view = initialView;
   const [providers, setProviders] = useState<ProviderStatus[]>([]);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [recentScans, setRecentScans] = useState<ScanSummary[]>([]);
   const [settings, setSettings] = useState<DiscoverySettings | null>(null);
   const [result, setResult] = useState<ScanResult | null>(null);
   const [detail, setDetail] = useState<CandidateDetail | null>(null);
-  const [universe, setUniverse] = useState("RELIANCE, TCS, INFY, HDFCBANK");
+  const [universe, setUniverse] = useState(
+    "RELIANCE, MCX, HDFCBANK, INFY, BSE, NIFTY, BANKNIFTY",
+  );
   const [provider, setProvider] = useState<ProviderChoice>("internal");
   const [profile, setProfile] = useState("RELATIVE_VOLUME");
-  const [horizon, setHorizon] = useState("5d");
-  const [intent, setIntent] = useState("MOMENTUM");
+  const [horizon, setHorizon] = useState<HorizonValue>("5d");
+  const [intent, setIntent] = useState<IntentValue>("INTRADAY_LONG");
+  const [intentOverridden, setIntentOverridden] = useState(false);
+  const [horizonOverridden, setHorizonOverridden] = useState(false);
   const [contextMode, setContextMode] = useState<ContextMode>("partial");
   const [pending, setPending] = useState(false);
   const [explaining, setExplaining] = useState(false);
@@ -663,23 +880,41 @@ export function DiscoveryWorkspace({
   const [notice, setNotice] = useState("");
   const inspectorRef = useRef<HTMLElement>(null);
 
+  function applyLoadedState(
+    providerState: ProviderStatus[],
+    candidatePage: { items: Candidate[] },
+    currentSettings: DiscoverySettings,
+    history: ScanSummary[],
+  ) {
+    setProviders(providerState);
+    setCandidates(candidatePage.items);
+    setSettings(currentSettings);
+    setRecentScans(history);
+    const defaultRecommendation =
+      PROFILE_RECOMMENDATIONS[currentSettings.default_profile] ||
+      PROFILE_RECOMMENDATIONS.RELATIVE_VOLUME;
+    setProvider(currentSettings.default_provider);
+    setProfile(currentSettings.default_profile);
+    setHorizon(currentSettings.default_horizon as HorizonValue);
+    setIntent(defaultRecommendation.intent);
+    setIntentOverridden(false);
+    setHorizonOverridden(
+      currentSettings.default_horizon !== defaultRecommendation.horizon,
+    );
+  }
+
   async function load() {
     setLoading(true);
     setError("");
     try {
-      const [providerState, candidatePage, currentSettings] = await Promise.all(
-        [
+      const [providerState, candidatePage, currentSettings, history] =
+        await Promise.all([
           discoveryApi<ProviderStatus[]>("status"),
           discoveryApi<{ items: Candidate[] }>("candidates?limit=50"),
           discoveryApi<DiscoverySettings>("settings"),
-        ],
-      );
-      setProviders(providerState);
-      setCandidates(candidatePage.items);
-      setSettings(currentSettings);
-      setProvider(currentSettings.default_provider);
-      setProfile(currentSettings.default_profile);
-      setHorizon(currentSettings.default_horizon);
+          discoveryApi<ScanSummary[]>("scans?limit=5"),
+        ]);
+      applyLoadedState(providerState, candidatePage, currentSettings, history);
     } catch (reason) {
       setError((reason as Error).message);
     } finally {
@@ -693,15 +928,16 @@ export function DiscoveryWorkspace({
       discoveryApi<ProviderStatus[]>("status"),
       discoveryApi<{ items: Candidate[] }>("candidates?limit=50"),
       discoveryApi<DiscoverySettings>("settings"),
+      discoveryApi<ScanSummary[]>("scans?limit=5"),
     ])
-      .then(([providerState, candidatePage, currentSettings]) => {
+      .then(([providerState, candidatePage, currentSettings, history]) => {
         if (!active) return;
-        setProviders(providerState);
-        setCandidates(candidatePage.items);
-        setSettings(currentSettings);
-        setProvider(currentSettings.default_provider);
-        setProfile(currentSettings.default_profile);
-        setHorizon(currentSettings.default_horizon);
+        applyLoadedState(
+          providerState,
+          candidatePage,
+          currentSettings,
+          history,
+        );
       })
       .catch((reason: unknown) => {
         if (active) setError((reason as Error).message);
@@ -719,11 +955,53 @@ export function DiscoveryWorkspace({
     if (typeof inspectorRef.current.scrollIntoView === "function") {
       inspectorRef.current.scrollIntoView({
         behavior: "smooth",
-        block: "start",
+        block: "nearest",
       });
     }
     inspectorRef.current.focus({ preventScroll: true });
   }, [detail]);
+
+  function changeProfile(nextProfile: string) {
+    const recommendation = PROFILE_RECOMMENDATIONS[nextProfile];
+    setProfile(nextProfile);
+    if (!recommendation) return;
+    if (!intentOverridden) setIntent(recommendation.intent);
+    if (!horizonOverridden) setHorizon(recommendation.horizon);
+  }
+
+  function applyProfileRecommendation() {
+    const recommendation = PROFILE_RECOMMENDATIONS[profile];
+    if (!recommendation) return;
+    setIntent(recommendation.intent);
+    setHorizon(recommendation.horizon);
+    setIntentOverridden(false);
+    setHorizonOverridden(false);
+  }
+
+  function reuseScan(scan: ScanSummary) {
+    const recommendation =
+      PROFILE_RECOMMENDATIONS[scan.profile] ||
+      PROFILE_RECOMMENDATIONS.RELATIVE_VOLUME;
+    const supportedIntents: IntentValue[] = [
+      "INTRADAY_LONG",
+      "INTRADAY_SHORT",
+      "POSITIONAL_LONG",
+      "POSITIONAL_SHORT",
+    ];
+    setProfile(scan.profile);
+    setProvider(scan.provider);
+    setIntent(
+      supportedIntents.includes(scan.intent as IntentValue)
+        ? (scan.intent as IntentValue)
+        : recommendation.intent,
+    );
+    setHorizon(scan.horizon as HorizonValue);
+    setIntentOverridden(true);
+    setHorizonOverridden(true);
+    setNotice(
+      "Recent scan setup loaded. Review the universe before running it.",
+    );
+  }
 
   async function runScan(event: FormEvent) {
     event.preventDefault();
@@ -750,6 +1028,12 @@ export function DiscoveryWorkspace({
         "candidates?limit=50",
       );
       setCandidates(page.items);
+      setRecentScans((items) =>
+        [
+          next.summary,
+          ...items.filter((item) => item.run_id !== next.summary.run_id),
+        ].slice(0, 5),
+      );
       setNotice(
         next.summary.match_count === 0
           ? "Scan completed with no matches. No candidates were invented."
@@ -836,48 +1120,57 @@ export function DiscoveryWorkspace({
 
   const syntheticOnly =
     providers.length > 0 && providers.every((item) => item.mode !== "REMOTE");
+  const recommendation =
+    PROFILE_RECOMMENDATIONS[profile] || PROFILE_RECOMMENDATIONS.RELATIVE_VOLUME;
+  const inspector = detail ? (
+    <CandidateInspector
+      detail={detail}
+      pending={pending}
+      explaining={explaining}
+      llmEnabled={Boolean(settings?.llm_enabled)}
+      panelRef={inspectorRef}
+      onClose={() => setDetail(null)}
+      onLifecycle={(action) => void lifecycle(action)}
+      onExplain={() => void explain()}
+    />
+  ) : (
+    <section className="inspector-placeholder" aria-label="Candidate inspector">
+      <SurfaceState
+        state="EMPTY"
+        headingLevel={2}
+        title="Select a candidate"
+        description="Review a candidate to inspect relevance, evidence, context, tolerance, and immutable history."
+      />
+    </section>
+  );
 
   return (
     <div className="discovery-workspace">
       <header className="discovery-hero">
         <div>
           <p className="eyebrow">SPRINT 2 / SCAN &amp; DISCOVER</p>
-          <h1>Evidence-led market discovery</h1>
+          <h1>
+            {view === "scan"
+              ? "Evidence-led market discovery"
+              : "Discovery candidate review"}
+          </h1>
           <p>
-            Scan a defined universe, understand why instruments matched, and
-            follow candidate evidence over time. Discovery never authorizes a
-            trade.
+            {view === "scan"
+              ? "Scan a defined universe, understand why instruments matched, and follow candidate evidence over time. Discovery never authorizes a trade."
+              : "Review persisted candidates, evidence changes, and lifecycle history. Attention scores are not trade recommendations."}
           </p>
         </div>
         <div className="discovery-mode-label">
           <span aria-hidden="true" />
-          Discovery status
+          {view === "scan" ? "Scan workspace" : "Candidate ledger"}
         </div>
       </header>
 
-      <nav className="discovery-tabs" aria-label="Scan and Discover views">
-        <button
-          type="button"
-          aria-current={view === "scan" ? "page" : undefined}
-          onClick={() => setView("scan")}
-        >
-          Scanner
-        </button>
-        <button
-          type="button"
-          aria-current={view === "candidates" ? "page" : undefined}
-          onClick={() => setView("candidates")}
-        >
-          Candidates <span>{candidates.length}</span>
-        </button>
-      </nav>
-
       {!loading && syntheticOnly && (
         <div className="data-mode-banner" role="status">
-          <strong>SYNTHETIC / VALIDATION DATA</strong>
+          <strong>SYNTHETIC VALIDATION DATA</strong>
           <span>
-            Current providers use deterministic validation data. No live
-            market-data claim is made.
+            Results are deterministic test data and are not live-market claims.
           </span>
         </div>
       )}
@@ -900,389 +1193,470 @@ export function DiscoveryWorkspace({
           state="LOADING"
           headingLevel={2}
           title="Loading discovery workspace"
-          description="Reading your provider status, settings, and candidate history."
+          description="Reading your provider status, settings, scan history, and candidate history."
         />
       )}
 
       {!loading && view === "scan" && (
         <>
-          <section
-            className="scan-control-panel"
-            aria-labelledby="scan-controls-heading"
-          >
-            <div className="section-heading-row">
-              <div>
-                <p className="eyebrow">BOUNDED SCAN</p>
-                <h2 id="scan-controls-heading">Set up a discovery scan</h2>
-                <p>
-                  Choose what to scan, the logic and intent, the time horizon,
-                  and the evidence source.
-                </p>
-              </div>
-              <span>Maximum 20 symbols</span>
-            </div>
-            <form onSubmit={runScan}>
-              <div className="scan-control-group is-universe">
-                <p>Universe</p>
-                <label className="universe-field">
-                  <span>Universe symbols</span>
-                  <input
-                    value={universe}
-                    onChange={(event) => setUniverse(event.target.value)}
-                    required
-                    maxLength={300}
-                    aria-describedby="universe-help"
-                  />
-                  <small id="universe-help">
-                    Comma or space separated NSE symbols.
-                  </small>
-                </label>
-              </div>
-              <div className="scan-control-group">
-                <p>Scan logic</p>
-                <label>
-                  <span>Profile</span>
-                  <select
-                    value={profile}
-                    onChange={(event) => setProfile(event.target.value)}
-                  >
-                    <option value="RELATIVE_VOLUME">Relative volume</option>
-                    <option value="TREND_CONTINUATION">
-                      Trend continuation
-                    </option>
-                    <option value="BREAKOUT_WITH_VOLUME">
-                      Breakout with volume
-                    </option>
-                    <option value="PULLBACK_IN_UPTREND">
-                      Pullback in uptrend
-                    </option>
-                    <option value="MOMENTUM">Momentum</option>
-                  </select>
-                </label>
-              </div>
-              <div className="scan-control-group">
-                <p>Discovery intent</p>
-                <label>
-                  <span>Intent</span>
-                  <select
-                    value={intent}
-                    onChange={(event) => setIntent(event.target.value)}
-                  >
-                    <option value="MOMENTUM">Momentum</option>
-                    <option value="BREAKOUT">Breakout</option>
-                    <option value="PULLBACK">Pullback</option>
-                    <option value="POSITIONAL_LONG">Positional long</option>
-                    <option value="POSITIONAL_SHORT">Positional short</option>
-                  </select>
-                </label>
-              </div>
-              <div className="scan-control-group">
-                <p>Horizon</p>
-                <label>
-                  <span>Time window</span>
-                  <select
-                    value={horizon}
-                    onChange={(event) => setHorizon(event.target.value)}
-                  >
-                    <option value="intraday">Intraday</option>
-                    <option value="1d">1 day</option>
-                    <option value="5d">5 days</option>
-                    <option value="15d">15 days</option>
-                  </select>
-                </label>
-              </div>
-              <div className="scan-control-group">
-                <p>Provider</p>
-                <label>
-                  <span>Evidence source</span>
-                  <select
-                    value={provider}
-                    onChange={(event) =>
-                      setProvider(event.target.value as ProviderChoice)
-                    }
-                  >
-                    <option value="internal">
-                      Internal Scanner V0 · synthetic
-                    </option>
-                    <option value="tradingview-synthetic">
-                      TradingView adapter · synthetic
-                    </option>
-                  </select>
-                </label>
-              </div>
-              <details className="advanced-controls">
-                <summary>Scan conditions</summary>
-                <label>
-                  <span>Market context requirement</span>
-                  <select
-                    value={contextMode}
-                    onChange={(event) =>
-                      setContextMode(event.target.value as ContextMode)
-                    }
-                  >
-                    <option value="partial">Partial context</option>
-                    <option value="healthy">Complete context</option>
-                    <option value="stale">Stale context</option>
-                    <option value="unavailable">Context unavailable</option>
-                  </select>
-                </label>
-              </details>
-              <button
-                className="run-scan-button"
-                disabled={pending}
-                type="submit"
+          <div className="scan-workstation-grid">
+            <div className="scan-workstation-setup">
+              <section
+                className="scan-control-panel"
+                aria-labelledby="scan-controls-heading"
               >
-                {pending ? "Running…" : "Run scan"}
-              </button>
-            </form>
-          </section>
-
-          <section aria-labelledby="providers-heading">
-            <div className="section-heading-row">
-              <div>
-                <p className="eyebrow">EVIDENCE SOURCES</p>
-                <h2 id="providers-heading">Provider status</h2>
-                <p>
-                  Operational availability and data mode for each configured
-                  source.
-                </p>
-              </div>
-            </div>
-            <div className="provider-grid">
-              {providers.map((item) => {
-                const modeLabel = providerModeLabel(item.mode);
-                const healthLabel = providerHealthLabel(
-                  item.health,
-                  item.enabled,
-                );
-                return (
-                  <article key={item.id}>
-                    <div className="provider-card-heading">
-                      <div>
-                        <span
-                          className={`provider-health is-${item.health.toLowerCase()}`}
-                          aria-hidden="true"
-                        />
-                        <strong>{item.label}</strong>
-                      </div>
-                      <div className="provider-badges">
-                        <span
-                          className={`discovery-badge is-${modeLabel.toLowerCase()}`}
-                        >
-                          {modeLabel}
-                        </span>
-                        <span
-                          className={`discovery-badge is-${item.health.toLowerCase()}`}
-                        >
-                          {healthLabel}
-                        </span>
-                      </div>
-                    </div>
-                    <p>
-                      {item.capabilities.map(words).join(" · ") ||
-                        "No capabilities reported"}
-                    </p>
-                    <small>
-                      {item.last_success_at
-                        ? `Last success ${dateTime(item.last_success_at)}`
-                        : "No successful use recorded"}
-                    </small>
-                    {item.last_error && (
-                      <p className="provider-error">
-                        Last error: {item.last_error}
-                      </p>
+                <div className="section-heading-row">
+                  <div>
+                    <p className="eyebrow">SCAN SETUP</p>
+                    <h2 id="scan-controls-heading">Configure scan</h2>
+                    <p>Maximum 20 NSE symbols.</p>
+                  </div>
+                </div>
+                <form onSubmit={runScan}>
+                  <div className="scan-control-group is-universe">
+                    <p>Universe</p>
+                    <label className="universe-field">
+                      <span>Universe symbols</span>
+                      <input
+                        value={universe}
+                        onChange={(event) => setUniverse(event.target.value)}
+                        required
+                        maxLength={300}
+                        aria-describedby="universe-help"
+                      />
+                      <small id="universe-help">
+                        Comma or space separated NSE symbols.
+                      </small>
+                    </label>
+                  </div>
+                  <div className="scan-control-group">
+                    <p>Scan logic</p>
+                    <label>
+                      <span>Scan profile</span>
+                      <select
+                        value={profile}
+                        onChange={(event) => changeProfile(event.target.value)}
+                        aria-describedby="profile-help"
+                      >
+                        <option value="RELATIVE_VOLUME">Relative volume</option>
+                        <option value="TREND_CONTINUATION">
+                          Trend continuation
+                        </option>
+                        <option value="BREAKOUT_WITH_VOLUME">
+                          Breakout with volume
+                        </option>
+                        <option value="PULLBACK_IN_UPTREND">
+                          Pullback in uptrend
+                        </option>
+                        <option value="MOMENTUM">Momentum</option>
+                      </select>
+                      <small id="profile-help">
+                        The market pattern TWF scans for.
+                      </small>
+                    </label>
+                  </div>
+                  <div className="scan-control-group">
+                    <p>Purpose</p>
+                    <label>
+                      <span>Discovery intent</span>
+                      <select
+                        value={intent}
+                        onChange={(event) => {
+                          setIntent(event.target.value as IntentValue);
+                          setIntentOverridden(true);
+                        }}
+                        aria-describedby="intent-help"
+                      >
+                        <option value="INTRADAY_LONG">Intraday long</option>
+                        <option value="INTRADAY_SHORT">Intraday short</option>
+                        <option value="POSITIONAL_LONG">Positional long</option>
+                        <option value="POSITIONAL_SHORT">
+                          Positional short
+                        </option>
+                      </select>
+                      <small id="intent-help">
+                        How a matched setup should be interpreted and tracked.
+                      </small>
+                    </label>
+                  </div>
+                  <div className="scan-control-group">
+                    <p>Time window</p>
+                    <label>
+                      <span>Horizon</span>
+                      <select
+                        value={horizon}
+                        onChange={(event) => {
+                          setHorizon(event.target.value as HorizonValue);
+                          setHorizonOverridden(true);
+                        }}
+                        aria-describedby="horizon-help"
+                      >
+                        <option value="intraday">Intraday</option>
+                        <option value="1d">1 day</option>
+                        <option value="5d">5 days</option>
+                        <option value="15d">15 days</option>
+                      </select>
+                      <small id="horizon-help">
+                        How long this discovery setup is expected to remain
+                        relevant.
+                      </small>
+                    </label>
+                  </div>
+                  <div className="profile-suggestion" role="note">
+                    <span>
+                      Suggested: {words(recommendation.intent)} ·{" "}
+                      {recommendation.horizon}
+                    </span>
+                    {(intentOverridden || horizonOverridden) && (
+                      <button
+                        type="button"
+                        onClick={applyProfileRecommendation}
+                      >
+                        Apply suggestion
+                      </button>
                     )}
-                    <details className="provenance-details">
-                      <summary>Provider details</summary>
-                      <p>
-                        Mode: {words(item.mode)} · ID: {item.id}
-                      </p>
-                    </details>
-                  </article>
-                );
-              })}
-            </div>
-          </section>
-
-          {result && (
-            <section
-              className="scan-result"
-              aria-labelledby="scan-result-heading"
-            >
-              <div className="section-heading-row">
-                <div>
-                  <p className="eyebrow">LATEST COMPLETED SCAN</p>
-                  <h2 id="scan-result-heading">Latest scan result</h2>
-                  <p>
-                    {words(result.summary.profile)} ·{" "}
-                    {words(result.summary.intent)} · {result.summary.horizon}
-                  </p>
-                </div>
-                <span>{dateTime(result.summary.completed_at)}</span>
-              </div>
-              {result.matches.some((match) =>
-                match.source_mode.includes("SYNTHETIC"),
-              ) && (
-                <p className="result-mode-note">
-                  <strong>SYNTHETIC DATA</strong> Results below are suitable for
-                  workflow validation, not live-market interpretation.
-                </p>
-              )}
-              <div className="scan-metrics">
-                <div>
-                  <span>Universe size</span>
-                  <strong>{result.summary.universe_size}</strong>
-                  <small>Symbols evaluated</small>
-                </div>
-                <div>
-                  <span>Matches</span>
-                  <strong>{result.summary.match_count}</strong>
-                  <small>Met the selected scan logic</small>
-                </div>
-                <div>
-                  <span>Discovery candidates</span>
-                  <strong>{result.summary.candidate_count}</strong>
-                  <small>Created or updated episodes</small>
-                </div>
-                <div>
-                  <span>Market context</span>
-                  <strong
-                    className={`discovery-badge is-${result.summary.context_availability.toLowerCase()}`}
+                  </div>
+                  <div className="scan-control-group">
+                    <p>Evidence</p>
+                    <label>
+                      <span>Provider</span>
+                      <select
+                        value={provider}
+                        onChange={(event) =>
+                          setProvider(event.target.value as ProviderChoice)
+                        }
+                        aria-describedby="provider-help"
+                      >
+                        <option value="internal">
+                          Internal Scanner V0 · synthetic
+                        </option>
+                        <option value="tradingview-synthetic">
+                          TradingView adapter · validation
+                        </option>
+                      </select>
+                      <small id="provider-help">
+                        Where the scan evidence comes from.
+                      </small>
+                    </label>
+                  </div>
+                  <div className="scan-control-group">
+                    <p>Context policy</p>
+                    <label>
+                      <span>Market context requirement</span>
+                      <select
+                        value={contextMode}
+                        onChange={(event) =>
+                          setContextMode(event.target.value as ContextMode)
+                        }
+                        aria-describedby="context-help"
+                      >
+                        <option value="healthy">
+                          Require complete context
+                        </option>
+                        <option value="partial">Allow partial context</option>
+                        <option value="unavailable">Context optional</option>
+                      </select>
+                      <small id="context-help">
+                        Allow candidate evaluation when some market-context
+                        evidence is unavailable. Missing evidence remains
+                        visible and reduces coverage.
+                      </small>
+                    </label>
+                  </div>
+                  <button
+                    className="run-scan-button"
+                    disabled={pending}
+                    type="submit"
                   >
-                    {words(result.summary.context_availability)}
-                  </strong>
-                  <small>
-                    {contextHint(result.summary.context_availability)}
-                  </small>
+                    {pending ? "Running…" : "Run scan"}
+                  </button>
+                </form>
+              </section>
+
+              <section
+                className="provider-status-panel"
+                aria-labelledby="providers-heading"
+              >
+                <div className="section-heading-row compact-heading">
+                  <div>
+                    <p className="eyebrow">EVIDENCE SOURCES</p>
+                    <h2 id="providers-heading">Provider status</h2>
+                  </div>
                 </div>
-              </div>
-              <div className="discovery-table-wrap" tabIndex={0}>
-                <table className="discovery-table scan-match-table">
-                  <caption className="sr-only">
-                    Latest normalized scan matches
-                  </caption>
-                  <thead>
-                    <tr>
-                      <th scope="col">Symbol</th>
-                      <th scope="col">Provider</th>
-                      <th scope="col">Why matched</th>
-                      <th scope="col">Key metrics</th>
-                      <th scope="col">Freshness</th>
-                      <th scope="col">Lineage / details</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {result.matches.map((match) => (
-                      <tr key={match.match_id}>
-                        <td data-label="Symbol">
-                          <strong>{match.symbol}</strong>
-                          <span>{match.exchange}</span>
-                        </td>
-                        <td data-label="Provider">
-                          <strong>{match.provider}</strong>
-                          <span className="discovery-badge is-synthetic">
-                            {match.source_mode.includes("SYNTHETIC")
-                              ? "Synthetic"
-                              : words(match.source_mode)}
-                          </span>
-                        </td>
-                        <td data-label="Why matched">
-                          <ul className="match-reasons">
-                            {match.why_matched.map((reason) => (
-                              <li key={reason}>{reasonLabel(reason)}</li>
-                            ))}
-                          </ul>
-                        </td>
-                        <td data-label="Key metrics">
-                          {Object.entries(match.key_metrics)
-                            .map(([key, value]) => `${words(key)}: ${value}`)
-                            .join(" · ")}
-                        </td>
-                        <td data-label="Freshness">
-                          <span className="discovery-badge is-unknown">
-                            Source time unavailable
-                          </span>
-                        </td>
-                        <td data-label="Lineage / details">
-                          <details className="provenance-details">
-                            <summary>Details</summary>
-                            <p>Lineage: {match.lineage}</p>
-                            <p>Match ID: {match.match_id}</p>
-                            <p>Raw reasons: {match.why_matched.join(", ")}</p>
-                          </details>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {result.matches.length === 0 && (
-                <p className="discovery-callout">
-                  No instruments matched the selected conditions. No candidates
-                  were invented.
-                </p>
-              )}
-              {result.summary.degraded.length > 0 && (
-                <div className="discovery-callout is-warning">
-                  <strong>Some evidence is limited</strong>
-                  <ul>
-                    {result.summary.degraded.map((item) => (
-                      <li key={item}>{words(item)}</li>
-                    ))}
-                  </ul>
+                <div className="provider-grid">
+                  {providers.map((item) => {
+                    const modeLabel = providerModeLabel(item.mode);
+                    const healthLabel = providerHealthLabel(
+                      item.health,
+                      item.enabled,
+                    );
+                    return (
+                      <article key={item.id}>
+                        <strong>{item.label}</strong>
+                        <p>{providerDescription(item)}</p>
+                        <dl className="provider-dimensions">
+                          <div>
+                            <dt>Mode</dt>
+                            <dd>
+                              <span
+                                className={`provider-mode is-${item.mode.toLowerCase()}`}
+                              >
+                                {modeLabel}
+                              </span>
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>Status</dt>
+                            <dd>
+                              <span
+                                className={`provider-operational is-${item.enabled ? item.health.toLowerCase() : "disabled"}`}
+                              >
+                                <i aria-hidden="true" /> {healthLabel}
+                              </span>
+                            </dd>
+                          </div>
+                        </dl>
+                        <small>
+                          {item.last_success_at
+                            ? `Last successful scan ${dateTime(item.last_success_at)}`
+                            : "No successful scan recorded"}
+                        </small>
+                        {item.id === "internal" && (
+                          <small>Fixture-backed and reproducible.</small>
+                        )}
+                        {item.id === "tradingview-synthetic" &&
+                          item.health === "RATE_LIMITED" && (
+                            <small>
+                              Live exact-row proof is deferred while provider
+                              rate limiting is active.
+                            </small>
+                          )}
+                        {item.last_error && (
+                          <p className="provider-note">{item.last_error}</p>
+                        )}
+                        <details className="provenance-details">
+                          <summary>Capabilities and provider ID</summary>
+                          <p>{item.capabilities.map(words).join(" · ")}</p>
+                          <p>ID: {item.id}</p>
+                        </details>
+                      </article>
+                    );
+                  })}
                 </div>
+              </section>
+            </div>
+
+            <div className="scan-workstation-results">
+              {result ? (
+                <section
+                  className="scan-result"
+                  aria-labelledby="scan-result-heading"
+                >
+                  <div className="section-heading-row">
+                    <div>
+                      <p className="eyebrow">LATEST COMPLETED SCAN</p>
+                      <h2 id="scan-result-heading">Latest scan result</h2>
+                      <p>
+                        {words(result.summary.profile)} ·{" "}
+                        {words(result.summary.intent)} ·{" "}
+                        {result.summary.horizon}
+                      </p>
+                    </div>
+                    <span>{dateTime(result.summary.completed_at)}</span>
+                  </div>
+                  {result.matches.some((match) =>
+                    match.source_mode.includes("SYNTHETIC"),
+                  ) && (
+                    <p className="result-mode-note">
+                      <strong>SYNTHETIC DATA</strong> Deterministic validation
+                      results; no live-market claim.
+                    </p>
+                  )}
+                  <div className="scan-metrics">
+                    <div>
+                      <span>Universe size</span>
+                      <strong>{result.summary.universe_size}</strong>
+                      <small>Symbols evaluated</small>
+                    </div>
+                    <div>
+                      <span>Matches</span>
+                      <strong>{result.summary.match_count}</strong>
+                      <small>Met scan logic</small>
+                    </div>
+                    <div>
+                      <span>Discovery candidates</span>
+                      <strong>{result.summary.candidate_count}</strong>
+                      <small>Episodes updated</small>
+                    </div>
+                    <div>
+                      <span>Market context</span>
+                      <strong
+                        className={`discovery-badge is-${result.summary.context_availability.toLowerCase()}`}
+                      >
+                        {words(result.summary.context_availability)}
+                      </strong>
+                      <small>
+                        {contextHint(result.summary.context_availability)}
+                      </small>
+                    </div>
+                  </div>
+                  <div className="discovery-table-wrap" tabIndex={0}>
+                    <table className="discovery-table scan-match-table">
+                      <caption className="sr-only">
+                        Latest normalized scan matches
+                      </caption>
+                      <thead>
+                        <tr>
+                          <th scope="col">Symbol</th>
+                          <th scope="col">Why matched</th>
+                          <th scope="col">Key metrics</th>
+                          <th scope="col">Freshness</th>
+                          <th scope="col">Details</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {result.matches.map((match) => (
+                          <tr key={match.match_id}>
+                            <td data-label="Symbol">
+                              <strong>{match.symbol}</strong>
+                              <span>
+                                {match.exchange} · {match.segment}
+                              </span>
+                            </td>
+                            <td data-label="Why matched">
+                              <ul className="match-reasons">
+                                {match.why_matched.map((reason) => (
+                                  <li key={reason}>{reasonLabel(reason)}</li>
+                                ))}
+                              </ul>
+                            </td>
+                            <td data-label="Key metrics">
+                              <ul className="metric-list">
+                                {Object.entries(match.key_metrics)
+                                  .slice(0, 4)
+                                  .map(([key, value]) => (
+                                    <li key={key}>
+                                      <span>{metricLabel(key)}</span>
+                                      <strong>
+                                        {formatMetric(key, value)}
+                                      </strong>
+                                    </li>
+                                  ))}
+                              </ul>
+                            </td>
+                            <td data-label="Freshness">
+                              <span
+                                className={`discovery-badge is-${match.source_data_time ? "fresh" : "unknown"}`}
+                              >
+                                {match.source_data_time
+                                  ? "Fresh"
+                                  : "Source time unavailable"}
+                              </span>
+                            </td>
+                            <td data-label="Details">
+                              <details className="provenance-details">
+                                <summary>Details</summary>
+                                <p>Provider: {sourceLabel(match.provider)}</p>
+                                <p>Mode: {words(match.source_mode)}</p>
+                                <p>Lineage: {match.lineage}</p>
+                                <p>Match ID: {match.match_id}</p>
+                                <p>
+                                  Raw reasons: {match.raw_reasons.join(", ")}
+                                </p>
+                              </details>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {result.matches.length === 0 && (
+                    <p className="discovery-callout">
+                      No instruments matched the selected conditions. No
+                      candidates were invented.
+                    </p>
+                  )}
+                  {result.summary.degraded.length > 0 && (
+                    <div className="discovery-callout is-warning">
+                      <strong>Some evidence is limited</strong>
+                      <ul>
+                        {result.summary.degraded.map((item) => (
+                          <li key={item}>{words(item)}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </section>
+              ) : (
+                <section className="workspace-result-placeholder">
+                  <SurfaceState
+                    state="EMPTY"
+                    headingLevel={2}
+                    title="Ready to scan"
+                    description="Configure the universe and scan logic, then run the deterministic validation scan."
+                  />
+                </section>
               )}
-              <CandidateTable
-                candidates={result.candidates}
-                selected={detail?.candidate_id || null}
-                onSelect={(id) => void inspect(id)}
-              />
-            </section>
-          )}
+
+              <section
+                className="candidate-queue"
+                aria-labelledby="candidate-queue-heading"
+              >
+                <div className="section-heading-row compact-heading">
+                  <div>
+                    <p className="eyebrow">DISCOVERY QUEUE</p>
+                    <h2 id="candidate-queue-heading">
+                      Candidates requiring review
+                    </h2>
+                  </div>
+                  <span>{candidates.length} persisted</span>
+                </div>
+                <CandidateQueue
+                  candidates={candidates}
+                  selected={detail?.candidate_id || null}
+                  onSelect={(id) => void inspect(id)}
+                />
+              </section>
+            </div>
+
+            <div className="scan-workstation-inspector">{inspector}</div>
+          </div>
+
+          <RecentScans scans={recentScans} onReuse={reuseScan} />
         </>
       )}
 
       {!loading && view === "candidates" && (
-        <section
-          className="candidate-ledger"
-          aria-labelledby="candidate-ledger-heading"
-        >
-          <div className="section-heading-row">
-            <div>
-              <p className="eyebrow">DISCOVERY HISTORY</p>
-              <h2 id="candidate-ledger-heading">Candidate ledger</h2>
-              <p>
-                Review attention scores, evidence freshness, lifecycle, and
-                immutable history for your candidates.
-              </p>
+        <div className="candidate-workstation-grid">
+          <section
+            className="candidate-ledger"
+            aria-labelledby="candidate-ledger-heading"
+          >
+            <div className="section-heading-row">
+              <div>
+                <p className="eyebrow">DISCOVERY HISTORY</p>
+                <h2 id="candidate-ledger-heading">Candidate ledger</h2>
+                <p>
+                  Review attention scores, evidence freshness, lifecycle, and
+                  immutable history for your candidates.
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => void load()}
+              >
+                Refresh
+              </button>
             </div>
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() => void load()}
-            >
-              Refresh
-            </button>
-          </div>
-          <CandidateTable
-            candidates={candidates}
-            selected={detail?.candidate_id || null}
-            onSelect={(id) => void inspect(id)}
-          />
-        </section>
-      )}
-
-      {detail && (
-        <CandidateInspector
-          detail={detail}
-          pending={pending}
-          explaining={explaining}
-          llmEnabled={Boolean(settings?.llm_enabled)}
-          panelRef={inspectorRef}
-          onClose={() => setDetail(null)}
-          onLifecycle={(action) => void lifecycle(action)}
-          onExplain={() => void explain()}
-        />
+            <CandidateTable
+              candidates={candidates}
+              selected={detail?.candidate_id || null}
+              onSelect={(id) => void inspect(id)}
+            />
+          </section>
+          <div className="candidate-workstation-inspector">{inspector}</div>
+        </div>
       )}
 
       {!loading && settings && !settings.llm_enabled && (

@@ -55,7 +55,7 @@ const candidate = {
     segment: "EQ",
     native: { namespace: "NSE", native_id: "NSE:RELIANCE", revision: "1" },
   },
-  intent: "MOMENTUM",
+  intent: "INTRADAY_LONG",
   horizon: "5d",
   relevance: {
     value: "0.81",
@@ -215,7 +215,7 @@ test("runs a bounded scan and exposes evidence, degradation, history and no trad
       completed_at: "2026-09-30T06:00:01Z",
       profile: "RELATIVE_VOLUME",
       horizon: "5d",
-      intent: "MOMENTUM",
+      intent: "INTRADAY_LONG",
       universe_size: 2,
       match_count: 1,
       candidate_count: 1,
@@ -228,9 +228,16 @@ test("runs a bounded scan and exposes evidence, degradation, history and no trad
         symbol: "RELIANCE",
         exchange: "NSE",
         provider: "twf-native",
-        why_matched: ["relative-volume-v1"],
-        key_metrics: { relative_volume: "2.4" },
+        segment: "EQ",
+        why_matched: ["Relative volume 2.40×"],
+        raw_reasons: ["1d.0.relative_volume.20"],
+        key_metrics: {
+          close: "2954.54",
+          "momentum.10": "2.8",
+          "relative_volume.20": "2.4",
+        },
         source_mode: "SYNTHETIC",
+        source_data_time: "2026-09-30T05:59:00Z",
         lineage: "internal-scanner-v0:relative-volume",
       },
     ],
@@ -240,6 +247,7 @@ test("runs a bounded scan and exposes evidence, degradation, history and no trad
   const fetcher = vi.fn((input: string | URL | Request, init?: RequestInit) => {
     const url = String(input);
     if (url.endsWith("/status")) return json(providers);
+    if (url.includes("/scans?")) return json([scan.summary]);
     if (url.includes("/candidates?"))
       return json({ items: init?.method === "POST" ? [] : [candidate] });
     if (url.endsWith("/settings")) return json(settings);
@@ -257,10 +265,12 @@ test("runs a bounded scan and exposes evidence, degradation, history and no trad
   expect(
     screen.getByText(/Discovery never authorizes a trade/),
   ).toBeInTheDocument();
-  expect(screen.getByText("SYNTHETIC / VALIDATION DATA")).toBeInTheDocument();
+  expect(screen.getByText("SYNTHETIC VALIDATION DATA")).toBeInTheDocument();
   expect(screen.getByText("RATE LIMITED")).toBeInTheDocument();
   expect(screen.getByText(/Daily request budget reached/)).toBeInTheDocument();
-  expect(screen.getByText("Scan conditions")).toBeInTheDocument();
+  expect(
+    screen.getByRole("heading", { name: "Configure scan" }),
+  ).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText(/Universe symbols/), {
     target: { value: "RELIANCE, TCS" },
   });
@@ -268,8 +278,8 @@ test("runs a bounded scan and exposes evidence, degradation, history and no trad
   await screen.findByRole("heading", { name: "Latest scan result" });
   expect(screen.getByText(/Market breadth unavailable/)).toBeInTheDocument();
   expect(screen.getByText("Relative volume elevated")).toBeInTheDocument();
-  expect(screen.getByText("Source time unavailable")).toBeInTheDocument();
-  expect(screen.getByText("Details")).toBeInTheDocument();
+  expect(screen.getByText("Fresh")).toBeInTheDocument();
+  expect(screen.getAllByText("Details").length).toBeGreaterThan(1);
   expect(screen.getAllByText("RELIANCE").length).toBeGreaterThan(0);
   fireEvent.click(screen.getByRole("button", { name: "Review" }));
   const inspector = await screen.findByRole("complementary", {
@@ -328,6 +338,7 @@ test("renders an honest no-match state", async () => {
   const fetcher = vi.fn((input: string | URL | Request) => {
     const url = String(input);
     if (url.endsWith("/status")) return json(providers);
+    if (url.includes("/scans?")) return json([]);
     if (url.includes("/candidates?")) return json({ items: [] });
     if (url.endsWith("/settings")) return json(settings);
     if (url.endsWith("/scans"))
@@ -340,7 +351,7 @@ test("renders an honest no-match state", async () => {
           completed_at: "2026-09-30T06:00:01Z",
           profile: "RELATIVE_VOLUME",
           horizon: "5d",
-          intent: "MOMENTUM",
+          intent: "INTRADAY_LONG",
           universe_size: 1,
           match_count: 0,
           candidate_count: 0,
@@ -360,9 +371,7 @@ test("renders an honest no-match state", async () => {
   expect(
     (await screen.findAllByText(/No candidates were invented/)).length,
   ).toBeGreaterThan(0);
-  expect(
-    screen.getByRole("heading", { name: "No candidates to review" }),
-  ).toBeInTheDocument();
+  expect(screen.getByText("No discovery candidates yet.")).toBeInTheDocument();
 });
 
 test("discovery settings save all bounded values with revision", async () => {
@@ -397,6 +406,7 @@ test("distinguishes fresh, stale and unavailable source-time candidate states", 
   const fetcher = vi.fn((input: string | URL | Request) => {
     const url = String(input);
     if (url.endsWith("/status")) return json(providers);
+    if (url.includes("/scans?")) return json([]);
     if (url.includes("/candidates?")) return json({ items: candidates });
     if (url.endsWith("/settings")) return json(settings);
     throw new Error(`Unexpected ${url}`);
@@ -416,6 +426,7 @@ test("confirms a terminal candidate action and records a specific audit reason",
   const fetcher = vi.fn((input: string | URL | Request, init?: RequestInit) => {
     const url = String(input);
     if (url.endsWith("/status")) return json(providers);
+    if (url.includes("/scans?")) return json([]);
     if (url.includes("/candidates?")) return json({ items: [candidate] });
     if (url.endsWith("/settings")) return json(settings);
     if (url.includes("/lifecycle"))
@@ -445,3 +456,119 @@ test("confirms a terminal candidate action and records a specific audit reason",
     reason: "manual-candidate-dismissal",
   });
 });
+
+test("separates profile logic from purpose and preserves explicit overrides", async () => {
+  const fetcher = vi.fn((input: string | URL | Request) => {
+    const url = String(input);
+    if (url.endsWith("/status")) return json(providers);
+    if (url.includes("/scans?")) return json([]);
+    if (url.includes("/candidates?")) return json({ items: [candidate] });
+    if (url.endsWith("/settings")) return json(settings);
+    throw new Error(`Unexpected ${url}`);
+  });
+  vi.stubGlobal("fetch", fetcher);
+  render(<DiscoveryWorkspace />);
+
+  await screen.findByRole("heading", { name: "Configure scan" });
+  expect(
+    screen.queryByRole("navigation", { name: "Scan and Discover views" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: /^Candidates/ }),
+  ).not.toBeInTheDocument();
+  expect(screen.getByRole("combobox", { name: /^Horizon/ })).toHaveValue("5d");
+  fireEvent.click(screen.getByRole("button", { name: "Apply suggestion" }));
+  expect(screen.getByRole("combobox", { name: /^Horizon/ })).toHaveValue("1d");
+
+  fireEvent.change(screen.getByRole("combobox", { name: /^Scan profile/ }), {
+    target: { value: "MOMENTUM" },
+  });
+  expect(
+    screen.getByRole("combobox", { name: /^Discovery intent/ }),
+  ).toHaveValue("POSITIONAL_LONG");
+  expect(screen.getByRole("combobox", { name: /^Horizon/ })).toHaveValue("5d");
+
+  fireEvent.change(
+    screen.getByRole("combobox", { name: /^Discovery intent/ }),
+    {
+      target: { value: "INTRADAY_SHORT" },
+    },
+  );
+  fireEvent.change(screen.getByRole("combobox", { name: /^Horizon/ }), {
+    target: { value: "1d" },
+  });
+  fireEvent.change(screen.getByRole("combobox", { name: /^Scan profile/ }), {
+    target: { value: "TREND_CONTINUATION" },
+  });
+  expect(
+    screen.getByRole("combobox", { name: /^Discovery intent/ }),
+  ).toHaveValue("INTRADAY_SHORT");
+  expect(screen.getByRole("combobox", { name: /^Horizon/ })).toHaveValue("1d");
+
+  fireEvent.click(screen.getByRole("button", { name: "Apply suggestion" }));
+  expect(
+    screen.getByRole("combobox", { name: /^Discovery intent/ }),
+  ).toHaveValue("POSITIONAL_LONG");
+  expect(screen.getByRole("combobox", { name: /^Horizon/ })).toHaveValue("15d");
+
+  const contextPolicy = screen.getByRole("combobox", {
+    name: /^Market context requirement/,
+  });
+  expect(
+    within(contextPolicy).getByRole("option", {
+      name: "Require complete context",
+    }),
+  ).toBeInTheDocument();
+  expect(
+    within(contextPolicy).getByRole("option", {
+      name: "Allow partial context",
+    }),
+  ).toBeInTheDocument();
+  expect(
+    within(contextPolicy).getByRole("option", { name: "Context optional" }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(/Missing evidence remains visible and reduces coverage/),
+  ).toBeInTheDocument();
+});
+
+test.each([
+  ["AVAILABLE", true, "READY"],
+  ["UNAVAILABLE", true, "UNAVAILABLE"],
+  ["AUTH_REQUIRED", true, "AUTH REQUIRED"],
+  ["RATE_LIMITED", true, "RATE LIMITED"],
+  ["UNAVAILABLE", false, "DISABLED"],
+])(
+  "renders provider operational state %s/%s as text",
+  async (health, enabled, expected) => {
+    const providerStates = [
+      providers[0],
+      {
+        ...providers[1],
+        enabled,
+        mode: "REMOTE",
+        health,
+        last_error: null,
+      },
+    ];
+    const fetcher = vi.fn((input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith("/status")) return json(providerStates);
+      if (url.includes("/scans?")) return json([]);
+      if (url.includes("/candidates?")) return json({ items: [] });
+      if (url.endsWith("/settings")) return json(settings);
+      throw new Error(`Unexpected ${url}`);
+    });
+    vi.stubGlobal("fetch", fetcher);
+    render(<DiscoveryWorkspace />);
+    await screen.findByRole("heading", { name: "Provider status" });
+    expect(screen.getByText("LIVE")).toBeInTheDocument();
+    const providerCard = screen
+      .getByText("TradingView contract validation")
+      .closest("article");
+    expect(providerCard).not.toBeNull();
+    expect(
+      within(providerCard as HTMLElement).getByText(expected),
+    ).toBeInTheDocument();
+  },
+);

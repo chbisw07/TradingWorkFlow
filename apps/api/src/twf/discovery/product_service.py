@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Literal, cast
@@ -44,6 +45,7 @@ from twf.discovery.domain import (
     ToleranceRule,
     UnderlyingIdentity,
 )
+from twf.discovery.internal_scanner.conditions import measure as series_measure
 from twf.discovery.internal_scanner.market_series import (
     Bar,
     FixtureMarketSeriesSource,
@@ -132,18 +134,86 @@ def horizon_seconds(value: HorizonChoice) -> int:
     }[value]
 
 
+INDEX_SYMBOLS = frozenset({"NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY"})
+
+
+@dataclass(frozen=True)
+class SyntheticInstrumentFixture:
+    base_price: Decimal
+    daily_trend: Decimal
+    relative_volume: Decimal
+    technical_evidence: bool
+    tradingview_match: bool
+    final_move: Decimal | None = None
+
+
+SYNTHETIC_FIXTURES: dict[str, SyntheticInstrumentFixture] = {
+    "RELIANCE": SyntheticInstrumentFixture(
+        Decimal("2846.40"), Decimal("0.42"), Decimal("1.90"), False, True, Decimal("-0.30")
+    ),
+    "MCX": SyntheticInstrumentFixture(
+        Decimal("3146.80"), Decimal("0.74"), Decimal("2.60"), True, True
+    ),
+    "HDFCBANK": SyntheticInstrumentFixture(
+        Decimal("1684.25"), Decimal("-0.16"), Decimal("0.82"), False, False
+    ),
+    "INFY": SyntheticInstrumentFixture(
+        Decimal("1568.60"), Decimal("0.24"), Decimal("1.65"), False, True
+    ),
+    "BSE": SyntheticInstrumentFixture(
+        Decimal("2488.15"), Decimal("-0.05"), Decimal("1.10"), False, False
+    ),
+    "NIFTY": SyntheticInstrumentFixture(
+        Decimal("24520.30"), Decimal("0.55"), Decimal("1.72"), True, True
+    ),
+    "BANKNIFTY": SyntheticInstrumentFixture(
+        Decimal("51780.10"), Decimal("-0.08"), Decimal("0.96"), False, False
+    ),
+    "TCS": SyntheticInstrumentFixture(
+        Decimal("3984.50"), Decimal("0.31"), Decimal("1.78"), True, True
+    ),
+}
+
+
+def synthetic_fixture(symbol: str, progression: int = 0) -> SyntheticInstrumentFixture:
+    if symbol.startswith("NO"):
+        return SyntheticInstrumentFixture(
+            Decimal("120.00"), Decimal("-0.10"), Decimal("0.70"), False, False
+        )
+    fixture = SYNTHETIC_FIXTURES.get(symbol)
+    if fixture is None:
+        seed = sum(ord(char) for char in symbol)
+        fixture = SyntheticInstrumentFixture(
+            base_price=Decimal(100 + seed % 900),
+            daily_trend=Decimal("0.18") + Decimal(seed % 11) / Decimal(100),
+            relative_volume=Decimal("1.55") + Decimal(seed % 45) / Decimal(100),
+            technical_evidence=seed % 3 == 0,
+            tradingview_match=True,
+        )
+    if progression <= 0:
+        return fixture
+    return replace(
+        fixture,
+        relative_volume=min(
+            Decimal("3.50"), fixture.relative_volume + Decimal("0.15") * progression
+        ),
+        technical_evidence=fixture.technical_evidence or fixture.tradingview_match,
+    )
+
+
 def identity(symbol: str) -> InstrumentIdentity:
+    segment = "INDEX" if symbol in INDEX_SYMBOLS else "EQ"
     return InstrumentIdentity(
-        instrument_id=stable("instrument:NSE:" + symbol),
+        instrument_id=stable(f"instrument:NSE:{symbol}"),
         underlying=UnderlyingIdentity(
             underlying_id=stable("underlying:" + symbol),
             source=SourceReference(namespace="twf-product", native_id=symbol, revision="1"),
-            mapping=RevisionRef(id="product-symbol-mapping", version="1"),
+            mapping=RevisionRef(id="product-symbol-mapping", version="2"),
         ),
         native=SourceReference(namespace="NSE", native_id="NSE:" + symbol, revision="1"),
         symbol=symbol,
         exchange="NSE",
-        segment="EQ",
+        segment=segment,
     )
 
 
@@ -189,23 +259,30 @@ def provenance(
     )
 
 
-def market_series(instrument: InstrumentIdentity, at: datetime, matched: bool) -> MarketSeries:
+def market_series(
+    instrument: InstrumentIdentity, at: datetime, progression: int = 0
+) -> MarketSeries:
+    fixture = synthetic_fixture(instrument.symbol, progression)
     seed = sum(ord(char) for char in instrument.symbol)
-    base = Decimal(80 + seed % 120)
     bars: list[Bar] = []
+    baseline_volume = Decimal(900 + seed % 700)
     for index in range(260):
-        close = float(base + Decimal(index) * Decimal("0.12"))
-        volume = 1000.0 + float(seed % 90)
+        cycle = Decimal(((index + seed) % 7) - 3) * Decimal("0.08")
+        close_value = fixture.base_price + fixture.daily_trend * index + cycle
+        if index == 259 and fixture.final_move is not None:
+            close_value = Decimal(str(bars[-1].close)) + fixture.final_move
+        close = float(close_value.quantize(Decimal("0.01")))
+        volume = float(baseline_volume)
         if index == 259:
-            volume = volume * (2.4 if matched else 1.05)
+            volume = float((baseline_volume * fixture.relative_volume).quantize(Decimal("0.01")))
         timestamp = at - timedelta(days=259 - index)
         bars.append(
             Bar(
                 timestamp=timestamp,
                 available_at=timestamp,
-                open=close - 0.05,
-                high=close + 0.2,
-                low=close - 0.2,
+                open=close - 0.12,
+                high=close + 0.35,
+                low=close - 0.35,
                 close=close,
                 volume=volume,
             )
@@ -264,6 +341,107 @@ class ScanDiscoverService:
         self.commit()
         return self.settings()
 
+    def fixture_progression(self, provider: ProviderChoice) -> int:
+        count = self.session.scalar(
+            select(func.count())
+            .select_from(ScanRunRecord)
+            .where(
+                ScanRunRecord.user_id == self.owner_id,
+                ScanRunRecord.provider == provider.value,
+            )
+        )
+        return min(int(count or 0), 3)
+
+    def supporting_fixture_evidence(
+        self,
+        run_id: UUID,
+        instrument: InstrumentIdentity,
+        at: datetime,
+        producer: ProducerIdentity,
+        progression: int,
+        source_data_time: datetime | None,
+    ) -> tuple[DiscoveryEvidence, ...]:
+        fixture = synthetic_fixture(instrument.symbol, progression)
+        series = market_series(instrument, at, progression)
+        closes = series.bars
+        close = Decimal(str(closes[-1].close))
+        momentum = Decimal(str(series_measure("roc.10", closes))).quantize(Decimal("0.01"))
+        rsi = Decimal(str(series_measure("rsi.14", closes))).quantize(Decimal("0.1"))
+        relative_volume = Decimal(str(series_measure("relative_volume.20", closes))).quantize(
+            Decimal("0.01")
+        )
+        prov = provenance(producer, instrument, at, "support:" + instrument.symbol)
+
+        def item(
+            category: EvidenceCategory,
+            key: str,
+            measures: tuple[Measure, ...],
+        ) -> DiscoveryEvidence:
+            return DiscoveryEvidence(
+                evidence_id=stable(f"support:{run_id}:{instrument.instrument_id}:{key}"),
+                owner_id=self.owner_id,
+                subject_id=instrument.instrument_id,
+                category=category,
+                polarity=(
+                    EvidencePolarity.POSITIVE
+                    if fixture.daily_trend > 0
+                    else EvidencePolarity.NEUTRAL
+                ),
+                observation_basis="deterministic-daily-fixture",
+                observed_at=at,
+                source_data_time=source_data_time,
+                received_at=at,
+                available_at=at,
+                provenance=prov,
+                measures=measures,
+                reason="deterministic-synthetic-validation-evidence",
+            )
+
+        evidence = [
+            item(
+                EvidenceCategory.INSTRUMENT_PRICE,
+                "price",
+                (
+                    Measure(name="close", value=close, unit="INR"),
+                    Measure(name="momentum.10", value=momentum, unit="percent"),
+                ),
+            ),
+            item(
+                EvidenceCategory.VOLUME_LIQUIDITY,
+                "volume",
+                (Measure(name="relative_volume.20", value=relative_volume, unit="ratio"),),
+            ),
+        ]
+        if fixture.technical_evidence:
+            evidence.append(
+                item(
+                    EvidenceCategory.TECHNICAL,
+                    "technical",
+                    (
+                        Measure(name="rsi.14", value=rsi, unit="index"),
+                        Measure(name="momentum.10", value=momentum, unit="percent"),
+                    ),
+                )
+            )
+        return tuple(evidence)
+
+    def with_supporting_fixture_evidence(
+        self,
+        match: ScanMatch,
+        at: datetime,
+        progression: int,
+        source_data_time: datetime | None,
+    ) -> ScanMatch:
+        supporting = self.supporting_fixture_evidence(
+            match.run_id,
+            match.instrument,
+            at,
+            match.provenance.producer,
+            progression,
+            source_data_time,
+        )
+        return match.model_copy(update={"evidence": (*match.evidence, *supporting)})
+
     def providers(self) -> tuple[ProviderStatus, ...]:
         last = {
             row.provider: row
@@ -306,6 +484,7 @@ class ScanDiscoverService:
             as_of=started,
         )
         run_id = uuid4()
+        progression = self.fixture_progression(payload.provider)
         profile = ScanProfileReference(
             profile_id=stable(f"profile:{self.owner_id}:{payload.profile}"),
             owner_id=self.owner_id,
@@ -326,14 +505,13 @@ class ScanDiscoverService:
                 definition=definition,
                 as_of=started,
             )
-            source = FixtureMarketSeriesSource(
-                tuple(
-                    market_series(item, started, not item.symbol.startswith("NO"))
-                    for item in instruments
-                )
-            )
+            series = tuple(market_series(item, started, progression) for item in instruments)
+            source = FixtureMarketSeriesSource(series)
             result = await InternalScannerV0(source).scan(context, run, instruments)
-            matches = result.items
+            matches = tuple(
+                self.with_supporting_fixture_evidence(item, started, progression, started)
+                for item in result.items
+            )
         else:
             definition = ScanDefinition(
                 definition_id=stable("definition:tradingview-exact-validation"),
@@ -359,9 +537,9 @@ class ScanDiscoverService:
                 as_of=started,
             )
             matches = tuple(
-                self.synthetic_tradingview_match(run, item, started)
+                self.synthetic_tradingview_match(run, item, started, progression)
                 for item in instruments
-                if not item.symbol.startswith("NO")
+                if synthetic_fixture(item.symbol, progression).tradingview_match
             )
         context_snapshot, context_evidence = self.market_context(
             started, payload.context_mode, instruments, run_id
@@ -442,11 +620,17 @@ class ScanDiscoverService:
         )
 
     def synthetic_tradingview_match(
-        self, run: ScanRun, instrument: InstrumentIdentity, at: datetime
+        self,
+        run: ScanRun,
+        instrument: InstrumentIdentity,
+        at: datetime,
+        progression: int,
     ) -> ScanMatch:
         source = provenance(
             TRADINGVIEW_SYNTHETIC, instrument, at, "tradingview:" + instrument.symbol
         )
+        fixture = synthetic_fixture(instrument.symbol, progression)
+        series = market_series(instrument, at, progression)
         evidence = (
             DiscoveryEvidence(
                 evidence_id=stable(f"tv-scan:{run.run_id}:{instrument.instrument_id}"),
@@ -461,10 +645,34 @@ class ScanDiscoverService:
                 available_at=at,
                 provenance=source,
                 measures=(
-                    Measure(name="close", value=Decimal("100"), unit="INR"),
+                    Measure(
+                        name="close",
+                        value=Decimal(str(series.bars[-1].close)),
+                        unit="INR",
+                    ),
+                    Measure(
+                        name="momentum.10",
+                        value=Decimal(str(series_measure("roc.10", series.bars))).quantize(
+                            Decimal("0.01")
+                        ),
+                        unit="percent",
+                    ),
+                    Measure(
+                        name="relative_volume.20",
+                        value=fixture.relative_volume,
+                        unit="ratio",
+                    ),
                     Measure(name="matched", value=True, unit="boolean"),
                 ),
                 reason="synthetic-validation-no-live-provider-call",
+            ),
+            *self.supporting_fixture_evidence(
+                run.run_id,
+                instrument,
+                at,
+                TRADINGVIEW_SYNTHETIC,
+                progression,
+                None,
             ),
         )
         return ScanMatch(
@@ -1127,20 +1335,69 @@ class ScanDiscoverService:
         return item
 
     @staticmethod
-    def match_view(match: ScanMatch) -> ScanMatchView:
+    def match_reason(name: str, value: object) -> str | None:
+        try:
+            numeric = float(cast(Any, value))
+        except (TypeError, ValueError):
+            numeric = 0.0
+        if name == "relative_volume.20":
+            return f"Relative volume {numeric:.2f}×"
+        if name == "breakout.20" and numeric == 1:
+            return "20-day high exceeded with volume"
+        if name == "roc.10":
+            return f"10-day momentum {numeric:+.1f}%"
+        if name == "rsi.14":
+            return f"RSI {numeric:.0f} within profile range"
+        if name == "close_sma20_gap":
+            return f"Close versus 20-day average {numeric:+.1f}%"
+        if name == "close_sma50_gap":
+            return f"Close above 50-day average {numeric:+.1f}%"
+        if name == "sma50_sma200_gap":
+            return f"50-day trend above 200-day trend by {numeric:.1f}%"
+        if name == "roc.1" and numeric < 0:
+            return f"One-day pullback {numeric:.1f}%"
+        return None
+
+    @classmethod
+    def match_view(cls, match: ScanMatch) -> ScanMatchView:
         metrics: dict[str, object] = {}
+        reasons: list[str] = []
+        raw_reasons: list[str] = []
         for evidence in match.evidence:
+            if evidence.category == EvidenceCategory.PROVIDER_SCAN:
+                raw_reasons.append(evidence.observation_basis)
             for measure in evidence.measures:
-                if measure.name not in {"threshold", "operator", "input-digest"}:
+                if measure.name not in {
+                    "threshold",
+                    "operator",
+                    "input-digest",
+                    "matched",
+                    "price-unit",
+                }:
                     metrics[measure.name] = str(measure.value)
+                if evidence.category == EvidenceCategory.PROVIDER_SCAN:
+                    reason = cls.match_reason(measure.name, measure.value)
+                    if reason is not None and reason not in reasons:
+                        reasons.append(reason)
+        if not reasons:
+            reasons.append("Selected provider conditions matched")
+        source_times = [item.source_data_time for item in match.evidence]
+        source_data_time = (
+            max(cast(datetime, item) for item in source_times)
+            if source_times and all(source_times)
+            else None
+        )
         return ScanMatchView(
             match_id=match.scan_match_id,
             symbol=match.instrument.symbol,
             exchange=match.instrument.exchange,
+            segment=match.instrument.segment,
             provider=match.provenance.producer.provider,
-            why_matched=tuple(item.observation_basis for item in match.evidence),
+            why_matched=tuple(reasons),
+            raw_reasons=tuple(dict.fromkeys(raw_reasons)),
             key_metrics={key: str(value) for key, value in metrics.items()},
             source_mode=match.provenance.mode.value,
+            source_data_time=source_data_time,
             lineage=match.lineage.comparison_key,
         )
 

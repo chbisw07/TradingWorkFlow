@@ -15,11 +15,25 @@ The user can now select a bounded symbol universe, provider validation path, sca
 
 The pre-validation refinement keeps every Sprint-2 API, persistence, relevance, tolerance, lifecycle, evidence, owner-isolation, and provider contract unchanged while making the surface read as an operator workspace. Scan setup is grouped by universe, scan logic, discovery intent, horizon, provider, and context requirement. The latest-run summary now distinguishes universe size, matches, discovery candidates, and typed market-context availability. Human-readable match explanations and concise metrics are primary; raw reason codes, match IDs, native IDs, transformation versions, and lineage remain available inside expandable details.
 
-Provider cards now pair an explicit operational state with a separate `LIVE` or `SYNTHETIC` mode badge, last success/error information, and capabilities. A persistent **SYNTHETIC / VALIDATION DATA** indicator prevents deterministic validation paths from appearing live. Candidate rows combine numeric relevance with LOW/MEDIUM/HIGH bands and use explicit freshness wording: `FRESH`, `STALE`, or **Source time unavailable** when the provider supplied no timestamp. Missing evidence and conflicting evidence are visually distinct and are never assigned a fabricated neutral value.
+Provider cards now pair an explicit operational state with a separate `LIVE`, `SYNTHETIC DATA`, or `VALIDATION / SYNTHETIC` mode label, last success/error information, and capabilities. A persistent **SYNTHETIC VALIDATION DATA** indicator prevents deterministic validation paths from appearing live. Candidate rows combine numeric relevance with LOW/MEDIUM/HIGH bands and use explicit freshness wording: `FRESH`, `STALE`, or **Source time unavailable** when the provider supplied no timestamp. Missing evidence and conflicting evidence are visually distinct and are never assigned a fabricated neutral value.
 
 Candidate review now explains relevance as an attention score, coverage as the available share of expected evidence, episode as the current discovery episode, and tolerance as a horizon-aware envelope. Backend tolerance states remain unchanged; the presentation maps `DEGRADED` to **Near limit** and `BREACHED` to **Outside**, with the internal state retained in accessible detail. Evidence cards lead with evidence type/state/summary and place raw provenance one level deeper. Market context uses human wording for absent evidence, snapshot history shows the newest immutable observation and its first material change, and optional Level-0 output is presented as **Optional AI explanation** with explicit disabled/available/generating/grounding states and unchanged authority limits.
 
 Manual dismiss, defunct, and recovery actions now explain their consequence, require confirmation, and submit action-specific audit reasons through the existing revisioned lifecycle contract. Selected candidate rows remain visibly associated with the focused review panel; the panel receives focus and scrolls predictably. At narrow widths, data tables recompose into labeled row cards while keeping semantic table markup, keyboard focus, visible state text, and technical details available. Discovery settings are grouped into General, Providers, Scan profiles, Freshness, LLM, History / retention, and expandable advanced relevance/experimental controls.
+
+## Final product stabilization before formal user validation
+
+The final pre-validation stabilization keeps the sidebar as the sole route navigation for **Scanners** and **Candidates**. The duplicate page-level destination tabs were removed. The Scanners route now uses a workstation composition: scan setup and provider state at left, latest results and a compact persisted discovery queue in the center, and the selected candidate inspector at right on wide screens. At narrower widths these regions recompose into two columns and then one column; semantic tables become labeled cards at mobile widths.
+
+Scan Profile and Discovery Intent are presented as separate concepts. A profile states the mechanical pattern TWF searches for, while intent states how a resulting setup should be interpreted and tracked. Profile selection recommends an intent and horizon. After a user explicitly changes either field, later profile changes preserve that override until **Apply suggestion** is selected. The context policy is expressed as **Require complete context**, **Allow partial context**, or **Context optional**; missing context remains visible and reduces coverage.
+
+Provider cards separate informational **Mode** from operational **Status**. Internal Scanner V0 is identified as deterministic, fixture-backed **SYNTHETIC DATA**. The TradingView card distinguishes validation/synthetic mode from a live provider mode and uses text states such as READY, RATE LIMITED, AUTH REQUIRED, UNAVAILABLE, DISABLED, and DEGRADED in addition to semantic color. Rate limiting is shown as an operational constraint and does not imply that live exact-row proof succeeded.
+
+Internal Scanner fixtures now provide deterministic but varied market-shaped series for RELIANCE, MCX, HDFCBANK, INFY, BSE, NIFTY, BANKNIFTY, and TCS. A single run contains matches and non-matches, multiple match reasons, different prices, relative volumes, relevance values, and evidence coverage. Repeated scans progress deterministically and append immutable snapshots with changed relevance/evidence where the fixture state advances. The synthetic disclosure remains persistent and explicitly denies a live-market claim.
+
+Canonical product identity now classifies NIFTY, BANKNIFTY, FINNIFTY, and MIDCPNIFTY as `INDEX`; equities remain `EQ`. Existing stable instrument IDs are preserved. Result rows lead with human explanations derived from the actual matched metrics, formatted price/momentum/RVOL/RSI fields, and an explicit freshness state. Raw observation bases, provider IDs, lineage, and technical identifiers remain available under details. Candidate evidence leads with **Scan + market context**, while exact provider provenance remains inspectable.
+
+Recent scans use the existing persisted scan-history API and can load their setup back into the form for review. The discovery queue uses the existing owner-scoped candidate persistence and does not introduce Opportunity, LOB, recommendation, risk, sizing, or execution authority. Relevance weights, thresholds, lifecycle, tolerance, context logic, persistence, owner isolation, provider contracts, and LLM authority are unchanged.
 
 ## CP-4 — bounded market context
 
@@ -96,21 +110,21 @@ WebKit still cannot launch successfully on this host because the Playwright runt
 
 | Check                             | Result                                                                                         |
 | --------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Backend full regression           | 917 passed                                                                                     |
+| Backend full regression           | 918 passed                                                                                     |
 | Ruff lint / format                | passed; 126 files formatted                                                                    |
 | Strict mypy                       | passed; 125 source files                                                                       |
 | Python compilation / `pip check`  | passed                                                                                         |
 | OpenAPI construction              | passed; 50 paths, 118 schemas                                                                  |
 | Offline package build             | wheel and sdist built                                                                          |
-| Frontend unit tests               | 121 passed across 16 files                                                                     |
+| Frontend unit tests               | 127 passed across 16 files                                                                     |
 | ESLint / TypeScript / Prettier    | passed                                                                                         |
 | Next.js production build          | passed; Scanners, Candidates, and discovery proxy routes emitted                               |
 | Discovery responsive Chromium     | 6 passed at 390, 768, 1024, 1440, 1920, and 2560                                               |
 | Full Chromium browser suite       | 66 passed across all six target widths, including Broker V2                                    |
-| Focused discovery backend tests   | 16 passed                                                                                      |
+| Focused discovery backend tests   | 17 passed                                                                                      |
 | SQLite migration lifecycle        | upgrade/repeat/downgrade/re-upgrade and data-preservation probe passed                         |
 | PostgreSQL 16 migration lifecycle | upgrade/repeat/downgrade/re-upgrade and data-preservation probe passed                         |
-| Documentation links / whitespace  | 62 Markdown files passed; `git diff --check` passed                                            |
+| Documentation links / whitespace  | 63 Markdown files passed; `git diff --check` passed                                            |
 | Dependency vulnerability audit    | unchanged seven records/four accepted `cryptography==47.0.0` advisories; not reported as clean |
 
 ## Architecture choices and boundaries

@@ -191,10 +191,13 @@ class ScanMatchView(Contract):
     match_id: UUID
     symbol: str
     exchange: str
+    segment: str
     provider: str
     why_matched: tuple[str, ...]
+    raw_reasons: tuple[str, ...]
     key_metrics: dict[str, str]
     source_mode: str
+    source_data_time: AwareDatetime | None = None
     lineage: str
 
 

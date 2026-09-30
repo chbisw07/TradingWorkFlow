@@ -6,7 +6,8 @@ export type ProviderStatus = {
   label: string;
   enabled: boolean;
   mode: "LOCAL_SYNTHETIC" | "REMOTE" | "SYNTHETIC_VALIDATION";
-  health: "AVAILABLE" | "DEGRADED" | "AUTH_REQUIRED" | "RATE_LIMITED";
+  health:
+    "AVAILABLE" | "DEGRADED" | "AUTH_REQUIRED" | "RATE_LIMITED" | "UNAVAILABLE";
   capabilities: string[];
   last_success_at: string | null;
   last_error: string | null;
@@ -168,29 +169,34 @@ export type ScanMatch = {
   match_id: string;
   symbol: string;
   exchange: string;
+  segment: string;
   provider: string;
   why_matched: string[];
+  raw_reasons: string[];
   key_metrics: Record<string, string>;
   source_mode: string;
+  source_data_time: string | null;
   lineage: string;
 };
 
+export type ScanSummary = {
+  run_id: string;
+  provider: ProviderChoice;
+  status: "COMPLETE" | "FAILED";
+  started_at: string;
+  completed_at: string;
+  profile: string;
+  horizon: string;
+  intent: string;
+  universe_size: number;
+  match_count: number;
+  candidate_count: number;
+  context_availability: MarketContext["availability"];
+  degraded: string[];
+};
+
 export type ScanResult = {
-  summary: {
-    run_id: string;
-    provider: ProviderChoice;
-    status: "COMPLETE" | "FAILED";
-    started_at: string;
-    completed_at: string;
-    profile: string;
-    horizon: string;
-    intent: string;
-    universe_size: number;
-    match_count: number;
-    candidate_count: number;
-    context_availability: MarketContext["availability"];
-    degraded: string[];
-  };
+  summary: ScanSummary;
   matches: ScanMatch[];
   candidates: Candidate[];
   market_context: MarketContext;

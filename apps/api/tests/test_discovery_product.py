@@ -1,6 +1,7 @@
 """Integrated Sprint-2 product regressions over the real owner-scoped API."""
 
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -13,6 +14,7 @@ from sqlalchemy import select
 
 from twf.auth import create_user
 from twf.config.settings import Settings
+from twf.discovery.product_service import identity, market_series
 from twf.infrastructure.database import (
     create_database_engine,
     create_session_factory,
@@ -97,6 +99,30 @@ def test_internal_scan_context_candidates_and_history(product_client: TestClient
     assert candidates["total"] == 2 and len(candidates["items"]) == 2
 
 
+def test_synthetic_fixture_is_realistic_deterministic_and_varied(
+    product_client: TestClient,
+) -> None:
+    universe = ["RELIANCE", "MCX", "HDFCBANK", "INFY", "BSE", "NIFTY", "BANKNIFTY"]
+    result = post(product_client, "/api/v1/discovery/scans", scan_payload(universe=universe))
+    matched = {item["symbol"] for item in result["matches"]}
+    assert {"RELIANCE", "MCX", "INFY", "NIFTY"} <= matched
+    assert {"HDFCBANK", "BSE", "BANKNIFTY"}.isdisjoint(matched)
+    closes = {item["key_metrics"]["close"] for item in result["matches"]}
+    assert len(closes) >= 3 and "100" not in closes
+    explanations = {tuple(item["why_matched"]) for item in result["matches"]}
+    assert len(explanations) >= 2
+    relevance = {item["relevance"]["value"] for item in result["candidates"]}
+    coverage = {item["relevance"]["coverage"] for item in result["candidates"]}
+    assert len(relevance) >= 2 and len(coverage) >= 2
+    nifty = next(item for item in result["candidates"] if item["instrument"]["symbol"] == "NIFTY")
+    assert nifty["instrument"]["segment"] == "INDEX"
+    assert identity("BANKNIFTY").segment == "INDEX"
+    assert identity("RELIANCE").segment == "EQ"
+
+    at = datetime(2026, 9, 30, tzinfo=UTC)
+    assert market_series(identity("RELIANCE"), at, 0) == market_series(identity("RELIANCE"), at, 0)
+
+
 def test_second_snapshot_promotes_current_and_history_is_immutable(
     product_client: TestClient,
 ) -> None:
@@ -105,6 +131,7 @@ def test_second_snapshot_promotes_current_and_history_is_immutable(
     candidate = second["candidates"][0]
     assert candidate["candidate_id"] == first["candidates"][0]["candidate_id"]
     assert candidate["lifecycle"] == "CURRENT"
+    assert candidate["relevance"]["value"] != first["candidates"][0]["relevance"]["value"]
     detail = product_client.get(f"/api/v1/discovery/candidates/{candidate['candidate_id']}").json()
     assert [item["sequence"] for item in detail["snapshots"]] == [1, 2]
     assert detail["snapshots"][0]["snapshot_id"] != detail["snapshots"][1]["snapshot_id"]
@@ -149,11 +176,11 @@ def test_no_match_and_provider_status(product_client: TestClient) -> None:
 
 
 def test_multi_provider_merges_evidence_with_distinct_lineage(product_client: TestClient) -> None:
-    first = post(product_client, "/api/v1/discovery/scans", scan_payload(universe=["HDFCBANK"]))
+    first = post(product_client, "/api/v1/discovery/scans", scan_payload(universe=["RELIANCE"]))
     second = post(
         product_client,
         "/api/v1/discovery/scans",
-        scan_payload(universe=["HDFCBANK"], provider="tradingview-synthetic"),
+        scan_payload(universe=["RELIANCE"], provider="tradingview-synthetic"),
     )
     assert first["candidates"][0]["candidate_id"] == second["candidates"][0]["candidate_id"]
     assert set(second["candidates"][0]["provider_sources"]) >= {"twf-native", "tradingview"}

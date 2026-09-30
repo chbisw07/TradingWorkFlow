@@ -860,3 +860,328 @@
     justify-content: flex-start;
   }
 }
+
+/* Final product stabilization before formal user validation */
+.discovery-workspace {
+  gap: var(--space-4);
+}
+.discovery-hero {
+  align-items: center;
+  border-color: #244b79;
+  background:
+    linear-gradient(120deg, rgba(32, 91, 153, 0.42), transparent 58%), #0d2748;
+  color: #f7fbff;
+  box-shadow: 0 12px 30px rgba(6, 24, 48, 0.2);
+}
+.discovery-hero .eyebrow,
+.discovery-hero > div:first-child > p:last-child {
+  color: #bed3eb;
+}
+.discovery-mode-label {
+  border-color: rgba(220, 235, 250, 0.3);
+  background: rgba(255, 255, 255, 0.08);
+  color: #e5f0fb;
+}
+.scan-workstation-grid {
+  display: grid;
+  grid-template-columns: minmax(18rem, 21rem) minmax(31rem, 1fr) minmax(
+      22rem,
+      27rem
+    );
+  align-items: start;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.scan-workstation-setup,
+.scan-workstation-results {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.scan-workstation-grid .scan-control-panel,
+.scan-workstation-grid .provider-status-panel,
+.scan-workstation-grid .scan-result,
+.scan-workstation-grid .candidate-queue,
+.scan-workstation-grid .inspector-placeholder,
+.candidate-workstation-grid .inspector-placeholder,
+.recent-scans {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  box-shadow: var(--shadow-panel);
+  padding: var(--space-4);
+}
+.scan-workstation-grid .scan-control-panel form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+}
+.scan-workstation-grid .scan-control-group {
+  gap: var(--space-1);
+  padding: var(--space-2) 0 var(--space-3);
+  border: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  border-radius: 0;
+  background: transparent;
+}
+.scan-workstation-grid .scan-control-group > p {
+  color: var(--accent);
+}
+.scan-workstation-grid .scan-control-panel input,
+.scan-workstation-grid .scan-control-panel select {
+  min-height: 40px;
+  background: var(--surface);
+}
+.scan-workstation-grid .run-scan-button {
+  width: 100%;
+  margin-top: var(--space-2);
+}
+.profile-suggestion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.profile-suggestion button {
+  min-height: 32px;
+  padding: var(--space-1) var(--space-2);
+}
+.provider-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+.provider-grid article {
+  background: var(--surface);
+}
+.provider-grid article > strong {
+  color: var(--text);
+}
+.provider-grid article > p {
+  margin: 0;
+}
+.provider-dimensions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: var(--space-1) 0;
+}
+.provider-dimensions > div {
+  display: grid;
+  gap: var(--space-1);
+}
+.provider-dimensions dt {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.provider-dimensions dd {
+  margin: 0;
+}
+.provider-mode {
+  display: inline-flex;
+  width: max-content;
+  border: 1px solid var(--status-stale);
+  border-radius: 99px;
+  padding: 0.2rem 0.45rem;
+  background: color-mix(in srgb, var(--status-stale) 7%, transparent);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+.provider-operational {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 800;
+}
+.provider-operational i {
+  width: 0.52rem;
+  height: 0.52rem;
+  border-radius: 50%;
+  background: var(--status-ready);
+}
+.provider-operational.is-rate_limited i,
+.provider-operational.is-degraded i,
+.provider-operational.is-auth_required i {
+  background: var(--status-stale);
+}
+.provider-operational.is-unavailable i,
+.provider-operational.is-error i {
+  background: var(--status-error);
+}
+.provider-operational.is-disabled i {
+  background: var(--status-neutral);
+}
+.provider-note {
+  padding: var(--space-2);
+  border-left: 2px solid var(--status-stale);
+  background: color-mix(in srgb, var(--status-stale) 6%, var(--surface));
+}
+.scan-workstation-grid .scan-result,
+.scan-workstation-grid .candidate-queue {
+  padding: var(--space-4);
+}
+.scan-workstation-grid .scan-metrics {
+  grid-template-columns: repeat(4, minmax(7rem, 1fr));
+  gap: var(--space-2);
+  overflow-x: auto;
+}
+.scan-workstation-grid .scan-metrics > div {
+  padding: var(--space-2);
+}
+.scan-match-table {
+  min-width: 48rem;
+}
+.candidate-queue-table,
+.recent-scans-table {
+  min-width: 44rem;
+}
+.metric-list {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.metric-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+.metric-list span {
+  color: var(--text-muted);
+}
+.workspace-empty-copy {
+  padding: var(--space-4) 0;
+  color: var(--text-muted);
+}
+.scan-workstation-inspector,
+.candidate-workstation-inspector {
+  min-width: 0;
+}
+.scan-workstation-inspector .candidate-inspector {
+  position: sticky;
+  top: var(--space-3);
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+  padding: var(--space-4);
+  gap: var(--space-4);
+}
+.scan-workstation-inspector .candidate-scorecard {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.scan-workstation-inspector .evidence-list,
+.scan-workstation-inspector .context-dimensions {
+  grid-template-columns: minmax(0, 1fr);
+}
+.scan-workstation-inspector .candidate-inspector > header {
+  position: sticky;
+  top: calc(-1 * var(--space-4));
+  z-index: 2;
+  padding: var(--space-3) 0;
+  background: var(--surface);
+}
+.recent-scans {
+  padding: var(--space-4);
+}
+.recent-scans .section-heading-row {
+  margin-bottom: var(--space-3);
+}
+.recent-scans-table button,
+.candidate-queue-table button {
+  min-height: 34px;
+}
+.candidate-workstation-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(24rem, 0.8fr);
+  align-items: start;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.candidate-workstation-inspector .candidate-inspector {
+  position: sticky;
+  top: var(--space-3);
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+}
+.data-mode-banner {
+  padding-block: var(--space-2);
+}
+.discovery-table tbody tr:hover td {
+  background: color-mix(in srgb, var(--accent) 4%, var(--surface));
+}
+.discovery-table tr[data-selected="true"] td {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+@media (max-width: 1399px) {
+  .scan-workstation-grid {
+    grid-template-columns: minmax(18rem, 20rem) minmax(0, 1fr);
+  }
+  .scan-workstation-inspector {
+    grid-column: 1 / -1;
+  }
+  .scan-workstation-inspector .candidate-inspector,
+  .candidate-workstation-inspector .candidate-inspector {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+  .scan-workstation-inspector .evidence-list,
+  .scan-workstation-inspector .context-dimensions {
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  }
+}
+@media (max-width: 1023px) {
+  .scan-workstation-grid,
+  .candidate-workstation-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .scan-workstation-inspector {
+    grid-column: auto;
+  }
+  .scan-workstation-grid .scan-control-panel form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .scan-workstation-grid .profile-suggestion,
+  .scan-workstation-grid .run-scan-button {
+    grid-column: 1 / -1;
+  }
+  .provider-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 599px) {
+  .scan-workstation-grid .scan-control-panel form,
+  .provider-grid,
+  .provider-dimensions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .scan-workstation-grid .profile-suggestion,
+  .scan-workstation-grid .run-scan-button {
+    grid-column: auto;
+  }
+  .profile-suggestion {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .scan-workstation-grid .scan-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible;
+  }
+  .scan-match-table,
+  .candidate-queue-table,
+  .recent-scans-table {
+    min-width: 0;
+  }
+}
