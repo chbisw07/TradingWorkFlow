@@ -30,6 +30,7 @@ METRICS = {
     "close_sma50_gap": "percent",
     "sma50_sma200_gap": "percent",
     "breakout.20": "boolean",
+    "breakdown.20": "boolean",
     "cross_above_sma.20": "boolean",
     "cross_below_sma.20": "boolean",
 }
@@ -98,6 +99,10 @@ def _measure(metric: str, bars: Sequence[Bar]) -> float:
         resistance = ind.rolling_high(bars, period)
         ind.require_finite((closes[-1], resistance))
         return float(closes[-1] > resistance)
+    if family == "breakdown":
+        support = ind.rolling_low(bars, period)
+        ind.require_finite((closes[-1], support))
+        return float(closes[-1] < support)
     ind.require(closes, period, 1)
     previous = ind.sma(closes[:-1], period)
     current = ind.sma(closes, period)

@@ -206,6 +206,11 @@ class InternalScannerV0:
                     transformation=RevisionRef(id="internal-v0", version=basis_version),
                     dependence_group=series.provenance.dependence_group,
                 )
+                scan_polarity = {
+                    "LONG": EvidencePolarity.POSITIVE,
+                    "SHORT": EvidencePolarity.NEGATIVE,
+                    "NEUTRAL": EvidencePolarity.NEUTRAL,
+                }[run.definition.direction]
                 evidence: list[DiscoveryEvidence] = []
                 for index, (criterion, value, flag) in enumerate(
                     zip(run.definition.criteria, values, flags, strict=True)
@@ -223,7 +228,7 @@ class InternalScannerV0:
                             owner_id=context.owner_id,
                             subject_id=instrument.instrument_id,
                             category=EvidenceCategory.PROVIDER_SCAN,
-                            polarity=EvidencePolarity.NEUTRAL,
+                            polarity=scan_polarity,
                             observation_basis=f"{series.interval}.{index}.{criterion.metric}",
                             observed_at=bars[-1].timestamp,
                             source_data_time=bars[-1].timestamp,

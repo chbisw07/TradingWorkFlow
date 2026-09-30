@@ -78,8 +78,8 @@ def scan_payload(**changes: Any) -> dict[str, Any]:
 def test_internal_scan_context_candidates_and_history(product_client: TestClient) -> None:
     result = post(product_client, "/api/v1/discovery/scans", scan_payload())
     assert result["summary"]["provider"] == "internal"
-    assert result["summary"]["match_count"] == 2
-    assert result["summary"]["candidate_count"] == 2
+    assert result["summary"]["match_count"] == 1
+    assert result["summary"]["candidate_count"] == 1
     assert result["market_context"]["availability"] == "PARTIAL"
     assert any(item["availability"] == "MISSING" for item in result["market_context"]["dimensions"])
     assert {item["lifecycle"] for item in result["candidates"]} == {"NEW"}
@@ -102,7 +102,7 @@ def test_internal_scan_context_candidates_and_history(product_client: TestClient
         == result["summary"]["run_id"]
     )
     candidates = product_client.get("/api/v1/discovery/candidates").json()
-    assert candidates["total"] == 2 and len(candidates["items"]) == 2
+    assert candidates["total"] == 1 and len(candidates["items"]) == 1
 
 
 def test_scan_history_archive_restore_and_owner_isolation(
@@ -184,22 +184,205 @@ def test_synthetic_fixture_is_realistic_deterministic_and_varied(
     universe = ["RELIANCE", "MCX", "HDFCBANK", "INFY", "BSE", "NIFTY", "BANKNIFTY"]
     result = post(product_client, "/api/v1/discovery/scans", scan_payload(universe=universe))
     matched = {item["symbol"] for item in result["matches"]}
-    assert {"RELIANCE", "MCX", "INFY", "NIFTY"} <= matched
-    assert {"HDFCBANK", "BSE", "BANKNIFTY"}.isdisjoint(matched)
+    assert matched == {"RELIANCE", "MCX"}
+    assert {"HDFCBANK", "INFY", "BSE", "NIFTY", "BANKNIFTY"}.isdisjoint(matched)
     closes = {item["key_metrics"]["close"] for item in result["matches"]}
-    assert len(closes) >= 3 and "100" not in closes
+    assert len(closes) == 2 and "100" not in closes
     explanations = {tuple(item["why_matched"]) for item in result["matches"]}
     assert len(explanations) >= 2
     relevance = {item["relevance"]["value"] for item in result["candidates"]}
     coverage = {item["relevance"]["coverage"] for item in result["candidates"]}
     assert len(relevance) >= 2 and len(coverage) >= 2
-    nifty = next(item for item in result["candidates"] if item["instrument"]["symbol"] == "NIFTY")
-    assert nifty["instrument"]["segment"] == "INDEX"
+    assert identity("NIFTY").segment == "INDEX"
     assert identity("BANKNIFTY").segment == "INDEX"
     assert identity("RELIANCE").segment == "EQ"
 
     at = datetime(2026, 9, 30, tzinfo=UTC)
     assert market_series(identity("RELIANCE"), at, 0) == market_series(identity("RELIANCE"), at, 0)
+
+
+def test_u1_profiles_have_distinct_matches_and_authoritative_reasons(
+    product_client: TestClient,
+) -> None:
+    cases = (
+        ("RELATIVE_VOLUME", "MCX", ("Relative volume", "Positive 10-day momentum")),
+        ("MOMENTUM", "MCX", ("Positive 10-day momentum", "RSI")),
+        ("BREAKOUT_WITH_VOLUME", "RELIANCE", ("Upside breakout", "Relative volume")),
+        ("PULLBACK_IN_UPTREND", "INFY", ("50-day trend", "One-day pullback")),
+        ("TREND_CONTINUATION", "NIFTY", ("50-day trend", "RSI")),
+    )
+    reason_sets: set[tuple[str, ...]] = set()
+    for profile, symbol, expected_fragments in cases:
+        result = post(
+            product_client,
+            "/api/v1/discovery/scans",
+            scan_payload(profile=profile, universe=[symbol]),
+        )
+        assert result["summary"]["match_count"] == 1
+        reasons = tuple(result["matches"][0]["why_matched"])
+        assert all(any(fragment in reason for reason in reasons) for fragment in expected_fragments)
+        reason_sets.add(reasons)
+    assert len(reason_sets) == len(cases)
+
+
+def test_u1_directional_intent_requires_supporting_evidence(
+    product_client: TestClient,
+) -> None:
+    bullish = post(
+        product_client,
+        "/api/v1/discovery/scans",
+        scan_payload(
+            profile="MOMENTUM",
+            universe=["MCX"],
+            intent="POSITIONAL_LONG",
+            horizon="5d",
+        ),
+    )
+    assert bullish["summary"]["candidate_count"] == 1
+    assert all(
+        item["polarity"] == "POSITIVE"
+        for item in product_client.get(
+            f"/api/v1/discovery/candidates/{bullish['candidates'][0]['candidate_id']}"
+        ).json()["snapshots"][0]["evidence"]
+        if item["category"] == "PROVIDER_SCAN"
+    )
+    assert (
+        post(
+            product_client,
+            "/api/v1/discovery/scans",
+            scan_payload(
+                profile="MOMENTUM",
+                universe=["MCX"],
+                intent="POSITIONAL_SHORT",
+                horizon="5d",
+            ),
+        )["summary"]["candidate_count"]
+        == 0
+    )
+
+    bearish = post(
+        product_client,
+        "/api/v1/discovery/scans",
+        scan_payload(
+            profile="MOMENTUM",
+            universe=["BSE"],
+            intent="POSITIONAL_SHORT",
+            horizon="5d",
+        ),
+    )
+    assert bearish["summary"]["candidate_count"] == 1
+    assert (
+        post(
+            product_client,
+            "/api/v1/discovery/scans",
+            scan_payload(
+                profile="MOMENTUM",
+                universe=["BSE"],
+                intent="POSITIONAL_LONG",
+                horizon="5d",
+            ),
+        )["summary"]["candidate_count"]
+        == 0
+    )
+
+    upside = post(
+        product_client,
+        "/api/v1/discovery/scans",
+        scan_payload(
+            profile="BREAKOUT_WITH_VOLUME",
+            universe=["RELIANCE"],
+            intent="POSITIONAL_LONG",
+            horizon="5d",
+        ),
+    )
+    downside = post(
+        product_client,
+        "/api/v1/discovery/scans",
+        scan_payload(
+            profile="BREAKOUT_WITH_VOLUME",
+            universe=["BANKNIFTY"],
+            intent="POSITIONAL_SHORT",
+            horizon="5d",
+        ),
+    )
+    assert upside["summary"]["candidate_count"] == 1
+    assert downside["summary"]["candidate_count"] == 1
+    assert "Upside breakout" in upside["matches"][0]["why_matched"][0]
+    assert "Downside breakdown" in downside["matches"][0]["why_matched"][0]
+
+
+def test_u1_intent_horizon_and_profile_compatibility(product_client: TestClient) -> None:
+    valid = (
+        scan_payload(intent="INTRADAY_LONG", horizon="intraday"),
+        scan_payload(intent="INTRADAY_SHORT", horizon="1d"),
+        scan_payload(intent="POSITIONAL_LONG", horizon="5d"),
+        scan_payload(intent="POSITIONAL_SHORT", horizon="15d"),
+    )
+    for payload in valid:
+        assert (
+            product_client.post(
+                "/api/v1/discovery/scans", json=payload, headers={"Origin": ORIGIN}
+            ).status_code
+            == 201
+        )
+
+    invalid = (
+        scan_payload(intent="INTRADAY_LONG", horizon="5d"),
+        scan_payload(intent="POSITIONAL_LONG", horizon="intraday"),
+        scan_payload(
+            profile="PULLBACK_IN_UPTREND",
+            intent="POSITIONAL_SHORT",
+            horizon="5d",
+        ),
+    )
+    for payload in invalid:
+        response = product_client.post(
+            "/api/v1/discovery/scans", json=payload, headers={"Origin": ORIGIN}
+        )
+        assert response.status_code == 422
+
+
+def test_u1_fixture_profiles_are_differentiated_and_relevance_discriminates(
+    product_client: TestClient,
+) -> None:
+    universe = ["RELIANCE", "MCX", "HDFCBANK", "INFY", "BSE", "NIFTY", "BANKNIFTY", "TCS"]
+    result_sets: dict[str, set[str]] = {}
+    for profile in (
+        "RELATIVE_VOLUME",
+        "MOMENTUM",
+        "BREAKOUT_WITH_VOLUME",
+        "PULLBACK_IN_UPTREND",
+        "TREND_CONTINUATION",
+    ):
+        result = post(
+            product_client,
+            "/api/v1/discovery/scans",
+            scan_payload(profile=profile, universe=universe, context_mode="healthy"),
+        )
+        result_sets[profile] = {item["symbol"] for item in result["matches"]}
+    assert len({frozenset(items) for items in result_sets.values()}) >= 4
+    assert result_sets["BREAKOUT_WITH_VOLUME"] == {"RELIANCE"}
+    assert result_sets["PULLBACK_IN_UPTREND"] == {"INFY"}
+    assert "MCX" in result_sets["RELATIVE_VOLUME"]
+    assert "NIFTY" in result_sets["TREND_CONTINUATION"]
+
+    scored = post(
+        product_client,
+        "/api/v1/discovery/scans",
+        scan_payload(profile="TREND_CONTINUATION", universe=universe, context_mode="healthy"),
+    )["candidates"]
+    values = [float(item["relevance"]["value"]) for item in scored]
+    assert len(set(values)) >= 2
+    assert min(values) < max(values) < 1
+
+
+def test_u1_lineage_tracks_origin_and_latest_scan(product_client: TestClient) -> None:
+    first = post(product_client, "/api/v1/discovery/scans", scan_payload(universe=["RELIANCE"]))
+    second = post(product_client, "/api/v1/discovery/scans", scan_payload(universe=["RELIANCE"]))
+    candidate = second["candidates"][0]
+    assert candidate["originating_scan_run_id"] == first["summary"]["run_id"]
+    assert candidate["latest_scan_run_id"] == second["summary"]["run_id"]
+    assert candidate["originating_scan_run_id"] != candidate["latest_scan_run_id"]
 
 
 def test_second_snapshot_promotes_current_and_history_is_immutable(
@@ -235,11 +418,11 @@ def test_second_snapshot_promotes_current_and_history_is_immutable(
 def test_context_degradation_is_explicit(
     product_client: TestClient, mode: str, availability: str, lifecycle: str
 ) -> None:
-    post(product_client, "/api/v1/discovery/scans", scan_payload(universe=["INFY"]))
+    post(product_client, "/api/v1/discovery/scans", scan_payload(universe=["RELIANCE"]))
     result = post(
         product_client,
         "/api/v1/discovery/scans",
-        scan_payload(universe=["INFY"], context_mode=mode),
+        scan_payload(universe=["RELIANCE"], context_mode=mode),
     )
     assert result["market_context"]["availability"] == availability
     assert result["candidates"][0]["lifecycle"] == lifecycle
@@ -382,17 +565,17 @@ def test_same_symbol_keeps_intent_and_horizon_lifecycles_distinct(
     first = post(
         product_client,
         "/api/v1/discovery/scans",
-        scan_payload(universe=["TCS"], intent="MOMENTUM", horizon="5d"),
+        scan_payload(universe=["RELIANCE"], intent="MOMENTUM", horizon="5d"),
     )["candidates"][0]
     second = post(
         product_client,
         "/api/v1/discovery/scans",
-        scan_payload(universe=["TCS"], intent="BREAKOUT", horizon="5d"),
+        scan_payload(universe=["RELIANCE"], intent="BREAKOUT", horizon="5d"),
     )["candidates"][0]
     third = post(
         product_client,
         "/api/v1/discovery/scans",
-        scan_payload(universe=["TCS"], intent="MOMENTUM", horizon="15d"),
+        scan_payload(universe=["RELIANCE"], intent="MOMENTUM", horizon="15d"),
     )["candidates"][0]
     assert len({first["candidate_id"], second["candidate_id"], third["candidate_id"]}) == 3
     assert {

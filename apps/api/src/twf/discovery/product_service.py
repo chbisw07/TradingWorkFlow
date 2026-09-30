@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any, Literal, cast
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
@@ -91,7 +91,7 @@ from twf.infrastructure.discovery import (
 )
 from twf.integrations.contracts import RequestContext
 
-POLICY = RevisionRef(id="deterministic-relevance-v1", version="1")
+POLICY = RevisionRef(id="deterministic-relevance-v2", version="2")
 TRANSFORMATION = RevisionRef(id="sprint2-product-normalization", version="1")
 TRADINGVIEW_SYNTHETIC = ProducerIdentity(
     service_id="tradingview-synthetic-validation",
@@ -134,6 +134,22 @@ def horizon_seconds(value: HorizonChoice) -> int:
     }[value]
 
 
+def intent_direction(choice: IntentChoice) -> Literal["LONG", "SHORT"]:
+    return (
+        "SHORT"
+        if choice in {IntentChoice.INTRADAY_SHORT, IntentChoice.POSITIONAL_SHORT}
+        else "LONG"
+    )
+
+
+def fixture_polarity(fixture: SyntheticInstrumentFixture) -> EvidencePolarity:
+    if fixture.daily_trend > 0:
+        return EvidencePolarity.POSITIVE
+    if fixture.daily_trend < 0:
+        return EvidencePolarity.NEGATIVE
+    return EvidencePolarity.NEUTRAL
+
+
 INDEX_SYMBOLS = frozenset({"NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY"})
 
 
@@ -145,32 +161,82 @@ class SyntheticInstrumentFixture:
     technical_evidence: bool
     tradingview_match: bool
     final_move: Decimal | None = None
+    cycle_amplitude: Decimal = Decimal("0.08")
 
 
 SYNTHETIC_FIXTURES: dict[str, SyntheticInstrumentFixture] = {
+    # Distinct deterministic archetypes for operator validation, never market claims.
     "RELIANCE": SyntheticInstrumentFixture(
-        Decimal("2846.40"), Decimal("0.42"), Decimal("1.90"), False, True, Decimal("-0.30")
+        Decimal("2846.40"),
+        Decimal("0.18"),
+        Decimal("1.95"),
+        True,
+        True,
+        Decimal("8.00"),
+        Decimal("0.20"),
     ),
     "MCX": SyntheticInstrumentFixture(
-        Decimal("3146.80"), Decimal("0.74"), Decimal("2.60"), True, True
+        Decimal("3146.80"),
+        Decimal("0.34"),
+        Decimal("2.60"),
+        True,
+        True,
+        None,
+        Decimal("0.30"),
     ),
     "HDFCBANK": SyntheticInstrumentFixture(
-        Decimal("1684.25"), Decimal("-0.16"), Decimal("0.82"), False, False
+        Decimal("1684.25"),
+        Decimal("-0.03"),
+        Decimal("0.82"),
+        False,
+        False,
+        None,
+        Decimal("0.35"),
     ),
     "INFY": SyntheticInstrumentFixture(
-        Decimal("1568.60"), Decimal("0.24"), Decimal("1.65"), False, True
+        Decimal("1568.60"),
+        Decimal("0.22"),
+        Decimal("1.30"),
+        True,
+        True,
+        Decimal("-2.80"),
+        Decimal("0.25"),
     ),
     "BSE": SyntheticInstrumentFixture(
-        Decimal("2488.15"), Decimal("-0.05"), Decimal("1.10"), False, False
+        Decimal("2488.15"),
+        Decimal("-0.30"),
+        Decimal("1.85"),
+        True,
+        True,
+        None,
+        Decimal("0.25"),
     ),
     "NIFTY": SyntheticInstrumentFixture(
-        Decimal("24520.30"), Decimal("0.55"), Decimal("1.72"), True, True
+        Decimal("24520.30"),
+        Decimal("0.10"),
+        Decimal("1.25"),
+        True,
+        True,
+        None,
+        Decimal("0.60"),
     ),
     "BANKNIFTY": SyntheticInstrumentFixture(
-        Decimal("51780.10"), Decimal("-0.08"), Decimal("0.96"), False, False
+        Decimal("51780.10"),
+        Decimal("-0.12"),
+        Decimal("2.05"),
+        True,
+        True,
+        Decimal("-18.00"),
+        Decimal("0.45"),
     ),
     "TCS": SyntheticInstrumentFixture(
-        Decimal("3984.50"), Decimal("0.31"), Decimal("1.78"), True, True
+        Decimal("3984.50"),
+        Decimal("0.04"),
+        Decimal("1.20"),
+        False,
+        True,
+        None,
+        Decimal("0.40"),
     ),
 }
 
@@ -197,7 +263,12 @@ def synthetic_fixture(symbol: str, progression: int = 0) -> SyntheticInstrumentF
         relative_volume=min(
             Decimal("3.50"), fixture.relative_volume + Decimal("0.15") * progression
         ),
-        technical_evidence=fixture.technical_evidence or fixture.tradingview_match,
+        final_move=(
+            fixture.final_move
+            + (Decimal("0.50") if fixture.final_move > 0 else Decimal("-0.50")) * progression
+            if fixture.final_move is not None
+            else None
+        ),
     )
 
 
@@ -267,7 +338,7 @@ def market_series(
     bars: list[Bar] = []
     baseline_volume = Decimal(900 + seed % 700)
     for index in range(260):
-        cycle = Decimal(((index + seed) % 7) - 3) * Decimal("0.08")
+        cycle = Decimal(((index + seed) % 7) - 3) * fixture.cycle_amplitude
         close_value = fixture.base_price + fixture.daily_trend * index + cycle
         if index == 259 and fixture.final_move is not None:
             close_value = Decimal(str(bars[-1].close)) + fixture.final_move
@@ -382,11 +453,7 @@ class ScanDiscoverService:
                 owner_id=self.owner_id,
                 subject_id=instrument.instrument_id,
                 category=category,
-                polarity=(
-                    EvidencePolarity.POSITIVE
-                    if fixture.daily_trend > 0
-                    else EvidencePolarity.NEUTRAL
-                ),
+                polarity=fixture_polarity(fixture),
                 observation_basis="deterministic-daily-fixture",
                 observed_at=at,
                 source_data_time=source_data_time,
@@ -496,6 +563,7 @@ class ScanDiscoverService:
                 context,
                 stable("definition:" + payload.profile),
                 interval="1d",
+                direction=intent_direction(payload.intent),
             )
             run = ScanRun(
                 run_id=run_id,
@@ -516,6 +584,7 @@ class ScanDiscoverService:
             definition = ScanDefinition(
                 definition_id=stable("definition:tradingview-exact-validation"),
                 revision=1,
+                direction=intent_direction(payload.intent),
                 criteria=(
                     Criterion(
                         metric="close",
@@ -574,17 +643,18 @@ class ScanDiscoverService:
                 for item in context_evidence
                 if item.subject_id == match.instrument.instrument_id
             )
-            candidates.append(
-                self.capture_candidate(
-                    match,
-                    payload.intent,
-                    payload.horizon,
-                    (*match.evidence, *extra),
-                    started,
-                    context_snapshot,
-                    payload.include_llm,
+            if self.match_supports_intent(match, payload.intent):
+                candidates.append(
+                    self.capture_candidate(
+                        match,
+                        payload.intent,
+                        payload.horizon,
+                        (*match.evidence, *extra),
+                        started,
+                        context_snapshot,
+                        payload.include_llm,
+                    )
                 )
-            )
         summary = ScanSummary(
             run_id=run_id,
             provider=payload.provider,
@@ -639,7 +709,7 @@ class ScanDiscoverService:
                 owner_id=self.owner_id,
                 subject_id=instrument.instrument_id,
                 category=EvidenceCategory.PROVIDER_SCAN,
-                polarity=EvidencePolarity.POSITIVE,
+                polarity=fixture_polarity(fixture),
                 observation_basis="provider-current",
                 observed_at=at,
                 source_data_time=None,
@@ -688,6 +758,20 @@ class ScanDiscoverService:
             configuration_fingerprint=run.configuration_fingerprint,
             evidence=evidence,
             provenance=source,
+        )
+
+    @staticmethod
+    def match_supports_intent(match: ScanMatch, choice: IntentChoice) -> bool:
+        expected = (
+            EvidencePolarity.NEGATIVE
+            if intent_direction(choice) == "SHORT"
+            else EvidencePolarity.POSITIVE
+        )
+        return any(
+            item.availability == "PRESENT"
+            and item.category == EvidenceCategory.PROVIDER_SCAN
+            and item.polarity == expected
+            for item in match.evidence
         )
 
     def market_context(
@@ -839,22 +923,51 @@ class ScanDiscoverService:
         evidence: tuple[DiscoveryEvidence, ...],
         horizon: HorizonChoice,
         settings: DiscoverySettings,
+        context: MarketContextSnapshot,
     ) -> tuple[DiscoveryRelevance, RelevanceExplanation]:
         categories = {item.category for item in evidence if item.availability == "PRESENT"}
+        context_quality = {
+            ContextAvailability.COMPLETE: Decimal(1),
+            ContextAvailability.PARTIAL: Decimal("0.50"),
+            ContextAvailability.STALE: Decimal(0),
+            ContextAvailability.UNAVAILABLE: Decimal(0),
+        }[context.availability]
+        provider_items = tuple(
+            item
+            for item in evidence
+            if item.category == EvidenceCategory.PROVIDER_SCAN and item.availability == "PRESENT"
+        )
+        provider_quality = self.provider_evidence_quality(provider_items)
         factors = (
-            ("provider-scan", EvidenceCategory.PROVIDER_SCAN, Decimal("0.45")),
-            ("price", EvidenceCategory.INSTRUMENT_PRICE, Decimal("0.20")),
-            ("market-context", EvidenceCategory.MARKET_CONTEXT, Decimal("0.20")),
-            ("technical", EvidenceCategory.TECHNICAL, Decimal("0.15")),
+            (
+                "provider-scan",
+                EvidenceCategory.PROVIDER_SCAN,
+                Decimal("0.45"),
+                provider_quality,
+            ),
+            ("price", EvidenceCategory.INSTRUMENT_PRICE, Decimal("0.20"), None),
+            (
+                "market-context",
+                EvidenceCategory.MARKET_CONTEXT,
+                Decimal("0.20"),
+                context_quality,
+            ),
+            ("technical", EvidenceCategory.TECHNICAL, Decimal("0.15"), None),
         )
         contributions: list[RelevanceContribution] = []
         missing: list[str] = []
         score = Decimal(0)
-        for name, category, weight in factors:
-            value = Decimal(1) if category in categories else Decimal(0)
+        factor_values: list[Decimal] = []
+        for name, category, weight, measured_value in factors:
+            value = (
+                measured_value
+                if measured_value is not None
+                else (Decimal(1) if category in categories else Decimal(0))
+            )
+            factor_values.append(value)
             contribution = value * weight
             score += contribution
-            if not value:
+            if value == 0:
                 missing.append(name)
             contributions.append(
                 RelevanceContribution(
@@ -862,7 +975,11 @@ class ScanDiscoverService:
                     value=value,
                     weight=weight,
                     contribution=contribution,
-                    reason=("Evidence present" if value else "Evidence unavailable"),
+                    reason=(
+                        "Partial evidence available"
+                        if 0 < value < 1
+                        else ("Evidence present" if value else "Evidence unavailable")
+                    ),
                 )
             )
         stale = any(item.source_data_time is None for item in evidence)
@@ -870,11 +987,14 @@ class ScanDiscoverService:
         horizon_adjustment = (
             Decimal("0.03")
             if horizon in {HorizonChoice.FIVE_DAYS, HorizonChoice.FIFTEEN_DAYS}
-            and EvidenceCategory.MARKET_CONTEXT in categories
+            and context_quality > 0
             else Decimal(0)
         )
-        score = max(Decimal(0), min(Decimal(1), score - freshness_penalty + horizon_adjustment))
-        coverage = Decimal(len(categories & {item[1] for item in factors})) / Decimal(len(factors))
+        score = max(
+            Decimal(0),
+            min(Decimal(1), score - freshness_penalty + horizon_adjustment),
+        )
+        coverage = sum(factor_values, Decimal(0)) / Decimal(len(factors))
         thresholds = RelevanceThresholds(low_max=settings.low_max, medium_max=settings.medium_max)
         relevance = DiscoveryRelevance(
             value=score,
@@ -894,6 +1014,39 @@ class ScanDiscoverService:
             horizon_adjustment=horizon_adjustment,
         )
         return relevance, explanation
+
+    @staticmethod
+    def provider_evidence_quality(evidence: tuple[DiscoveryEvidence, ...]) -> Decimal:
+        """Measure matched-predicate strength without inventing missing evidence."""
+        if not evidence:
+            return Decimal(0)
+        strengths: list[Decimal] = []
+        for item in evidence:
+            measures = {measure.name: measure.value for measure in item.measures}
+            metric = next(
+                (
+                    measure.value
+                    for measure in item.measures
+                    if measure.name not in {"threshold", "operator", "matched", "price-unit"}
+                ),
+                None,
+            )
+            threshold = measures.get("threshold")
+            operator = str(measures.get("operator", ""))
+            try:
+                observed = Decimal(str(metric))
+                boundary = Decimal(str(threshold))
+            except (InvalidOperation, TypeError, ValueError):
+                strengths.append(Decimal(1))
+                continue
+            if operator in {"EQ", "NE"}:
+                strengths.append(Decimal(1))
+                continue
+            scale = max(abs(boundary), abs(observed), Decimal(1))
+            margin = observed - boundary if operator in {"GT", "GTE"} else boundary - observed
+            normalized = max(Decimal(0), min(Decimal(1), margin / scale))
+            strengths.append(Decimal("0.75") + Decimal("0.25") * normalized)
+        return sum(strengths, Decimal(0)) / Decimal(len(strengths))
 
     def tolerance(
         self,
@@ -1115,7 +1268,14 @@ class ScanDiscoverService:
         previous: DiscoveryEpisodeRecord | None = None
         if existing is not None:
             stored = existing.payload["episode"]
-            if at >= datetime.fromisoformat(stored["window"]["ends_at"]):
+            stored_policy = RevisionRef.model_validate(stored["policy_series"])
+            if stored_policy != POLICY:
+                existing.state = DiscoveryLifecycleState.EXPIRED.value
+                existing.revision += 1
+                existing.updated_at = at
+                previous = existing
+                existing = None
+            elif at >= datetime.fromisoformat(stored["window"]["ends_at"]):
                 existing.state = DiscoveryLifecycleState.EXPIRED.value
                 existing.revision += 1
                 existing.updated_at = at
@@ -1190,7 +1350,7 @@ class ScanDiscoverService:
                 *previous_snapshot.evidence,
                 *(item for item in evidence if item.evidence_id not in known),
             )
-        relevance, explanation = self.relevance(evidence, horizon_choice, self.settings())
+        relevance, explanation = self.relevance(evidence, horizon_choice, self.settings(), context)
         source_times = [item.source_data_time for item in evidence]
         snapshot = DiscoverySnapshot(
             snapshot_id=uuid4(),
@@ -1259,6 +1419,7 @@ class ScanDiscoverService:
         )
         record.revision += 1 if sequence > 1 else 0
         record.updated_at = at
+        previous_lineage = record.payload.get("scan_lineage", {})
         episode_payload = {
             **episode.model_dump(mode="json"),
             "head_snapshot_id": str(snapshot.snapshot_id),
@@ -1266,7 +1427,15 @@ class ScanDiscoverService:
             "revision": record.revision,
             "lifecycle": record.state,
         }
-        record.payload = {"episode": episode_payload}
+        record.payload = {
+            "episode": episode_payload,
+            "scan_lineage": {
+                "originating_scan_run_id": previous_lineage.get(
+                    "originating_scan_run_id", str(match.run_id)
+                ),
+                "latest_scan_run_id": str(match.run_id),
+            },
+        }
         if old_state != record.state:
             self.session.add(
                 DiscoveryTransitionRecord(
@@ -1345,17 +1514,23 @@ class ScanDiscoverService:
         if name == "relative_volume.20":
             return f"Relative volume {numeric:.2f}×"
         if name == "breakout.20" and numeric == 1:
-            return "20-day high exceeded with volume"
+            return "Upside breakout confirmed above the 20-day high"
+        if name == "breakdown.20" and numeric == 1:
+            return "Downside breakdown confirmed below the 20-day low"
         if name == "roc.10":
-            return f"10-day momentum {numeric:+.1f}%"
+            direction = "Positive" if numeric > 0 else "Negative"
+            return f"{direction} 10-day momentum {numeric:+.1f}%"
         if name == "rsi.14":
-            return f"RSI {numeric:.0f} within profile range"
+            return f"RSI {numeric:.0f} satisfied the profile threshold"
         if name == "close_sma20_gap":
-            return f"Close versus 20-day average {numeric:+.1f}%"
+            position = "above" if numeric >= 0 else "below"
+            return f"Close {abs(numeric):.1f}% {position} the 20-day average"
         if name == "close_sma50_gap":
-            return f"Close above 50-day average {numeric:+.1f}%"
+            position = "above" if numeric >= 0 else "below"
+            return f"Close {abs(numeric):.1f}% {position} the 50-day average"
         if name == "sma50_sma200_gap":
-            return f"50-day trend above 200-day trend by {numeric:.1f}%"
+            position = "above" if numeric >= 0 else "below"
+            return f"50-day trend {abs(numeric):.1f}% {position} the 200-day trend"
         if name == "roc.1" and numeric < 0:
             return f"One-day pullback {numeric:.1f}%"
         return None
@@ -1445,6 +1620,12 @@ class ScanDiscoverService:
             ),
             snapshot_count=episode.snapshot_count,
             provider_sources=sources,
+            originating_scan_run_id=episode.payload.get("scan_lineage", {}).get(
+                "originating_scan_run_id"
+            )
+            or (snapshot.lineage.scan.run_id if snapshot.lineage.scan else None),
+            latest_scan_run_id=episode.payload.get("scan_lineage", {}).get("latest_scan_run_id")
+            or (snapshot.lineage.scan.run_id if snapshot.lineage.scan else None),
             updated_at=aware(episode.updated_at),
         )
 

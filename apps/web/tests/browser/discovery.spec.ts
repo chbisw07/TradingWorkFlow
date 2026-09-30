@@ -93,10 +93,11 @@ test("Scan & Discover presents a responsive evidence workstation with route-leve
   const matches = page.getByRole("table", {
     name: "Latest normalized scan matches",
   });
-  await expect(matches).toContainText("Relative volume elevated");
+  await expect(matches).toContainText("Relative volume");
+  await expect(matches).toContainText("Positive 10-day momentum");
   await expect(matches).toContainText("RVOL");
   await expect(matches).toContainText("NSE · EQ");
-  await expect(matches).toContainText("NSE · INDEX");
+  await expect(matches).not.toContainText("NSE · INDEX");
   await expect(matches).not.toContainText("HDFCBANK");
   await expect(matches).not.toContainText("BANKNIFTY");
   await expect(page.getByText("Fresh").first()).toBeVisible();
@@ -105,6 +106,11 @@ test("Scan & Discover presents a responsive evidence workstation with route-leve
     fullPage: true,
     animations: "disabled",
   });
+
+  await expect(
+    page.getByRole("button", { name: /Current scan \(2\)/ }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByText(/Current scan: 2 · Active queue:/)).toBeVisible();
 
   const discoveryQueue =
     width < 600

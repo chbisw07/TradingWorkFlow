@@ -323,6 +323,7 @@ class ScanDefinition(Contract):
     revision: PositiveInt
     criteria: tuple[Criterion, ...] = Field(min_length=1, max_length=16)
     combination: Literal["ALL", "ANY"] = "ALL"
+    direction: Literal["LONG", "SHORT", "NEUTRAL"] = "NEUTRAL"
     timeframe: Identifier
     source_mode: SourceMode
     required_capabilities: tuple[Identifier, ...] = Field(min_length=1, max_length=16)

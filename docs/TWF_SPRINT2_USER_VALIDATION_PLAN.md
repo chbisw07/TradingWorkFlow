@@ -21,9 +21,9 @@ This plan reflects the **final product stabilization before formal user validati
 - Leave **Provider** on **Internal Scanner V0 · synthetic**.
 - Use `RELIANCE, MCX, HDFCBANK, INFY, BSE, NIFTY, BANKNIFTY` as the universe.
 - Run the Relative Volume profile.
-- Confirm some symbols match and some do not. HDFCBANK, BSE, and BANKNIFTY provide intentional non-match coverage for this fixture/profile state.
+- Confirm the Relative Volume result set is narrower than the full universe and that other profiles produce meaningfully different subsets.
 - Confirm prices, momentum, RVOL, relevance, evidence coverage, and explanations vary between matching instruments.
-- Confirm the persistent **SYNTHETIC VALIDATION DATA** disclosure says results are deterministic test data and are not live-market claims.
+- Confirm synthetic truth appears persistently as **Synthetic Data** in the provider/status strip and no separate page-wide synthetic banner reserves space.
 
 ### 2. Profile, intent, horizon, and context policy
 
@@ -32,6 +32,8 @@ This plan reflects the **final product stabilization before formal user validati
 - Explicitly change intent and horizon, then select another profile. Confirm both explicit choices remain unchanged.
 - Select **Apply suggestion** and confirm the active profile recommendation is restored.
 - Confirm **Discovery intent** explains how a match is interpreted and tracked, while **Horizon** explains how long it should remain relevant.
+- Try intraday intent with `5d`, positional intent with `intraday`, and Pullback in Uptrend with short intent. Confirm concise guidance appears and **Run scan** is blocked without silently changing the selection.
+- Verify Momentum and Breakout in both directions: bullish evidence may create long candidates, bearish evidence may create short candidates, and opposing evidence does not become a high-relevance candidate.
 - Confirm the context choices read **Require complete context**, **Allow partial context**, and **Context optional**. Missing context must stay visible and reduce coverage; it must not be inferred as neutral.
 
 ### 3. Workspace status, provider Mode, and Status
@@ -57,7 +59,7 @@ This plan reflects the **final product stabilization before formal user validati
 ### 6. Scan result explanation
 
 - Inspect **Why matched**, **Key metrics**, **Freshness**, and **Details**.
-- Confirm Why matched uses the actual deterministic evidence, such as elevated relative volume, momentum, trend, pullback, or breakout.
+- Run Relative Volume, Momentum, Breakout with Volume, Pullback in Uptrend, and Trend Continuation. Confirm **Why matched** changes by profile and uses only the matched deterministic predicates, such as measured RVOL, signed momentum, trend relationships, pullback, breakout, or breakdown.
 - Confirm key metrics use user-facing formatting such as INR price, signed percentage momentum, RVOL with an × suffix, and RSI where available.
 - Expand **Details** and confirm raw reason bases, provider, source mode, lineage, and match ID remain available.
 - Confirm a no-match universe such as `NOMATCH` produces an explicit no-match state and invents no candidate.
@@ -65,7 +67,9 @@ This plan reflects the **final product stabilization before formal user validati
 ### 7. Center workflow and Scan History
 
 - Confirm the center column reads in order as the current result/summary and **Candidates requiring review**. It must not contain a second large Recent scans surface.
-- Confirm the queue describes active candidates needing review and shows symbol, setup, relevance, update time, lifecycle, and Review.
+- After a scan, confirm the queue defaults to **Current scan** and shows its candidate count. Switch to **Active** and **All** to inspect persisted candidates.
+- Run a zero-match scan while active candidates already exist. Confirm **Current scan (0)** stays empty and explicitly reports the retained active count; confirm the prior rows appear only after switching to **Active** or **All**.
+- Confirm queue rows show provider and latest scan-run traceability alongside symbol, setup, relevance, update time, lifecycle, and Review.
 - Confirm **Scan History** sits directly below **Scan Setup** in the left rail and shows no more than the latest five active runs with profile, provider, universe size, result count, time, and status.
 - Select **View** and confirm the chosen persisted execution summary appears in the center without running a scan or creating candidates.
 - Select **Use setup** and confirm universe, profile, provider, discovery intent, horizon, and context requirement are restored for review without automatically rerunning a scan.
@@ -80,6 +84,7 @@ This plan reflects the **final product stabilization before formal user validati
 - Open **Review** for a candidate. Confirm the selected queue row remains visibly highlighted, the center contracts, and the sticky desktop inspector begins with symbol, intent, horizon, and instrument type.
 - Close the inspector and confirm it is removed completely, selected-row state clears, and the center immediately expands again.
 - Confirm relevance is described as an attention score, not probability of profit, and appears with a LOW/MEDIUM/HIGH band.
+- Compare multiple matches and confirm scores form a useful deterministic spread rather than all saturating near 100%; partial or missing context must reduce contribution and coverage truthfully.
 - Inspect evidence contributions, coverage, missing inputs, and conflicts. Present, Missing, Conflicting, Unavailable, and Stale states must use text plus distinct color treatments.
 - Confirm evidence cards lead with evidence type, **Supports/Counters/Neutral/Conflicting** meaning, and concise user-facing measurements. Strings such as `true boolean`, `POSITIVE PRESENT`, and raw enums must not be primary copy; provider/source, mode, versions, IDs, transformation provenance, and raw typed values remain under **Provenance details**.
 - Where source time is absent, confirm it says **Source time unavailable** and is not labeled stale. Where a deterministic source timestamp exists, confirm it is labeled **Fresh**.

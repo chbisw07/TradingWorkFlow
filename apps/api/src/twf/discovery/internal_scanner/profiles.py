@@ -1,6 +1,6 @@
 """Five versioned definition templates, not a parallel settings/profile registry."""
 
-from typing import Annotated, Self
+from typing import Annotated, Literal, Self
 from uuid import UUID
 
 from pydantic import Field, model_validator
@@ -48,6 +48,7 @@ def build_profile(
     interval: str = "1d",
     revision: int = 1,
     parameters: ProfileParameters | None = None,
+    direction: Literal["LONG", "SHORT", "NEUTRAL"] = "NEUTRAL",
 ) -> ScanDefinition:
     if name not in PROFILE_NAMES or interval not in INTERVAL_SECONDS:
         raise ProviderFailure(
@@ -59,7 +60,7 @@ def build_profile(
             )
         )
     parameters = parameters or ProfileParameters()
-    recipes: dict[str, tuple[tuple[str, str, float], ...]] = {
+    long_recipes: dict[str, tuple[tuple[str, str, float], ...]] = {
         "TREND_CONTINUATION": (
             ("close_sma50_gap", "GT", 0),
             ("sma50_sma200_gap", "GT", 0),
@@ -77,12 +78,57 @@ def build_profile(
             ("close_sma20_gap", "LTE", parameters.pullback_zone_percent),
             ("roc.1", "LT", 0),
         ),
-        "MOMENTUM": (("roc.10", "GT", parameters.roc_min), ("rsi.14", "GTE", parameters.rsi_min)),
+        "MOMENTUM": (
+            ("roc.10", "GT", parameters.roc_min),
+            ("rsi.14", "GTE", parameters.rsi_min),
+        ),
+        "RELATIVE_VOLUME": (
+            ("relative_volume.20", "GTE", parameters.relative_volume_min),
+            ("roc.10", "GT", 0),
+        ),
+    }
+    short_recipes: dict[str, tuple[tuple[str, str, float], ...]] = {
+        "TREND_CONTINUATION": (
+            ("close_sma50_gap", "LT", 0),
+            ("sma50_sma200_gap", "LT", 0),
+            ("rsi.14", "GTE", 100 - parameters.rsi_max),
+            ("rsi.14", "LTE", 100 - parameters.rsi_min),
+        ),
+        "BREAKOUT_WITH_VOLUME": (
+            ("breakdown.20", "EQ", 1),
+            ("relative_volume.20", "GTE", parameters.relative_volume_min),
+        ),
+        "MOMENTUM": (
+            ("roc.10", "LT", -parameters.roc_min),
+            ("rsi.14", "LTE", 100 - parameters.rsi_min),
+        ),
+        "RELATIVE_VOLUME": (
+            ("relative_volume.20", "GTE", parameters.relative_volume_min),
+            ("roc.10", "LT", 0),
+        ),
+    }
+    neutral_recipes = {
+        **long_recipes,
         "RELATIVE_VOLUME": (("relative_volume.20", "GTE", parameters.relative_volume_min),),
     }
+    recipes = (
+        short_recipes
+        if direction == "SHORT"
+        else (long_recipes if direction == "LONG" else neutral_recipes)
+    )
+    if name not in recipes:
+        raise ProviderFailure(
+            ProviderError(
+                code=ErrorCode.UNSUPPORTED_CAPABILITY,
+                provider_id=IDENTITY.service_id,
+                operation="sd.scan",
+                request_id=context.correlation.request_id,
+            )
+        )
     return ScanDefinition(
         definition_id=definition_id,
         revision=revision,
+        direction=direction,
         timeframe=interval,
         source_mode=SourceMode.SYNTHETIC,
         required_capabilities=("sd.scan",),

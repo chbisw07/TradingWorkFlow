@@ -91,7 +91,9 @@ class RelevanceContribution(Contract):
 
 
 class RelevanceExplanation(Contract):
-    policy: Literal["deterministic-relevance-v1"] = "deterministic-relevance-v1"
+    policy: Literal["deterministic-relevance-v1", "deterministic-relevance-v2"] = (
+        "deterministic-relevance-v2"
+    )
     score: Decimal | None = Field(default=None, ge=0, le=1, allow_inf_nan=False)
     band: RelevanceBand | None = None
     coverage: Decimal = Field(ge=0, le=1, allow_inf_nan=False)
@@ -159,6 +161,27 @@ class ProductScanRequest(Contract):
             raise ValueError("Universe symbols must be unique")
         return normalized
 
+    @model_validator(mode="after")
+    def compatible_selection(self) -> "ProductScanRequest":
+        intraday = {IntentChoice.INTRADAY_LONG, IntentChoice.INTRADAY_SHORT}
+        positional = {IntentChoice.POSITIONAL_LONG, IntentChoice.POSITIONAL_SHORT}
+        if self.intent in intraday and self.horizon not in {
+            HorizonChoice.INTRADAY,
+            HorizonChoice.ONE_DAY,
+        }:
+            raise ValueError("Intraday intent requires an intraday or 1-day horizon")
+        if self.intent in positional and self.horizon not in {
+            HorizonChoice.FIVE_DAYS,
+            HorizonChoice.FIFTEEN_DAYS,
+        }:
+            raise ValueError("Positional intent requires a multi-day horizon")
+        if self.profile == "PULLBACK_IN_UPTREND" and self.intent in {
+            IntentChoice.INTRADAY_SHORT,
+            IntentChoice.POSITIONAL_SHORT,
+        }:
+            raise ValueError("Pullback in uptrend supports long-side intent only")
+        return self
+
 
 class ProviderStatus(Contract):
     id: ProviderChoice
@@ -225,6 +248,8 @@ class CandidateSummary(Contract):
     freshness: FreshnessState
     snapshot_count: int
     provider_sources: tuple[str, ...]
+    originating_scan_run_id: UUID | None = None
+    latest_scan_run_id: UUID | None = None
     updated_at: AwareDatetime
 
 

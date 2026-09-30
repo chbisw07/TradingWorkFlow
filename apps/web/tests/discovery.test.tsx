@@ -124,6 +124,8 @@ const candidate = {
   freshness: "FRESH",
   snapshot_count: 1,
   provider_sources: ["twf-native"],
+  originating_scan_run_id: "70000000-0000-0000-0000-000000000000",
+  latest_scan_run_id: "70000000-0000-0000-0000-000000000001",
   updated_at: "2026-09-30T06:00:00Z",
 };
 const detail = {
@@ -307,7 +309,10 @@ test("runs a bounded scan and exposes evidence, degradation, history and no trad
   fireEvent.click(screen.getByRole("button", { name: "Run scan" }));
   await screen.findByRole("heading", { name: "Latest scan result" });
   expect(screen.getByText(/Market breadth unavailable/)).toBeInTheDocument();
-  expect(screen.getByText("Relative volume elevated")).toBeInTheDocument();
+  expect(screen.getByText("Relative volume 2.40×")).toBeInTheDocument();
+  expect(
+    screen.queryByText("Relative volume elevated"),
+  ).not.toBeInTheDocument();
   expect(screen.getByText("Fresh")).toBeInTheDocument();
   expect(screen.getAllByText("Details").length).toBeGreaterThan(1);
   expect(screen.getAllByText("RELIANCE").length).toBeGreaterThan(0);
@@ -635,12 +640,12 @@ test("manages five recent scans, complete setup reuse, archived history and past
   expect(within(recent).getAllByRole("listitem")).toHaveLength(5);
 });
 
-test("renders an honest no-match state", async () => {
+test("separates a zero-candidate current scan from the persisted active queue", async () => {
   const fetcher = vi.fn((input: string | URL | Request) => {
     const url = String(input);
     if (url.endsWith("/status")) return json(providers);
     if (url.includes("/scans?")) return json([]);
-    if (url.includes("/candidates?")) return json({ items: [] });
+    if (url.includes("/candidates?")) return json({ items: [candidate] });
     if (url.endsWith("/settings")) return json(settings);
     if (url.endsWith("/scans"))
       return json({
@@ -672,7 +677,21 @@ test("renders an honest no-match state", async () => {
   expect(
     (await screen.findAllByText(/No candidates were invented/)).length,
   ).toBeGreaterThan(0);
-  expect(screen.getByText("No discovery candidates yet.")).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      "No candidates came from the latest scan. 1 active candidate(s) remain available in Active.",
+    ),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Current scan (0)" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  fireEvent.click(screen.getByRole("button", { name: "Active (1)" }));
+  expect(
+    within(screen.getByRole("table", { name: "Discovery queue" })).getByText(
+      "RELIANCE",
+    ),
+  ).toBeInTheDocument();
+  expect(screen.getAllByText("Run 70000000").length).toBeGreaterThan(0);
 });
 
 test("discovery settings save all bounded values with revision", async () => {
@@ -802,6 +821,14 @@ test("separates profile logic from purpose and preserves explicit overrides", as
   fireEvent.change(screen.getByRole("combobox", { name: /^Horizon/ }), {
     target: { value: "1d" },
   });
+  fireEvent.change(screen.getByRole("combobox", { name: /^Scan profile/ }), {
+    target: { value: "PULLBACK_IN_UPTREND" },
+  });
+  expect(
+    screen.getByText("Pullback in uptrend supports long-side intent only."),
+  ).toHaveAttribute("role", "alert");
+  expect(screen.getByRole("button", { name: "Run scan" })).toBeDisabled();
+
   fireEvent.change(screen.getByRole("combobox", { name: /^Scan profile/ }), {
     target: { value: "TREND_CONTINUATION" },
   });

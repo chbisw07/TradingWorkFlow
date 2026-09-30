@@ -25,6 +25,7 @@ type View = "scan" | "candidates";
 type IntentValue =
   "INTRADAY_LONG" | "INTRADAY_SHORT" | "POSITIONAL_LONG" | "POSITIONAL_SHORT";
 type HorizonValue = "intraday" | "1d" | "5d" | "15d";
+type QueueView = "current" | "active" | "all";
 
 type ProfileRecommendation = {
   intent: IntentValue;
@@ -39,6 +40,52 @@ const PROFILE_RECOMMENDATIONS: Record<string, ProfileRecommendation> = {
   TREND_CONTINUATION: { intent: "POSITIONAL_LONG", horizon: "15d" },
 };
 
+const ACTIVE_LIFECYCLES = new Set(["NEW", "CURRENT", "STALE"]);
+
+function compatibilityMessage(
+  profile: string,
+  intent: IntentValue,
+  horizon: HorizonValue,
+) {
+  const shortSide =
+    intent === "INTRADAY_SHORT" || intent === "POSITIONAL_SHORT";
+  if (profile === "PULLBACK_IN_UPTREND" && shortSide)
+    return "Pullback in uptrend supports long-side intent only.";
+  if (
+    (intent === "INTRADAY_LONG" || intent === "INTRADAY_SHORT") &&
+    horizon !== "intraday" &&
+    horizon !== "1d"
+  )
+    return "Intraday intent requires an intraday or 1-day horizon.";
+  if (
+    (intent === "POSITIONAL_LONG" || intent === "POSITIONAL_SHORT") &&
+    horizon !== "5d" &&
+    horizon !== "15d"
+  )
+    return "Positional intent requires a multi-day horizon.";
+  return null;
+}
+
+function compatibleIntentForHorizon(
+  preferred: IntentValue,
+  horizon: HorizonValue,
+): IntentValue {
+  const intradayHorizon = horizon === "intraday" || horizon === "1d";
+  if (preferred === "INTRADAY_LONG" && !intradayHorizon)
+    return "POSITIONAL_LONG";
+  if (preferred === "INTRADAY_SHORT" && !intradayHorizon)
+    return "POSITIONAL_SHORT";
+  if (preferred === "POSITIONAL_LONG" && intradayHorizon)
+    return "INTRADAY_LONG";
+  if (preferred === "POSITIONAL_SHORT" && intradayHorizon)
+    return "INTRADAY_SHORT";
+  return preferred;
+}
+
+function shortId(value: string | null | undefined) {
+  return value ? value.slice(0, 8) : "Unavailable";
+}
+
 function words(value: string) {
   return value
     .replaceAll("_", " ")
@@ -49,21 +96,6 @@ function words(value: string) {
     .trim()
     .toLowerCase()
     .replace(/^./, (letter) => letter.toUpperCase());
-}
-
-function reasonLabel(reason: string) {
-  const value = reason.toLowerCase();
-  if (value.includes("input")) return "Required scan inputs available";
-  if (value.includes("relative") && value.includes("volume"))
-    return "Relative volume elevated";
-  if (value.includes("breakout")) return "Breakout condition matched";
-  if (value.includes("momentum")) return "Momentum condition met";
-  if (value.includes("trend")) return "Trend continuation condition met";
-  if (value.includes("pullback")) return "Pullback condition matched";
-  if (value.includes("close") || value.includes("price"))
-    return "Price condition met";
-  if (value === "provider-current") return "Provider conditions matched";
-  return words(reason);
 }
 
 function freshnessLabel(
@@ -173,6 +205,7 @@ function metricLabel(name: string) {
     "relative_volume.20": "RVOL",
     "rsi.14": "RSI",
     "breakout.20": "20-day breakout",
+    "breakdown.20": "20-day breakdown",
   };
   return labels[name] || words(name);
 }
@@ -190,7 +223,8 @@ function formatMetric(name: string, raw: string) {
   if (name.includes("momentum") || name.startsWith("roc."))
     return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
   if (name.startsWith("rsi")) return value.toFixed(0);
-  if (name.startsWith("breakout")) return value === 1 ? "Yes" : "No";
+  if (name.startsWith("breakout") || name.startsWith("breakdown"))
+    return value === 1 ? "Yes" : "No";
   return value.toLocaleString("en-IN", { maximumFractionDigits: 2 });
 }
 
@@ -297,6 +331,10 @@ function CandidateMobileList({
               <span>
                 {candidate.instrument.exchange} · {candidate.instrument.segment}
               </span>
+              <span>
+                {candidate.provider_sources.map(sourceLabel).join(" · ")}
+              </span>
+              <span>Run {shortId(candidate.latest_scan_run_id)}</span>
             </div>
             <span
               className={`discovery-badge is-${candidate.lifecycle.toLowerCase()}`}
@@ -467,13 +505,15 @@ function CandidateQueue({
   candidates,
   selected,
   onSelect,
+  emptyMessage = "No discovery candidates yet.",
 }: {
   candidates: Candidate[];
   selected: string | null;
   onSelect: (id: string) => void;
+  emptyMessage?: string;
 }) {
   if (candidates.length === 0) {
-    return <p className="workspace-empty-copy">No discovery candidates yet.</p>;
+    return <p className="workspace-empty-copy">{emptyMessage}</p>;
   }
   const queue = candidates.slice(0, 8);
   return (
@@ -507,6 +547,9 @@ function CandidateQueue({
                     {candidate.instrument.exchange} ·{" "}
                     {candidate.instrument.segment}
                   </span>
+                  <span>
+                    {candidate.provider_sources.map(sourceLabel).join(" · ")}
+                  </span>
                 </td>
                 <td data-label="Setup">
                   <strong>{words(candidate.intent)}</strong>
@@ -525,6 +568,7 @@ function CandidateQueue({
                   >
                     {candidate.lifecycle}
                   </span>
+                  <span>Run {shortId(candidate.latest_scan_run_id)}</span>
                 </td>
                 <td data-label="Review">
                   <button
@@ -1438,6 +1482,7 @@ export function DiscoveryWorkspace({
   const [intentOverridden, setIntentOverridden] = useState(false);
   const [horizonOverridden, setHorizonOverridden] = useState(false);
   const [contextMode, setContextMode] = useState<ContextMode>("partial");
+  const [queueView, setQueueView] = useState<QueueView>("active");
   const [pending, setPending] = useState(false);
   const [explaining, setExplaining] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -1461,8 +1506,11 @@ export function DiscoveryWorkspace({
       PROFILE_RECOMMENDATIONS.RELATIVE_VOLUME;
     setProvider(currentSettings.default_provider);
     setProfile(currentSettings.default_profile);
-    setHorizon(currentSettings.default_horizon as HorizonValue);
-    setIntent(defaultRecommendation.intent);
+    const defaultHorizon = currentSettings.default_horizon as HorizonValue;
+    setHorizon(defaultHorizon);
+    setIntent(
+      compatibleIntentForHorizon(defaultRecommendation.intent, defaultHorizon),
+    );
     setIntentOverridden(false);
     setHorizonOverridden(
       currentSettings.default_horizon !== defaultRecommendation.horizon,
@@ -1579,6 +1627,7 @@ export function DiscoveryWorkspace({
 
   function viewScan(scan: ScanSummary) {
     setResult(null);
+    setQueueView("active");
     setSelectedHistory(scan);
     setPastScansOpen(false);
   }
@@ -1660,6 +1709,7 @@ export function DiscoveryWorkspace({
         context_mode: contextMode,
       });
       setResult(next);
+      setQueueView("current");
       setSelectedHistory(null);
       const page = await discoveryApi<{ items: Candidate[] }>(
         "candidates?limit=50",
@@ -1765,6 +1815,17 @@ export function DiscoveryWorkspace({
 
   const recommendation =
     PROFILE_RECOMMENDATIONS[profile] || PROFILE_RECOMMENDATIONS.RELATIVE_VOLUME;
+  const compatibility = compatibilityMessage(profile, intent, horizon);
+  const activeCandidates = candidates.filter((candidate) =>
+    ACTIVE_LIFECYCLES.has(candidate.lifecycle),
+  );
+  const currentCandidates = result?.candidates || [];
+  const queueCandidates =
+    queueView === "current"
+      ? currentCandidates
+      : queueView === "active"
+        ? activeCandidates
+        : candidates;
   const latestSummary =
     result?.summary || selectedHistory || recentScans[0] || null;
   const topCandidate = [...candidates].sort(
@@ -2035,9 +2096,21 @@ export function DiscoveryWorkspace({
                       </small>
                     </label>
                   </div>
+                  {compatibility && (
+                    <p
+                      id="scan-compatibility"
+                      className="scan-compatibility-warning"
+                      role="alert"
+                    >
+                      {compatibility}
+                    </p>
+                  )}
                   <button
                     className="run-scan-button"
-                    disabled={pending}
+                    disabled={pending || Boolean(compatibility)}
+                    aria-describedby={
+                      compatibility ? "scan-compatibility" : undefined
+                    }
                     type="submit"
                   >
                     {pending ? "Running…" : "Run scan"}
@@ -2135,7 +2208,7 @@ export function DiscoveryWorkspace({
                             <td data-label="Why matched">
                               <ul className="match-reasons">
                                 {match.why_matched.map((reason) => (
-                                  <li key={reason}>{reasonLabel(reason)}</li>
+                                  <li key={reason}>{reason}</li>
                                 ))}
                               </ul>
                             </td>
@@ -2220,13 +2293,52 @@ export function DiscoveryWorkspace({
                     <h2 id="candidate-queue-heading">
                       Candidates requiring review
                     </h2>
+                    <p>
+                      Current scan: {currentCandidates.length} · Active queue:{" "}
+                      {activeCandidates.length}
+                    </p>
                   </div>
                   <span>{candidates.length} persisted</span>
                 </div>
+                <div
+                  className="queue-view-tabs"
+                  role="group"
+                  aria-label="Discovery queue view"
+                >
+                  <button
+                    type="button"
+                    aria-pressed={queueView === "current"}
+                    disabled={!result}
+                    onClick={() => setQueueView("current")}
+                  >
+                    Current scan ({currentCandidates.length})
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={queueView === "active"}
+                    onClick={() => setQueueView("active")}
+                  >
+                    Active ({activeCandidates.length})
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={queueView === "all"}
+                    onClick={() => setQueueView("all")}
+                  >
+                    All ({candidates.length})
+                  </button>
+                </div>
                 <CandidateQueue
-                  candidates={candidates}
+                  candidates={queueCandidates}
                   selected={detail?.candidate_id || null}
                   onSelect={(id) => void inspect(id)}
+                  emptyMessage={
+                    queueView === "current"
+                      ? `No candidates came from the latest scan. ${activeCandidates.length} active candidate(s) remain available in Active.`
+                      : queueView === "active"
+                        ? "No active discovery candidates."
+                        : "No persisted discovery candidates."
+                  }
                 />
               </section>
             </div>

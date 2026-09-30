@@ -88,6 +88,8 @@ export type Candidate = {
   freshness: "FRESH" | "STALE" | "UNKNOWN";
   snapshot_count: number;
   provider_sources: string[];
+  originating_scan_run_id: string | null;
+  latest_scan_run_id: string | null;
   updated_at: string;
 };
 
