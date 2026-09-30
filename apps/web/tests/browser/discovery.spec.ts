@@ -31,12 +31,16 @@ test("Scan & Discover runs a bounded internal scan and exposes normalized eviden
   ).toBeVisible();
   await expect(
     page.getByRole("table", { name: "Latest normalized scan matches" }),
-  ).toContainText("relative_volume");
+  ).toContainText("Relative volume");
   await page.getByRole("button", { name: "Review" }).first().click();
   const detail = page.getByRole("complementary", { name: "RELIANCE" });
-  await expect(detail).toContainText("Policy fit, not probability of profit");
+  await expect(detail).toContainText(
+    "Attention score, not probability of profit",
+  );
   await expect(detail).toContainText("Snapshot 1");
   await expect(detail).toContainText("Latest evidence");
+  await expect(detail).toContainText("Source time");
+  await expect(detail).toContainText("Optional AI explanation");
   await detail.getByRole("button", { name: "Close candidate review" }).click();
   await page.getByRole("button", { name: /Candidates/ }).click();
   await expect(

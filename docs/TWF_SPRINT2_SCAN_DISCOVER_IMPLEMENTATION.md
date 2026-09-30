@@ -11,6 +11,16 @@ This record covers the integrated S2-4 through S2-8 implementation. It does not 
 
 The user can now select a bounded symbol universe, provider validation path, scan profile, discovery intent, and time horizon; run a scan; inspect normalized matches; evaluate owner-scoped candidates with context, evidence, deterministic relevance, horizon-aware tolerance, lifecycle, and provenance; review immutable snapshot history; request an optional grounded Level-0 explanation; and manage bounded discovery settings. Internal Scanner V0 works without TradingView or an LLM. TradingView mode uses the deterministic synthetic exact-batch path for CI and product validation; it does not make a live provider call.
 
+## Product refinement / user-validation stabilization pass
+
+The pre-validation refinement keeps every Sprint-2 API, persistence, relevance, tolerance, lifecycle, evidence, owner-isolation, and provider contract unchanged while making the surface read as an operator workspace. Scan setup is grouped by universe, scan logic, discovery intent, horizon, provider, and context requirement. The latest-run summary now distinguishes universe size, matches, discovery candidates, and typed market-context availability. Human-readable match explanations and concise metrics are primary; raw reason codes, match IDs, native IDs, transformation versions, and lineage remain available inside expandable details.
+
+Provider cards now pair an explicit operational state with a separate `LIVE` or `SYNTHETIC` mode badge, last success/error information, and capabilities. A persistent **SYNTHETIC / VALIDATION DATA** indicator prevents deterministic validation paths from appearing live. Candidate rows combine numeric relevance with LOW/MEDIUM/HIGH bands and use explicit freshness wording: `FRESH`, `STALE`, or **Source time unavailable** when the provider supplied no timestamp. Missing evidence and conflicting evidence are visually distinct and are never assigned a fabricated neutral value.
+
+Candidate review now explains relevance as an attention score, coverage as the available share of expected evidence, episode as the current discovery episode, and tolerance as a horizon-aware envelope. Backend tolerance states remain unchanged; the presentation maps `DEGRADED` to **Near limit** and `BREACHED` to **Outside**, with the internal state retained in accessible detail. Evidence cards lead with evidence type/state/summary and place raw provenance one level deeper. Market context uses human wording for absent evidence, snapshot history shows the newest immutable observation and its first material change, and optional Level-0 output is presented as **Optional AI explanation** with explicit disabled/available/generating/grounding states and unchanged authority limits.
+
+Manual dismiss, defunct, and recovery actions now explain their consequence, require confirmation, and submit action-specific audit reasons through the existing revisioned lifecycle contract. Selected candidate rows remain visibly associated with the focused review panel; the panel receives focus and scrolls predictably. At narrow widths, data tables recompose into labeled row cards while keeping semantic table markup, keyboard focus, visible state text, and technical details available. Discovery settings are grouped into General, Providers, Scan profiles, Freshness, LLM, History / retention, and expandable advanced relevance/experimental controls.
+
 ## CP-4 — bounded market context
 
 `MarketContextSnapshot` distinguishes `observed_at` from optional `source_data_time` and carries owner, market/session, producer/version, evidence IDs, limitations, and typed dimensions. Broad regime, NIFTY, BANKNIFTY where available, breadth, volatility, and sector strength are represented as `PRESENT`, `MISSING`, `UNAVAILABLE`, or `STALE`. Aggregate state is `COMPLETE`, `PARTIAL`, `STALE`, or `UNAVAILABLE`.
@@ -84,23 +94,24 @@ WebKit still cannot launch successfully on this host because the Playwright runt
 
 ### Internal validation evidence
 
-| Check                              | Result                                                                                         |
-| ---------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Backend full regression            | 917 passed                                                                                     |
-| Ruff lint / format                 | passed; 126 files formatted                                                                    |
-| Strict mypy                        | passed; 125 source files                                                                       |
-| Python compilation / `pip check`   | passed                                                                                         |
-| OpenAPI construction               | passed; 50 paths, 118 schemas                                                                  |
-| Offline package build              | wheel and sdist built                                                                          |
-| Frontend unit tests                | 119 passed across 16 files                                                                     |
-| ESLint / TypeScript / Prettier     | passed                                                                                         |
-| Next.js production build           | passed; Scanners, Candidates, and discovery proxy routes emitted                               |
-| Discovery responsive Chromium      | 6 passed at 390, 768, 1024, 1440, 1920, and 2560                                               |
-| Representative full Chromium suite | 11 passed, including Broker V2                                                                 |
-| SQLite migration lifecycle         | upgrade/repeat/downgrade/re-upgrade and data-preservation probe passed                         |
-| PostgreSQL 16 migration lifecycle  | upgrade/repeat/downgrade/re-upgrade and data-preservation probe passed                         |
-| Documentation links / whitespace   | 62 Markdown files passed; `git diff --check` passed                                            |
-| Dependency vulnerability audit     | unchanged seven records/four accepted `cryptography==47.0.0` advisories; not reported as clean |
+| Check                             | Result                                                                                         |
+| --------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Backend full regression           | 917 passed                                                                                     |
+| Ruff lint / format                | passed; 126 files formatted                                                                    |
+| Strict mypy                       | passed; 125 source files                                                                       |
+| Python compilation / `pip check`  | passed                                                                                         |
+| OpenAPI construction              | passed; 50 paths, 118 schemas                                                                  |
+| Offline package build             | wheel and sdist built                                                                          |
+| Frontend unit tests               | 121 passed across 16 files                                                                     |
+| ESLint / TypeScript / Prettier    | passed                                                                                         |
+| Next.js production build          | passed; Scanners, Candidates, and discovery proxy routes emitted                               |
+| Discovery responsive Chromium     | 6 passed at 390, 768, 1024, 1440, 1920, and 2560                                               |
+| Full Chromium browser suite       | 66 passed across all six target widths, including Broker V2                                    |
+| Focused discovery backend tests   | 16 passed                                                                                      |
+| SQLite migration lifecycle        | upgrade/repeat/downgrade/re-upgrade and data-preservation probe passed                         |
+| PostgreSQL 16 migration lifecycle | upgrade/repeat/downgrade/re-upgrade and data-preservation probe passed                         |
+| Documentation links / whitespace  | 62 Markdown files passed; `git diff --check` passed                                            |
+| Dependency vulnerability audit    | unchanged seven records/four accepted `cryptography==47.0.0` advisories; not reported as clean |
 
 ## Architecture choices and boundaries
 
