@@ -4,13 +4,14 @@ from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
+from uuid import UUID
 
 import pytest
 from alembic import command
 from alembic.config import Config
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from twf.auth import create_user
 from twf.config.settings import Settings
@@ -20,7 +21,12 @@ from twf.infrastructure.database import (
     create_session_factory,
     session_scope,
 )
-from twf.infrastructure.discovery import DiscoveryEpisodeRecord, DiscoverySnapshotRecord
+from twf.infrastructure.discovery import (
+    DiscoveryEpisodeRecord,
+    DiscoverySnapshotRecord,
+    ScanMatchRecord,
+    ScanRunRecord,
+)
 from twf.main import create_app
 
 ORIGIN = "https://web.example"
@@ -97,6 +103,79 @@ def test_internal_scan_context_candidates_and_history(product_client: TestClient
     )
     candidates = product_client.get("/api/v1/discovery/candidates").json()
     assert candidates["total"] == 2 and len(candidates["items"]) == 2
+
+
+def test_scan_history_archive_restore_and_owner_isolation(
+    product_client: TestClient,
+) -> None:
+    result = post(
+        product_client,
+        "/api/v1/discovery/scans",
+        scan_payload(universe=["RELIANCE", "TCS"], context_mode="healthy"),
+    )
+    summary = result["summary"]
+    run_id = summary["run_id"]
+    assert summary["universe"] == ["RELIANCE", "TCS"]
+    assert summary["context_mode"] == "healthy"
+
+    archived = product_client.post(
+        f"/api/v1/discovery/scans/{run_id}/archive",
+        headers={"Origin": ORIGIN},
+    )
+    assert archived.status_code == 200
+    assert archived.json()["archived_at"] is not None
+    assert product_client.get("/api/v1/discovery/scans").json() == []
+    past = product_client.get("/api/v1/discovery/scans", params={"include_archived": "true"}).json()
+    assert len(past) == 1 and past[0]["run_id"] == run_id
+
+    with session_scope(cast(FastAPI, product_client.app).state.session_factory) as session:
+        stored = session.get(ScanRunRecord, UUID(run_id))
+        assert stored is not None and stored.archived_at is not None
+        assert (
+            session.scalar(
+                select(func.count())
+                .select_from(ScanMatchRecord)
+                .where(ScanMatchRecord.run_id == UUID(run_id))
+            )
+            == summary["match_count"]
+        )
+
+    assert product_client.post("/api/v1/auth/logout", headers={"Origin": ORIGIN}).status_code == 200
+    assert (
+        product_client.post(
+            "/api/v1/auth/login",
+            json={"username": "bob", "password": PASSWORD},
+            headers={"Origin": ORIGIN},
+        ).status_code
+        == 200
+    )
+    assert (
+        product_client.get("/api/v1/discovery/scans", params={"include_archived": "true"}).json()
+        == []
+    )
+    denied = product_client.post(
+        f"/api/v1/discovery/scans/{run_id}/restore",
+        headers={"Origin": ORIGIN},
+    )
+    assert denied.status_code == 404
+    assert denied.json()["error"]["code"] == "SCAN_NOT_FOUND"
+
+    assert product_client.post("/api/v1/auth/logout", headers={"Origin": ORIGIN}).status_code == 200
+    assert (
+        product_client.post(
+            "/api/v1/auth/login",
+            json={"username": "alice", "password": PASSWORD},
+            headers={"Origin": ORIGIN},
+        ).status_code
+        == 200
+    )
+    restored = product_client.post(
+        f"/api/v1/discovery/scans/{run_id}/restore",
+        headers={"Origin": ORIGIN},
+    )
+    assert restored.status_code == 200
+    assert restored.json()["archived_at"] is None
+    assert product_client.get("/api/v1/discovery/scans").json()[0]["run_id"] == run_id
 
 
 def test_synthetic_fixture_is_realistic_deterministic_and_varied(

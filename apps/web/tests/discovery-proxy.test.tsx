@@ -36,6 +36,43 @@ test("discovery proxy allowlists routes and forwards only session, origin and co
   expect(response.headers.get("Cache-Control")).toBe("no-store");
 });
 
+test("discovery proxy forwards only bounded scan archive and restore mutations", async () => {
+  const fetcher = vi
+    .fn()
+    .mockImplementation(() =>
+      Promise.resolve(Response.json({ archived_at: null })),
+    );
+  vi.stubGlobal("fetch", fetcher);
+  const runId = "70000000-0000-0000-0000-000000000001";
+
+  for (const action of ["archive", "restore"]) {
+    const response = await POST(
+      new Request(
+        `https://web.example/api/v1/discovery/scans/${runId}/${action}`,
+        {
+          method: "POST",
+          headers: { Origin: "https://web.example" },
+        },
+      ),
+      { params: Promise.resolve({ path: ["scans", runId, action] }) },
+    );
+    expect(response.status).toBe(200);
+  }
+
+  expect(fetcher.mock.calls.map((call) => call[0])).toEqual([
+    `http://api.example/api/v1/discovery/scans/${runId}/archive`,
+    `http://api.example/api/v1/discovery/scans/${runId}/restore`,
+  ]);
+  const rejected = await POST(
+    new Request(`https://web.example/api/v1/discovery/scans/${runId}/delete`, {
+      method: "POST",
+    }),
+    { params: Promise.resolve({ path: ["scans", runId, "delete"] }) },
+  );
+  expect(rejected.status).toBe(404);
+  expect(fetcher).toHaveBeenCalledTimes(2);
+});
+
 test("discovery proxy rejects unsupported routes and oversized input", async () => {
   const fetcher = vi.fn();
   vi.stubGlobal("fetch", fetcher);

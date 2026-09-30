@@ -181,10 +181,13 @@ class ScanSummary(Contract):
     horizon: HorizonChoice
     intent: IntentChoice
     universe_size: int
+    universe: tuple[Symbol, ...] = ()
     match_count: int
     candidate_count: int
+    context_mode: Literal["healthy", "partial", "unavailable", "stale"] = "partial"
     context_availability: ContextAvailability
     degraded: tuple[str, ...] = ()
+    archived_at: AwareDatetime | None = None
 
 
 class ScanMatchView(Contract):

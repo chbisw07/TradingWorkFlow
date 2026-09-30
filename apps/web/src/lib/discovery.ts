@@ -189,10 +189,13 @@ export type ScanSummary = {
   horizon: string;
   intent: string;
   universe_size: number;
+  universe?: string[];
   match_count: number;
   candidate_count: number;
+  context_mode?: ContextMode;
   context_availability: MarketContext["availability"];
   degraded: string[];
+  archived_at?: string | null;
 };
 
 export type ScanResult = {

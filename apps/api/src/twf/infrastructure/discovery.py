@@ -28,6 +28,9 @@ class ScanRunRecord(Base):
     completed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     match_count: Mapped[int] = mapped_column(Integer)
     candidate_count: Mapped[int] = mapped_column(Integer)
+    archived_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), index=True, nullable=True
+    )
     payload: Mapped[dict[str, Any]] = mapped_column(JSON)
 
 

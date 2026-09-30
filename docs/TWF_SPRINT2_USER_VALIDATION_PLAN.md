@@ -34,13 +34,13 @@ This plan reflects the **final product stabilization before formal user validati
 - Confirm **Discovery intent** explains how a match is interpreted and tracked, while **Horizon** explains how long it should remain relevant.
 - Confirm the context choices read **Require complete context**, **Allow partial context**, and **Context optional**. Missing context must stay visible and reduce coverage; it must not be inferred as neutral.
 
-### 3. Provider Mode and Status
+### 3. Workspace status, provider Mode, and Status
 
-- Inspect **Provider status**.
-- Confirm Internal Scanner V0 shows **Mode: SYNTHETIC DATA**, **Status: READY**, deterministic scanner wording, five scan profiles, and fixture-backed disclosure.
-- Confirm TradingView separates its validation/synthetic or live mode from READY, RATE LIMITED, AUTH REQUIRED, UNAVAILABLE, DISABLED, or DEGRADED operational state.
+- Inspect the compact **Provider and evidence readiness** strip above the workstation. Confirm it includes provider readiness, current market-context state, optional AI state, and latest-scan state and does not reappear as a tall card in the setup rail.
+- Confirm Internal Scanner V0 shows **Synthetic Data** mode and **Ready** status.
+- Confirm TradingView separates **Validation · Synthetic** or **Live** mode from Ready, Rate limited, Authentication required, Unavailable, Disabled, or Degraded operational status.
 - Confirm status is communicated in text with a dot and does not depend on color or look like a button.
-- If TradingView is rate limited, confirm the card does not imply that successful live exact-row proof exists.
+- If TradingView is rate limited, confirm the strip states that live exact-row proof remains pending.
 
 ### 4. TradingView contract-validation flow
 
@@ -62,19 +62,26 @@ This plan reflects the **final product stabilization before formal user validati
 - Expand **Details** and confirm raw reason bases, provider, source mode, lineage, and match ID remain available.
 - Confirm a no-match universe such as `NOMATCH` produces an explicit no-match state and invents no candidate.
 
-### 7. Discovery queue and recent scans
+### 7. Center workflow and Scan History
 
-- Confirm **Candidates requiring review** is visible in the scan workspace and shows symbol, setup, relevance, update time, lifecycle, and Review.
-- Confirm **Recent scans** shows profile, universe size, result count, last run, status, and **Use setup**.
-- Select **Use setup** and confirm the profile/provider/intent/horizon are loaded for review without automatically rerunning a scan.
+- Confirm the center column reads in order as the current result/summary and **Candidates requiring review**. It must not contain a second large Recent scans surface.
+- Confirm the queue describes active candidates needing review and shows symbol, setup, relevance, update time, lifecycle, and Review.
+- Confirm **Scan History** sits directly below **Scan Setup** in the left rail and shows no more than the latest five active runs with profile, provider, universe size, result count, time, and status.
+- Select **View** and confirm the chosen persisted execution summary appears in the center without running a scan or creating candidates.
+- Select **Use setup** and confirm universe, profile, provider, discovery intent, horizon, and context requirement are restored for review without automatically rerunning a scan.
+- Select **Archive** and confirm the run leaves Recent scans, remains stored, and is available through **Past scans**. Restore it and confirm it returns to recent history.
+- In **Past scans**, exercise Today, Last 7 days, Last 30 days, custom From/To, provider, profile, status, and active/archived filtering.
+- Confirm there is no Clear history, permanent delete, purge, or physical deletion control.
 - Open **Candidates** through the sidebar and confirm the evidence column leads with **Scan + market context** while exact source names remain under **Sources**.
 
-### 8. Candidate relevance and evidence
+### 8. Candidate relevance, evidence, and inspector
 
-- Open **Review** for a candidate.
+- Before selecting a candidate, confirm no inspector card or right-side inspector column is rendered and the center expands into the freed width.
+- Open **Review** for a candidate. Confirm the selected queue row remains visibly highlighted, the center contracts, and the sticky desktop inspector begins with symbol, intent, horizon, and instrument type.
+- Close the inspector and confirm it is removed completely, selected-row state clears, and the center immediately expands again.
 - Confirm relevance is described as an attention score, not probability of profit, and appears with a LOW/MEDIUM/HIGH band.
-- Inspect evidence contributions, coverage, missing inputs, and conflicts. Missing and conflicting evidence must use distinct treatments.
-- Confirm evidence type, state/polarity, and concise measurements are primary; provider/source, mode, versions, IDs, and transformation provenance remain under **Provenance details**.
+- Inspect evidence contributions, coverage, missing inputs, and conflicts. Present, Missing, Conflicting, Unavailable, and Stale states must use text plus distinct color treatments.
+- Confirm evidence cards lead with evidence type, **Supports/Counters/Neutral/Conflicting** meaning, and concise user-facing measurements. Strings such as `true boolean`, `POSITIVE PRESENT`, and raw enums must not be primary copy; provider/source, mode, versions, IDs, transformation provenance, and raw typed values remain under **Provenance details**.
 - Where source time is absent, confirm it says **Source time unavailable** and is not labeled stale. Where a deterministic source timestamp exists, confirm it is labeled **Fresh**.
 
 ### 9. Market-context degradation
@@ -92,7 +99,7 @@ Also exercise the existing stale-context test path where available. Confirm miss
 - Run the same symbol, intent, horizon, and provider at least twice.
 - Confirm the episode moves from a first observation to a comparable current projection and its relevance/evidence can progress deterministically.
 - Confirm **Snapshot history** is newest-first and contains separately numbered immutable observations.
-- Inspect **Horizon-aware tolerance**. Confirm the presentation uses **Within**, **Near limit**, **Outside**, **Unknown**, or **Unavailable**, retains backend state in accessible detail, and does not imply profit, sizing, or trading authority.
+- Inspect **Horizon-aware tolerance**. Confirm the presentation uses text plus green/amber/red/grey semantics for **Within**, **Near limit**, **Outside**, **Unknown**, or **Unavailable**, retains backend state in accessible detail, explains that tolerance means structural validity for the selected horizon, and does not imply profit, sizing, stop-loss, or trading authority.
 
 ### 11. Lifecycle controls and fresh episode
 
@@ -112,21 +119,22 @@ Also exercise the existing stale-context test path where available. Confirm miss
 
 - Record one scan ID, candidate episode, snapshot count, lifecycle, and saved settings.
 - Restart the API and web app without deleting the database.
-- Confirm recent scans, candidate state, snapshots, transitions, context, explanations, and settings remain present and no terminal episode is resurrected.
+- Confirm recent and archived scans, archive state, candidate state, snapshots, transitions, context, explanations, and settings remain present and no terminal episode is resurrected.
 
 ### 14. Owner isolation
 
 - Sign in as the second test user.
-- Confirm the first user’s scans, candidates, evidence, context, explanations, and settings are absent.
-- In a test environment, a direct request for another owner’s candidate must return the canonical not-found response.
+- Confirm the first user’s active and archived scans, candidates, evidence, context, explanations, and settings are absent.
+- In a test environment, direct requests to view, archive, or restore another owner’s scan and to read another owner’s candidate must return the canonical not-found response.
 
 ### 15. UX and responsive review
 
 Review Scanners, Candidates, candidate detail, and discovery settings at widths 390, 768, 1024, 1440, 1920, and 2560+:
 
-- at wide widths, scan setup, results/queue, and candidate inspector should use the available width as a compact workstation;
-- at intermediate widths, the inspector may move below the setup/results regions;
-- at narrow widths, controls should stack and semantic tables should become readable labeled cards;
+- at wide widths with no selection, setup/history and center should form two columns with no reserved inspector space; with a selection, the grid should be approximately 20–22% / 50–55% / 25–28%, aligned at the top, with a sticky useful inspector and compact horizontal status strip;
+- at intermediate widths, setup/history and results should form two columns while an open inspector moves below and the status strip wraps cleanly;
+- at narrow widths, controls, status items, workflow sections, and inspector should stack while semantic tables become readable labeled cards;
+- before a first run, the center should show one compact in-context instruction; when scan history exists it should show the latest persisted summary instead;
 - there must be no horizontal page overflow;
 - dark/navy framing, white work surfaces, blue primary actions, restrained status colors, focus indicators, labels, headings, alerts, and status text should remain legible in both themes;
 - no control should imply trade execution, recommendation, sizing, Opportunity, or LOB promotion.

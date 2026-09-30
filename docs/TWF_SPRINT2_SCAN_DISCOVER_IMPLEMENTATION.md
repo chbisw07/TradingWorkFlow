@@ -23,17 +23,21 @@ Manual dismiss, defunct, and recovery actions now explain their consequence, req
 
 ## Final product stabilization before formal user validation
 
-The final pre-validation stabilization keeps the sidebar as the sole route navigation for **Scanners** and **Candidates**. The duplicate page-level destination tabs were removed. The Scanners route now uses a workstation composition: scan setup and provider state at left, latest results and a compact persisted discovery queue in the center, and the selected candidate inspector at right on wide screens. At narrower widths these regions recompose into two columns and then one column; semantic tables become labeled cards at mobile widths.
+The final pre-validation stabilization keeps the sidebar as the sole route navigation for **Scanners** and **Candidates**. The duplicate page-level destination tabs were removed. The Scanners route now uses one workstation composition: a compact setup-and-history rail at left and the latest result plus active discovery queue in the center. The candidate inspector is conditional: no empty inspector card or reserved column is rendered until **Review** is selected, so the center consumes the available width; an open inspector creates an intentional third desktop region, keeps the selected row highlighted, and disappears completely when closed. A compact status strip above the workstation owns provider readiness, market-context state, optional AI state, and latest-scan state. Provider status no longer consumes a tall left-rail card. At narrower widths the regions recompose into two columns and then one column; the open inspector stacks below the workflow and semantic tables become labeled cards at mobile widths.
 
 Scan Profile and Discovery Intent are presented as separate concepts. A profile states the mechanical pattern TWF searches for, while intent states how a resulting setup should be interpreted and tracked. Profile selection recommends an intent and horizon. After a user explicitly changes either field, later profile changes preserve that override until **Apply suggestion** is selected. The context policy is expressed as **Require complete context**, **Allow partial context**, or **Context optional**; missing context remains visible and reduces coverage.
 
-Provider cards separate informational **Mode** from operational **Status**. Internal Scanner V0 is identified as deterministic, fixture-backed **SYNTHETIC DATA**. The TradingView card distinguishes validation/synthetic mode from a live provider mode and uses text states such as READY, RATE LIMITED, AUTH REQUIRED, UNAVAILABLE, DISABLED, and DEGRADED in addition to semantic color. Rate limiting is shown as an operational constraint and does not imply that live exact-row proof succeeded.
+The top status strip separates informational **Mode** from operational **Status**. Internal Scanner V0 is identified as deterministic **Synthetic Data**. TradingView distinguishes **Validation · Synthetic** from **Live** mode and uses text states such as Ready, Rate limited, Authentication required, Unavailable, Disabled, and Degraded in addition to semantic color. Status elements are informational rather than button-shaped. Rate limiting is shown as an operational constraint and does not imply that live exact-row proof succeeded.
 
 Internal Scanner fixtures now provide deterministic but varied market-shaped series for RELIANCE, MCX, HDFCBANK, INFY, BSE, NIFTY, BANKNIFTY, and TCS. A single run contains matches and non-matches, multiple match reasons, different prices, relative volumes, relevance values, and evidence coverage. Repeated scans progress deterministically and append immutable snapshots with changed relevance/evidence where the fixture state advances. The synthetic disclosure remains persistent and explicitly denies a live-market claim.
 
 Canonical product identity now classifies NIFTY, BANKNIFTY, FINNIFTY, and MIDCPNIFTY as `INDEX`; equities remain `EQ`. Existing stable instrument IDs are preserved. Result rows lead with human explanations derived from the actual matched metrics, formatted price/momentum/RVOL/RSI fields, and an explicit freshness state. Raw observation bases, provider IDs, lineage, and technical identifiers remain available under details. Candidate evidence leads with **Scan + market context**, while exact provider provenance remains inspectable.
 
-Recent scans use the existing persisted scan-history API and can load their setup back into the form for review. The discovery queue uses the existing owner-scoped candidate persistence and does not introduce Opportunity, LOB, recommendation, risk, sizing, or execution authority. Relevance weights, thresholds, lifecycle, tolerance, context logic, persistence, owner isolation, provider contracts, and LLM authority are unchanged.
+A dedicated **Scan History** block sits immediately below **Scan Setup** in the left rail. It shows the five most recent active scans as compact entries with profile, provider, universe size, result count, time, and status. **View** selects the persisted execution summary without creating candidates. **Use setup** restores universe, profile, discovery intent, horizon, provider, and context requirement without automatically running a scan. **Archive** hides a run from the recent operational list while retaining the run, normalized matches, lineage, and evidence in the database.
+
+**Past scans** opens on demand as a modal rather than widening the rail. It supports Today, Last 7 days, Last 30 days, all-time, and custom datetime filtering, plus provider, profile, status, and active/archived filters. Archived scans remain owner-scoped, visible there, and can be restored. There is no Clear history, permanent delete, purge, or physical deletion path. The prior central history block was removed so the center remains focused on the latest summary/result and discovery queue. Before a candidate is selected there is also no empty inspector placeholder or reserved right column.
+
+Candidate review remains sticky on wide screens and keeps symbol, intent, horizon, and instrument identity above the fold. Evidence states use text plus consistent Present, Missing, Conflicting, Unavailable, and Stale colors; tolerance uses Within, Near limit, Outside, Unknown, and Unavailable. Boolean/category measurements are translated into phrases such as **Condition matched** and **Broad regime: Constructive** while raw typed values remain under provenance details. The theme toggle now uses the same accessible navy/white control language as the workstation. The discovery queue uses the existing owner-scoped candidate persistence and does not introduce Opportunity, LOB, recommendation, risk, sizing, or execution authority. Relevance weights, thresholds, lifecycle, tolerance, context logic, persistence, owner isolation, provider contracts, and LLM authority are unchanged.
 
 ## CP-4 — bounded market context
 
@@ -65,7 +69,7 @@ Discovery is complete with LLM disabled. When the controlled synthetic provider 
 
 ## CP-7 — persistence, API, settings, and UX
 
-Alembic revision `0012_sprint2_scan_discover` adds owner-scoped settings, scan runs, scan matches, market context, discovery episodes, immutable snapshots, lifecycle transitions, and LLM explanations. Existing historical migrations were not rewritten. Queries and mutations apply the authenticated owner ID. List and history endpoints are bounded; scan universes are capped at 20 symbols and candidate/snapshot page sizes at 100.
+Alembic revision `0012_sprint2_scan_discover` adds owner-scoped settings, scan runs, scan matches, market context, discovery episodes, immutable snapshots, lifecycle transitions, and LLM explanations. Forward revision `0013_discovery_scan_archive` adds nullable `archived_at` state and its lookup index without rewriting historical migrations or deleting historical rows. Queries and mutations apply the authenticated owner ID. List and history endpoints are bounded; scan universes are capped at 20 symbols and candidate/snapshot page sizes at 100. Normal history excludes archived runs unless `include_archived=true`; archive and restore both preserve the existing run and evidence graph.
 
 The API surface is:
 
@@ -73,14 +77,16 @@ The API surface is:
 | ------------- | ------------------------------------------------------- | ------------------------------------------------------- |
 | `GET`         | `/api/v1/discovery/status`                              | provider capability and typed readiness                 |
 | `GET`, `PUT`  | `/api/v1/discovery/settings`                            | bounded owner defaults and revisioned updates           |
-| `POST`, `GET` | `/api/v1/discovery/scans`                               | execute a bounded scan and read scan history            |
+| `POST`, `GET` | `/api/v1/discovery/scans`                               | execute a bounded scan and read active/all scan history |
+| `POST`        | `/api/v1/discovery/scans/{run_id}/archive`              | owner-scoped reversible scan archival                   |
+| `POST`        | `/api/v1/discovery/scans/{run_id}/restore`              | restore an owner-scoped archived scan                   |
 | `GET`         | `/api/v1/discovery/candidates`                          | paginated candidate ledger                              |
 | `GET`         | `/api/v1/discovery/candidates/{candidate_id}`           | evidence, context, snapshots, transitions, explanations |
 | `POST`        | `/api/v1/discovery/candidates/{candidate_id}/lifecycle` | revisioned owner lifecycle action                       |
 | `POST`        | `/api/v1/discovery/candidates/{candidate_id}/explain`   | optional Level-0 explanation                            |
 | `GET`         | `/api/v1/discovery/market-context`                      | latest owner context snapshot                           |
 
-The Next.js proxy uses a strict discovery-route allowlist, same-origin session semantics, no-store responses, bounded bodies, and safe error mapping. The main shell now enables Scanners and Candidates. The responsive workspace has bounded scan controls, provider readiness, normalized results, candidate ledger, evidence/context/relevance/tolerance detail, immutable history, optional LLM, typed empty/error/degraded states, and integrated settings. It uses existing tokens, themes, surface-state semantics, and keyboard-accessible native controls. Chromium validation covers widths 390, 768, 1024, 1440, 1920, and 2560 pixels.
+The Next.js proxy uses a strict discovery-route allowlist, same-origin session semantics, no-store responses, bounded bodies, and safe error mapping. The main shell now enables Scanners and Candidates. The responsive workspace has bounded scan controls, provider readiness, normalized results, conditional candidate detail, compact recent history, filtered past history, reversible archival, evidence/context/relevance/tolerance detail, immutable candidate history, optional LLM, typed empty/error/degraded states, and integrated settings. It uses existing tokens, themes, surface-state semantics, keyboard-accessible native controls, and an Escape-closeable focus-restoring history dialog. Chromium validation covers widths 390, 768, 1024, 1440, 1920, and 2560 pixels.
 
 Safe scan telemetry records provider, duration, match count, candidate count, and context availability through the existing explicit structured-log allowlist; arbitrary extras and request data remain excluded.
 
@@ -99,6 +105,7 @@ The automated suite covers:
 - first and subsequent snapshots, immutable history, stale/defunct/recovery/rejection, and fresh episodes after terminal state;
 - LLM disabled, controlled grounded LLM enabled, unavailable named LLM, and no LLM authority;
 - restart persistence and owner isolation;
+- five-item recent history, complete setup reuse, filtered past history, owner-scoped archive/restore, retained scan-match rows, and absence of permanent deletion;
 - API bounds, settings revision conflicts, OpenAPI construction, and migration metadata;
 - responsive discovery flow at all six target Chromium widths.
 
@@ -110,18 +117,18 @@ WebKit still cannot launch successfully on this host because the Playwright runt
 
 | Check                             | Result                                                                                         |
 | --------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Backend full regression           | 918 passed                                                                                     |
-| Ruff lint / format                | passed; 126 files formatted                                                                    |
-| Strict mypy                       | passed; 125 source files                                                                       |
+| Backend full regression           | 919 passed                                                                                     |
+| Ruff lint / format                | passed; 127 files formatted                                                                    |
+| Strict mypy                       | passed; 126 source files                                                                       |
 | Python compilation / `pip check`  | passed                                                                                         |
-| OpenAPI construction              | passed; 50 paths, 118 schemas                                                                  |
+| OpenAPI construction              | passed; 52 paths, 118 schemas                                                                  |
 | Offline package build             | wheel and sdist built                                                                          |
-| Frontend unit tests               | 127 passed across 16 files                                                                     |
+| Frontend unit tests               | 130 passed across 16 files                                                                     |
 | ESLint / TypeScript / Prettier    | passed                                                                                         |
 | Next.js production build          | passed; Scanners, Candidates, and discovery proxy routes emitted                               |
 | Discovery responsive Chromium     | 6 passed at 390, 768, 1024, 1440, 1920, and 2560                                               |
 | Full Chromium browser suite       | 66 passed across all six target widths, including Broker V2                                    |
-| Focused discovery backend tests   | 17 passed                                                                                      |
+| Focused discovery backend tests   | 18 passed                                                                                      |
 | SQLite migration lifecycle        | upgrade/repeat/downgrade/re-upgrade and data-preservation probe passed                         |
 | PostgreSQL 16 migration lifecycle | upgrade/repeat/downgrade/re-upgrade and data-preservation probe passed                         |
 | Documentation links / whitespace  | 63 Markdown files passed; `git diff --check` passed                                            |

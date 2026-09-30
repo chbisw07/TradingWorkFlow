@@ -30,7 +30,9 @@ export function ThemeToggle() {
       className="theme-toggle"
       aria-label="Light theme"
       aria-pressed={theme === "light"}
-      title="Toggle light theme"
+      title={
+        theme === "light" ? "Switch to dark theme" : "Switch to light theme"
+      }
       onClick={toggle}
     >
       <svg

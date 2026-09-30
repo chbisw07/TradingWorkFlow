@@ -253,7 +253,7 @@ def test_migration_history_and_metadata() -> None:
         with db.connect() as connection:
             assert (
                 MigrationContext.configure(connection).get_current_revision()
-                == "0012_sprint2_scan_discover"
+                == "0013_discovery_scan_archive"
             )
             assert inspect(connection).get_table_names() == [
                 "alembic_version",
@@ -286,7 +286,7 @@ def test_migration_history_and_metadata() -> None:
         with db.connect() as connection:
             assert (
                 MigrationContext.configure(connection).get_current_revision()
-                == "0012_sprint2_scan_discover"
+                == "0013_discovery_scan_archive"
             )
     finally:
         db.dispose()

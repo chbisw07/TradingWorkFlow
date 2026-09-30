@@ -47,6 +47,7 @@ function words(value: string) {
     .replace(/\bv\d+\b/gi, "")
     .replace(/\s+/g, " ")
     .trim()
+    .toLowerCase()
     .replace(/^./, (letter) => letter.toUpperCase());
 }
 
@@ -93,26 +94,62 @@ function contextValue(availability: string, value: string | number | null) {
 }
 
 function providerModeLabel(mode: ProviderStatus["mode"]) {
-  if (mode === "REMOTE") return "LIVE";
-  if (mode === "SYNTHETIC_VALIDATION") return "VALIDATION / SYNTHETIC";
-  return "SYNTHETIC DATA";
+  if (mode === "REMOTE") return "Live";
+  if (mode === "SYNTHETIC_VALIDATION") return "Validation";
+  return "Synthetic Data";
 }
 
 function providerHealthLabel(
   health: ProviderStatus["health"],
   enabled: boolean,
 ) {
-  if (!enabled) return "DISABLED";
-  if (health === "AVAILABLE") return "READY";
-  return health.replaceAll("_", " ");
+  if (!enabled) return "Disabled";
+  if (health === "AVAILABLE") return "Ready";
+  return words(health);
 }
 
-function providerDescription(provider: ProviderStatus) {
-  if (provider.id === "internal")
-    return "Deterministic internal scanner · 5 scan profiles";
-  if (provider.mode === "REMOTE")
-    return "Live exact-batch provider integration";
-  return "Live-provider adapter exercised with synthetic validation responses";
+function evidenceState(availability: string, polarity?: string) {
+  if (polarity === "CONFLICTING")
+    return { className: "is-conflicting", label: "Conflicting evidence" };
+  const states: Record<string, { className: string; label: string }> = {
+    PRESENT: { className: "is-present", label: "Evidence available" },
+    COMPLETE: { className: "is-complete", label: "Complete context" },
+    PARTIAL: { className: "is-partial", label: "Partial context" },
+    MISSING: { className: "is-missing", label: "Evidence missing" },
+    UNAVAILABLE: {
+      className: "is-unavailable",
+      label: "Evidence unavailable",
+    },
+    STALE: { className: "is-stale", label: "Evidence stale" },
+  };
+  return (
+    states[availability] || {
+      className: "is-unknown",
+      label: "Evidence state unknown",
+    }
+  );
+}
+
+function evidenceDirection(polarity: string) {
+  const directions: Record<string, string> = {
+    POSITIVE: "Supports the setup",
+    NEGATIVE: "Counters the setup",
+    NEUTRAL: "Neutral evidence",
+    CONFLICTING: "Conflicts with other evidence",
+  };
+  return directions[polarity] || words(polarity);
+}
+
+function evidenceMeasure(
+  name: string,
+  value: string | number | boolean,
+  unit: string,
+) {
+  const label = words(name);
+  if (typeof value === "boolean")
+    return `${label}: ${value ? "Condition matched" : "Condition not matched"}`;
+  if (unit === "category") return `${label}: ${words(String(value))}`;
+  return `${label}: ${String(value)}${unit ? ` ${unit}` : ""}`;
 }
 
 function sourceLabel(value: string) {
@@ -232,6 +269,85 @@ function dateTime(value: string | null) {
   }).format(new Date(value));
 }
 
+function CandidateMobileList({
+  candidates,
+  selected,
+  onSelect,
+  label,
+  compact = false,
+}: {
+  candidates: Candidate[];
+  selected: string | null;
+  onSelect: (id: string) => void;
+  label: string;
+  compact?: boolean;
+}) {
+  return (
+    <ul className="discovery-mobile-list" aria-label={label}>
+      {candidates.map((candidate) => (
+        <li
+          key={candidate.candidate_id}
+          className="discovery-mobile-card"
+          data-candidate-symbol={candidate.instrument.symbol}
+          data-selected={selected === candidate.candidate_id}
+        >
+          <div className="mobile-card-heading">
+            <div>
+              <strong>{candidate.instrument.symbol}</strong>
+              <span>
+                {candidate.instrument.exchange} · {candidate.instrument.segment}
+              </span>
+            </div>
+            <span
+              className={`discovery-badge is-${candidate.lifecycle.toLowerCase()}`}
+            >
+              {candidate.lifecycle}
+            </span>
+          </div>
+          <dl className="mobile-card-facts">
+            <div>
+              <dt>Setup</dt>
+              <dd>
+                {words(candidate.intent)} · {candidate.horizon}
+              </dd>
+            </div>
+            <div>
+              <dt>Relevance</dt>
+              <dd>
+                {percent(candidate.relevance.value)} ·{" "}
+                {candidate.relevance_explanation.band || "Unscored"}
+              </dd>
+            </div>
+            {!compact ? (
+              <>
+                <div>
+                  <dt>Freshness</dt>
+                  <dd>{freshnessLabel(candidate.freshness)}</dd>
+                </div>
+                <div>
+                  <dt>Evidence</dt>
+                  <dd>{evidenceSummary(candidate.provider_sources)}</dd>
+                </div>
+              </>
+            ) : null}
+            <div>
+              <dt>Updated</dt>
+              <dd>{dateTime(candidate.updated_at)}</dd>
+            </div>
+          </dl>
+          <button
+            type="button"
+            aria-pressed={selected === candidate.candidate_id}
+            onClick={() => onSelect(candidate.candidate_id)}
+          >
+            {selected === candidate.candidate_id ? "Reviewing" : "Review"}
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function CandidateTable({
   candidates,
   selected,
@@ -252,84 +368,98 @@ function CandidateTable({
     );
   }
   return (
-    <div className="discovery-table-wrap" tabIndex={0}>
-      <table className="discovery-table candidate-table">
-        <caption className="sr-only">Discovery candidates</caption>
-        <thead>
-          <tr>
-            <th scope="col">Instrument</th>
-            <th scope="col">Intent / horizon</th>
-            <th scope="col">Relevance</th>
-            <th scope="col">Lifecycle</th>
-            <th scope="col">Freshness</th>
-            <th scope="col">Evidence</th>
-            <th scope="col">Updated</th>
-            <th scope="col">Review</th>
-          </tr>
-        </thead>
-        <tbody>
-          {candidates.map((candidate) => (
-            <tr
-              key={candidate.candidate_id}
-              data-selected={selected === candidate.candidate_id}
-            >
-              <td data-label="Instrument">
-                <strong>{candidate.instrument.symbol}</strong>
-                <span>
-                  {candidate.instrument.exchange} ·{" "}
-                  {candidate.instrument.segment}
-                </span>
-              </td>
-              <td data-label="Intent / horizon">
-                <strong>{words(candidate.intent)}</strong>
-                <span>{candidate.horizon}</span>
-              </td>
-              <td data-label="Relevance">
-                <strong className="relevance-score">
-                  {percent(candidate.relevance.value)}
-                </strong>
-                <span className="discovery-badge">
-                  {candidate.relevance_explanation.band || "UNSCORED"}
-                </span>
-              </td>
-              <td data-label="Lifecycle">
-                <span
-                  className={`discovery-badge is-${candidate.lifecycle.toLowerCase()}`}
-                >
-                  {candidate.lifecycle}
-                </span>
-              </td>
-              <td data-label="Freshness">
-                <span
-                  className={`discovery-badge is-${candidate.freshness.toLowerCase()}`}
-                >
-                  {freshnessLabel(candidate.freshness)}
-                </span>
-              </td>
-              <td data-label="Evidence">
-                <strong>{evidenceSummary(candidate.provider_sources)}</strong>
-                <details className="provenance-details">
-                  <summary>Sources</summary>
-                  <p>
-                    {candidate.provider_sources.map(sourceLabel).join(" · ")}
-                  </p>
-                </details>
-              </td>
-              <td data-label="Updated">{dateTime(candidate.updated_at)}</td>
-              <td data-label="Review">
-                <button
-                  type="button"
-                  aria-pressed={selected === candidate.candidate_id}
-                  onClick={() => onSelect(candidate.candidate_id)}
-                >
-                  {selected === candidate.candidate_id ? "Reviewing" : "Review"}
-                </button>
-              </td>
+    <>
+      <div
+        className="discovery-table-wrap discovery-table-desktop"
+        tabIndex={0}
+      >
+        <table className="discovery-table candidate-table">
+          <caption className="sr-only">Discovery candidates</caption>
+          <thead>
+            <tr>
+              <th scope="col">Instrument</th>
+              <th scope="col">Intent / horizon</th>
+              <th scope="col">Relevance</th>
+              <th scope="col">Lifecycle</th>
+              <th scope="col">Freshness</th>
+              <th scope="col">Evidence</th>
+              <th scope="col">Updated</th>
+              <th scope="col">Review</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {candidates.map((candidate) => (
+              <tr
+                key={candidate.candidate_id}
+                data-candidate-symbol={candidate.instrument.symbol}
+                data-selected={selected === candidate.candidate_id}
+              >
+                <td data-label="Instrument">
+                  <strong>{candidate.instrument.symbol}</strong>
+                  <span>
+                    {candidate.instrument.exchange} ·{" "}
+                    {candidate.instrument.segment}
+                  </span>
+                </td>
+                <td data-label="Intent / horizon">
+                  <strong>{words(candidate.intent)}</strong>
+                  <span>{candidate.horizon}</span>
+                </td>
+                <td data-label="Relevance">
+                  <strong className="relevance-score">
+                    {percent(candidate.relevance.value)}
+                  </strong>
+                  <span className="discovery-badge">
+                    {candidate.relevance_explanation.band || "UNSCORED"}
+                  </span>
+                </td>
+                <td data-label="Lifecycle">
+                  <span
+                    className={`discovery-badge is-${candidate.lifecycle.toLowerCase()}`}
+                  >
+                    {candidate.lifecycle}
+                  </span>
+                </td>
+                <td data-label="Freshness">
+                  <span
+                    className={`discovery-badge is-${candidate.freshness.toLowerCase()}`}
+                  >
+                    {freshnessLabel(candidate.freshness)}
+                  </span>
+                </td>
+                <td data-label="Evidence">
+                  <strong>{evidenceSummary(candidate.provider_sources)}</strong>
+                  <details className="provenance-details">
+                    <summary>Sources</summary>
+                    <p>
+                      {candidate.provider_sources.map(sourceLabel).join(" · ")}
+                    </p>
+                  </details>
+                </td>
+                <td data-label="Updated">{dateTime(candidate.updated_at)}</td>
+                <td data-label="Review">
+                  <button
+                    type="button"
+                    aria-pressed={selected === candidate.candidate_id}
+                    onClick={() => onSelect(candidate.candidate_id)}
+                  >
+                    {selected === candidate.candidate_id
+                      ? "Reviewing"
+                      : "Review"}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <CandidateMobileList
+        candidates={candidates}
+        selected={selected}
+        onSelect={onSelect}
+        label="Discovery candidates"
+      />
+    </>
   );
 }
 
@@ -345,126 +475,538 @@ function CandidateQueue({
   if (candidates.length === 0) {
     return <p className="workspace-empty-copy">No discovery candidates yet.</p>;
   }
+  const queue = candidates.slice(0, 8);
   return (
-    <div className="discovery-table-wrap" tabIndex={0}>
-      <table className="discovery-table candidate-queue-table">
-        <caption className="sr-only">Discovery queue</caption>
-        <thead>
-          <tr>
-            <th scope="col">Symbol</th>
-            <th scope="col">Setup</th>
-            <th scope="col">Relevance</th>
-            <th scope="col">Updated</th>
-            <th scope="col">State</th>
-            <th scope="col">Review</th>
-          </tr>
-        </thead>
-        <tbody>
-          {candidates.slice(0, 8).map((candidate) => (
-            <tr
-              key={candidate.candidate_id}
-              data-selected={selected === candidate.candidate_id}
-            >
-              <td data-label="Symbol">
-                <strong>{candidate.instrument.symbol}</strong>
-                <span>
-                  {candidate.instrument.exchange} ·{" "}
-                  {candidate.instrument.segment}
-                </span>
-              </td>
-              <td data-label="Setup">
-                <strong>{words(candidate.intent)}</strong>
-                <span>{candidate.horizon}</span>
-              </td>
-              <td data-label="Relevance">
-                <strong>{percent(candidate.relevance.value)}</strong>
-                <span>
-                  {candidate.relevance_explanation.band || "UNSCORED"}
-                </span>
-              </td>
-              <td data-label="Updated">{dateTime(candidate.updated_at)}</td>
-              <td data-label="State">
-                <span
-                  className={`discovery-badge is-${candidate.lifecycle.toLowerCase()}`}
-                >
-                  {candidate.lifecycle}
-                </span>
-              </td>
-              <td data-label="Review">
-                <button
-                  type="button"
-                  aria-pressed={selected === candidate.candidate_id}
-                  onClick={() => onSelect(candidate.candidate_id)}
-                >
-                  {selected === candidate.candidate_id ? "Reviewing" : "Review"}
-                </button>
-              </td>
+    <>
+      <div
+        className="discovery-table-wrap discovery-table-desktop"
+        tabIndex={0}
+      >
+        <table className="discovery-table candidate-queue-table">
+          <caption className="sr-only">Discovery queue</caption>
+          <thead>
+            <tr>
+              <th scope="col">Symbol</th>
+              <th scope="col">Setup</th>
+              <th scope="col">Relevance</th>
+              <th scope="col">Updated</th>
+              <th scope="col">State</th>
+              <th scope="col">Review</th>
             </tr>
+          </thead>
+          <tbody>
+            {queue.map((candidate) => (
+              <tr
+                key={candidate.candidate_id}
+                data-candidate-symbol={candidate.instrument.symbol}
+                data-selected={selected === candidate.candidate_id}
+              >
+                <td data-label="Symbol">
+                  <strong>{candidate.instrument.symbol}</strong>
+                  <span>
+                    {candidate.instrument.exchange} ·{" "}
+                    {candidate.instrument.segment}
+                  </span>
+                </td>
+                <td data-label="Setup">
+                  <strong>{words(candidate.intent)}</strong>
+                  <span>{candidate.horizon}</span>
+                </td>
+                <td data-label="Relevance">
+                  <strong>{percent(candidate.relevance.value)}</strong>
+                  <span>
+                    {candidate.relevance_explanation.band || "UNSCORED"}
+                  </span>
+                </td>
+                <td data-label="Updated">{dateTime(candidate.updated_at)}</td>
+                <td data-label="State">
+                  <span
+                    className={`discovery-badge is-${candidate.lifecycle.toLowerCase()}`}
+                  >
+                    {candidate.lifecycle}
+                  </span>
+                </td>
+                <td data-label="Review">
+                  <button
+                    type="button"
+                    aria-pressed={selected === candidate.candidate_id}
+                    onClick={() => onSelect(candidate.candidate_id)}
+                  >
+                    {selected === candidate.candidate_id
+                      ? "Reviewing"
+                      : "Review"}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <CandidateMobileList
+        candidates={queue}
+        selected={selected}
+        onSelect={onSelect}
+        label="Discovery queue"
+        compact
+      />
+    </>
+  );
+}
+
+function ScanHistory({
+  scans,
+  selectedRunId,
+  pending,
+  onView,
+  onReuse,
+  onArchive,
+  onOpenPast,
+}: {
+  scans: ScanSummary[];
+  selectedRunId: string | null;
+  pending: boolean;
+  onView: (scan: ScanSummary) => void;
+  onReuse: (scan: ScanSummary) => void;
+  onArchive: (scan: ScanSummary) => void;
+  onOpenPast: () => void;
+}) {
+  return (
+    <section
+      className="scan-history-panel"
+      aria-labelledby="scan-history-heading"
+    >
+      <div className="section-heading-row compact-heading">
+        <div>
+          <p className="eyebrow">SCAN HISTORY</p>
+          <h2 id="scan-history-heading">Recent scans</h2>
+          <p>Latest persisted executions.</p>
+        </div>
+      </div>
+      {scans.length === 0 ? (
+        <p className="history-empty">No active scan history.</p>
+      ) : (
+        <ol className="scan-history-list" aria-label="Recent discovery scans">
+          {scans.slice(0, 5).map((scan) => (
+            <li key={scan.run_id} data-selected={selectedRunId === scan.run_id}>
+              <div className="scan-history-entry-heading">
+                <strong>{words(scan.profile)}</strong>
+                <span
+                  className={`discovery-badge is-${scan.status.toLowerCase()}`}
+                >
+                  {scan.status}
+                </span>
+              </div>
+              <p>
+                {words(scan.provider)} · {scan.universe_size} symbols ·{" "}
+                {scan.match_count} matches
+              </p>
+              <time dateTime={scan.completed_at}>
+                {dateTime(scan.completed_at)}
+              </time>
+              <details className="scan-history-actions">
+                <summary>Actions</summary>
+                <div>
+                  <button
+                    type="button"
+                    aria-pressed={selectedRunId === scan.run_id}
+                    onClick={() => onView(scan)}
+                  >
+                    View
+                  </button>
+                  <button type="button" onClick={() => onReuse(scan)}>
+                    Use setup
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => onArchive(scan)}
+                  >
+                    Archive
+                  </button>
+                </div>
+              </details>
+            </li>
           ))}
-        </tbody>
-      </table>
+        </ol>
+      )}
+      <button className="past-scans-button" type="button" onClick={onOpenPast}>
+        Past scans
+      </button>
+    </section>
+  );
+}
+
+function PastScansDialog({
+  open,
+  scans,
+  selectedRunId,
+  pending,
+  onClose,
+  onView,
+  onReuse,
+  onArchive,
+  onRestore,
+}: {
+  open: boolean;
+  scans: ScanSummary[];
+  selectedRunId: string | null;
+  pending: boolean;
+  onClose: () => void;
+  onView: (scan: ScanSummary) => void;
+  onReuse: (scan: ScanSummary) => void;
+  onArchive: (scan: ScanSummary) => void;
+  onRestore: (scan: ScanSummary) => void;
+}) {
+  const [datePreset, setDatePreset] = useState("30d");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+  const [providerFilter, setProviderFilter] = useState("all");
+  const [profileFilter, setProfileFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [archiveFilter, setArchiveFilter] = useState("all");
+  const dialogRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    dialogRef.current?.focus();
+    return () => {
+      document.removeEventListener("keydown", closeOnEscape);
+      previousFocus?.focus();
+    };
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  const now = new Date();
+  const startOfToday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  );
+  const providers = [...new Set(scans.map((scan) => scan.provider))];
+  const profiles = [...new Set(scans.map((scan) => scan.profile))];
+  const filtered = scans.filter((scan) => {
+    const completed = new Date(scan.completed_at);
+    let inRange = true;
+    if (datePreset === "today") inRange = completed >= startOfToday;
+    if (datePreset === "7d")
+      inRange = completed >= new Date(now.getTime() - 7 * 86_400_000);
+    if (datePreset === "30d")
+      inRange = completed >= new Date(now.getTime() - 30 * 86_400_000);
+    if (datePreset === "custom") {
+      if (customFrom) inRange = inRange && completed >= new Date(customFrom);
+      if (customTo) inRange = inRange && completed <= new Date(customTo);
+    }
+    return (
+      inRange &&
+      (providerFilter === "all" || scan.provider === providerFilter) &&
+      (profileFilter === "all" || scan.profile === profileFilter) &&
+      (statusFilter === "all" || scan.status === statusFilter) &&
+      (archiveFilter === "all" ||
+        (archiveFilter === "archived"
+          ? Boolean(scan.archived_at)
+          : !scan.archived_at))
+    );
+  });
+
+  return (
+    <div className="past-scans-backdrop">
+      <section
+        ref={dialogRef}
+        className="past-scans-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="past-scans-heading"
+        tabIndex={-1}
+      >
+        <header>
+          <div>
+            <p className="eyebrow">PERSISTED HISTORY</p>
+            <h2 id="past-scans-heading">Past scans</h2>
+            <p>Archived scans remain persisted and available for analysis.</p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close past scans">
+            Close
+          </button>
+        </header>
+        <div className="past-scan-filters">
+          <label>
+            <span>Date range</span>
+            <select
+              value={datePreset}
+              onChange={(event) => setDatePreset(event.target.value)}
+            >
+              <option value="today">Today</option>
+              <option value="7d">Last 7 days</option>
+              <option value="30d">Last 30 days</option>
+              <option value="all">All time</option>
+              <option value="custom">Custom range</option>
+            </select>
+          </label>
+          {datePreset === "custom" ? (
+            <>
+              <label>
+                <span>From</span>
+                <input
+                  type="datetime-local"
+                  value={customFrom}
+                  onChange={(event) => setCustomFrom(event.target.value)}
+                />
+              </label>
+              <label>
+                <span>To</span>
+                <input
+                  type="datetime-local"
+                  value={customTo}
+                  onChange={(event) => setCustomTo(event.target.value)}
+                />
+              </label>
+            </>
+          ) : null}
+          <label>
+            <span>Provider</span>
+            <select
+              value={providerFilter}
+              onChange={(event) => setProviderFilter(event.target.value)}
+            >
+              <option value="all">All providers</option>
+              {providers.map((item) => (
+                <option key={item} value={item}>
+                  {words(item)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Profile</span>
+            <select
+              value={profileFilter}
+              onChange={(event) => setProfileFilter(event.target.value)}
+            >
+              <option value="all">All profiles</option>
+              {profiles.map((item) => (
+                <option key={item} value={item}>
+                  {words(item)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Status</span>
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+            >
+              <option value="all">All statuses</option>
+              <option value="COMPLETE">Complete</option>
+              <option value="FAILED">Failed</option>
+            </select>
+          </label>
+          <label>
+            <span>Visibility</span>
+            <select
+              value={archiveFilter}
+              onChange={(event) => setArchiveFilter(event.target.value)}
+            >
+              <option value="all">Active and archived</option>
+              <option value="active">Active only</option>
+              <option value="archived">Archived only</option>
+            </select>
+          </label>
+        </div>
+        <p className="past-scan-count">{filtered.length} scan(s)</p>
+        {filtered.length === 0 ? (
+          <p className="history-empty">No scans match these filters.</p>
+        ) : (
+          <ol className="past-scan-list" aria-label="Past discovery scans">
+            {filtered.map((scan) => (
+              <li
+                key={scan.run_id}
+                data-selected={selectedRunId === scan.run_id}
+              >
+                <div>
+                  <strong>{words(scan.profile)}</strong>
+                  <span>
+                    {words(scan.provider)} · {scan.universe_size} symbols
+                  </span>
+                  <span>
+                    {scan.match_count} matches · {dateTime(scan.completed_at)}
+                  </span>
+                </div>
+                <span
+                  className={`discovery-badge is-${scan.status.toLowerCase()}`}
+                >
+                  {scan.archived_at ? "Archived" : scan.status}
+                </span>
+                <div className="history-actions">
+                  <button type="button" onClick={() => onView(scan)}>
+                    View
+                  </button>
+                  <button type="button" onClick={() => onReuse(scan)}>
+                    Use setup
+                  </button>
+                  {scan.archived_at ? (
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() => onRestore(scan)}
+                    >
+                      Restore
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() => onArchive(scan)}
+                    >
+                      Archive
+                    </button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
     </div>
   );
 }
 
-function RecentScans({
-  scans,
-  onReuse,
+function ProviderStatusStrip({
+  providers,
+  contextAvailability,
+  llmEnabled,
+  latestScan,
 }: {
-  scans: ScanSummary[];
-  onReuse: (scan: ScanSummary) => void;
+  providers: ProviderStatus[];
+  contextAvailability: string | null;
+  llmEnabled: boolean;
+  latestScan: ScanSummary | null;
 }) {
   return (
-    <section className="recent-scans" aria-labelledby="recent-scans-heading">
-      <div className="section-heading-row compact-heading">
+    <section
+      className="workspace-status-strip"
+      aria-labelledby="workspace-status-heading"
+    >
+      <div className="status-strip-heading">
+        <p className="eyebrow">WORKSPACE STATUS</p>
+        <h2 id="workspace-status-heading">Provider and evidence readiness</h2>
+      </div>
+      <div className="status-strip-items">
+        {providers.map((item) => (
+          <article key={item.id} className="status-strip-item">
+            <div>
+              <strong>{item.label}</strong>
+              <span className="provider-mode">
+                {providerModeLabel(item.mode)}
+              </span>
+            </div>
+            <span
+              className={`provider-operational is-${item.enabled ? item.health.toLowerCase() : "disabled"}`}
+            >
+              <i aria-hidden="true" />
+              {providerHealthLabel(item.health, item.enabled)}
+            </span>
+            {item.last_error && <small>{item.last_error}</small>}
+            {item.id === "tradingview-synthetic" &&
+              item.health === "RATE_LIMITED" && (
+                <small>Live exact-row proof pending</small>
+              )}
+          </article>
+        ))}
+        <article className="status-strip-item">
+          <div>
+            <strong>Market context</strong>
+            <span>Evidence state</span>
+          </div>
+          <span
+            className={`evidence-state ${contextAvailability ? evidenceState(contextAvailability).className : "is-unknown"}`}
+          >
+            {contextAvailability ? words(contextAvailability) : "Not evaluated"}
+          </span>
+        </article>
+        <article className="status-strip-item">
+          <div>
+            <strong>Optional AI</strong>
+            <span>Level-0 explanation</span>
+          </div>
+          <span
+            className={`provider-operational is-${llmEnabled ? "available" : "disabled"}`}
+          >
+            <i aria-hidden="true" />
+            {llmEnabled ? "Ready" : "Disabled"}
+          </span>
+        </article>
+        <article className="status-strip-item">
+          <div>
+            <strong>Latest scan</strong>
+            <span>
+              {latestScan
+                ? dateTime(latestScan.completed_at)
+                : "No execution yet"}
+            </span>
+          </div>
+          <span
+            className={`provider-operational is-${latestScan?.status.toLowerCase() || "disabled"}`}
+          >
+            <i aria-hidden="true" />
+            {latestScan ? words(latestScan.status) : "Waiting"}
+          </span>
+        </article>
+      </div>
+    </section>
+  );
+}
+
+function HistoricalScanSummary({ scan }: { scan: ScanSummary }) {
+  return (
+    <section
+      className="scan-result scan-history-summary"
+      aria-labelledby="scan-result-heading"
+    >
+      <div className="section-heading-row">
         <div>
-          <p className="eyebrow">PERSISTED HISTORY</p>
-          <h2 id="recent-scans-heading">Recent scans</h2>
+          <p className="eyebrow">PERSISTED EXECUTION SUMMARY</p>
+          <h2 id="scan-result-heading">Latest scan summary</h2>
+          <p>
+            {words(scan.profile)} · {words(scan.intent)} · {scan.horizon}
+          </p>
+        </div>
+        <span>{dateTime(scan.completed_at)}</span>
+      </div>
+      <div className="scan-metrics">
+        <div>
+          <span>Provider</span>
+          <strong>{words(scan.provider)}</strong>
+          <small>Evidence source</small>
+        </div>
+        <div>
+          <span>Universe size</span>
+          <strong>{scan.universe_size}</strong>
+          <small>Symbols evaluated</small>
+        </div>
+        <div>
+          <span>Results</span>
+          <strong>{scan.match_count}</strong>
+          <small>Matches recorded</small>
+        </div>
+        <div>
+          <span>Status</span>
+          <strong className={`discovery-badge is-${scan.status.toLowerCase()}`}>
+            {words(scan.status)}
+          </strong>
+          <small>{scan.candidate_count} candidate update(s)</small>
         </div>
       </div>
-      {scans.length === 0 ? (
-        <p className="workspace-empty-copy">
-          Completed scans will appear here.
-        </p>
-      ) : (
-        <div className="discovery-table-wrap" tabIndex={0}>
-          <table className="discovery-table recent-scans-table">
-            <caption className="sr-only">Recent discovery scans</caption>
-            <thead>
-              <tr>
-                <th scope="col">Profile</th>
-                <th scope="col">Universe</th>
-                <th scope="col">Results</th>
-                <th scope="col">Last run</th>
-                <th scope="col">Status</th>
-                <th scope="col">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {scans.map((scan) => (
-                <tr key={scan.run_id}>
-                  <td data-label="Profile">{words(scan.profile)}</td>
-                  <td data-label="Universe">{scan.universe_size} symbols</td>
-                  <td data-label="Results">{scan.match_count} matches</td>
-                  <td data-label="Last run">{dateTime(scan.completed_at)}</td>
-                  <td data-label="Status">
-                    <span
-                      className={`discovery-badge is-${scan.status.toLowerCase()}`}
-                    >
-                      {scan.status}
-                    </span>
-                  </td>
-                  <td data-label="Action">
-                    <button type="button" onClick={() => onReuse(scan)}>
-                      Use setup
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <p className="history-summary-note">
+        Select View on another recent scan to compare its execution summary, or
+        Use setup to load its configuration without rerunning it.
+      </p>
     </section>
   );
 }
@@ -546,7 +1088,11 @@ function CandidateInspector({
         </div>
         <div>
           <span>Tolerance</span>
-          <strong>{toleranceLabel(detail.tolerance.state)}</strong>
+          <strong
+            className={`tolerance-state is-${detail.tolerance.state.toLowerCase()}`}
+          >
+            {toleranceLabel(detail.tolerance.state)}
+          </strong>
           <small>
             Within its {detail.tolerance.horizon} horizon-aware envelope
           </small>
@@ -573,7 +1119,9 @@ function CandidateInspector({
                 <span>{item.reason}</span>
               </div>
               <b>+{Number(item.contribution).toFixed(2)}</b>
-              <span className="discovery-badge is-present">
+              <span
+                className={`evidence-state ${Number(item.contribution) > 0 ? "is-present" : "is-missing"}`}
+              >
                 {Number(item.contribution) > 0 ? "Present" : "Missing"}
               </span>
             </li>
@@ -610,7 +1158,7 @@ function CandidateInspector({
             <li key={dimension.dimension}>
               <span>{words(dimension.dimension)}</span>
               <strong
-                className={`discovery-badge is-${dimension.status.toLowerCase()}`}
+                className={`tolerance-state is-${dimension.status.toLowerCase()}`}
                 title={`${dimension.reason} Internal state: ${dimension.status}.`}
               >
                 {toleranceLabel(dimension.status)}
@@ -626,88 +1174,92 @@ function CandidateInspector({
           <p>No current evidence is available.</p>
         ) : (
           <ul className="evidence-list">
-            {latest.evidence.map((item) => (
-              <li key={item.evidence_id}>
-                <div className="evidence-card-heading">
-                  <div>
-                    <strong>{evidenceLabel(item.category)}</strong>
-                    <span>
-                      {words(item.polarity)} · {words(item.availability)}
+            {latest.evidence.map((item) => {
+              const state = evidenceState(item.availability, item.polarity);
+              return (
+                <li key={item.evidence_id} className={state.className}>
+                  <div className="evidence-card-heading">
+                    <div>
+                      <strong>{evidenceLabel(item.category)}</strong>
+                      <span>{evidenceDirection(item.polarity)}</span>
+                    </div>
+                    <span className={`evidence-state ${state.className}`}>
+                      {state.label}
                     </span>
                   </div>
-                  <span
-                    className={`discovery-badge is-${item.provenance.mode.toLowerCase()}`}
-                  >
+                  <p>
+                    {item.measures
+                      .filter((measure) => !isTechnicalMeasure(measure.name))
+                      .map((measure) =>
+                        evidenceMeasure(
+                          measure.name,
+                          measure.value,
+                          measure.unit,
+                        ),
+                      )
+                      .join(" · ") ||
+                      item.reason ||
+                      "No current measurement supplied"}
+                  </p>
+                  <small>
                     {item.provenance.mode.includes("SYNTHETIC")
-                      ? "Synthetic"
+                      ? "Synthetic source"
                       : words(item.provenance.mode)}
-                  </span>
-                </div>
-                <p>
-                  {item.measures
-                    .filter((measure) => !isTechnicalMeasure(measure.name))
-                    .map(
-                      (measure) =>
-                        `${words(measure.name)}: ${String(measure.value)} ${measure.unit}`,
-                    )
-                    .join(" · ") ||
-                    item.reason ||
-                    "No current measurement supplied"}
-                </p>
-                <small>
-                  {item.source_data_time
-                    ? `Source time ${dateTime(item.source_data_time)}`
-                    : "Source time unavailable"}
-                </small>
-                <details className="provenance-details">
-                  <summary>Provenance details</summary>
-                  <dl>
-                    <div>
-                      <dt>Provider</dt>
-                      <dd>{item.provenance.producer.provider}</dd>
-                    </div>
-                    <div>
-                      <dt>Source</dt>
-                      <dd>{item.provenance.source.namespace}</dd>
-                    </div>
-                    <div>
-                      <dt>Mode</dt>
-                      <dd>{words(item.provenance.mode)}</dd>
-                    </div>
-                    <div>
-                      <dt>Version</dt>
-                      <dd>{item.provenance.producer.service_version}</dd>
-                    </div>
-                    <div>
-                      <dt>Native ID</dt>
-                      <dd>{item.provenance.source.native_id}</dd>
-                    </div>
-                    <div>
-                      <dt>Evidence ID</dt>
-                      <dd>{item.evidence_id}</dd>
-                    </div>
-                    {item.measures.some((measure) =>
-                      isTechnicalMeasure(measure.name),
-                    ) && (
+                    {" · "}
+                    {item.source_data_time
+                      ? `Source time ${dateTime(item.source_data_time)}`
+                      : "Source time unavailable"}
+                  </small>
+                  <details className="provenance-details">
+                    <summary>Provenance details</summary>
+                    <dl>
                       <div>
-                        <dt>Technical values</dt>
-                        <dd>
-                          {item.measures
-                            .filter((measure) =>
-                              isTechnicalMeasure(measure.name),
-                            )
-                            .map(
-                              (measure) =>
-                                `${words(measure.name)}: ${String(measure.value)}`,
-                            )
-                            .join(" · ")}
-                        </dd>
+                        <dt>Provider</dt>
+                        <dd>{item.provenance.producer.provider}</dd>
                       </div>
-                    )}
-                  </dl>
-                </details>
-              </li>
-            ))}
+                      <div>
+                        <dt>Source</dt>
+                        <dd>{item.provenance.source.namespace}</dd>
+                      </div>
+                      <div>
+                        <dt>Mode</dt>
+                        <dd>{words(item.provenance.mode)}</dd>
+                      </div>
+                      <div>
+                        <dt>Version</dt>
+                        <dd>{item.provenance.producer.service_version}</dd>
+                      </div>
+                      <div>
+                        <dt>Native ID</dt>
+                        <dd>{item.provenance.source.native_id}</dd>
+                      </div>
+                      <div>
+                        <dt>Evidence ID</dt>
+                        <dd>{item.evidence_id}</dd>
+                      </div>
+                      {item.measures.some((measure) =>
+                        isTechnicalMeasure(measure.name),
+                      ) && (
+                        <div>
+                          <dt>Technical values</dt>
+                          <dd>
+                            {item.measures
+                              .filter((measure) =>
+                                isTechnicalMeasure(measure.name),
+                              )
+                              .map(
+                                (measure) =>
+                                  `${words(measure.name)}: ${String(measure.value)}`,
+                              )
+                              .join(" · ")}
+                          </dd>
+                        </div>
+                      )}
+                    </dl>
+                  </details>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
@@ -731,9 +1283,16 @@ function CandidateInspector({
             {detail.context.dimensions.map((dimension) => (
               <li key={dimension.name}>
                 <span>{words(dimension.name)}</span>
-                <strong title={dimension.reason || undefined}>
-                  {contextValue(dimension.availability, dimension.value)}
-                </strong>
+                <div>
+                  <strong title={dimension.reason || undefined}>
+                    {contextValue(dimension.availability, dimension.value)}
+                  </strong>
+                  <small
+                    className={`evidence-state ${evidenceState(dimension.availability).className}`}
+                  >
+                    {evidenceState(dimension.availability).label}
+                  </small>
+                </div>
               </li>
             ))}
           </ul>
@@ -860,6 +1419,12 @@ export function DiscoveryWorkspace({
   const [providers, setProviders] = useState<ProviderStatus[]>([]);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [recentScans, setRecentScans] = useState<ScanSummary[]>([]);
+  const [pastScans, setPastScans] = useState<ScanSummary[]>([]);
+  const [pastScansOpen, setPastScansOpen] = useState(false);
+  const [historyPending, setHistoryPending] = useState(false);
+  const [selectedHistory, setSelectedHistory] = useState<ScanSummary | null>(
+    null,
+  );
   const [settings, setSettings] = useState<DiscoverySettings | null>(null);
   const [result, setResult] = useState<ScanResult | null>(null);
   const [detail, setDetail] = useState<CandidateDetail | null>(null);
@@ -878,6 +1443,7 @@ export function DiscoveryWorkspace({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [toast, setToast] = useState("");
   const inspectorRef = useRef<HTMLElement>(null);
 
   function applyLoadedState(
@@ -961,6 +1527,12 @@ export function DiscoveryWorkspace({
     inspectorRef.current.focus({ preventScroll: true });
   }, [detail]);
 
+  useEffect(() => {
+    if (!toast) return;
+    const timeout = window.setTimeout(() => setToast(""), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [toast]);
+
   function changeProfile(nextProfile: string) {
     const recommendation = PROFILE_RECOMMENDATIONS[nextProfile];
     setProfile(nextProfile);
@@ -990,6 +1562,8 @@ export function DiscoveryWorkspace({
     ];
     setProfile(scan.profile);
     setProvider(scan.provider);
+    if (scan.universe?.length) setUniverse(scan.universe.join(", "));
+    if (scan.context_mode) setContextMode(scan.context_mode);
     setIntent(
       supportedIntents.includes(scan.intent as IntentValue)
         ? (scan.intent as IntentValue)
@@ -998,9 +1572,71 @@ export function DiscoveryWorkspace({
     setHorizon(scan.horizon as HorizonValue);
     setIntentOverridden(true);
     setHorizonOverridden(true);
-    setNotice(
-      "Recent scan setup loaded. Review the universe before running it.",
-    );
+    setPastScansOpen(false);
+    setNotice("");
+    setToast("Scan setup loaded. Review it before selecting Run scan.");
+  }
+
+  function viewScan(scan: ScanSummary) {
+    setResult(null);
+    setSelectedHistory(scan);
+    setPastScansOpen(false);
+  }
+
+  async function openPastScans() {
+    setPastScansOpen(true);
+    setHistoryPending(true);
+    setError("");
+    try {
+      setPastScans(
+        await discoveryApi<ScanSummary[]>(
+          "scans?limit=100&include_archived=true",
+        ),
+      );
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setHistoryPending(false);
+    }
+  }
+
+  async function setArchived(scan: ScanSummary, archived: boolean) {
+    setHistoryPending(true);
+    setError("");
+    try {
+      const next = await discoveryApi<ScanSummary>(
+        `scans/${scan.run_id}/${archived ? "archive" : "restore"}`,
+        "POST",
+      );
+      setPastScans((items) =>
+        items.map((item) => (item.run_id === next.run_id ? next : item)),
+      );
+      if (archived) {
+        setRecentScans((items) =>
+          items.filter((item) => item.run_id !== next.run_id),
+        );
+        if (selectedHistory?.run_id === next.run_id) setSelectedHistory(null);
+      } else {
+        setRecentScans((items) =>
+          [next, ...items.filter((item) => item.run_id !== next.run_id)]
+            .sort(
+              (left, right) =>
+                new Date(right.completed_at).getTime() -
+                new Date(left.completed_at).getTime(),
+            )
+            .slice(0, 5),
+        );
+      }
+      setNotice(
+        archived
+          ? "Scan archived. It remains available in Past scans."
+          : "Scan restored to recent history.",
+      );
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setHistoryPending(false);
+    }
   }
 
   async function runScan(event: FormEvent) {
@@ -1024,6 +1660,7 @@ export function DiscoveryWorkspace({
         context_mode: contextMode,
       });
       setResult(next);
+      setSelectedHistory(null);
       const page = await discoveryApi<{ items: Candidate[] }>(
         "candidates?limit=50",
       );
@@ -1033,6 +1670,14 @@ export function DiscoveryWorkspace({
           next.summary,
           ...items.filter((item) => item.run_id !== next.summary.run_id),
         ].slice(0, 5),
+      );
+      setPastScans((items) =>
+        items.length === 0
+          ? items
+          : [
+              next.summary,
+              ...items.filter((item) => item.run_id !== next.summary.run_id),
+            ],
       );
       setNotice(
         next.summary.match_count === 0
@@ -1118,10 +1763,14 @@ export function DiscoveryWorkspace({
     }
   }
 
-  const syntheticOnly =
-    providers.length > 0 && providers.every((item) => item.mode !== "REMOTE");
   const recommendation =
     PROFILE_RECOMMENDATIONS[profile] || PROFILE_RECOMMENDATIONS.RELATIVE_VOLUME;
+  const latestSummary =
+    result?.summary || selectedHistory || recentScans[0] || null;
+  const topCandidate = [...candidates].sort(
+    (left, right) =>
+      Number(right.relevance.value || 0) - Number(left.relevance.value || 0),
+  )[0];
   const inspector = detail ? (
     <CandidateInspector
       detail={detail}
@@ -1134,21 +1783,27 @@ export function DiscoveryWorkspace({
       onExplain={() => void explain()}
     />
   ) : (
-    <section className="inspector-placeholder" aria-label="Candidate inspector">
-      <SurfaceState
-        state="EMPTY"
-        headingLevel={2}
-        title="Select a candidate"
-        description="Review a candidate to inspect relevance, evidence, context, tolerance, and immutable history."
-      />
-    </section>
+    <aside className="inspector-placeholder" aria-label="Candidate inspector">
+      <div>
+        <p className="eyebrow">CANDIDATE INSPECTOR</p>
+        <h2>Evidence and history</h2>
+      </div>
+      <p>Select a candidate to inspect evidence and history.</p>
+      {topCandidate && (
+        <small>
+          {candidates.length} candidate(s) in queue · highest relevance{" "}
+          {topCandidate.instrument.symbol} at{" "}
+          {percent(topCandidate.relevance.value)}
+        </small>
+      )}
+    </aside>
   );
 
   return (
     <div className="discovery-workspace">
       <header className="discovery-hero">
         <div>
-          <p className="eyebrow">SPRINT 2 / SCAN &amp; DISCOVER</p>
+          <p className="eyebrow">SCAN &amp; DISCOVER</p>
           <h1>
             {view === "scan"
               ? "Evidence-led market discovery"
@@ -1166,12 +1821,21 @@ export function DiscoveryWorkspace({
         </div>
       </header>
 
-      {!loading && syntheticOnly && (
-        <div className="data-mode-banner" role="status">
-          <strong>SYNTHETIC VALIDATION DATA</strong>
-          <span>
-            Results are deterministic test data and are not live-market claims.
-          </span>
+      {toast && (
+        <div
+          className="discovery-toast"
+          role="status"
+          aria-label="Setup loaded"
+          aria-live="polite"
+        >
+          <span>{toast}</span>
+          <button
+            type="button"
+            onClick={() => setToast("")}
+            aria-label="Dismiss notification"
+          >
+            Dismiss
+          </button>
         </div>
       )}
       {error && (
@@ -1199,7 +1863,15 @@ export function DiscoveryWorkspace({
 
       {!loading && view === "scan" && (
         <>
-          <div className="scan-workstation-grid">
+          <ProviderStatusStrip
+            providers={providers}
+            contextAvailability={latestSummary?.context_availability || null}
+            llmEnabled={Boolean(settings?.llm_enabled)}
+            latestScan={latestSummary}
+          />
+          <div
+            className={`scan-workstation-grid ${detail ? "has-inspector" : "without-inspector"}`}
+          >
             <div className="scan-workstation-setup">
               <section
                 className="scan-control-panel"
@@ -1372,78 +2044,15 @@ export function DiscoveryWorkspace({
                   </button>
                 </form>
               </section>
-
-              <section
-                className="provider-status-panel"
-                aria-labelledby="providers-heading"
-              >
-                <div className="section-heading-row compact-heading">
-                  <div>
-                    <p className="eyebrow">EVIDENCE SOURCES</p>
-                    <h2 id="providers-heading">Provider status</h2>
-                  </div>
-                </div>
-                <div className="provider-grid">
-                  {providers.map((item) => {
-                    const modeLabel = providerModeLabel(item.mode);
-                    const healthLabel = providerHealthLabel(
-                      item.health,
-                      item.enabled,
-                    );
-                    return (
-                      <article key={item.id}>
-                        <strong>{item.label}</strong>
-                        <p>{providerDescription(item)}</p>
-                        <dl className="provider-dimensions">
-                          <div>
-                            <dt>Mode</dt>
-                            <dd>
-                              <span
-                                className={`provider-mode is-${item.mode.toLowerCase()}`}
-                              >
-                                {modeLabel}
-                              </span>
-                            </dd>
-                          </div>
-                          <div>
-                            <dt>Status</dt>
-                            <dd>
-                              <span
-                                className={`provider-operational is-${item.enabled ? item.health.toLowerCase() : "disabled"}`}
-                              >
-                                <i aria-hidden="true" /> {healthLabel}
-                              </span>
-                            </dd>
-                          </div>
-                        </dl>
-                        <small>
-                          {item.last_success_at
-                            ? `Last successful scan ${dateTime(item.last_success_at)}`
-                            : "No successful scan recorded"}
-                        </small>
-                        {item.id === "internal" && (
-                          <small>Fixture-backed and reproducible.</small>
-                        )}
-                        {item.id === "tradingview-synthetic" &&
-                          item.health === "RATE_LIMITED" && (
-                            <small>
-                              Live exact-row proof is deferred while provider
-                              rate limiting is active.
-                            </small>
-                          )}
-                        {item.last_error && (
-                          <p className="provider-note">{item.last_error}</p>
-                        )}
-                        <details className="provenance-details">
-                          <summary>Capabilities and provider ID</summary>
-                          <p>{item.capabilities.map(words).join(" · ")}</p>
-                          <p>ID: {item.id}</p>
-                        </details>
-                      </article>
-                    );
-                  })}
-                </div>
-              </section>
+              <ScanHistory
+                scans={recentScans}
+                selectedRunId={selectedHistory?.run_id || null}
+                pending={historyPending}
+                onView={viewScan}
+                onReuse={reuseScan}
+                onArchive={(scan) => void setArchived(scan, true)}
+                onOpenPast={() => void openPastScans()}
+              />
             </div>
 
             <div className="scan-workstation-results">
@@ -1587,14 +2196,17 @@ export function DiscoveryWorkspace({
                     </div>
                   )}
                 </section>
+              ) : latestSummary ? (
+                <HistoricalScanSummary scan={latestSummary} />
               ) : (
-                <section className="workspace-result-placeholder">
-                  <SurfaceState
-                    state="EMPTY"
-                    headingLevel={2}
-                    title="Ready to scan"
-                    description="Configure the universe and scan logic, then run the deterministic validation scan."
-                  />
+                <section
+                  className="workspace-empty-state"
+                  aria-label="Scan results"
+                >
+                  <strong>Results will appear here</strong>
+                  <span>
+                    Configure the scan and run it to see results here.
+                  </span>
                 </section>
               )}
 
@@ -1619,10 +2231,21 @@ export function DiscoveryWorkspace({
               </section>
             </div>
 
-            <div className="scan-workstation-inspector">{inspector}</div>
+            {detail ? (
+              <div className="scan-workstation-inspector">{inspector}</div>
+            ) : null}
           </div>
-
-          <RecentScans scans={recentScans} onReuse={reuseScan} />
+          <PastScansDialog
+            open={pastScansOpen}
+            scans={pastScans}
+            selectedRunId={selectedHistory?.run_id || null}
+            pending={historyPending}
+            onClose={() => setPastScansOpen(false)}
+            onView={viewScan}
+            onReuse={reuseScan}
+            onArchive={(scan) => void setArchived(scan, true)}
+            onRestore={(scan) => void setArchived(scan, false)}
+          />
         </>
       )}
 

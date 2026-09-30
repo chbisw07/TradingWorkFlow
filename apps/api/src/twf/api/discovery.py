@@ -82,8 +82,19 @@ def scan_history(
     service: Service,
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0, le=10000),
+    include_archived: bool = Query(default=False),
 ) -> tuple[ScanSummary, ...]:
-    return service.history(limit, offset)
+    return service.history(limit, offset, include_archived)
+
+
+@router.post("/scans/{run_id}/archive", dependencies=[Depends(require_origin)])
+def archive_scan(run_id: UUID, service: Service) -> ScanSummary:
+    return service.set_scan_archived(run_id, True)
+
+
+@router.post("/scans/{run_id}/restore", dependencies=[Depends(require_origin)])
+def restore_scan(run_id: UUID, service: Service) -> ScanSummary:
+    return service.set_scan_archived(run_id, False)
 
 
 @router.get("/candidates")

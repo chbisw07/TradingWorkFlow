@@ -4,17 +4,20 @@
   flex-shrink: 0;
   width: 44px;
   height: 44px;
-  border: 1px solid var(--border);
+  border: 1px solid #2c6ca6;
   border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--text-secondary);
+  background: #0b315a;
+  color: #fff;
+  box-shadow: 0 1px 2px #061a2d2e;
 }
 .theme-toggle:hover {
-  background: var(--surface-hover);
+  border-color: #4f91ca;
+  background: #10497f;
 }
 .theme-toggle[aria-pressed="true"] {
-  color: var(--accent);
-  border-color: var(--accent);
+  border-color: #0b315a;
+  background: #fff;
+  color: #0b315a;
 }
 * {
   box-sizing: border-box;

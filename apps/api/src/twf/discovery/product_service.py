@@ -595,8 +595,10 @@ class ScanDiscoverService:
             horizon=payload.horizon,
             intent=payload.intent,
             universe_size=len(instruments),
+            universe=payload.universe,
             match_count=len(matches),
             candidate_count=len(candidates),
+            context_mode=payload.context_mode,
             context_availability=context_snapshot.availability,
             degraded=tuple(context_snapshot.limitations),
         )
@@ -1548,17 +1550,35 @@ class ScanDiscoverService:
             previous_episode_id=episode.previous_episode_id,
         )
 
-    def history(self, limit: int, offset: int) -> tuple[ScanSummary, ...]:
+    def history(
+        self, limit: int, offset: int, include_archived: bool = False
+    ) -> tuple[ScanSummary, ...]:
+        query = select(ScanRunRecord).where(ScanRunRecord.user_id == self.owner_id)
+        if not include_archived:
+            query = query.where(ScanRunRecord.archived_at.is_(None))
         return tuple(
             ScanSummary.model_validate(row.payload)
             for row in self.session.scalars(
-                select(ScanRunRecord)
-                .where(ScanRunRecord.user_id == self.owner_id)
-                .order_by(ScanRunRecord.completed_at.desc())
-                .offset(offset)
-                .limit(limit)
+                query.order_by(ScanRunRecord.completed_at.desc()).offset(offset).limit(limit)
             )
         )
+
+    def set_scan_archived(self, run_id: UUID, archived: bool) -> ScanSummary:
+        row = self.session.scalar(
+            select(ScanRunRecord).where(
+                ScanRunRecord.id == run_id,
+                ScanRunRecord.user_id == self.owner_id,
+            )
+        )
+        if row is None:
+            raise ProductFailure(404, "SCAN_NOT_FOUND")
+        archived_at = now_utc() if archived else None
+        row.archived_at = archived_at
+        payload = dict(row.payload)
+        payload["archived_at"] = None if archived_at is None else archived_at.isoformat()
+        row.payload = payload
+        self.commit()
+        return ScanSummary.model_validate(row.payload)
 
     def latest_context(self) -> MarketContextSnapshot | None:
         row = self.session.scalar(

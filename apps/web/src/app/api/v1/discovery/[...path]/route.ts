@@ -17,6 +17,7 @@ async function forward(
         ? route === "settings"
         : request.method === "POST" &&
           (route === "scans" ||
+            new RegExp(`^scans/${id}/(archive|restore)$`).test(route) ||
             new RegExp(`^candidates/${id}/(lifecycle|explain)$`).test(route));
   const output = {
     "Content-Type": "application/json",
