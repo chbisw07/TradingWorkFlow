@@ -651,3 +651,375 @@ def test_nonconfigured_llm_provider_degrades_without_breaking_scan(
     assert unavailable.json()["error"]["code"] == "LLM_UNAVAILABLE"
     detail = product_client.get(f"/api/v1/discovery/candidates/{candidate['candidate_id']}").json()
     assert detail["explanations"] == []
+
+
+def test_u2_match_admission_reconciles_and_explains_exclusions(
+    product_client: TestClient,
+) -> None:
+    directional = post(
+        product_client,
+        "/api/v1/discovery/scans",
+        scan_payload(
+            profile="MOMENTUM",
+            universe=["MCX", "BSE"],
+            intent="POSITIONAL_LONG",
+            horizon="5d",
+        ),
+    )
+    admission = directional["admission"]
+    assert admission["match_count"] == admission["admitted_count"] + admission["excluded_count"]
+    assert len(admission["decisions"]) == admission["match_count"]
+    assert {item["reason"] for item in admission["decisions"]} == {"ADMITTED"}
+
+    blocked = post(
+        product_client,
+        "/api/v1/discovery/scans",
+        scan_payload(
+            profile="MOMENTUM",
+            universe=["MCX"],
+            context_mode="partial",
+            context_policy="REQUIRE_COMPLETE",
+        ),
+    )
+    assert blocked["summary"]["match_count"] == 1
+    assert blocked["summary"]["candidate_count"] == 0
+    assert blocked["admission"]["decisions"][0]["reason"] == "EXCLUDED_CONTEXT_POLICY"
+
+
+def test_u2_provider_why_matched_parity(product_client: TestClient) -> None:
+    payload = scan_payload(
+        profile="MOMENTUM",
+        universe=["MCX"],
+        context_mode="healthy",
+    )
+    internal = post(product_client, "/api/v1/discovery/scans", payload)
+    tradingview = post(
+        product_client,
+        "/api/v1/discovery/scans",
+        {**payload, "provider": "tradingview-synthetic"},
+    )
+    assert internal["matches"][0]["why_matched"] == tradingview["matches"][0]["why_matched"]
+    assert internal["matches"][0]["raw_reasons"] == tradingview["matches"][0]["raw_reasons"]
+    assert tradingview["matches"][0]["provider"] == "tradingview"
+
+
+def test_u2_optional_context_is_not_required_or_lifecycle_degrading(
+    product_client: TestClient,
+) -> None:
+    first = post(
+        product_client,
+        "/api/v1/discovery/scans",
+        scan_payload(
+            universe=["RELIANCE"],
+            context_mode="unavailable",
+            context_policy="OPTIONAL",
+        ),
+    )
+    second = post(
+        product_client,
+        "/api/v1/discovery/scans",
+        scan_payload(
+            universe=["RELIANCE"],
+            context_mode="unavailable",
+            context_policy="OPTIONAL",
+        ),
+    )
+    assert first["summary"]["context_policy"] == "OPTIONAL"
+    assert second["candidates"][0]["lifecycle"] == "CURRENT"
+    explanation = second["candidates"][0]["relevance_explanation"]
+    factors = {item["factor"] for item in explanation["contributions"]}
+    assert "market-context" not in factors
+    assert "market-context" not in explanation["missing"]
+
+
+def test_u2_candidate_attention_order_is_stable_and_bounded(
+    product_client: TestClient,
+) -> None:
+    post(
+        product_client,
+        "/api/v1/discovery/scans",
+        scan_payload(
+            profile="TREND_CONTINUATION",
+            universe=["RELIANCE", "MCX", "INFY", "NIFTY", "TCS"],
+            context_mode="healthy",
+        ),
+    )
+    first = product_client.get(
+        "/api/v1/discovery/candidates", params={"limit": 3, "offset": 0}
+    ).json()
+    second = product_client.get(
+        "/api/v1/discovery/candidates", params={"limit": 3, "offset": 0}
+    ).json()
+    assert len(first["items"]) <= 3
+    assert [item["candidate_id"] for item in first["items"]] == [
+        item["candidate_id"] for item in second["items"]
+    ]
+    scores = [float(item["relevance"]["value"] or 0) for item in first["items"]]
+    assert scores == sorted(scores, reverse=True)
+    assert all(item["profile"] == "TREND_CONTINUATION" for item in first["items"])
+    assert all(item["lifecycle_reason"] for item in first["items"])
+
+
+def test_u2_snapshots_keep_current_evidence_without_cross_snapshot_duplication(
+    product_client: TestClient,
+) -> None:
+    first = post(
+        product_client,
+        "/api/v1/discovery/scans",
+        scan_payload(universe=["RELIANCE"], profile="BREAKOUT_WITH_VOLUME"),
+    )
+    second = post(
+        product_client,
+        "/api/v1/discovery/scans",
+        scan_payload(universe=["RELIANCE"], profile="BREAKOUT_WITH_VOLUME"),
+    )
+    assert first["candidates"][0]["candidate_id"] == second["candidates"][0]["candidate_id"]
+    detail = product_client.get(
+        f"/api/v1/discovery/candidates/{second['candidates'][0]['candidate_id']}"
+    ).json()
+    evidence_sets = [
+        {item["evidence_id"] for item in snapshot["evidence"]} for snapshot in detail["snapshots"]
+    ]
+    assert len(evidence_sets) == 2
+    assert evidence_sets[0].isdisjoint(evidence_sets[1])
+    assert detail["snapshots"][1]["lifecycle_reason"] == "comparable-observation"
+
+
+@pytest.mark.parametrize("context_mode", ["healthy", "partial", "unavailable", "stale"])
+def test_u2_optional_context_never_changes_required_score_or_coverage(
+    product_client: TestClient, context_mode: str
+) -> None:
+    result = post(
+        product_client,
+        "/api/v1/discovery/scans",
+        scan_payload(
+            universe=["RELIANCE"],
+            context_mode=context_mode,
+            context_policy="OPTIONAL",
+        ),
+    )
+    assert result["summary"]["candidate_count"] == 1
+    candidate = result["candidates"][0]
+    explanation = candidate["relevance_explanation"]
+    assert {item["factor"] for item in explanation["contributions"]} == {
+        "provider-scan",
+        "price",
+        "technical",
+    }
+    assert explanation["coverage"] == "0.940723321145283268671926364"
+    assert explanation["score"] == "0.9299706044326655158838757395"
+    assert "market-context" not in explanation["missing"]
+    assert candidate["lifecycle"] == "NEW"
+
+
+@pytest.mark.parametrize(
+    ("context_policy", "context_mode", "admitted", "context_value"),
+    [
+        ("REQUIRE_COMPLETE", "healthy", True, "1"),
+        ("REQUIRE_COMPLETE", "partial", False, None),
+        ("REQUIRE_COMPLETE", "unavailable", False, None),
+        ("ALLOW_PARTIAL", "healthy", True, "1"),
+        ("ALLOW_PARTIAL", "partial", True, "0.50"),
+        ("ALLOW_PARTIAL", "unavailable", True, "0"),
+    ],
+)
+def test_u2_context_policy_admission_and_coverage_matrix(
+    product_client: TestClient,
+    context_policy: str,
+    context_mode: str,
+    admitted: bool,
+    context_value: str | None,
+) -> None:
+    result = post(
+        product_client,
+        "/api/v1/discovery/scans",
+        scan_payload(
+            universe=["RELIANCE"],
+            context_mode=context_mode,
+            context_policy=context_policy,
+        ),
+    )
+    assert bool(result["candidates"]) is admitted
+    assert result["admission"]["match_count"] == 1
+    assert result["admission"]["admitted_count"] == int(admitted)
+    assert result["admission"]["excluded_count"] == int(not admitted)
+    if not admitted:
+        assert result["admission"]["decisions"][0]["reason"] == "EXCLUDED_CONTEXT_POLICY"
+        return
+    contribution = next(
+        item
+        for item in result["candidates"][0]["relevance_explanation"]["contributions"]
+        if item["factor"] == "market-context"
+    )
+    assert contribution["value"] == context_value
+
+
+def test_u2_same_symbol_distinct_intents_keep_distinct_active_episodes(
+    product_client: TestClient,
+) -> None:
+    legacy = post(
+        product_client,
+        "/api/v1/discovery/scans",
+        scan_payload(universe=["RELIANCE"], intent="MOMENTUM"),
+    )
+    positional = post(
+        product_client,
+        "/api/v1/discovery/scans",
+        scan_payload(universe=["RELIANCE"], intent="POSITIONAL_LONG"),
+    )
+    assert legacy["candidates"][0]["candidate_id"] != positional["candidates"][0]["candidate_id"]
+    page = product_client.get("/api/v1/discovery/candidates", params={"limit": 10}).json()
+    same_symbol = [item for item in page["items"] if item["instrument"]["symbol"] == "RELIANCE"]
+    assert len(same_symbol) == 2
+    assert {item["intent"] for item in same_symbol} == {"MOMENTUM", "POSITIONAL_LONG"}
+
+
+def test_u2h_historical_scan_detail_is_read_only_and_owner_scoped(
+    product_client: TestClient,
+) -> None:
+    result = post(
+        product_client,
+        "/api/v1/discovery/scans",
+        scan_payload(universe=["RELIANCE", "MCX"], context_mode="healthy"),
+    )
+    run_id = result["summary"]["run_id"]
+    candidate_id = result["candidates"][0]["candidate_id"]
+    before = product_client.get(f"/api/v1/discovery/candidates/{candidate_id}").json()
+
+    detail = product_client.get(f"/api/v1/discovery/scans/{run_id}")
+    assert detail.status_code == 200
+    payload = detail.json()
+    assert payload["summary"] == result["summary"]
+    assert {item["match_id"]: item for item in payload["matches"]} == {
+        item["match_id"]: item for item in result["matches"]
+    }
+    assert payload["market_context"] == result["market_context"]
+    assert product_client.get(f"/api/v1/discovery/candidates/{candidate_id}").json() == before
+
+    assert product_client.post("/api/v1/auth/logout", headers={"Origin": ORIGIN}).status_code == 200
+    assert (
+        product_client.post(
+            "/api/v1/auth/login",
+            json={"username": "bob", "password": PASSWORD},
+            headers={"Origin": ORIGIN},
+        ).status_code
+        == 200
+    )
+    denied = product_client.get(f"/api/v1/discovery/scans/{run_id}")
+    assert denied.status_code == 404
+    assert denied.json()["error"]["code"] == "SCAN_NOT_FOUND"
+
+
+def test_u2h_legacy_profile_is_derived_without_rewriting_history(
+    product_client: TestClient,
+) -> None:
+    result = post(
+        product_client,
+        "/api/v1/discovery/scans",
+        scan_payload(universe=["RELIANCE"], profile="BREAKOUT_WITH_VOLUME"),
+    )
+    candidate_id = result["candidates"][0]["candidate_id"]
+    engine = cast(FastAPI, product_client.app).state.database_engine
+    with session_scope(create_session_factory(engine)) as session:
+        episode = session.scalar(
+            select(DiscoveryEpisodeRecord).where(
+                DiscoveryEpisodeRecord.candidate_id == UUID(candidate_id)
+            )
+        )
+        assert episode is not None
+        snapshot = session.scalar(
+            select(DiscoverySnapshotRecord).where(DiscoverySnapshotRecord.episode_id == episode.id)
+        )
+        assert snapshot is not None
+        original_snapshot = dict(snapshot.payload)
+        snapshot.payload = {
+            key: value for key, value in snapshot.payload.items() if key != "profile"
+        }
+        session.commit()
+
+    recovered = product_client.get(f"/api/v1/discovery/candidates/{candidate_id}").json()
+    assert recovered["profile"] == "BREAKOUT_WITH_VOLUME"
+    assert recovered["profile_lineage"] == "ORIGINATING_SCAN"
+    assert recovered["legacy_profile"] is True
+
+    with session_scope(create_session_factory(engine)) as session:
+        snapshot = session.scalar(
+            select(DiscoverySnapshotRecord).where(
+                DiscoverySnapshotRecord.episode_id == UUID(recovered["episode_id"])
+            )
+        )
+        episode = session.get(DiscoveryEpisodeRecord, UUID(recovered["episode_id"]))
+        assert snapshot is not None and episode is not None
+        assert "profile" not in snapshot.payload
+        lineage = dict(episode.payload.get("scan_lineage", {}))
+        lineage.pop("originating_scan_run_id", None)
+        lineage.pop("latest_scan_run_id", None)
+        lineage.pop("profile", None)
+        episode.payload = {**episode.payload, "scan_lineage": lineage}
+        session.commit()
+
+    fallback = product_client.get(f"/api/v1/discovery/candidates/{candidate_id}").json()
+    assert fallback["profile"] is None
+    assert fallback["profile_lineage"] == "LEGACY_UNAVAILABLE"
+    assert fallback["legacy_profile"] is True
+    assert original_snapshot["profile"] == "BREAKOUT_WITH_VOLUME"
+
+
+def test_u2h_current_relevance_precedes_legacy_score_without_mutation(
+    product_client: TestClient,
+) -> None:
+    created = [
+        post(product_client, "/api/v1/discovery/scans", scan_payload(universe=[symbol]))
+        for symbol in ("RELIANCE", "MCX", "KAYNES")
+    ]
+    candidate_ids = [item["candidates"][0]["candidate_id"] for item in created]
+    target_scores = {
+        candidate_ids[0]: ("0.84", "deterministic-relevance-v2", "2"),
+        candidate_ids[1]: ("0.82", "deterministic-relevance-v2", "2"),
+        candidate_ids[2]: ("1.00", "deterministic-relevance-v1", "1"),
+    }
+    engine = cast(FastAPI, product_client.app).state.database_engine
+    with session_scope(create_session_factory(engine)) as session:
+        episodes = tuple(
+            session.scalars(
+                select(DiscoveryEpisodeRecord).where(
+                    DiscoveryEpisodeRecord.candidate_id.in_(
+                        tuple(UUID(value) for value in candidate_ids)
+                    )
+                )
+            )
+        )
+        for episode in episodes:
+            snapshot = session.scalar(
+                select(DiscoverySnapshotRecord).where(
+                    DiscoverySnapshotRecord.episode_id == episode.id
+                )
+            )
+            assert snapshot is not None
+            score, policy_id, version = target_scores[str(episode.candidate_id)]
+            payload = dict(snapshot.payload)
+            stored_snapshot = dict(payload["snapshot"])
+            relevance = dict(stored_snapshot["relevance"])
+            relevance["value"] = score
+            relevance["policy"] = {"id": policy_id, "version": version}
+            stored_snapshot["relevance"] = relevance
+            explanation = dict(payload["relevance_explanation"])
+            explanation["score"] = score
+            explanation["policy"] = policy_id
+            payload["snapshot"] = stored_snapshot
+            payload["relevance_explanation"] = explanation
+            snapshot.payload = payload
+        session.commit()
+
+    before = product_client.get(f"/api/v1/discovery/candidates/{candidate_ids[2]}").json()
+    page = product_client.get("/api/v1/discovery/candidates", params={"limit": 10}).json()
+    ordered = [item for item in page["items"] if item["candidate_id"] in candidate_ids]
+    assert [item["candidate_id"] for item in ordered] == candidate_ids
+    assert ordered[2]["relevance"]["value"] == "1.00"
+    assert ordered[2]["relevance"]["policy"] == {
+        "id": "deterministic-relevance-v1",
+        "version": "1",
+    }
+    after = product_client.get(f"/api/v1/discovery/candidates/{candidate_ids[2]}").json()
+    assert after["relevance"] == before["relevance"]
+    assert after["snapshots"] == before["snapshots"]

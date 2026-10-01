@@ -12,7 +12,10 @@ import {
   type Candidate,
   type CandidateDetail,
   type ContextMode,
+  type ContextPolicy,
   type DiscoverySettings,
+  type Evidence,
+  type HistoricalScanDetail,
   type LlmExplanation,
   type ProviderChoice,
   type ProviderStatus,
@@ -26,6 +29,7 @@ type IntentValue =
   "INTRADAY_LONG" | "INTRADAY_SHORT" | "POSITIONAL_LONG" | "POSITIONAL_SHORT";
 type HorizonValue = "intraday" | "1d" | "5d" | "15d";
 type QueueView = "current" | "active" | "all";
+type QueueSort = "attention" | "relevance" | "updated" | "lifecycle" | "symbol";
 
 type ProfileRecommendation = {
   intent: IntentValue;
@@ -41,6 +45,148 @@ const PROFILE_RECOMMENDATIONS: Record<string, ProfileRecommendation> = {
 };
 
 const ACTIVE_LIFECYCLES = new Set(["NEW", "CURRENT", "STALE"]);
+const LIFECYCLE_PRIORITY: Record<Candidate["lifecycle"], number> = {
+  CURRENT: 0,
+  NEW: 1,
+  STALE: 2,
+  DEFUNCT: 3,
+  EXPIRED: 4,
+  REJECTED: 5,
+};
+const FRESHNESS_PRIORITY: Record<Candidate["freshness"], number> = {
+  FRESH: 0,
+  UNKNOWN: 1,
+  STALE: 2,
+};
+
+const CURRENT_RELEVANCE_POLICY = "deterministic-relevance-v2";
+
+function isLegacyScore(candidate: Candidate) {
+  return candidate.relevance.policy?.id !== CURRENT_RELEVANCE_POLICY;
+}
+
+function profileLabel(candidate: Candidate) {
+  return candidate.profile ? words(candidate.profile) : "Profile unavailable";
+}
+
+function LegacyProfileMarker({ candidate }: { candidate: Candidate }) {
+  if (!candidate.legacy_profile) return null;
+  return (
+    <span
+      className="discovery-badge is-legacy"
+      tabIndex={0}
+      title="Created before current profile-lineage metadata was persisted."
+      aria-label="Legacy candidate. Created before current profile-lineage metadata was persisted."
+    >
+      Legacy
+    </span>
+  );
+}
+
+function CandidateRelevance({ candidate }: { candidate: Candidate }) {
+  const legacy = isLegacyScore(candidate);
+  return (
+    <>
+      <strong>{percent(candidate.relevance.value)}</strong>
+      {legacy ? (
+        <span
+          className="legacy-score-label"
+          tabIndex={0}
+          title="Calculated using an earlier relevance model and not directly comparable with current v2 scores."
+        >
+          Legacy score
+        </span>
+      ) : null}
+    </>
+  );
+}
+
+function compareCandidates(left: Candidate, right: Candidate, sort: QueueSort) {
+  const version = Number(isLegacyScore(left)) - Number(isLegacyScore(right));
+  const relevance =
+    Number(right.relevance.value || 0) - Number(left.relevance.value || 0);
+  const updated =
+    new Date(right.updated_at).getTime() - new Date(left.updated_at).getTime();
+  const lifecycle =
+    LIFECYCLE_PRIORITY[left.lifecycle] - LIFECYCLE_PRIORITY[right.lifecycle];
+  const symbol = left.instrument.symbol.localeCompare(right.instrument.symbol);
+  if (sort === "relevance") return version || relevance || updated || symbol;
+  if (sort === "updated") return updated || version || relevance || symbol;
+  if (sort === "lifecycle")
+    return lifecycle || version || relevance || updated || symbol;
+  if (sort === "symbol") return symbol || version || relevance || updated;
+  return (
+    version ||
+    relevance ||
+    lifecycle ||
+    FRESHNESS_PRIORITY[left.freshness] - FRESHNESS_PRIORITY[right.freshness] ||
+    updated ||
+    symbol ||
+    left.candidate_id.localeCompare(right.candidate_id)
+  );
+}
+
+function evidenceSemanticKey(item: Evidence) {
+  const metric = item.measures.find(
+    (measure) =>
+      ![
+        "threshold",
+        "operator",
+        "matched",
+        "price-unit",
+        "input-digest",
+      ].includes(measure.name),
+  )?.name;
+  return [
+    item.category,
+    item.provenance.producer.provider,
+    item.category === "PROVIDER_SCAN" ? metric : "category",
+  ].join(":");
+}
+
+function latestEvidence(evidence: Evidence[]) {
+  const latest = new Map<string, Evidence>();
+  for (const item of evidence) {
+    const key = evidenceSemanticKey(item);
+    const current = latest.get(key);
+    if (
+      !current ||
+      new Date(item.observed_at) >= new Date(current.observed_at)
+    ) {
+      latest.set(key, item);
+    }
+  }
+  return [...latest.values()].sort((left, right) =>
+    left.category.localeCompare(right.category),
+  );
+}
+
+function admissionFor(scan: ScanResult) {
+  return (
+    scan.admission || {
+      match_count: scan.summary.match_count,
+      admitted_count: scan.summary.candidate_count,
+      excluded_count: Math.max(
+        0,
+        scan.summary.match_count - scan.summary.candidate_count,
+      ),
+      decisions: scan.matches.map((match) => ({
+        match_id: match.match_id,
+        symbol: match.symbol,
+        status: scan.candidates.some(
+          (candidate) => candidate.instrument.symbol === match.symbol,
+        )
+          ? ("ADMITTED" as const)
+          : ("EXCLUDED" as const),
+        reason: scan.candidates.some(
+          (candidate) => candidate.instrument.symbol === match.symbol,
+        )
+          ? ("ADMITTED" as const)
+          : ("EXCLUDED_DIRECTION" as const),
+      })),
+    }
+  );
+}
 
 function compatibilityMessage(
   profile: string,
@@ -338,6 +484,7 @@ function CandidateMobileList({
             </div>
             <span
               className={`discovery-badge is-${candidate.lifecycle.toLowerCase()}`}
+              title={words(candidate.lifecycle_reason || "persisted state")}
             >
               {candidate.lifecycle}
             </span>
@@ -346,13 +493,15 @@ function CandidateMobileList({
             <div>
               <dt>Setup</dt>
               <dd>
-                {words(candidate.intent)} · {candidate.horizon}
+                {profileLabel(candidate)} · {words(candidate.intent)} ·{" "}
+                {candidate.horizon}
+                <LegacyProfileMarker candidate={candidate} />
               </dd>
             </div>
             <div>
               <dt>Relevance</dt>
               <dd>
-                {percent(candidate.relevance.value)} ·{" "}
+                <CandidateRelevance candidate={candidate} /> ·{" "}
                 {candidate.relevance_explanation.band || "Unscored"}
               </dd>
             </div>
@@ -438,15 +587,16 @@ function CandidateTable({
                     {candidate.instrument.exchange} ·{" "}
                     {candidate.instrument.segment}
                   </span>
+                  <LegacyProfileMarker candidate={candidate} />
                 </td>
                 <td data-label="Intent / horizon">
                   <strong>{words(candidate.intent)}</strong>
                   <span>{candidate.horizon}</span>
                 </td>
                 <td data-label="Relevance">
-                  <strong className="relevance-score">
-                    {percent(candidate.relevance.value)}
-                  </strong>
+                  <span className="relevance-score">
+                    <CandidateRelevance candidate={candidate} />
+                  </span>
                   <span className="discovery-badge">
                     {candidate.relevance_explanation.band || "UNSCORED"}
                   </span>
@@ -515,7 +665,7 @@ function CandidateQueue({
   if (candidates.length === 0) {
     return <p className="workspace-empty-copy">{emptyMessage}</p>;
   }
-  const queue = candidates.slice(0, 8);
+  const queue = candidates;
   return (
     <>
       <div
@@ -552,11 +702,14 @@ function CandidateQueue({
                   </span>
                 </td>
                 <td data-label="Setup">
-                  <strong>{words(candidate.intent)}</strong>
-                  <span>{candidate.horizon}</span>
+                  <strong>{profileLabel(candidate)}</strong>
+                  <span>
+                    {words(candidate.intent)} · {candidate.horizon}
+                  </span>
+                  <LegacyProfileMarker candidate={candidate} />
                 </td>
                 <td data-label="Relevance">
-                  <strong>{percent(candidate.relevance.value)}</strong>
+                  <CandidateRelevance candidate={candidate} />
                   <span>
                     {candidate.relevance_explanation.band || "UNSCORED"}
                   </span>
@@ -565,8 +718,14 @@ function CandidateQueue({
                 <td data-label="State">
                   <span
                     className={`discovery-badge is-${candidate.lifecycle.toLowerCase()}`}
+                    title={words(
+                      candidate.lifecycle_reason || "persisted state",
+                    )}
                   >
                     {candidate.lifecycle}
+                  </span>
+                  <span>
+                    {words(candidate.lifecycle_reason || "persisted state")}
                   </span>
                   <span>Run {shortId(candidate.latest_scan_run_id)}</span>
                 </td>
@@ -1048,10 +1207,148 @@ function HistoricalScanSummary({ scan }: { scan: ScanSummary }) {
         </div>
       </div>
       <p className="history-summary-note">
-        Select View on another recent scan to compare its execution summary, or
-        Use setup to load its configuration without rerunning it.
+        Select View on a recent scan to inspect its stored matches, or Use setup
+        to load its configuration without rerunning it.
       </p>
     </section>
+  );
+}
+
+function HistoricalScanView({
+  detail,
+  onBack,
+}: {
+  detail: HistoricalScanDetail;
+  onBack: () => void;
+}) {
+  const { summary, matches, market_context: context } = detail;
+  return (
+    <section
+      className="scan-result historical-scan-view"
+      aria-labelledby="historical-scan-heading"
+    >
+      <div className="section-heading-row">
+        <div>
+          <p className="eyebrow">READ-ONLY HISTORICAL MODE</p>
+          <h2 id="historical-scan-heading">
+            Viewing historical scan — {dateTime(summary.completed_at)}
+          </h2>
+          <p>
+            {words(summary.provider)} · {words(summary.profile)} ·{" "}
+            {words(summary.intent)} · {summary.horizon}
+          </p>
+        </div>
+        <button type="button" onClick={onBack}>
+          Back to latest scan
+        </button>
+      </div>
+      <p className="history-summary-note" role="note">
+        Stored execution evidence is shown exactly as recorded. Viewing does not
+        run a scan or change candidate state.
+      </p>
+      <div className="scan-metrics">
+        <div>
+          <span>Universe</span>
+          <strong>{summary.universe_size}</strong>
+          <small>{summary.universe?.join(", ") || "Stored symbol set"}</small>
+        </div>
+        <div>
+          <span>Results</span>
+          <strong>{summary.match_count}</strong>
+          <small>Stored match rows</small>
+        </div>
+        <div>
+          <span>Market context</span>
+          <strong>
+            {words(context?.availability || summary.context_availability)}
+          </strong>
+          <small>{words(summary.context_policy || "ALLOW_PARTIAL")}</small>
+        </div>
+        <div>
+          <span>Historical status</span>
+          <strong
+            className={`discovery-badge is-${summary.status.toLowerCase()}`}
+          >
+            {words(summary.status)}
+          </strong>
+          <small>{summary.archived_at ? "Archived" : "Active history"}</small>
+        </div>
+      </div>
+      <div className="discovery-table-wrap" tabIndex={0}>
+        <table className="discovery-table scan-match-table">
+          <caption>Historical scan matches</caption>
+          <thead>
+            <tr>
+              <th scope="col">Symbol</th>
+              <th scope="col">Why matched</th>
+              <th scope="col">Key metrics</th>
+              <th scope="col">Source</th>
+            </tr>
+          </thead>
+          <tbody>
+            {matches.map((match) => (
+              <tr key={match.match_id}>
+                <td data-label="Symbol">
+                  <strong>{match.symbol}</strong>
+                  <span>
+                    {match.exchange} · {match.segment}
+                  </span>
+                </td>
+                <td data-label="Why matched">
+                  <ul className="match-reasons">
+                    {match.why_matched.map((reason) => (
+                      <li key={reason}>{reason}</li>
+                    ))}
+                  </ul>
+                </td>
+                <td data-label="Key metrics">
+                  <ul className="metric-list">
+                    {Object.entries(match.key_metrics)
+                      .slice(0, 4)
+                      .map(([key, value]) => (
+                        <li key={key}>
+                          <span>{metricLabel(key)}</span>
+                          <strong>{formatMetric(key, value)}</strong>
+                        </li>
+                      ))}
+                  </ul>
+                </td>
+                <td data-label="Source">
+                  <strong>{sourceLabel(match.provider)}</strong>
+                  <span>{words(match.source_mode)}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {matches.length === 0 ? (
+        <p className="workspace-empty-copy">
+          This historical scan recorded no matches.
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+function IdentifierValue({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    await navigator.clipboard?.writeText(value);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2000);
+  }
+  return (
+    <div className="identifier-value">
+      <code title={value}>{value}</code>
+      <button
+        type="button"
+        onClick={() => void copy()}
+        aria-label={`Copy ${label}`}
+      >
+        {copied ? "Copied" : "Copy"}
+      </button>
+    </div>
   );
 }
 
@@ -1075,6 +1372,7 @@ function CandidateInspector({
   onExplain: () => void;
 }) {
   const latest = detail.snapshots.at(-1);
+  const visibleEvidence = latest ? latestEvidence(latest.evidence) : [];
   const snapshots = [...detail.snapshots].reverse();
   const requestLifecycle = (action: "DISMISS" | "MARK_DEFUNCT" | "RECOVER") => {
     const messages = {
@@ -1099,9 +1397,10 @@ function CandidateInspector({
           <p className="eyebrow">CANDIDATE REVIEW</p>
           <h2 id="candidate-detail-heading">{detail.instrument.symbol}</h2>
           <p>
-            {words(detail.intent)} · {detail.horizon} ·{" "}
+            {profileLabel(detail)} · {words(detail.intent)} · {detail.horizon} ·{" "}
             {detail.instrument.exchange} {detail.instrument.segment}
           </p>
+          <LegacyProfileMarker candidate={detail} />
         </div>
         <button
           type="button"
@@ -1115,8 +1414,11 @@ function CandidateInspector({
       <div className="candidate-scorecard">
         <div>
           <span>Relevance</span>
-          <strong>{percent(detail.relevance.value)}</strong>
-          <small>Attention score, not probability of profit</small>
+          <CandidateRelevance candidate={detail} />
+          <small>
+            Attention score, not probability of profit ·{" "}
+            {detail.relevance.policy.id}
+          </small>
         </div>
         <div>
           <span>Coverage</span>
@@ -1127,7 +1429,8 @@ function CandidateInspector({
           <span>Episode</span>
           <strong>{detail.lifecycle}</strong>
           <small>
-            Current discovery episode · {detail.snapshot_count} snapshot(s)
+            {words(detail.lifecycle_reason || "persisted state")} ·{" "}
+            {detail.snapshot_count} snapshot(s)
           </small>
         </div>
         <div>
@@ -1142,6 +1445,41 @@ function CandidateInspector({
           </small>
         </div>
       </div>
+
+      <details className="candidate-provenance provenance-details">
+        <summary>Candidate provenance</summary>
+        <dl>
+          <div>
+            <dt>Candidate ID</dt>
+            <dd>
+              <IdentifierValue
+                label="candidate identifier"
+                value={detail.candidate_id}
+              />
+            </dd>
+          </div>
+          <div>
+            <dt>Episode ID</dt>
+            <dd>
+              <IdentifierValue
+                label="episode identifier"
+                value={detail.episode_id}
+              />
+            </dd>
+          </div>
+          {detail.latest_scan_run_id && (
+            <div>
+              <dt>Latest run</dt>
+              <dd>
+                <IdentifierValue
+                  label="latest scan run identifier"
+                  value={detail.latest_scan_run_id}
+                />
+              </dd>
+            </div>
+          )}
+        </dl>
+      </details>
 
       <section aria-labelledby="contributions-heading">
         <div className="section-heading-row compact-heading">
@@ -1214,11 +1552,11 @@ function CandidateInspector({
 
       <section aria-labelledby="evidence-heading">
         <h3 id="evidence-heading">Latest evidence</h3>
-        {!latest || latest.evidence.length === 0 ? (
+        {!latest || visibleEvidence.length === 0 ? (
           <p>No current evidence is available.</p>
         ) : (
           <ul className="evidence-list">
-            {latest.evidence.map((item) => {
+            {visibleEvidence.map((item) => {
               const state = evidenceState(item.availability, item.polarity);
               return (
                 <li key={item.evidence_id} className={state.className}>
@@ -1275,11 +1613,21 @@ function CandidateInspector({
                       </div>
                       <div>
                         <dt>Native ID</dt>
-                        <dd>{item.provenance.source.native_id}</dd>
+                        <dd>
+                          <IdentifierValue
+                            label="native identifier"
+                            value={item.provenance.source.native_id}
+                          />
+                        </dd>
                       </div>
                       <div>
                         <dt>Evidence ID</dt>
-                        <dd>{item.evidence_id}</dd>
+                        <dd>
+                          <IdentifierValue
+                            label="evidence identifier"
+                            value={item.evidence_id}
+                          />
+                        </dd>
                       </div>
                       {item.measures.some((measure) =>
                         isTechnicalMeasure(measure.name),
@@ -1365,7 +1713,12 @@ function CandidateInspector({
               <dl>
                 <div>
                   <dt>Lifecycle</dt>
-                  <dd>{snapshot.lifecycle}</dd>
+                  <dd>
+                    {snapshot.lifecycle} ·{" "}
+                    {words(
+                      snapshot.lifecycle_reason || "persisted snapshot state",
+                    )}
+                  </dd>
                 </div>
                 <div>
                   <dt>Relevance</dt>
@@ -1469,6 +1822,8 @@ export function DiscoveryWorkspace({
   const [selectedHistory, setSelectedHistory] = useState<ScanSummary | null>(
     null,
   );
+  const [historicalDetail, setHistoricalDetail] =
+    useState<HistoricalScanDetail | null>(null);
   const [settings, setSettings] = useState<DiscoverySettings | null>(null);
   const [result, setResult] = useState<ScanResult | null>(null);
   const [detail, setDetail] = useState<CandidateDetail | null>(null);
@@ -1482,7 +1837,18 @@ export function DiscoveryWorkspace({
   const [intentOverridden, setIntentOverridden] = useState(false);
   const [horizonOverridden, setHorizonOverridden] = useState(false);
   const [contextMode, setContextMode] = useState<ContextMode>("partial");
+  const [contextPolicy, setContextPolicy] =
+    useState<ContextPolicy>("ALLOW_PARTIAL");
   const [queueView, setQueueView] = useState<QueueView>("active");
+  const [queueSort, setQueueSort] = useState<QueueSort>("attention");
+  const [queueSearch, setQueueSearch] = useState("");
+  const [queueBand, setQueueBand] = useState("all");
+  const [queueLifecycle, setQueueLifecycle] = useState("all");
+  const [queueIntent, setQueueIntent] = useState("all");
+  const [queueHorizon, setQueueHorizon] = useState("all");
+  const [queueProfile, setQueueProfile] = useState("all");
+  const [queueFreshness, setQueueFreshness] = useState("all");
+  const [queueProvider, setQueueProvider] = useState("all");
   const [pending, setPending] = useState(false);
   const [explaining, setExplaining] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -1599,37 +1965,54 @@ export function DiscoveryWorkspace({
   }
 
   function reuseScan(scan: ScanSummary) {
-    const recommendation =
-      PROFILE_RECOMMENDATIONS[scan.profile] ||
-      PROFILE_RECOMMENDATIONS.RELATIVE_VOLUME;
+    const recommendation = PROFILE_RECOMMENDATIONS[scan.profile];
     const supportedIntents: IntentValue[] = [
       "INTRADAY_LONG",
       "INTRADAY_SHORT",
       "POSITIONAL_LONG",
       "POSITIONAL_SHORT",
     ];
+    const supportedHorizons: HorizonValue[] = ["intraday", "1d", "5d", "15d"];
+    if (
+      !recommendation ||
+      !supportedIntents.includes(scan.intent as IntentValue) ||
+      !supportedHorizons.includes(scan.horizon as HorizonValue) ||
+      !scan.universe?.length
+    ) {
+      setError("Setup could not be restored.");
+      return;
+    }
+    setError("");
     setProfile(scan.profile);
     setProvider(scan.provider);
-    if (scan.universe?.length) setUniverse(scan.universe.join(", "));
-    if (scan.context_mode) setContextMode(scan.context_mode);
-    setIntent(
-      supportedIntents.includes(scan.intent as IntentValue)
-        ? (scan.intent as IntentValue)
-        : recommendation.intent,
-    );
+    setUniverse(scan.universe.join(", "));
+    setContextMode(scan.context_mode || "partial");
+    setContextPolicy(scan.context_policy || "ALLOW_PARTIAL");
+    setIntent(scan.intent as IntentValue);
     setHorizon(scan.horizon as HorizonValue);
     setIntentOverridden(true);
     setHorizonOverridden(true);
     setPastScansOpen(false);
     setNotice("");
-    setToast("Scan setup loaded. Review it before selecting Run scan.");
+    setToast("Historical scan setup loaded. Review before running.");
   }
 
-  function viewScan(scan: ScanSummary) {
-    setResult(null);
-    setQueueView("active");
-    setSelectedHistory(scan);
-    setPastScansOpen(false);
+  async function viewScan(scan: ScanSummary) {
+    setHistoryPending(true);
+    setError("");
+    try {
+      const historical = await discoveryApi<HistoricalScanDetail>(
+        `scans/${scan.run_id}`,
+      );
+      setHistoricalDetail(historical);
+      setQueueView("active");
+      setSelectedHistory(scan);
+      setPastScansOpen(false);
+    } catch {
+      setError("Unable to load historical scan.");
+    } finally {
+      setHistoryPending(false);
+    }
   }
 
   async function openPastScans() {
@@ -1642,8 +2025,8 @@ export function DiscoveryWorkspace({
           "scans?limit=100&include_archived=true",
         ),
       );
-    } catch (reason) {
-      setError((reason as Error).message);
+    } catch {
+      setError("Unable to load scan history.");
     } finally {
       setHistoryPending(false);
     }
@@ -1657,14 +2040,14 @@ export function DiscoveryWorkspace({
         `scans/${scan.run_id}/${archived ? "archive" : "restore"}`,
         "POST",
       );
-      setPastScans((items) =>
-        items.map((item) => (item.run_id === next.run_id ? next : item)),
-      );
+      setPastScans((items) => [
+        next,
+        ...items.filter((item) => item.run_id !== next.run_id),
+      ]);
       if (archived) {
         setRecentScans((items) =>
           items.filter((item) => item.run_id !== next.run_id),
         );
-        if (selectedHistory?.run_id === next.run_id) setSelectedHistory(null);
       } else {
         setRecentScans((items) =>
           [next, ...items.filter((item) => item.run_id !== next.run_id)]
@@ -1676,13 +2059,22 @@ export function DiscoveryWorkspace({
             .slice(0, 5),
         );
       }
-      setNotice(
-        archived
-          ? "Scan archived. It remains available in Past scans."
-          : "Scan restored to recent history.",
+      setHistoricalDetail((current) =>
+        current?.summary.run_id === next.run_id
+          ? { ...current, summary: next }
+          : current,
       );
-    } catch (reason) {
-      setError((reason as Error).message);
+      setSelectedHistory((current) =>
+        current?.run_id === next.run_id ? next : current,
+      );
+      setNotice("");
+      setToast(
+        archived ? "Scan archived." : "Scan restored to recent history.",
+      );
+    } catch {
+      setError(
+        archived ? "Unable to archive scan." : "Unable to restore scan.",
+      );
     } finally {
       setHistoryPending(false);
     }
@@ -1698,6 +2090,7 @@ export function DiscoveryWorkspace({
     setError("");
     setNotice("");
     setDetail(null);
+    setHistoricalDetail(null);
     try {
       const next = await discoveryApi<ScanResult>("scans", "POST", {
         universe: symbols,
@@ -1707,10 +2100,13 @@ export function DiscoveryWorkspace({
         intent,
         include_llm: false,
         context_mode: contextMode,
+        context_policy: contextPolicy,
       });
       setResult(next);
+      const nextAdmission = admissionFor(next);
       setQueueView("current");
       setSelectedHistory(null);
+      setHistoricalDetail(null);
       const page = await discoveryApi<{ items: Candidate[] }>(
         "candidates?limit=50",
       );
@@ -1732,7 +2128,7 @@ export function DiscoveryWorkspace({
       setNotice(
         next.summary.match_count === 0
           ? "Scan completed with no matches. No candidates were invented."
-          : `Scan completed with ${next.summary.match_count} match(es) and ${next.summary.candidate_count} candidate update(s).`,
+          : `Scan completed with ${nextAdmission.match_count} match(es): ${nextAdmission.admitted_count} admitted and ${nextAdmission.excluded_count} excluded.`,
       );
     } catch (reason) {
       setError((reason as Error).message);
@@ -1820,17 +2216,58 @@ export function DiscoveryWorkspace({
     ACTIVE_LIFECYCLES.has(candidate.lifecycle),
   );
   const currentCandidates = result?.candidates || [];
-  const queueCandidates =
+  const baseQueueCandidates =
     queueView === "current"
       ? currentCandidates
       : queueView === "active"
         ? activeCandidates
         : candidates;
+  const normalizedSearch = queueSearch.trim().toUpperCase();
+  const queueCandidates = baseQueueCandidates
+    .filter((candidate) => {
+      const matchesSearch =
+        !normalizedSearch ||
+        candidate.instrument.symbol.includes(normalizedSearch) ||
+        candidate.instrument.native.native_id
+          .toUpperCase()
+          .includes(normalizedSearch);
+      return (
+        matchesSearch &&
+        (queueBand === "all" ||
+          candidate.relevance_explanation.band === queueBand) &&
+        (queueLifecycle === "all" || candidate.lifecycle === queueLifecycle) &&
+        (queueIntent === "all" || candidate.intent === queueIntent) &&
+        (queueHorizon === "all" || candidate.horizon === queueHorizon) &&
+        (queueProfile === "all" || candidate.profile === queueProfile) &&
+        (queueFreshness === "all" || candidate.freshness === queueFreshness) &&
+        (queueProvider === "all" ||
+          candidate.provider_sources.includes(queueProvider))
+      );
+    })
+    .sort((left, right) => compareCandidates(left, right, queueSort));
+  const filterValues = {
+    intents: [
+      ...new Set(candidates.map((candidate) => candidate.intent)),
+    ].sort(),
+    horizons: [
+      ...new Set(candidates.map((candidate) => candidate.horizon)),
+    ].sort(),
+    profiles: [
+      ...new Set(
+        candidates
+          .map((candidate) => candidate.profile)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    ].sort(),
+    providers: [
+      ...new Set(candidates.flatMap((candidate) => candidate.provider_sources)),
+    ].sort(),
+  };
+  const scanAdmission = result ? admissionFor(result) : null;
   const latestSummary =
-    result?.summary || selectedHistory || recentScans[0] || null;
-  const topCandidate = [...candidates].sort(
-    (left, right) =>
-      Number(right.relevance.value || 0) - Number(left.relevance.value || 0),
+    result?.summary || recentScans[0] || selectedHistory || null;
+  const topCandidate = [...candidates].sort((left, right) =>
+    compareCandidates(left, right, "attention"),
   )[0];
   const inspector = detail ? (
     <CandidateInspector
@@ -1886,7 +2323,11 @@ export function DiscoveryWorkspace({
         <div
           className="discovery-toast"
           role="status"
-          aria-label="Setup loaded"
+          aria-label={
+            toast.startsWith("Historical scan setup")
+              ? "Setup loaded"
+              : "Scan history updated"
+          }
           aria-live="polite"
         >
           <span>{toast}</span>
@@ -2078,9 +2519,17 @@ export function DiscoveryWorkspace({
                       <span>Market context requirement</span>
                       <select
                         value={contextMode}
-                        onChange={(event) =>
-                          setContextMode(event.target.value as ContextMode)
-                        }
+                        onChange={(event) => {
+                          const nextMode = event.target.value as ContextMode;
+                          setContextMode(nextMode);
+                          setContextPolicy(
+                            nextMode === "healthy"
+                              ? "REQUIRE_COMPLETE"
+                              : nextMode === "unavailable"
+                                ? "OPTIONAL"
+                                : "ALLOW_PARTIAL",
+                          );
+                        }}
                         aria-describedby="context-help"
                       >
                         <option value="healthy">
@@ -2090,9 +2539,11 @@ export function DiscoveryWorkspace({
                         <option value="unavailable">Context optional</option>
                       </select>
                       <small id="context-help">
-                        Allow candidate evaluation when some market-context
-                        evidence is unavailable. Missing evidence remains
-                        visible and reduces coverage.
+                        {contextMode === "healthy"
+                          ? "Incomplete context blocks candidate admission."
+                          : contextMode === "unavailable"
+                            ? "Context is optional; missing context does not reduce relevance coverage."
+                            : "Missing evidence remains visible and reduces coverage when context participates."}
                       </small>
                     </label>
                   </div>
@@ -2121,7 +2572,7 @@ export function DiscoveryWorkspace({
                 scans={recentScans}
                 selectedRunId={selectedHistory?.run_id || null}
                 pending={historyPending}
-                onView={viewScan}
+                onView={(scan) => void viewScan(scan)}
                 onReuse={reuseScan}
                 onArchive={(scan) => void setArchived(scan, true)}
                 onOpenPast={() => void openPastScans()}
@@ -2129,7 +2580,15 @@ export function DiscoveryWorkspace({
             </div>
 
             <div className="scan-workstation-results">
-              {result ? (
+              {historicalDetail ? (
+                <HistoricalScanView
+                  detail={historicalDetail}
+                  onBack={() => {
+                    setHistoricalDetail(null);
+                    setSelectedHistory(null);
+                  }}
+                />
+              ) : result ? (
                 <section
                   className="scan-result"
                   aria-labelledby="scan-result-heading"
@@ -2161,9 +2620,12 @@ export function DiscoveryWorkspace({
                       <small>Symbols evaluated</small>
                     </div>
                     <div>
-                      <span>Matches</span>
-                      <strong>{result.summary.match_count}</strong>
-                      <small>Met scan logic</small>
+                      <span>Match admission</span>
+                      <strong>{scanAdmission!.match_count} matches</strong>
+                      <small>
+                        {scanAdmission!.admitted_count} admitted ·{" "}
+                        {scanAdmission!.excluded_count} excluded
+                      </small>
                     </div>
                     <div>
                       <span>Discovery candidates</span>
@@ -2182,6 +2644,20 @@ export function DiscoveryWorkspace({
                       </small>
                     </div>
                   </div>
+                  <details className="admission-summary">
+                    <summary>
+                      Admission details: {scanAdmission!.admitted_count}{" "}
+                      admitted · {scanAdmission!.excluded_count} excluded
+                    </summary>
+                    <ul>
+                      {scanAdmission!.decisions.map((decision) => (
+                        <li key={decision.match_id}>
+                          <strong>{decision.symbol}</strong>
+                          <span>{words(decision.reason)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
                   <div className="discovery-table-wrap" tabIndex={0}>
                     <table className="discovery-table scan-match-table">
                       <caption className="sr-only">
@@ -2328,6 +2804,170 @@ export function DiscoveryWorkspace({
                     All ({candidates.length})
                   </button>
                 </div>
+                <details className="queue-controls">
+                  <summary>Filter and sort</summary>
+                  <div className="queue-filter-grid">
+                    <label>
+                      <span>Search symbol</span>
+                      <input
+                        type="search"
+                        value={queueSearch}
+                        onChange={(event) => setQueueSearch(event.target.value)}
+                        placeholder="Symbol or native ID"
+                      />
+                    </label>
+                    <label>
+                      <span>Relevance</span>
+                      <select
+                        value={queueBand}
+                        onChange={(event) => setQueueBand(event.target.value)}
+                      >
+                        <option value="all">All bands</option>
+                        <option value="HIGH">High</option>
+                        <option value="MEDIUM">Medium</option>
+                        <option value="LOW">Low</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>Lifecycle</span>
+                      <select
+                        value={queueLifecycle}
+                        onChange={(event) =>
+                          setQueueLifecycle(event.target.value)
+                        }
+                      >
+                        <option value="all">All states</option>
+                        {Object.keys(LIFECYCLE_PRIORITY).map((value) => (
+                          <option key={value} value={value}>
+                            {words(value)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>Intent</span>
+                      <select
+                        value={queueIntent}
+                        onChange={(event) => setQueueIntent(event.target.value)}
+                      >
+                        <option value="all">All intents</option>
+                        {filterValues.intents.map((value) => (
+                          <option key={value} value={value}>
+                            {words(value)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>Queue horizon</span>
+                      <select
+                        value={queueHorizon}
+                        onChange={(event) =>
+                          setQueueHorizon(event.target.value)
+                        }
+                      >
+                        <option value="all">All horizons</option>
+                        {filterValues.horizons.map((value) => (
+                          <option key={value} value={value}>
+                            {value}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>Profile</span>
+                      <select
+                        value={queueProfile}
+                        onChange={(event) =>
+                          setQueueProfile(event.target.value)
+                        }
+                      >
+                        <option value="all">All profiles</option>
+                        {filterValues.profiles.map((value) => (
+                          <option key={value} value={value}>
+                            {words(value)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>Freshness</span>
+                      <select
+                        value={queueFreshness}
+                        onChange={(event) =>
+                          setQueueFreshness(event.target.value)
+                        }
+                      >
+                        <option value="all">All freshness</option>
+                        {Object.keys(FRESHNESS_PRIORITY).map((value) => (
+                          <option key={value} value={value}>
+                            {value === "FRESH"
+                              ? "Fresh evidence"
+                              : value === "STALE"
+                                ? "Stale evidence"
+                                : "Unknown freshness"}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>Evidence provider</span>
+                      <select
+                        value={queueProvider}
+                        onChange={(event) =>
+                          setQueueProvider(event.target.value)
+                        }
+                      >
+                        <option value="all">All providers</option>
+                        {filterValues.providers.map((value) => (
+                          <option key={value} value={value}>
+                            {sourceLabel(value)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>Sort</span>
+                      <select
+                        value={queueSort}
+                        onChange={(event) =>
+                          setQueueSort(event.target.value as QueueSort)
+                        }
+                      >
+                        <option value="attention">Attention priority</option>
+                        <option value="relevance">Relevance</option>
+                        <option value="updated">Updated</option>
+                        <option value="lifecycle">Lifecycle</option>
+                        <option value="symbol">Symbol</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div className="queue-filter-footer">
+                    <span aria-live="polite">
+                      Showing {queueCandidates.length} of{" "}
+                      {baseQueueCandidates.length}.{" "}
+                      {queueSort === "attention"
+                        ? "Sorted by current relevance model, relevance, lifecycle, freshness, and recency."
+                        : `Sorted by ${words(queueSort)}.`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQueueSearch("");
+                        setQueueBand("all");
+                        setQueueLifecycle("all");
+                        setQueueIntent("all");
+                        setQueueHorizon("all");
+                        setQueueProfile("all");
+                        setQueueFreshness("all");
+                        setQueueProvider("all");
+                        setQueueSort("attention");
+                      }}
+                    >
+                      Clear filters
+                    </button>
+                  </div>
+                </details>
                 <CandidateQueue
                   candidates={queueCandidates}
                   selected={detail?.candidate_id || null}

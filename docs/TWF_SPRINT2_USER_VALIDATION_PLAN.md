@@ -34,7 +34,7 @@ This plan reflects the **final product stabilization before formal user validati
 - Confirm **Discovery intent** explains how a match is interpreted and tracked, while **Horizon** explains how long it should remain relevant.
 - Try intraday intent with `5d`, positional intent with `intraday`, and Pullback in Uptrend with short intent. Confirm concise guidance appears and **Run scan** is blocked without silently changing the selection.
 - Verify Momentum and Breakout in both directions: bullish evidence may create long candidates, bearish evidence may create short candidates, and opposing evidence does not become a high-relevance candidate.
-- Confirm the context choices read **Require complete context**, **Allow partial context**, and **Context optional**. Missing context must stay visible and reduce coverage; it must not be inferred as neutral.
+- Confirm the context choices read **Require complete context**, **Allow partial context**, and **Context optional**. Missing context must stay visible and must not be inferred as neutral. It blocks incomplete required-context admission, reduces coverage only when context participates under Allow partial, and does not reduce relevance/coverage or cause stale lifecycle under Context optional.
 
 ### 3. Workspace status, provider Mode, and Status
 
@@ -63,17 +63,23 @@ This plan reflects the **final product stabilization before formal user validati
 - Confirm key metrics use user-facing formatting such as INR price, signed percentage momentum, RVOL with an × suffix, and RSI where available.
 - Expand **Details** and confirm raw reason bases, provider, source mode, lineage, and match ID remain available.
 - Confirm a no-match universe such as `NOMATCH` produces an explicit no-match state and invents no candidate.
+- Compare **Match admission** with matches and candidates. Confirm `matches = admitted + excluded`, expand **Admission details**, and verify every excluded match has a typed reason rather than disappearing silently.
+- Run the same Momentum or Breakout profile through Internal Scanner and TradingView synthetic validation. Where their evidence overlaps, confirm the normalized **Why matched** reason categories agree while provider provenance remains distinct.
 
 ### 7. Center workflow and Scan History
 
 - Confirm the center column reads in order as the current result/summary and **Candidates requiring review**. It must not contain a second large Recent scans surface.
 - After a scan, confirm the queue defaults to **Current scan** and shows its candidate count. Switch to **Active** and **All** to inspect persisted candidates.
 - Run a zero-match scan while active candidates already exist. Confirm **Current scan (0)** stays empty and explicitly reports the retained active count; confirm the prior rows appear only after switching to **Active** or **All**.
-- Confirm queue rows show provider and latest scan-run traceability alongside symbol, setup, relevance, update time, lifecycle, and Review.
+- Confirm queue rows show provider and latest scan-run traceability alongside symbol, profile, intent, horizon, relevance, update time, lifecycle, lifecycle reason, and Review.
+- Confirm the default **Attention priority** puts current `deterministic-relevance-v2` candidates ahead of legacy-only relevance, then applies relevance, lifecycle, freshness, update recency, symbol, and candidate ID deterministically within the current bucket. A legacy 100% must not outrank current v2 values solely through the old scale. Repeat the same query and confirm ordering remains stable.
+- Expand **Filter and sort**. Exercise symbol/native search, relevance, lifecycle, intent, horizon, profile, freshness, and provider filters. Verify alternate Relevance, Updated, Lifecycle, and Symbol sorts, the visible result count, Clear filters, and the text announcement of the active sort.
+- Confirm the owner-scoped candidate request remains bounded to 50 rows in this workspace; the API supports explicit offset pages and caps page size at 100.
 - Confirm **Scan History** sits directly below **Scan Setup** in the left rail and shows no more than the latest five active runs with profile, provider, universe size, result count, time, and status.
-- Select **View** and confirm the chosen persisted execution summary appears in the center without running a scan or creating candidates.
-- Select **Use setup** and confirm universe, profile, provider, discovery intent, horizon, and context requirement are restored for review without automatically rerunning a scan.
-- Select **Archive** and confirm the run leaves Recent scans, remains stored, and is available through **Past scans**. Restore it and confirm it returns to recent history.
+- Select **View** and confirm **Viewing historical scan** appears in the center with stored timestamp, provider, profile, universe, match rows, market-context state, and status. Confirm Scan Setup and candidate state do not change, no scan executes, and **Back to latest scan** restores the preserved current result without reload.
+- Select **Use setup** and confirm universe, profile, provider, discovery intent, horizon, context mode, and context policy are restored for review without automatically rerunning a scan. Confirm the transient **Historical scan setup loaded. Review before running.** notification appears even when values were already identical.
+- Select **Archive** and confirm the run immediately leaves Recent scans, the transient **Scan archived.** notification appears, and the run remains stored and available through active-and-archived or archived-only **Past scans**. Restore it and confirm it returns to recent history.
+- Exercise failed View and Archive responses and an incompatible legacy setup. Confirm typed feedback is visible and no action fails silently.
 - In **Past scans**, exercise Today, Last 7 days, Last 30 days, custom From/To, provider, profile, status, and active/archived filtering.
 - Confirm there is no Clear history, permanent delete, purge, or physical deletion control.
 - Open **Candidates** through the sidebar and confirm the evidence column leads with **Scan + market context** while exact source names remain under **Sources**.
@@ -84,9 +90,12 @@ This plan reflects the **final product stabilization before formal user validati
 - Open **Review** for a candidate. Confirm the selected queue row remains visibly highlighted, the center contracts, and the sticky desktop inspector begins with symbol, intent, horizon, and instrument type.
 - Close the inspector and confirm it is removed completely, selected-row state clears, and the center immediately expands again.
 - Confirm relevance is described as an attention score, not probability of profit, and appears with a LOW/MEDIUM/HIGH band.
+- Confirm a candidate created before profile-lineage persistence shows its recovered authoritative profile with a compact **Legacy** marker. If no originating/latest scan, stored snapshot, or candidate metadata can recover it, confirm the UI says **Profile unavailable**, not Unknown.
+- Confirm a v1-only relevance value remains unchanged and visible as **Legacy score** with keyboard-accessible help explaining that it is not directly comparable with current v2 scoring. Current candidates expose `deterministic-relevance-v2` under inspector provenance/details without adding clutter to normal rows.
 - Compare multiple matches and confirm scores form a useful deterministic spread rather than all saturating near 100%; partial or missing context must reduce contribution and coverage truthfully.
 - Inspect evidence contributions, coverage, missing inputs, and conflicts. Present, Missing, Conflicting, Unavailable, and Stale states must use text plus distinct color treatments.
-- Confirm evidence cards lead with evidence type, **Supports/Counters/Neutral/Conflicting** meaning, and concise user-facing measurements. Strings such as `true boolean`, `POSITIVE PRESENT`, and raw enums must not be primary copy; provider/source, mode, versions, IDs, transformation provenance, and raw typed values remain under **Provenance details**.
+- Confirm evidence cards lead with evidence type, **Supports/Counters/Neutral/Conflicting** meaning, and concise user-facing measurements. Equivalent records from the same latest snapshot/category/producer semantic slot render once; older immutable evidence remains under Snapshot history. Strings such as `true boolean`, `POSITIVE PRESENT`, and raw enums must not be primary copy.
+- Open **Candidate provenance** and an evidence card's **Provenance details**. Confirm candidate, episode, latest-run, native, and evidence identifiers wrap without horizontal scrolling, retain their full value, and provide keyboard-accessible labeled Copy actions.
 - Where source time is absent, confirm it says **Source time unavailable** and is not labeled stale. Where a deterministic source timestamp exists, confirm it is labeled **Fresh**.
 
 ### 9. Market-context degradation
@@ -95,7 +104,7 @@ Run each **Market context requirement** policy:
 
 - **Require complete context:** all expected context dimensions are required.
 - **Allow partial context:** missing benchmark/sector data remains explicit and reduces coverage.
-- **Context optional:** unavailable context remains explicit while the bounded scan may continue.
+- **Context optional:** unavailable, stale, or partial context remains explicit while the bounded scan continues; missing context alone must not reduce relevance or required coverage, add a freshness penalty, or make the episode stale. Present optional context may enrich the explanation without becoming required.
 
 Also exercise the existing stale-context test path where available. Confirm missing, unavailable, and stale are distinct and no absent evidence is presented as neutral.
 
@@ -138,7 +147,7 @@ Review Scanners, Candidates, candidate detail, and discovery settings at widths 
 
 - at wide widths with no selection, setup/history and center should form two columns with no reserved inspector space; with a selection, the grid should be approximately 20–22% / 50–55% / 25–28%, aligned at the top, with a sticky useful inspector and compact horizontal status strip;
 - at intermediate widths, setup/history and results should form two columns while an open inspector moves below and the status strip wraps cleanly;
-- at narrow widths, controls, status items, workflow sections, and inspector should stack while semantic tables become readable labeled cards;
+- at narrow widths, controls, status items, workflow sections, and inspector should stack while semantic tables become readable labeled cards; the Filter and sort disclosure must stack every control without toolbar or page overflow;
 - before a first run, the center should show one compact in-context instruction; when scan history exists it should show the latest persisted summary instead;
 - there must be no horizontal page overflow;
 - dark/navy framing, white work surfaces, blue primary actions, restrained status colors, focus indicators, labels, headings, alerts, and status text should remain legible in both themes;

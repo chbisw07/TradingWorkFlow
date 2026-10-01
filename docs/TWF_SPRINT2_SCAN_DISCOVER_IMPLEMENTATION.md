@@ -25,7 +25,7 @@ Manual dismiss, defunct, and recovery actions now explain their consequence, req
 
 The final pre-validation stabilization keeps the sidebar as the sole route navigation for **Scanners** and **Candidates**. The duplicate page-level destination tabs were removed. The Scanners route now uses one workstation composition: a compact setup-and-history rail at left and the latest result plus active discovery queue in the center. The candidate inspector is conditional: no empty inspector card or reserved column is rendered until **Review** is selected, so the center consumes the available width; an open inspector creates an intentional third desktop region, keeps the selected row highlighted, and disappears completely when closed. A compact status strip above the workstation owns provider readiness, market-context state, optional AI state, and latest-scan state. Provider status no longer consumes a tall left-rail card. At narrower widths the regions recompose into two columns and then one column; the open inspector stacks below the workflow and semantic tables become labeled cards at mobile widths.
 
-Scan Profile and Discovery Intent are presented as separate concepts. A profile states the mechanical pattern TWF searches for, while intent states how a resulting setup should be interpreted and tracked. Profile selection recommends an intent and horizon. After a user explicitly changes either field, later profile changes preserve that override until **Apply suggestion** is selected. The context policy is expressed as **Require complete context**, **Allow partial context**, or **Context optional**; missing context remains visible and reduces coverage.
+Scan Profile and Discovery Intent are presented as separate concepts. A profile states the mechanical pattern TWF searches for, while intent states how a resulting setup should be interpreted and tracked. Profile selection recommends an intent and horizon. After a user explicitly changes either field, later profile changes preserve that override until **Apply suggestion** is selected. The context policy is expressed as **Require complete context**, **Allow partial context**, or **Context optional**. Missing context always remains visible. It blocks admission when complete context is required, reduces the expected evidence coverage when partial context is allowed, and remains outside the required relevance/coverage denominator when context is optional.
 
 The top status strip separates informational **Mode** from operational **Status**. Internal Scanner V0 is identified as deterministic **Synthetic Data**. TradingView distinguishes **Validation · Synthetic** from **Live** mode and uses text states such as Ready, Rate limited, Authentication required, Unavailable, Disabled, and Degraded in addition to semantic color. Status elements are informational rather than button-shaped. Rate limiting is shown as an operational constraint and does not imply that live exact-row proof succeeded.
 
@@ -51,6 +51,30 @@ Formal U1 validation found six related correctness problems and this bounded pas
 - Relevance saturation traced to binary category presence and full credit for partial context. Policy `deterministic-relevance-v2` retains the existing bounded factor weights while measuring matched-predicate strength and assigning partial context half credit. Missing inputs still reduce score and coverage, incompatible direction creates no candidate, and older v1 episodes roll forward into a new policy episode rather than mixing policies in one history.
 
 No schema migration was required. Direction belongs to the immutable scan definition, and candidate run lineage fits the existing JSON persistence boundary. Owner isolation, zero-match truthfulness, archive/restore, provider status, tolerance, optional LLM authority, and the no-trading boundary remain unchanged.
+
+## U2 discovery queue, ranking, and triage stabilization
+
+Formal U2 validation found queue-ordering, explanation parity, admission-transparency, context-policy, and inspector usability gaps. This bounded stabilization keeps the accepted Scan & Discover architecture and no-trading boundary intact:
+
+- Candidate lists use one deterministic **Attention priority** policy. Current `deterministic-relevance-v2` candidates are compared first; within that bucket the order is relevance descending, lifecycle `CURRENT`, `NEW`, `STALE`, `DEFUNCT`, `EXPIRED`, `REJECTED`, freshness `FRESH`, unknown/currently observed without provider source time, `STALE`, most recently updated, canonical symbol, and candidate ID. Legacy-only relevance remains visible in a lower comparability bucket and retains its immutable score. **Relevance**, **Updated**, **Lifecycle**, and **Symbol** remain explicit alternate sorts. This is an ordering policy, not a new score or a conversion between versions.
+- **Current scan** contains only candidates admitted or updated by the selected latest execution. **Active** contains `NEW`, `CURRENT`, and `STALE`; **All** also includes terminal `DEFUNCT`, `EXPIRED`, and `REJECTED` episodes. All counts and rows are owner-scoped. The existing candidate endpoint remains bounded and paginated with a default of 50 and maximum page size of 100, so no new pagination contract was required.
+- Queue controls filter by symbol/native identity, relevance band, lifecycle, intent, horizon, profile, freshness, and evidence provider. Controls collapse into a compact disclosure and responsive grid; the current sort policy is announced in text. Setup cells now show profile above intent and horizon, and lifecycle reason comes from the persisted backend transition/snapshot contract.
+- Internal Scanner and TradingView synthetic validation now share the same profile evaluator and normalized matched-predicate reasons. Provider identity and provenance differ, while downstream explanations remain semantically equivalent and never invent unsupported evidence.
+- Each scan result carries an explicit typed admission summary. Match count reconciles to admitted plus excluded; every match has an `ADMITTED`, `EXCLUDED_DIRECTION`, or `EXCLUDED_CONTEXT_POLICY` decision. The workspace shows concise counts with expandable per-symbol reasons rather than inferring exclusions in the browser.
+- Context policy is authoritative. **Require complete context** rejects admission when context is incomplete. **Allow partial context** admits bounded partial/unavailable evaluations and gives only proportional context credit, so missing dimensions reduce score and coverage. **Context optional** excludes market context from the required denominator for complete, partial, stale, and unavailable modes; absence alone cannot reduce relevance/coverage, add a freshness penalty, or make the candidate stale. Context state and limitations remain visible in all three policies.
+- A candidate snapshot now owns only its current evidence set. The inspector selects the latest authoritative item per semantic category/producer slot, while immutable earlier evidence remains available in snapshot history. Candidate, episode, run, native, and evidence identifiers live under expandable provenance with wrapping monospace values and labeled Copy controls; the inspector suppresses horizontal overflow.
+- Repeated equivalent scans continue the same eligible active episode and append immutable snapshots. Distinct symbol/intent/horizon/episode identities remain separate. Relevance bands still derive from the configured thresholds and remain consistent with numeric scores.
+
+No schema migration was required. Admission decisions are returned with the execution result, while profile, lifecycle reason, context policy, scan lineage, and current evidence fit the existing typed JSON persistence boundary. No U2 issue was deferred to the hardening register.
+
+### U2 follow-up: observable history and legacy comparability
+
+- **View** now retrieves an owner-scoped stored execution detail and opens a clearly labeled read-only historical mode in the center workspace. It shows timestamp, provider, profile, universe, stored match rows, market-context state, and execution status. **Back to latest scan** restores the preserved current result without reload. Detail retrieval never runs a scan or mutates a candidate, snapshot, or lifecycle.
+- **Use setup** restores universe, profile, intent, horizon, provider, context mode, and the persisted context policy without execution, then emits a transient accessible confirmation even when values did not visibly change. **Archive** removes a run from Recent scans immediately, retains the stored run/evidence graph for active-and-archived or archived-only Past scans, and emits a transient confirmation. Typed failures are visible for load, restore, archive, and history refresh.
+- Legacy candidate profile display is derived without rewriting history. When the current snapshot has no profile, the service checks originating scan, latest scan, older persisted snapshot metadata, then candidate metadata. Recovered values are marked **Legacy**; records with no authoritative lineage show **Profile unavailable**, with help text explaining that they predate current profile-lineage persistence.
+- Relevance model/version remains part of each immutable `DiscoveryRelevance` value and snapshot. A v1-only score is displayed as **Legacy score** with a comparability explanation. Current v2 candidates occupy the first ranking bucket, so an old 100% does not automatically outrank current v2 values. No numeric conversion is invented and historical scores remain unchanged.
+
+No schema migration was required for the follow-up. Compatibility labels are derived at read time from existing owner-scoped lineage and immutable payloads. No follow-up item was deferred.
 
 ## CP-4 — bounded market context
 
@@ -91,6 +115,7 @@ The API surface is:
 | `GET`         | `/api/v1/discovery/status`                              | provider capability and typed readiness                 |
 | `GET`, `PUT`  | `/api/v1/discovery/settings`                            | bounded owner defaults and revisioned updates           |
 | `POST`, `GET` | `/api/v1/discovery/scans`                               | execute a bounded scan and read active/all scan history |
+| `GET`         | `/api/v1/discovery/scans/{run_id}`                      | owner-scoped read-only stored execution detail          |
 | `POST`        | `/api/v1/discovery/scans/{run_id}/archive`              | owner-scoped reversible scan archival                   |
 | `POST`        | `/api/v1/discovery/scans/{run_id}/restore`              | restore an owner-scoped archived scan                   |
 | `GET`         | `/api/v1/discovery/candidates`                          | paginated candidate ledger                              |
@@ -130,18 +155,18 @@ WebKit still cannot launch successfully on this host because the Playwright runt
 
 | Check                             | Result                                                                                         |
 | --------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Backend full regression           | 919 passed                                                                                     |
+| Backend full regression           | 940 passed                                                                                     |
 | Ruff lint / format                | passed; 127 files formatted                                                                    |
 | Strict mypy                       | passed; 126 source files                                                                       |
 | Python compilation / `pip check`  | passed                                                                                         |
-| OpenAPI construction              | passed; 52 paths, 118 schemas                                                                  |
+| OpenAPI construction              | passed; 52 paths, 122 schemas                                                                  |
 | Offline package build             | wheel and sdist built                                                                          |
-| Frontend unit tests               | 130 passed across 16 files                                                                     |
+| Frontend unit tests               | 132 passed across 16 files                                                                     |
 | ESLint / TypeScript / Prettier    | passed                                                                                         |
 | Next.js production build          | passed; Scanners, Candidates, and discovery proxy routes emitted                               |
 | Discovery responsive Chromium     | 6 passed at 390, 768, 1024, 1440, 1920, and 2560                                               |
 | Full Chromium browser suite       | 66 passed across all six target widths, including Broker V2                                    |
-| Focused discovery backend tests   | 18 passed                                                                                      |
+| Focused discovery backend tests   | 39 passed                                                                                      |
 | SQLite migration lifecycle        | upgrade/repeat/downgrade/re-upgrade and data-preservation probe passed                         |
 | PostgreSQL 16 migration lifecycle | upgrade/repeat/downgrade/re-upgrade and data-preservation probe passed                         |
 | Documentation links / whitespace  | 63 Markdown files passed; `git diff --check` passed                                            |

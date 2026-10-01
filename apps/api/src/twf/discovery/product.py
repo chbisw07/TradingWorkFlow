@@ -49,6 +49,18 @@ class ContextAvailability(StrEnum):
     STALE = "STALE"
 
 
+class ContextPolicy(StrEnum):
+    REQUIRE_COMPLETE = "REQUIRE_COMPLETE"
+    ALLOW_PARTIAL = "ALLOW_PARTIAL"
+    OPTIONAL = "OPTIONAL"
+
+
+class AdmissionReason(StrEnum):
+    ADMITTED = "ADMITTED"
+    EXCLUDED_DIRECTION = "EXCLUDED_DIRECTION"
+    EXCLUDED_CONTEXT_POLICY = "EXCLUDED_CONTEXT_POLICY"
+
+
 class ContextDimension(Contract):
     name: Identifier
     availability: Literal["PRESENT", "MISSING", "UNAVAILABLE", "STALE"]
@@ -152,6 +164,7 @@ class ProductScanRequest(Contract):
     intent: IntentChoice = IntentChoice.MOMENTUM
     include_llm: bool = False
     context_mode: Literal["healthy", "partial", "unavailable", "stale"] = "partial"
+    context_policy: ContextPolicy | None = None
 
     @field_validator("universe")
     @classmethod
@@ -208,6 +221,7 @@ class ScanSummary(Contract):
     match_count: int
     candidate_count: int
     context_mode: Literal["healthy", "partial", "unavailable", "stale"] = "partial"
+    context_policy: ContextPolicy = ContextPolicy.ALLOW_PARTIAL
     context_availability: ContextAvailability
     degraded: tuple[str, ...] = ()
     archived_at: AwareDatetime | None = None
@@ -227,11 +241,50 @@ class ScanMatchView(Contract):
     lineage: str
 
 
+class MatchAdmissionDecision(Contract):
+    match_id: UUID
+    symbol: str
+    status: Literal["ADMITTED", "EXCLUDED"]
+    reason: AdmissionReason
+
+
+class AdmissionSummary(Contract):
+    match_count: int = Field(ge=0)
+    admitted_count: int = Field(ge=0)
+    excluded_count: int = Field(ge=0)
+    decisions: tuple[MatchAdmissionDecision, ...]
+
+    @model_validator(mode="after")
+    def reconciles(self) -> "AdmissionSummary":
+        if self.match_count != self.admitted_count + self.excluded_count:
+            raise ValueError("Match admission counts must reconcile")
+        if self.match_count != len(self.decisions):
+            raise ValueError("Every match requires an admission decision")
+        return self
+
+
 class ScanResult(Contract):
     summary: ScanSummary
     matches: tuple[ScanMatchView, ...]
     candidates: tuple["CandidateSummary", ...]
     market_context: MarketContextSnapshot
+    admission: AdmissionSummary
+
+
+class HistoricalScanDetail(Contract):
+    summary: ScanSummary
+    matches: tuple[ScanMatchView, ...]
+    market_context: MarketContextSnapshot | None = None
+
+
+ProfileLineage = Literal[
+    "CURRENT_SNAPSHOT",
+    "ORIGINATING_SCAN",
+    "LATEST_SCAN",
+    "PERSISTED_SNAPSHOT",
+    "CANDIDATE_METADATA",
+    "LEGACY_UNAVAILABLE",
+]
 
 
 class CandidateSummary(Contract):
@@ -241,10 +294,14 @@ class CandidateSummary(Contract):
     instrument: InstrumentIdentity
     intent: IntentChoice
     horizon: HorizonChoice
+    profile: str | None
+    profile_lineage: ProfileLineage
+    legacy_profile: bool
     relevance: DiscoveryRelevance
     relevance_explanation: RelevanceExplanation
     tolerance: ToleranceAssessment
     lifecycle: DiscoveryLifecycleState
+    lifecycle_reason: str
     freshness: FreshnessState
     snapshot_count: int
     provider_sources: tuple[str, ...]
@@ -259,6 +316,7 @@ class SnapshotView(Contract):
     observed_at: AwareDatetime
     source_data_time: AwareDatetime | None
     lifecycle: DiscoveryLifecycleState
+    lifecycle_reason: str
     relevance: DiscoveryRelevance
     relevance_explanation: RelevanceExplanation
     tolerance: ToleranceAssessment

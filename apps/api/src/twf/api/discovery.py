@@ -12,6 +12,7 @@ from twf.discovery.product import (
     CandidateDetail,
     DiscoverySettings,
     DiscoverySettingsUpdate,
+    HistoricalScanDetail,
     LifecycleRequest,
     LLMExplanation,
     MarketContextSnapshot,
@@ -85,6 +86,11 @@ def scan_history(
     include_archived: bool = Query(default=False),
 ) -> tuple[ScanSummary, ...]:
     return service.history(limit, offset, include_archived)
+
+
+@router.get("/scans/{run_id}")
+def scan_detail(run_id: UUID, service: Service) -> HistoricalScanDetail:
+    return service.historical_detail(run_id)
 
 
 @router.post("/scans/{run_id}/archive", dependencies=[Depends(require_origin)])

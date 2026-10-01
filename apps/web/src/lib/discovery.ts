@@ -1,5 +1,6 @@
 export type ProviderChoice = "internal" | "tradingview-synthetic";
 export type ContextMode = "healthy" | "partial" | "unavailable" | "stale";
+export type ContextPolicy = "REQUIRE_COMPLETE" | "ALLOW_PARTIAL" | "OPTIONAL";
 
 export type ProviderStatus = {
   id: ProviderChoice;
@@ -23,6 +24,7 @@ export type Instrument = {
 
 export type Relevance = {
   value: string | number | null;
+  policy: { id: string; version: string };
   required_inputs_satisfied: boolean;
   coverage: string | number;
   reasons: string[];
@@ -81,10 +83,20 @@ export type Candidate = {
   instrument: Instrument;
   intent: string;
   horizon: string;
+  profile: string | null;
+  profile_lineage:
+    | "CURRENT_SNAPSHOT"
+    | "ORIGINATING_SCAN"
+    | "LATEST_SCAN"
+    | "PERSISTED_SNAPSHOT"
+    | "CANDIDATE_METADATA"
+    | "LEGACY_UNAVAILABLE";
+  legacy_profile: boolean;
   relevance: Relevance;
   relevance_explanation: RelevanceExplanation;
   tolerance: ToleranceAssessment;
   lifecycle: "NEW" | "CURRENT" | "STALE" | "DEFUNCT" | "EXPIRED" | "REJECTED";
+  lifecycle_reason: string;
   freshness: "FRESH" | "STALE" | "UNKNOWN";
   snapshot_count: number;
   provider_sources: string[];
@@ -142,6 +154,7 @@ export type CandidateDetail = Candidate & {
     observed_at: string;
     source_data_time: string | null;
     lifecycle: string;
+    lifecycle_reason: string;
     relevance: Relevance;
     relevance_explanation: RelevanceExplanation;
     tolerance: ToleranceAssessment;
@@ -195,9 +208,23 @@ export type ScanSummary = {
   match_count: number;
   candidate_count: number;
   context_mode?: ContextMode;
+  context_policy?: ContextPolicy;
   context_availability: MarketContext["availability"];
   degraded: string[];
   archived_at?: string | null;
+};
+
+export type AdmissionDecision = {
+  match_id: string;
+  symbol: string;
+  status: "ADMITTED" | "EXCLUDED";
+  reason: "ADMITTED" | "EXCLUDED_DIRECTION" | "EXCLUDED_CONTEXT_POLICY";
+};
+
+export type HistoricalScanDetail = {
+  summary: ScanSummary;
+  matches: ScanMatch[];
+  market_context: MarketContext | null;
 };
 
 export type ScanResult = {
@@ -205,6 +232,12 @@ export type ScanResult = {
   matches: ScanMatch[];
   candidates: Candidate[];
   market_context: MarketContext;
+  admission: {
+    match_count: number;
+    admitted_count: number;
+    excluded_count: number;
+    decisions: AdmissionDecision[];
+  };
 };
 
 export type DiscoverySettings = {

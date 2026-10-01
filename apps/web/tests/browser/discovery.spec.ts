@@ -111,6 +111,28 @@ test("Scan & Discover presents a responsive evidence workstation with route-leve
     page.getByRole("button", { name: /Current scan \(2\)/ }),
   ).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByText(/Current scan: 2 · Active queue:/)).toBeVisible();
+  await expect(page.getByText(/2 admitted · 0 excluded/).first()).toBeVisible();
+
+  const queueControls = page.locator(".queue-controls");
+  await queueControls.locator("summary").click();
+  await expect(queueControls.getByLabel("Sort")).toHaveValue("attention");
+  await expect(
+    queueControls.getByText(
+      /Sorted by current relevance model, relevance, lifecycle, freshness, and recency/,
+    ),
+  ).toBeVisible();
+  await queueControls.getByLabel("Search symbol").fill("MCX");
+  await expect(queueControls.getByText(/Showing 1 of 2/)).toBeVisible();
+  await queueControls.getByRole("button", { name: "Clear filters" }).click();
+  await expect(queueControls.getByText(/Showing 2 of 2/)).toBeVisible();
+  const controlsBox = await queueControls.boundingBox();
+  expect(controlsBox).not.toBeNull();
+  expect(controlsBox!.x + controlsBox!.width).toBeLessThanOrEqual(width + 1);
+  await page.screenshot({
+    path: info.outputPath("queue-filtering.png"),
+    fullPage: true,
+    animations: "disabled",
+  });
 
   const discoveryQueue =
     width < 600
@@ -141,6 +163,22 @@ test("Scan & Discover presents a responsive evidence workstation with route-leve
   await expect(detail).toContainText("Optional AI explanation");
   await expect(detail).toContainText("Evidence available");
   await expect(detail).toContainText("Within");
+  expect(
+    await detail.evaluate(
+      (element) => element.scrollWidth <= element.clientWidth + 1,
+    ),
+  ).toBe(true);
+  await detail.getByText("Candidate provenance").click();
+  await expect(
+    detail.getByRole("button", { name: "Copy candidate identifier" }),
+  ).toBeVisible();
+  await detail.getByText("Provenance details").first().click();
+  await expect(
+    detail.getByRole("button", { name: "Copy evidence identifier" }).first(),
+  ).toBeVisible();
+  await expect(
+    detail.getByRole("button", { name: "Copy native identifier" }).first(),
+  ).toBeVisible();
   await page.screenshot({
     path: info.outputPath("selected-candidate.png"),
     fullPage: true,
@@ -175,7 +213,19 @@ test("Scan & Discover presents a responsive evidence workstation with route-leve
   await viewHistory.click();
   await expect(viewHistory).toHaveAttribute("aria-pressed", "true");
   await expect(
-    page.getByRole("heading", { name: "Latest scan summary" }),
+    page.getByRole("heading", { name: /Viewing historical scan/ }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("table", { name: "Historical scan matches" }),
+  ).toContainText("RELIANCE");
+  expect(
+    await page
+      .locator(".historical-scan-view")
+      .evaluate((element) => element.scrollWidth <= element.clientWidth + 1),
+  ).toBe(true);
+  await page.getByRole("button", { name: "Back to latest scan" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Latest scan result" }),
   ).toBeVisible();
   const useSetup = recentScans
     .getByRole("button", { name: "Use setup" })
@@ -184,7 +234,7 @@ test("Scan & Discover presents a responsive evidence workstation with route-leve
   await useSetup.click();
   const setupToast = page.getByRole("status", { name: "Setup loaded" });
   await expect(setupToast).toContainText(
-    "Scan setup loaded. Review it before selecting Run scan.",
+    "Historical scan setup loaded. Review before running.",
   );
   expect(
     await setupToast.evaluate((element) => getComputedStyle(element).position),
@@ -210,8 +260,8 @@ test("Scan & Discover presents a responsive evidence workstation with route-leve
 
   await recentScans.getByRole("button", { name: "Archive" }).first().click();
   await expect(
-    page.getByText("Scan archived. It remains available in Past scans."),
-  ).toBeVisible();
+    page.getByRole("status", { name: "Scan history updated" }),
+  ).toContainText("Scan archived.");
   await page.getByRole("button", { name: "Past scans" }).click();
   const pastScans = page.getByRole("dialog", { name: "Past scans" });
   await expect(pastScans).toBeVisible();
@@ -228,8 +278,8 @@ test("Scan & Discover presents a responsive evidence workstation with route-leve
   });
   await pastScans.getByRole("button", { name: "Restore" }).first().click();
   await expect(
-    page.getByText("Scan restored to recent history."),
-  ).toBeVisible();
+    page.getByRole("status", { name: "Scan history updated" }),
+  ).toContainText("Scan restored to recent history.");
   await pastScans.getByRole("button", { name: "Close past scans" }).click();
   await expect(pastScans).toHaveCount(0);
 

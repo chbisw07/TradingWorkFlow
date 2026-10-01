@@ -36,6 +36,25 @@ test("discovery proxy allowlists routes and forwards only session, origin and co
   expect(response.headers.get("Cache-Control")).toBe("no-store");
 });
 
+test("discovery proxy allows owner-scoped read-only scan detail", async () => {
+  const fetcher = vi
+    .fn()
+    .mockResolvedValue(
+      Response.json({ summary: {}, matches: [], market_context: null }),
+    );
+  vi.stubGlobal("fetch", fetcher);
+  const runId = "70000000-0000-0000-0000-000000000001";
+  const response = await GET(
+    new Request(`https://web.example/api/v1/discovery/scans/${runId}`),
+    { params: Promise.resolve({ path: ["scans", runId] }) },
+  );
+  expect(response.status).toBe(200);
+  expect(fetcher).toHaveBeenCalledWith(
+    `http://api.example/api/v1/discovery/scans/${runId}`,
+    expect.objectContaining({ method: "GET", cache: "no-store" }),
+  );
+});
+
 test("discovery proxy forwards only bounded scan archive and restore mutations", async () => {
   const fetcher = vi
     .fn()

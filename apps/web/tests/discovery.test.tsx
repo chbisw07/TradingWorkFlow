@@ -57,14 +57,18 @@ const candidate = {
   },
   intent: "INTRADAY_LONG",
   horizon: "5d",
+  profile: "RELATIVE_VOLUME",
+  profile_lineage: "CURRENT_SNAPSHOT",
+  legacy_profile: false,
   relevance: {
     value: "0.81",
+    policy: { id: "deterministic-relevance-v2", version: "2" },
     required_inputs_satisfied: true,
     coverage: "0.75",
     reasons: ["evidence-fit"],
   },
   relevance_explanation: {
-    policy: "deterministic-relevance-v1",
+    policy: "deterministic-relevance-v2",
     score: "0.81",
     band: "MEDIUM",
     coverage: "0.75",
@@ -121,6 +125,7 @@ const candidate = {
     ],
   },
   lifecycle: "NEW",
+  lifecycle_reason: "first-observation",
   freshness: "FRESH",
   snapshot_count: 1,
   provider_sources: ["twf-native"],
@@ -137,6 +142,7 @@ const detail = {
       observed_at: "2026-09-30T06:00:00Z",
       source_data_time: null,
       lifecycle: "NEW",
+      lifecycle_reason: "first-observation",
       relevance: candidate.relevance,
       relevance_explanation: candidate.relevance_explanation,
       tolerance: candidate.tolerance,
@@ -228,6 +234,7 @@ test("runs a bounded scan and exposes evidence, degradation, history and no trad
       match_count: 1,
       candidate_count: 1,
       context_mode: "partial",
+      context_policy: "ALLOW_PARTIAL",
       context_availability: "PARTIAL",
       degraded: ["market breadth unavailable"],
       archived_at: null,
@@ -253,6 +260,19 @@ test("runs a bounded scan and exposes evidence, degradation, history and no trad
     ],
     candidates: [candidate],
     market_context: context,
+    admission: {
+      match_count: 1,
+      admitted_count: 1,
+      excluded_count: 0,
+      decisions: [
+        {
+          match_id: "71000000-0000-0000-0000-000000000001",
+          symbol: "RELIANCE",
+          status: "ADMITTED",
+          reason: "ADMITTED",
+        },
+      ],
+    },
   };
   const fetcher = vi.fn((input: string | URL | Request, init?: RequestInit) => {
     const url = String(input);
@@ -261,6 +281,12 @@ test("runs a bounded scan and exposes evidence, degradation, history and no trad
     if (url.includes("/candidates?"))
       return json({ items: init?.method === "POST" ? [] : [candidate] });
     if (url.endsWith("/settings")) return json(settings);
+    if (url.endsWith(`/scans/${scan.summary.run_id}`))
+      return json({
+        summary: scan.summary,
+        matches: scan.matches,
+        market_context: scan.market_context,
+      });
     if (url.endsWith("/scans")) return json(scan, 201);
     if (url.includes("/lifecycle"))
       return json({ ...detail, lifecycle: "REJECTED", revision: 2 });
@@ -299,6 +325,7 @@ test("runs a bounded scan and exposes evidence, degradation, history and no trad
   fireEvent.click(within(history).getByText("Actions"));
   const viewHistory = within(history).getByRole("button", { name: "View" });
   fireEvent.click(viewHistory);
+  await screen.findByRole("heading", { name: /Viewing historical scan/ });
   expect(viewHistory).toHaveAttribute("aria-pressed", "true");
   expect(
     screen.getByRole("heading", { name: "Configure scan" }),
@@ -314,6 +341,10 @@ test("runs a bounded scan and exposes evidence, degradation, history and no trad
     screen.queryByText("Relative volume elevated"),
   ).not.toBeInTheDocument();
   expect(screen.getByText("Fresh")).toBeInTheDocument();
+  expect(screen.getAllByText(/1 admitted · 0 excluded/).length).toBeGreaterThan(
+    0,
+  );
+  expect(screen.getByText("Admitted")).toBeInTheDocument();
   expect(screen.getAllByText("Details").length).toBeGreaterThan(1);
   expect(screen.getAllByText("RELIANCE").length).toBeGreaterThan(0);
   expect(container.querySelector(".scan-workstation-grid")).toHaveClass(
@@ -330,6 +361,10 @@ test("runs a bounded scan and exposes evidence, degradation, history and no trad
     "has-inspector",
   );
   expect(selectedRow).toHaveAttribute("data-selected", "true");
+  expect(within(selectedRow!).getByText("Relative volume")).toBeInTheDocument();
+  expect(
+    within(selectedRow!).getByText("First observation"),
+  ).toBeInTheDocument();
   expect(
     within(inspector).getByText(/Attention score, not probability of profit/),
   ).toBeInTheDocument();
@@ -369,6 +404,17 @@ test("runs a bounded scan and exposes evidence, degradation, history and no trad
     within(inspector).getByText(/Enable it under Settings/),
   ).toBeInTheDocument();
   expect(within(inspector).getByText(/Snapshot 1/)).toBeInTheDocument();
+  expect(
+    within(inspector).getByRole("button", {
+      name: "Copy candidate identifier",
+    }),
+  ).toBeInTheDocument();
+  expect(
+    within(inspector).getByRole("button", { name: "Copy evidence identifier" }),
+  ).toBeInTheDocument();
+  expect(
+    within(inspector).getByRole("button", { name: "Copy native identifier" }),
+  ).toBeInTheDocument();
   expect(
     within(inspector).getByRole("heading", { name: "Horizon-aware tolerance" }),
   ).toBeInTheDocument();
@@ -492,6 +538,26 @@ test("manages five recent scans, complete setup reuse, archived history and past
     if (url.includes("/scans?")) return json(summaries);
     if (url.includes("/candidates?")) return json({ items: [] });
     if (url.endsWith("/settings")) return json(settings);
+    if (url.endsWith(`/scans/${summaries[0].run_id}`))
+      return json({
+        summary: summaries[0],
+        matches: [
+          {
+            match_id: "71000000-0000-0000-0000-000000000001",
+            symbol: "AAA",
+            exchange: "NSE",
+            segment: "EQ",
+            provider: "tradingview",
+            why_matched: ["Stored historical reason"],
+            raw_reasons: ["stored-reason"],
+            key_metrics: { close: "101.25" },
+            source_mode: "SYNTHETIC_VALIDATION",
+            source_data_time: completedAt,
+            lineage: "stored-lineage",
+          },
+        ],
+        market_context: context,
+      });
     if (url.endsWith(`/${summaries[0].run_id}/archive`)) return json(archived);
     if (url.endsWith(`/${summaries[0].run_id}/restore`))
       return json(summaries[0]);
@@ -513,19 +579,36 @@ test("manages five recent scans, complete setup reuse, archived history and past
   fireEvent.click(within(first).getByText("Actions"));
   fireEvent.click(within(first).getByRole("button", { name: "View" }));
   expect(
-    await screen.findByText(/Select View on another recent scan/),
+    await screen.findByRole("heading", { name: /Viewing historical scan/ }),
   ).toBeInTheDocument();
+  expect(
+    screen.getByRole("table", { name: "Historical scan matches" }),
+  ).toHaveTextContent("Stored historical reason");
+  expect(screen.getByLabelText(/Universe symbols/)).toHaveValue(
+    "RELIANCE, MCX, HDFCBANK, INFY, BSE, NIFTY, BANKNIFTY",
+  );
+  expect(
+    fetcher.mock.calls.some(
+      (call) =>
+        String(call[0]).endsWith("/scans") && call[1]?.method === "POST",
+    ),
+  ).toBe(false);
   expect(within(first).getByRole("button", { name: "View" })).toHaveAttribute(
     "aria-pressed",
     "true",
   );
+  fireEvent.click(screen.getByRole("button", { name: "Back to latest scan" }));
+  expect(
+    await screen.findByRole("heading", { name: "Latest scan summary" }),
+  ).toBeInTheDocument();
+  expect(screen.queryByText(/Viewing historical scan/)).not.toBeInTheDocument();
 
   vi.useFakeTimers();
   fireEvent.click(within(first).getByRole("button", { name: "Use setup" }));
   const toast = screen.getByRole("status", { name: "Setup loaded" });
   expect(toast).toHaveClass("discovery-toast");
   expect(toast).toHaveTextContent(
-    "Scan setup loaded. Review it before selecting Run scan.",
+    "Historical scan setup loaded. Review before running.",
   );
   expect(
     within(toast).getByRole("button", { name: "Dismiss notification" }),
@@ -560,7 +643,9 @@ test("manages five recent scans, complete setup reuse, archived history and past
   ).toBe(false);
 
   fireEvent.click(within(first).getByRole("button", { name: "Archive" }));
-  await screen.findByText("Scan archived. It remains available in Past scans.");
+  expect(
+    await screen.findByRole("status", { name: "Scan history updated" }),
+  ).toHaveTextContent("Scan archived.");
   expect(within(recent).getAllByRole("listitem")).toHaveLength(5);
   expect(
     within(recent).queryByText(/Tradingview synthetic · 2 symbols/),
@@ -636,7 +721,9 @@ test("manages five recent scans, complete setup reuse, archived history and past
   expect(within(past).getAllByRole("listitem")).toHaveLength(1);
   expect(within(past).getByText("Archived")).toBeInTheDocument();
   fireEvent.click(within(past).getByRole("button", { name: "Restore" }));
-  await screen.findByText("Scan restored to recent history.");
+  expect(
+    await screen.findByRole("status", { name: "Scan history updated" }),
+  ).toHaveTextContent("Scan restored to recent history.");
   expect(within(recent).getAllByRole("listitem")).toHaveLength(5);
 });
 
@@ -906,3 +993,279 @@ test.each([
     ).toBeInTheDocument();
   },
 );
+
+test("orders the queue deterministically and applies compact triage controls", async () => {
+  const makeCandidate = (
+    symbol: string,
+    score: string,
+    lifecycle: "NEW" | "CURRENT" | "STALE" | "REJECTED",
+    freshness: "FRESH" | "STALE" | "UNKNOWN",
+    updatedAt: string,
+  ) => ({
+    ...candidate,
+    candidate_id: `candidate-${symbol.toLowerCase()}`,
+    episode_id: `episode-${symbol.toLowerCase()}`,
+    instrument: {
+      ...candidate.instrument,
+      symbol,
+      native: { ...candidate.instrument.native, native_id: `NSE:${symbol}` },
+    },
+    relevance: { ...candidate.relevance, value: score },
+    relevance_explanation: {
+      ...candidate.relevance_explanation,
+      score,
+      band: Number(score) >= 0.9 ? "HIGH" : "MEDIUM",
+    },
+    lifecycle,
+    lifecycle_reason:
+      lifecycle === "STALE"
+        ? "source-freshness-expired"
+        : "comparable-observation",
+    freshness,
+    updated_at: updatedAt,
+    profile: symbol === "AAA" ? "MOMENTUM" : "RELATIVE_VOLUME",
+  });
+  const queueCandidates = [
+    makeCandidate("AAA", "0.82", "CURRENT", "FRESH", "2026-09-30T05:00:00Z"),
+    makeCandidate("ZZZ", "0.88", "STALE", "STALE", "2026-09-30T06:00:00Z"),
+    makeCandidate("BBB", "0.84", "NEW", "FRESH", "2026-09-30T06:00:00Z"),
+    makeCandidate("CCC", "0.88", "CURRENT", "UNKNOWN", "2026-09-30T06:00:00Z"),
+    makeCandidate("DDD", "0.88", "CURRENT", "FRESH", "2026-09-30T06:00:00Z"),
+    makeCandidate("EEE", "0.99", "REJECTED", "FRESH", "2026-09-30T06:00:00Z"),
+  ];
+  const fetcher = vi.fn((input: string | URL | Request) => {
+    const url = String(input);
+    if (url.endsWith("/status")) return json(providers);
+    if (url.includes("/scans?")) return json([]);
+    if (url.includes("/candidates?")) return json({ items: queueCandidates });
+    if (url.endsWith("/settings")) return json(settings);
+    throw new Error(`Unexpected ${url}`);
+  });
+  vi.stubGlobal("fetch", fetcher);
+  render(<DiscoveryWorkspace />);
+
+  const queue = await screen.findByRole("table", { name: "Discovery queue" });
+  const symbols = () =>
+    [...queue.querySelectorAll("tbody tr")].map((row) =>
+      row.getAttribute("data-candidate-symbol"),
+    );
+  expect(symbols()).toEqual(["DDD", "CCC", "ZZZ", "BBB", "AAA"]);
+  expect(screen.getByRole("button", { name: "Active (5)" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  fireEvent.click(screen.getByRole("button", { name: "All (6)" }));
+  expect(symbols()[0]).toBe("EEE");
+  fireEvent.click(screen.getByRole("button", { name: "Active (5)" }));
+  expect(symbols()).toEqual(["DDD", "CCC", "ZZZ", "BBB", "AAA"]);
+
+  fireEvent.click(screen.getByText("Filter and sort"));
+  expect(screen.getByLabelText("Sort")).toHaveValue("attention");
+  expect(
+    screen.getByText(
+      /Sorted by current relevance model, relevance, lifecycle, freshness, and recency/,
+    ),
+  ).toBeInTheDocument();
+
+  fireEvent.change(screen.getByLabelText("Search symbol"), {
+    target: { value: "AAA" },
+  });
+  expect(symbols()).toEqual(["AAA"]);
+  expect(screen.getByText(/Showing 1 of 5/)).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+  fireEvent.change(screen.getByLabelText("Lifecycle"), {
+    target: { value: "STALE" },
+  });
+  expect(symbols()).toEqual(["ZZZ"]);
+  expect(
+    within(queue).getByText("Source freshness expired"),
+  ).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+  fireEvent.change(screen.getByLabelText("Profile"), {
+    target: { value: "MOMENTUM" },
+  });
+  expect(symbols()).toEqual(["AAA"]);
+
+  fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+  fireEvent.change(screen.getByLabelText("Sort"), {
+    target: { value: "symbol" },
+  });
+  expect(symbols()).toEqual(["AAA", "BBB", "CCC", "DDD", "ZZZ"]);
+});
+
+test("groups duplicate current evidence while preserving usable provenance", async () => {
+  const currentEvidence = detail.snapshots[0].evidence[0];
+  const duplicateDetail = {
+    ...detail,
+    snapshots: [
+      {
+        ...detail.snapshots[0],
+        evidence: [
+          {
+            ...currentEvidence,
+            evidence_id: "60000000-0000-0000-0000-000000000000",
+            observed_at: "2026-09-30T05:00:00Z",
+            measures: currentEvidence.measures.map((measure) =>
+              measure.name === "relative_volume"
+                ? { ...measure, value: "1.8" }
+                : measure,
+            ),
+          },
+          currentEvidence,
+        ],
+      },
+    ],
+  };
+  const fetcher = vi.fn((input: string | URL | Request) => {
+    const url = String(input);
+    if (url.endsWith("/status")) return json(providers);
+    if (url.includes("/scans?")) return json([]);
+    if (url.includes("/candidates?")) return json({ items: [candidate] });
+    if (url.endsWith("/settings")) return json(settings);
+    if (url.endsWith(candidate.candidate_id)) return json(duplicateDetail);
+    throw new Error(`Unexpected ${url}`);
+  });
+  vi.stubGlobal("fetch", fetcher);
+  render(<DiscoveryWorkspace />);
+  const queue = await screen.findByRole("table", { name: "Discovery queue" });
+  fireEvent.click(within(queue).getByRole("button", { name: "Review" }));
+  const inspector = await screen.findByRole("complementary", {
+    name: "RELIANCE",
+  });
+  const evidenceList = within(inspector).getByRole("heading", {
+    name: "Latest evidence",
+  }).nextElementSibling;
+  expect(evidenceList?.querySelectorAll(":scope > li")).toHaveLength(1);
+  expect(
+    within(inspector).getByText(/Relative volume: 2.4 ratio/),
+  ).toBeInTheDocument();
+  expect(
+    within(inspector).queryByText(/Relative volume: 1.8 ratio/),
+  ).not.toBeInTheDocument();
+  expect(
+    within(inspector).getByRole("button", { name: "Copy evidence identifier" }),
+  ).toBeInTheDocument();
+  expect(inspector).toHaveClass("candidate-inspector");
+});
+
+test("shows typed feedback when history actions cannot complete", async () => {
+  const completedAt = new Date().toISOString();
+  const invalidSummary = {
+    run_id: "70000000-0000-0000-0000-000000000099",
+    provider: "internal",
+    status: "COMPLETE",
+    started_at: completedAt,
+    completed_at: completedAt,
+    profile: "UNKNOWN_LEGACY_PROFILE",
+    horizon: "5d",
+    intent: "INTRADAY_LONG",
+    universe_size: 0,
+    universe: [],
+    match_count: 0,
+    candidate_count: 0,
+    context_mode: "partial",
+    context_policy: "ALLOW_PARTIAL",
+    context_availability: "PARTIAL",
+    degraded: [],
+    archived_at: null,
+  };
+  const fetcher = vi.fn((input: string | URL | Request) => {
+    const url = String(input);
+    if (url.endsWith("/status")) return json(providers);
+    if (url.includes("/scans?")) return json([invalidSummary]);
+    if (url.includes("/candidates?")) return json({ items: [] });
+    if (url.endsWith("/settings")) return json(settings);
+    if (url.endsWith(`/scans/${invalidSummary.run_id}`)) return json({}, 500);
+    if (url.endsWith(`/${invalidSummary.run_id}/archive`)) return json({}, 500);
+    throw new Error(`Unexpected ${url}`);
+  });
+  vi.stubGlobal("fetch", fetcher);
+  render(<DiscoveryWorkspace />);
+
+  const recent = await screen.findByRole("list", {
+    name: "Recent discovery scans",
+  });
+  const row = within(recent).getByRole("listitem");
+  fireEvent.click(within(row).getByText("Actions"));
+  fireEvent.click(within(row).getByRole("button", { name: "View" }));
+  expect(
+    await screen.findByText("Unable to load historical scan."),
+  ).toBeInTheDocument();
+
+  fireEvent.click(within(row).getByRole("button", { name: "Use setup" }));
+  expect(
+    await screen.findByText("Setup could not be restored."),
+  ).toBeInTheDocument();
+
+  fireEvent.click(within(row).getByRole("button", { name: "Archive" }));
+  expect(
+    await screen.findByText("Unable to archive scan."),
+  ).toBeInTheDocument();
+});
+
+test("ranks current v2 relevance before legacy scores and labels legacy provenance", async () => {
+  const make = (symbol: string, score: string, legacy: boolean) => ({
+    ...candidate,
+    candidate_id: `candidate-${symbol.toLowerCase()}`,
+    episode_id: `episode-${symbol.toLowerCase()}`,
+    instrument: {
+      ...candidate.instrument,
+      symbol,
+      native: { ...candidate.instrument.native, native_id: `NSE:${symbol}` },
+    },
+    profile: legacy ? null : "RELATIVE_VOLUME",
+    profile_lineage: legacy ? "LEGACY_UNAVAILABLE" : "CURRENT_SNAPSHOT",
+    legacy_profile: legacy,
+    relevance: {
+      ...candidate.relevance,
+      value: score,
+      policy: legacy
+        ? { id: "deterministic-relevance-v1", version: "1" }
+        : { id: "deterministic-relevance-v2", version: "2" },
+    },
+    relevance_explanation: {
+      ...candidate.relevance_explanation,
+      score,
+      policy: legacy
+        ? "deterministic-relevance-v1"
+        : "deterministic-relevance-v2",
+    },
+  });
+  const mixed = [
+    make("LEGACY", "1.00", true),
+    make("CURRENT84", "0.84", false),
+    make("CURRENT82", "0.82", false),
+  ];
+  const fetcher = vi.fn((input: string | URL | Request) => {
+    const url = String(input);
+    if (url.endsWith("/status")) return json(providers);
+    if (url.includes("/scans?")) return json([]);
+    if (url.includes("/candidates?")) return json({ items: mixed });
+    if (url.endsWith("/settings")) return json(settings);
+    throw new Error(`Unexpected ${url}`);
+  });
+  vi.stubGlobal("fetch", fetcher);
+  render(<DiscoveryWorkspace />);
+
+  const queue = await screen.findByRole("table", { name: "Discovery queue" });
+  const symbols = [...queue.querySelectorAll("tbody tr")].map((row) =>
+    row.getAttribute("data-candidate-symbol"),
+  );
+  expect(symbols).toEqual(["CURRENT84", "CURRENT82", "LEGACY"]);
+  const legacyRow = queue.querySelector('[data-candidate-symbol="LEGACY"]');
+  expect(legacyRow).not.toBeNull();
+  expect(
+    within(legacyRow as HTMLElement).getByText("Profile unavailable"),
+  ).toBeInTheDocument();
+  expect(
+    within(legacyRow as HTMLElement).getByText("Legacy score"),
+  ).toHaveAttribute(
+    "title",
+    expect.stringContaining("not directly comparable"),
+  );
+  expect(
+    within(legacyRow as HTMLElement).getByLabelText(/Legacy candidate/),
+  ).toBeInTheDocument();
+});
