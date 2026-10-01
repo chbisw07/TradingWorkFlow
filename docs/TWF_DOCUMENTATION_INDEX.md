@@ -18,6 +18,7 @@ Broker V1 real broker read-only foundation ACCEPTED / FROZEN (twf-broker-v1)
 Broker V2 manual trading foundation ACCEPTED / FROZEN (twf-broker-v2)
 BW-1–BW-6 retained as historical gate inventory; V1/V2 acceptance recorded separately
 S&D / Opportunity-domain / Sprint-2 architecture ACCEPTED / IMPLEMENTATION AUTHORIZED
+Scan-driven temporal amendment (2026-10-01) GO_IMPLEMENTATION / DESIGN ONLY / NOT IMPLEMENTED
 Sprint 2 IMPLEMENTED / READY FOR USER VALIDATION; final acceptance/freeze pending
 S2-1 and S2-2 ACCEPTED / FROZEN; S2-3A integrated; S2-3 ACCEPTED / FROZEN WITH DEFERRED HARDENING; S2-4 through S2-7 IMPLEMENTED; S2-8 IMPLEMENTED / INTERNAL VALIDATION COMPLETE
 ```
@@ -326,6 +327,12 @@ When new documents are added:
 4. preserve prior acceptance/history;
 5. avoid duplicate competing normative documents;
 6. keep the broker DOCX synchronized with its normative Markdown when that architecture changes.
+
+## Scan-driven temporal architecture amendment — 2026-10-01
+
+[TWF_SND_SCAN_DRIVEN_TEMPORAL_STATE_ARCHITECTURE.md](TWF_SND_SCAN_DRIVEN_TEMPORAL_STATE_ARCHITECTURE.md) is the focused normative design for immutable scan observations, semantic comparability/coverage, scan-driven lifecycle, bounded HOT/COLD storage, ordered recovery and migration. Decision: **ACCEPT WITH REFINEMENT / GO_IMPLEMENTATION**; implementation: **NOT IMPLEMENTED**. It overrides earlier S&D time-derived lifecycle rules, including the dated data-architecture GET-expiry wording, with independent freshness/window-validity projections. Other accepted architecture and security boundaries remain.
+
+The current runtime is still governed as implemented by the Sprint-2 implementation record. U1/U2 and earlier acceptance history remain recorded separately; this amendment supplies no runtime acceptance or freeze. The S&D and Opportunity Markdown sources reference the amendment; their DOCX companions remain historical/stale and are not regenerated in this Markdown-only task. No DOCX overrides this design.
 
 ## 11. Scan & Discover acceptance — 2026-09-29
 

@@ -2,7 +2,7 @@
 
 ## Status and authority
 
-Current status: **ACCEPTED / IMPLEMENTATION AUTHORIZED**. Sprint 2 is **ACTIVE / NEXT; implementation not started**. The [independent acceptance record](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) supersedes v0.1 proposal status. Provider/data/policy gates still apply before their dependent slices; future-stage contracts remain conceptual.
+Current status: **ACCEPTED / IMPLEMENTATION AUTHORIZED**. Sprint 2 is **IMPLEMENTED / READY FOR USER VALIDATION** under the [implementation record](TWF_SPRINT2_SCAN_DISCOVER_IMPLEMENTATION.md); final acceptance/freeze remains pending. The [independent acceptance record](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) supersedes v0.1 proposal status. Provider/data/policy gates still apply before their dependent slices; future-stage contracts remain conceptual.
 
 | Version | Date       | Status                                   | Role and change                                                                                                             |
 | ------- | ---------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
@@ -15,6 +15,10 @@ limits implementation to DiscoveryCandidate. Later objects below are conceptual
 contracts, not implemented tables, endpoints or accepted satellite API schemas.
 The [reconciliation record](TWF_SCAN_DISCOVER_ARCHITECTURE_RECONCILIATION.md)
 records baseline evidence and precedence. Broker V2 is accepted/frozen and unchanged.
+
+## 2026-10-01 temporal-state amendment
+
+The [scan-driven temporal-state architecture](TWF_SND_SCAN_DRIVEN_TEMPORAL_STATE_ARCHITECTURE.md) is the focused normative amendment for future observation, comparability, lifecycle and HOT/COLD work: **ACCEPT WITH REFINEMENT / GO_IMPLEMENTATION / NOT IMPLEMENTED**. It supersedes the earlier time-derived lifecycle rules within S&D; current runtime is still documented in the implementation record. It does not change historical acceptance or implement Opportunity, LOB, U3, Watchlists, custom horizons or background reevaluation. Markdown is authoritative; the existing DOCX remains a historical reference and has not been synchronized to this amendment.
 
 ## 1. Domain progression and authority
 
@@ -97,8 +101,7 @@ flowchart TB
 
 The same underlying and trading intent may recur in a genuinely new episode.
 Different intents/horizons can coexist. Same-intent normal price fluctuations do
-not create a new episode. The observation basis, semantic intent/horizon
-fingerprint and policy series participate in the episode identity rule.
+not create a new episode. Owner, exact subject identity and the complete ScanComparabilityKey participate in the episode identity rule, including criteria compatibility, intent/horizon, observation basis, provider/data mode and admission/context/lifecycle policy. The [temporal amendment](TWF_SND_SCAN_DRIVEN_TEMPORAL_STATE_ARCHITECTURE.md#4-candidate-identity-and-comparability) separates exact configuration provenance from semantic comparability. Scoring-only model changes segment score history without fabricating lifecycle expiry.
 
 All timestamps use UTC instants plus explicit original venue/calendar/timezone
 metadata. Preserve `observed_at`, `source_published_at` when supplied,
@@ -154,10 +157,9 @@ requires a new semantic intent/episode decision, not a rewritten past.
 
 - **Purpose/owner:** TWF-owned coherent run of a subject/intent thesis through time.
 - **Identity:** `episode_id`; subject, observation basis, intent/horizon fingerprint,
-  owner and explicit policy-series key. At most one non-rejected episode per key.
+  owner, setup semantics, compatible observation/provider/data-mode basis and explicit lifecycle-policy-series key. At most one nonterminal episode per key; EXPIRED and REJECTED release the active slot.
 - **Mutability/lifecycle:** revisioned head/decision aggregate; immutable observations
-  and transition events. NEW, CURRENT, DEFUNCT, EXPIRED, REJECTED; effective STALE
-  projection defined below. New policy series is intentional, never accidental duplication.
+  and explicit control events. Future temporal-policy lifecycle is NEW, CURRENT, STALE, DEFUNCT, EXPIRED, REJECTED; freshness/window validity are separate projections defined below. New policy series is intentional, never accidental duplication.
 - **Authority/time/provenance:** evaluator/policy revisions, initial evidence,
   fixed opportunity window, opened/last-evaluated/expired/rejected timestamps,
   previous episode link and reason for opening. Record actor for manual dismissal.
@@ -177,7 +179,7 @@ requires a new semantic intent/episode decision, not a rewritten past.
   times, units, schema/profile/capability/policy versions, evidence references,
   market context, freshness, tolerance result, relevance and optional interpretation.
 - **Relationships:** previous snapshot reference; correction can `supersedes` a
-  capture while preserving it. Every candidate display pins a head snapshot.
+  capture while preserving it. Every candidate display pins its last PRESENT snapshot. Under the temporal amendment, a separate head observation may be ABSENT or NOT_EVALUATED and must not inherit that snapshot’s score.
 
 S1 establishes a provisional observation. S2…Sn establish evolution only with at
 least two comparable, distinct source observations using compatible identity,
@@ -213,7 +215,7 @@ under a new policy creates a labelled replay result, not a rewritten live snapsh
   evidence/context/source lineage, head snapshot, evaluation cutoff, freshness,
   fixed opportunity window, optional separately labelled LLM interpretation.
 - **Relationships:** derived from ScanMatch or another CandidateSource; references
-  subject/intent/episode/snapshots. Future explicit TI request references exact
+  subject/intent/episode/snapshots plus immutable DiscoveryObservation outcome/run relations. ABSENT has no fabricated positive snapshot; NOT_EVALUATED cannot change the market lifecycle. Future explicit TI request references exact
   candidate revision and snapshot, not a moving mutable card.
 
 ```mermaid
@@ -354,51 +356,15 @@ in Sprint 2. A generated claim never becomes an authoritative raw observation.
 
 ## 5. Episode lifecycle and temporal projection
 
-```mermaid
-stateDiagram-v2
-    [*] --> Active: eligible nomination
-    state "Active episode — freshness shown separately" as Active {
-        [*] --> NEW
-        NEW --> CURRENT: comparable eligible observations
-        CURRENT --> STALE: evidence ages
-        STALE --> CURRENT: fresh valid observation
-        NEW --> DEFUNCT: tolerance breach
-        CURRENT --> DEFUNCT: tolerance breach
-        STALE --> DEFUNCT: fresh evidence proves breach
-        DEFUNCT --> CURRENT: verified recovery
-        DEFUNCT --> NEW: recovery with insufficient comparison
-    }
-    Active --> EXPIRED: fixed opportunity window ends
-    Active --> REJECTED: reasoned decision or dismissal
-    EXPIRED --> REJECTED: record EXPIRED rejection
-    REJECTED --> [*]
-```
+The [scan-driven temporal architecture](TWF_SND_SCAN_DRIVEN_TEMPORAL_STATE_ARCHITECTURE.md#6-lifecycle-freshness-and-windows) supersedes this section's earlier clock-driven STALE/EXPIRED projection for future implementation. It is **design-ready, not implemented**. Existing snapshots/episodes retain their original lifecycle-policy meaning through a forward compatibility migration.
 
-STALE is an effective display projection over CURRENT, not a competing durable
-thesis state. Freshness is also an orthogonal property on NEW/DEFUNCT. A read
-computes stale/expired at a captured `as_of` without writing on GET; explicit
-bounded evaluation/transition processing persists expiry/rejection events. Effective
-state precedence is REJECTED, EXPIRED, DEFUNCT, NEW, then CURRENT/STALE. This keeps
-an expired episode out of a current queue even when no background worker runs.
-The materialized head and GET projection must report their separate evaluation
-and projection timestamps.
+Candidate lifecycle evolves through explicit comparable scan observations and audited owner decisions. First eligible PRESENT creates NEW; a second distinct eligible PRESENT can produce CURRENT; authoritative comparable ABSENT produces STALE with reason NOT_REDISCOVERED and no fabricated relevance. NOT_EVALUATED, provider failure and outside-universe status cannot demote a candidate. Confirmed breach remains DEFUNCT with evidence; recovery requires the pinned policy and fresh comparable observations. No default absence-count terminal threshold is adopted.
 
-| Event                                                                    | Permitted result                                    | Invariant                                                     |
-| ------------------------------------------------------------------------ | --------------------------------------------------- | ------------------------------------------------------------- |
-| Ordinary pullback inside multidimensional tolerance                      | Same episode, new snapshot                          | Price drawdown alone is not universal failure                 |
-| Old/missing required data                                                | STALE or provisional with freshness warning         | Aging is not evidence of invalidity                           |
-| Breach in structure, momentum, volatility, volume/context or thesis rule | DEFUNCT with reason/evidence                        | Pre-terminal; policy specifies confirmation/recovery criteria |
-| Verified recovery                                                        | CURRENT, or NEW if comparability still insufficient | Same episode only before expiry/terminal rejection            |
-| Fixed opportunity window ends                                            | EXPIRED                                             | Refresh cannot extend it                                      |
-| Confirmation/dismissal/expiry closure                                    | REJECTED with reason and actor/policy               | Terminal, history preserved                                   |
-| New evidence after rejection                                             | New episode if eligible                             | Link predecessor; no resurrection                             |
+Read-time freshness and window validity remain truthful independent fields. A fixed window ending prevents current-attention eligibility, but does not rewrite lifecycle on GET. Explicit comparable scan/owner evaluation can record EXPIRED; a distinct eligible later setup opens a linked episode. REJECTED remains terminal. Owner dismissal is immediate and fenced against older in-flight scan completion. No clock-only market-state update, background re-scoring or perpetual monitoring is introduced in S&D.
 
-Rejection reasons include DEFUNCT_CONFIRMED, EXPIRED, USER_DISMISSED and
-INSUFFICIENT_EVIDENCE with explicit policy/version. Stale evidence may lead to a
-separately reasoned insufficient-evidence rejection after a configured grace
-policy; it must not be recoded as a price/thesis failure. Out-of-order data,
-identity changes, concurrent refreshes and corrections require a versioned
-reconciliation decision, not last-write-wins.
+The authoritative inputs are immutable observation cores, pinned policies and explicit owner control events; materialized candidate/transition views are rebuildable. HOT history is bounded while COLD cores retain causal/replay inputs. Exact source-time novelty, versioned comparability, ordered finalization and owner-aware idempotency are defined once in the temporal amendment rather than a competing state machine here.
+
+Continuous real-time actionability monitoring belongs downstream, primarily Opportunity/LOB. The conceptual independent flow is Underlying → Universe/Watchlist → S&D → Opportunity/Trade Construction → LOB → Broker → TM. These are optional handoffs; TM-managed execution still requires TM assessment before dispatch, and unmanaged manual broker trading remains separately usable. Watchlists, custom horizons, construction and LOB implementation remain TBD.
 
 ## 6. Persistence and transitions
 

@@ -278,6 +278,7 @@ Then review the specialist architecture documents as needed.
 ### Scan & Discover — accepted architecture
 
 - [Scan & Discover Architecture](docs/TWF_SCAN_AND_DISCOVER_ARCHITECTURE.md) — subsystem, providers, evidence, lifecycle, relevance, optional LLM and UX
+- [Scan-driven temporal state architecture](docs/TWF_SND_SCAN_DRIVEN_TEMPORAL_STATE_ARCHITECTURE.md) — 2026-10-01 design amendment: immutable observations, comparison/coverage, separate lifecycle and freshness, bounded HOT/COLD history; **GO_IMPLEMENTATION / NOT IMPLEMENTED**
 - [Opportunity Domain Architecture](docs/TWF_OPPORTUNITY_DOMAIN_ARCHITECTURE.md) — shared identities and the future DiscoveryCandidate → Opportunity → TradeOpportunity → LOB progression
 - [Sprint-2 Delivery Plan](docs/TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md) — bounded scope, dependencies and acceptance gates
 - [Architecture Reconciliation Record](docs/TWF_SCAN_DISCOVER_ARCHITECTURE_RECONCILIATION.md) — repository evidence, resolved contradictions, exact change inventory and stale DOCX companions
@@ -416,6 +417,10 @@ Future document families may include:
 - security decision records;
 - deployment runbooks;
 - production hardening records.
+
+## Scan-driven temporal architecture amendment — 2026-10-01
+
+The [focused temporal-state design](docs/TWF_SND_SCAN_DRIVEN_TEMPORAL_STATE_ARCHITECTURE.md) accepts the proposed model with refinements and records **GO_IMPLEMENTATION** for future work. Candidate lifecycle changes through explicit comparable scan observations or audited owner decisions; clock passage affects separately labelled freshness/window validity. HOT is a bounded window over durable history, not an overwrite ring. Coverage must prove evaluated non-matches before recording absence. This is **architecture/design only, NOT IMPLEMENTED**: no runtime, schema, test, migration or U3 implementation is included. Sprint 2 remains **IMPLEMENTED / READY FOR USER VALIDATION**; existing acceptance/freeze history is unchanged.
 
 ## S2-3 integrated delivery evidence
 

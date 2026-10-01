@@ -7,6 +7,14 @@
 
 This record covers the integrated S2-4 through S2-8 implementation. It does not alter the accepted/frozen status of S2-0 through S2-3 and does not claim final Sprint-2 acceptance. Scan & Discover ends at `DiscoveryCandidate`; it has no Opportunity, LOB, execution, or TM authority.
 
+## Future temporal architecture amendment — 2026-10-01
+
+The [Scan-driven Temporal State Architecture](TWF_SND_SCAN_DRIVEN_TEMPORAL_STATE_ARCHITECTURE.md) records **ACCEPT WITH REFINEMENT / GO_IMPLEMENTATION**, **NOT IMPLEMENTED**. It specifies immutable run coverage and candidate observations, precise comparability/absence, separate lifecycle and freshness/window validity, ordered replay, a logical HOT window and compact COLD core. It requires a later versioned contract/persistence migration and tests.
+
+The current runtime described below retains its existing positive-match snapshots, lifecycle behavior, relevance v1/v2 compatibility and archive semantics. It does **not** yet implement durable ABSENT/NOT_EVALUATED history, semantic active-slot uniqueness, ordered run finalization or HOT/COLD compaction. In particular, current context-driven STALE/manual recovery behavior must not be described as the new scan-driven policy. Existing implementation validation does not validate this future temporal protocol. No tests were rerun or changed in this architecture pass.
+
+Sprint 2 remains **IMPLEMENTED / READY FOR USER VALIDATION**. Historical CP completion statements concern their delivered scope; they do not claim this temporal amendment, U3, or final acceptance/freeze.
+
 ## Product capability
 
 The user can now select a bounded symbol universe, provider validation path, scan profile, discovery intent, and time horizon; run a scan; inspect normalized matches; evaluate owner-scoped candidates with context, evidence, deterministic relevance, horizon-aware tolerance, lifecycle, and provenance; review immutable snapshot history; request an optional grounded Level-0 explanation; and manage bounded discovery settings. Internal Scanner V0 works without TradingView or an LLM. TradingView mode uses the deterministic synthetic exact-batch path for CI and product validation; it does not make a live provider call.

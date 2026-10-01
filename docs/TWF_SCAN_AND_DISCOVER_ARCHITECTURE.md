@@ -2,7 +2,7 @@
 
 ## Status and authority
 
-Current status: **ACCEPTED / IMPLEMENTATION AUTHORIZED**. Sprint 2 is **ACTIVE / NEXT; implementation not started**. The [independent acceptance record](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) supersedes v0.1 proposal status. Provider/data/policy gates still apply before their dependent slices; future-stage contracts remain conceptual.
+Current status: **ACCEPTED / IMPLEMENTATION AUTHORIZED**. Sprint 2 is **IMPLEMENTED / READY FOR USER VALIDATION** under the [implementation record](TWF_SPRINT2_SCAN_DISCOVER_IMPLEMENTATION.md); final acceptance/freeze remains pending. The [independent acceptance record](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) supersedes v0.1 proposal status. Provider/data/policy gates still apply before their dependent slices; future-stage contracts remain conceptual.
 
 | Version | Date       | Status                                   | Role and change                                                                                                    |
 | ------- | ---------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
@@ -15,7 +15,11 @@ owns shared domain identities and cross-stage ownership; the [Sprint-2 plan](TWF
 owns bounded delivery and gates. Their precedence and repository evidence are in
 the [reconciliation record](TWF_SCAN_DISCOVER_ARCHITECTURE_RECONCILIATION.md).
 The accepted Broker V2 baseline remains unchanged. No S&D runtime, real provider
-integration, TI qualification, LOB or TM adoption is claimed implemented here.
+integration, TI qualification, LOB or TM adoption is claimed implemented by this architecture document. Current Sprint-2 runtime status is owned by the implementation record, not the original 2026-09-28 proposal wording.
+
+## 2026-10-01 temporal-state amendment
+
+The [scan-driven temporal-state architecture](TWF_SND_SCAN_DRIVEN_TEMPORAL_STATE_ARCHITECTURE.md) is the focused normative amendment for future observation, comparability, lifecycle and HOT/COLD work: **ACCEPT WITH REFINEMENT / GO_IMPLEMENTATION / NOT IMPLEMENTED**. It supersedes the earlier time-derived lifecycle rules within S&D; current runtime is still documented in the implementation record. It does not change historical acceptance or implement Opportunity, LOB, U3, Watchlists, custom horizons or background reevaluation. Markdown is authoritative; the existing DOCX remains a historical reference and has not been synchronized to this amendment.
 
 ## 1. Executive summary and user problem
 
@@ -63,7 +67,7 @@ synthetic acceptance coverage; production external/manual/agent feeds come later
 24. Correlated evidence is not counted repeatedly as independent agreement.
 25. Discovery Relevance is fit to policy, not probability of profit.
 26. Discovery may decline when required evidence is insufficient or incompatible.
-27. Terminal rejection is reasoned; a later setup creates a new episode.
+27. Terminal rejection is reasoned; a later distinct eligible setup creates a new episode. Candidate lifecycle is scan-driven with explicit owner-decision exceptions; clock-only freshness/window validity is separate.
 28. History includes untraded and dismissed candidates for future evaluation.
 29. Neither settings, LLM output nor a candidate grants trading authority.
 30. Contracts preserve future TI, construction, LOB, TM and ML seams without
@@ -236,13 +240,12 @@ versioned calendar, not division by 24 hours. All persisted instants are aware U
 exchange timezone and calendar remain explicit for display and calculations.
 
 An episode pins its profile, definition, horizon/calendar, policy and comparison
-basis revisions. Define the active key as owner + subject + observation basis +
-intent/horizon semantic fingerprint + policy series. At most one non-rejected
+basis revisions. Define the active key as owner + exact subject identity + the complete semantic ScanComparabilityKey (including criteria, admission/context policy and lifecycle series), as defined by the [temporal amendment](TWF_SND_SCAN_DRIVEN_TEMPORAL_STATE_ARCHITECTURE.md#4-candidate-identity-and-comparability). At most one nonterminal
 episode exists for that key; distinct intentional profiles/policy series may run
 in parallel and must be visibly distinguishable. Concurrent nomination uses a
 transactional uniqueness/CAS guard. New evidence appends to the same episode.
-Routine pullbacks do not create new episodes. A changed policy or basis requires
-an explicit new evaluation lineage, never reinterpretation of old snapshots.
+Routine pullbacks do not create new episodes. A scoring-only version change creates a separate score series, not artificial expiry. A changed admission/lifecycle policy or incompatible observation basis requires
+an explicit new evaluation lineage, never reinterpretation of old snapshots. Definition/profile exact fingerprints remain audit identities; semantic comparison additionally requires per-instrument evaluation coverage and distinct source samples.
 
 ## 7. Immutable snapshots and temporal provenance
 
@@ -284,6 +287,8 @@ append new captures and supersession links; they never overwrite what was known.
 Record source publication/availability when possible as well as capture time so
 future backtests cannot use information published after their decision cutoff.
 Late evidence cannot retroactively change a historical relevance or decision.
+
+The temporal amendment adds immutable `DiscoveryObservation` outcomes (`PRESENT`, `ABSENT`, `NOT_EVALUATED`) around this rich snapshot model. Only PRESENT may link a positive ScanMatch and scored snapshot. ABSENT requires proven complete predicate evaluation and has null relevance; unavailable inputs and outside-universe instruments never constitute absence. Neither compact history nor a late scan rewrites stored matches/scores.
 
 ## 8. Evidence and agreement
 
@@ -552,85 +557,30 @@ automatic policy promotion is included in Sprint 2.
 
 ## 16. Freshness, horizon and after-market operation
 
-Freshness is a policy evaluation over source-data times, required categories,
-timeframes and the exchange calendar. Freshness states are FRESH, STALE and
-UNKNOWN; source modes include LIVE_SNAPSHOT, DELAYED, EOD and SYNTHETIC. None is
-inferred merely because an HTTP request succeeded.
+The [2026-10-01 temporal amendment](TWF_SND_SCAN_DRIVEN_TEMPORAL_STATE_ARCHITECTURE.md#6-lifecycle-freshness-and-windows) replaces the original clock-derived effective lifecycle for future implementation. Last-observed lifecycle, freshness and fixed-window validity are three separate values. Clock passage can change displayed freshness (`FRESH`, `STALE`, `UNKNOWN`) and window status (`OPEN`, `ENDED`, `UNKNOWN`), but cannot change lifecycle, relevance, tolerance or snapshot history. GET is read-only.
 
-At market close, an EOD profile can assess the latest completed session for a
-multi-session horizon. The label says EOD/as-of session, not live. An intraday
-window expires at its captured session boundary even if price has not changed.
-Weekends/holidays use the pinned calendar and profile's next-session rule; do not
-invent a new market observation every calendar day. No provider bars or unknown
-calendar means explicit insufficient evidence, not a shifted hidden deadline.
+Source time, receive time, evaluation cutoff and recording time retain distinct meanings. LIVE_SNAPSHOT, DELAYED, EOD and SYNTHETIC remain explicit; successful HTTP does not establish freshness. A thirty-day-old five-day candidate can retain last-observed CURRENT while visibly window-ended and ineligible for current attention. Explicit comparable scanning or an audited owner closure materializes window expiry; no background monitor is required.
 
-Freshness TTL, relevant evaluation cadence, opportunity window and forecast horizon
-are different fields. Refreshing data does not extend a captured window. A new
-session/window requires an explicit new episode after the old episode is closed.
-Source refresh may be on demand; expiry/staleness are derived at read/evaluation
-time using an injected clock, so an idle process cannot keep old results “current.”
+Horizon basis, exchange/session calendar, timezone and anchor are pinned. EOD data remains labelled EOD; holidays do not manufacture observations, and a source refresh cannot extend a fixed window. Current elapsed-time presets must not silently become trading-session semantics. Custom typed horizon expansion remains separately designed.
 
 ## 17. Tolerance envelope and lifecycle
 
-The tolerance envelope pins rules for acceptable price drawdown, technical
-structure, momentum, volume/liquidity, sector context, market regime and time
-decay. Each dimension has a unit, direction, reference snapshot/basis, required
-evidence, threshold, persistence/hysteresis and recovery rule. Reference anchors
-are explicit; do not silently ratchet the baseline on every quote. Small normal
-pullbacks within the envelope append observations to the same episode.
+Lifecycle is a persisted, rebuildable projection over immutable comparable observations and explicit owner decisions. The [normative reducer](TWF_SND_SCAN_DRIVEN_TEMPORAL_STATE_ARCHITECTURE.md#6-lifecycle-freshness-and-windows) defines precedence and versioned state semantics; the [recovery protocol](TWF_SND_SCAN_DRIVEN_TEMPORAL_STATE_ARCHITECTURE.md#8-ordering-concurrency-and-recovery-protocol) defines ordering and fencing.
 
-Options-oriented IV, theta, days-to-expiry and spreads are future envelope dimensions.
-They are not inferred from underlying equity data or mandatory Sprint-2 features.
-An unavailable required dimension is unknown; it cannot prove deterioration or
-recovery. Material breach enters DEFUNCT pending evaluation, not automatic terminal
-rejection. Recovery requires sufficiently fresh, comparable evidence satisfying
-the pinned recovery rule before expiry/final rejection.
+| State | Meaning under future scan-driven policy |
+| --- | --- |
+| NEW | First eligible observation; no claim of temporal evolution. |
+| CURRENT | Subsequent comparable distinct eligible PRESENT observations within the fixed window. |
+| STALE | Authoritative comparable ABSENT / NOT_REDISCOVERED; not a synonym for clock-aged evidence. |
+| DEFUNCT | Evidence-backed material breach or explicitly labelled owner override; preterminal, with pinned recovery rules. |
+| EXPIRED | Explicit window-closure decision; no reactivation or timestamp extension. |
+| REJECTED | Explicit terminal decision/dismissal with actor/policy and reason; later distinct setup requires a linked successor. |
 
-```mermaid
-stateDiagram-v2
-    [*] --> Active: eligible nomination
-    state "Active episode — freshness shown separately" as Active {
-        [*] --> NEW
-        NEW --> CURRENT: comparable eligible observations
-        CURRENT --> STALE: evidence ages
-        STALE --> CURRENT: fresh valid observation
-        NEW --> DEFUNCT: tolerance breach
-        CURRENT --> DEFUNCT: tolerance breach
-        STALE --> DEFUNCT: fresh evidence proves breach
-        DEFUNCT --> CURRENT: verified recovery
-        DEFUNCT --> NEW: recovery with insufficient comparison
-    }
-    Active --> EXPIRED: fixed opportunity window ends
-    Active --> REJECTED: reasoned decision or dismissal
-    EXPIRED --> REJECTED: record EXPIRED rejection
-    REJECTED --> [*]
-```
+NOT_EVALUATED is neutral. No default number of absences automatically proves a terminal thesis failure. Missing or old evidence cannot prove a breach/recovery. Tolerance dimensions preserve units, reference basis, thresholds, required evidence, confirmation and recovery policy; only an explicit scan assesses them. Repeated polling of the same sample does not satisfy multi-observation confirmation.
 
-This diagram includes **effective display states**. Durable lifecycle is NEW,
-CURRENT, DEFUNCT, EXPIRED or REJECTED with append-only transitions; STALE is a
-freshness projection over an otherwise CURRENT episode, not a destructive rewrite.
-Freshness is also displayed for NEW/DEFUNCT states. Effective expiry is computed
-from the fixed window even before a bounded evaluator persists its transition.
-Read operations need not write to the DB. Precedence is REJECTED, then window
-EXPIRED, then DEFUNCT, then NEW, then CURRENT/STALE. Thus stale data never disguises
-a known tolerance breach, and REFRESH does not resurrect terminal history.
+Material-breach DEFUNCT remains preterminal as in the accepted domain. Fresh comparable evidence may recover it before window end; positive scan presence alone is insufficient. Manual dismissal is a control-event exception to scan-driven lifecycle, never a trade cancellation. Save/review remain annotations. A dismissed source sample cannot immediately create a replacement episode.
 
-| State    | Meaning and permitted behavior                                                                                |
-| -------- | ------------------------------------------------------------------------------------------------------------- |
-| NEW      | First evidence/provisional attention; no unsupported evolution claim; collect next comparable observation     |
-| CURRENT  | Required evidence and relevance policy satisfied within window; review/save/refresh/dismiss                   |
-| STALE    | Refresh needed; not a negative thesis verdict; old score labelled historical and removed from current ranking |
-| DEFUNCT  | Material breach, pre-terminal; evaluate, request fresh evidence, recover under pinned rules or reject         |
-| EXPIRED  | Temporal value exhausted; cannot recover by changing timestamps; record expiration evaluation then reject     |
-| REJECTED | Terminal with actor/policy, time and reason; preserve evidence and evaluations; no reopen mutation            |
-
-Rejection reasons include DEFUNCT_CONFIRMED, EXPIRED, USER_DISMISSED,
-INSUFFICIENT_EVIDENCE and IDENTITY_INVALID. A discovery run can also decline a
-nomination without creating a candidate; retain a DecisionRecord with its input
-references and reason. Save/review markers are user workflow annotations, not
-eligibility overrides. Dismissal rejects the episode, never a trade cancellation.
-A subsequent distinct setup creates a new linked episode after duplicate/cooldown
-checks, not immediate recreation from the same dismissed source observation.
+Current runtime still has the prior lifecycle contract, including its different STALE representation and owner recovery behavior. Migration must preserve that history as legacy-policy truth, not relabel old records under the new semantics.
 
 ## 18. Optional LLM Level-0 and grounding
 
@@ -710,6 +660,8 @@ cancelled generation results cannot replace the current projection. Idempotency
 keys are scoped to owner/operation/request digest; same key with different inputs
 conflicts. Duplicate input does not duplicate a candidate. SQLite contention is
 bounded and sanitized; verify the same semantics with PostgreSQL concurrent writers.
+
+The [temporal storage and ordering amendment](TWF_SND_SCAN_DRIVEN_TEMPORAL_STATE_ARCHITECTURE.md#7-hot-and-cold-representations) adds ordered run admission/finalization, owner-aware idempotent observations, an active-scope guard, a logical HOT window (default 20), compact durable COLD cores and replay-safe compaction. It replaces completion-order head updates. The current implementation does not yet provide these mechanisms.
 
 Retention is class-specific and licensed: derived evaluation, audit metadata, raw
 captures and provider references have different permitted lifetimes. Immutable
@@ -976,9 +928,9 @@ protected by SL/TP or TM simply because discovery evidence exists.
 | What is grounded versus context-only?        | Verified citations to eligible supplied evidence versus no such factual grounding; neither guarantees correctness.               |
 | Why market intelligence in S&D?              | Attention-worthiness depends on current regime, sector/session and other available context.                                      |
 | How does this differ from TI?                | S&D uses bounded contextual measures; TI owns deeper claims, forecasts, thesis and scientific evaluation.                        |
-| Why can a candidate become STALE?            | Required evidence aged; the thesis is not thereby invalidated.                                                                   |
+| Why can a candidate become STALE?            | Under the temporal amendment, a comparable evaluated non-match yields NOT_REDISCOVERED; evidence age is a separate freshness field.                                                                   |
 | What does DEFUNCT mean?                      | Material tolerance breach requiring a pre-terminal evaluation; verified recovery can occur before expiry/rejection.              |
-| What does EXPIRED mean?                      | The captured opportunity window has ended; a refreshed quote cannot extend it.                                                   |
+| What does EXPIRED mean?                      | An explicit scan/owner decision closed the ended window; clock-only window-ended status is separate and a quote cannot extend it.                                                   |
 | Why preserve rejection reason?               | To explain terminal decisions and evaluate failures, dismissals and expirations separately later.                                |
 | Can the same stock reappear?                 | Yes under another intent or a genuinely new episode after the prior one ends.                                                    |
 | Why a new episode?                           | To preserve the old outcome instead of rewriting/resurrecting failed history.                                                    |
@@ -988,7 +940,7 @@ protected by SL/TP or TM simply because discovery evidence exists.
 | Is 0.94 a 94% chance of profit?              | No. Relevance is not a calibrated return probability.                                                                            |
 | Why horizon-relative scores?                 | The same evidence can matter differently over minutes, sessions or months.                                                       |
 | Can one underlying have several intents?     | Yes; each has explicit horizon, basis and independent episode history.                                                           |
-| What happens after market hours?             | Use labelled completed-session evidence under an EOD policy; expire intraday windows honestly.                                   |
+| What happens after market hours?             | Use labelled completed-session evidence; show ended windows independently of last-observed lifecycle.                                   |
 | How does ML fit?                             | Later evaluate all candidates including non-trades and propose versioned calibrated policies; no live self-learning in Sprint 2. |
 | How will LOB consume trades?                 | Future LOB references qualified, constructed TradeOpportunity revisions and derives readiness without granting authority.        |
 | Where does TI begin?                         | At an explicit deeper-analysis handoff carrying immutable Discovery evidence and exact horizon/identity.                         |
