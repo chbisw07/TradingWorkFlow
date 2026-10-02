@@ -1,6 +1,6 @@
 # TWF Market Data Provider Architecture
 
-Status: **IMPLEMENTED / READY FOR USER VALIDATION**  
+Status: **IMPLEMENTED / READY FOR USER VALIDATION**
 Date: 2026-10-02
 
 ## Decision
