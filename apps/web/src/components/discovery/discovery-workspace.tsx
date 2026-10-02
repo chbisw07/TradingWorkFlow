@@ -372,6 +372,39 @@ function evidenceState(availability: string, polarity?: string) {
   );
 }
 
+function evidenceDisclosureSummary(evidence: Evidence[]) {
+  const available = evidence.filter((item) =>
+    ["PRESENT", "COMPLETE"].includes(item.availability),
+  ).length;
+  const missing = evidence.filter((item) =>
+    ["MISSING", "UNAVAILABLE"].includes(item.availability),
+  ).length;
+  const partial = evidence.filter((item) =>
+    ["PARTIAL", "STALE"].includes(item.availability),
+  ).length;
+  const conflicting = evidence.filter(
+    (item) => item.polarity === "CONFLICTING",
+  ).length;
+  const parts = [
+    available ? `${available} available` : "",
+    missing ? `${missing} missing` : "",
+    partial ? `${partial} partial` : "",
+    conflicting ? `${conflicting} conflict${conflicting === 1 ? "" : "s"}` : "",
+  ].filter(Boolean);
+  return {
+    text:
+      parts.join(" · ") ||
+      `${evidence.length} item${evidence.length === 1 ? "" : "s"}`,
+    status: conflicting
+      ? { label: "Conflict", className: "is-conflicting" }
+      : missing
+        ? { label: "Missing", className: "is-missing" }
+        : partial
+          ? { label: "Partial", className: "is-partial" }
+          : null,
+  };
+}
+
 function evidenceDirection(polarity: string) {
   const directions: Record<string, string> = {
     POSITIVE: "Supports the setup",
@@ -1581,8 +1614,12 @@ function CandidateInspector({
   onLifecycle: (action: "DISMISS" | "MARK_DEFUNCT" | "RECOVER") => void;
   onExplain: () => void;
 }) {
+  const [evidenceExpanded, setEvidenceExpanded] = useState(false);
+  const [observationsExpanded, setObservationsExpanded] = useState(false);
+  const [snapshotsExpanded, setSnapshotsExpanded] = useState(false);
   const latest = detail.snapshots.at(-1);
   const visibleEvidence = latest ? latestEvidence(latest.evidence) : [];
+  const evidenceSummary = evidenceDisclosureSummary(visibleEvidence);
   const snapshots = [...detail.snapshots].reverse();
   const requestLifecycle = (action: "DISMISS" | "MARK_DEFUNCT" | "RECOVER") => {
     const messages = {
@@ -1656,41 +1693,6 @@ function CandidateInspector({
         </div>
       </div>
 
-      <details className="candidate-provenance provenance-details">
-        <summary>Candidate provenance</summary>
-        <dl>
-          <div>
-            <dt>Candidate ID</dt>
-            <dd>
-              <IdentifierValue
-                label="candidate identifier"
-                value={detail.candidate_id}
-              />
-            </dd>
-          </div>
-          <div>
-            <dt>Episode ID</dt>
-            <dd>
-              <IdentifierValue
-                label="episode identifier"
-                value={detail.episode_id}
-              />
-            </dd>
-          </div>
-          {detail.latest_scan_run_id && (
-            <div>
-              <dt>Latest run</dt>
-              <dd>
-                <IdentifierValue
-                  label="latest scan run identifier"
-                  value={detail.latest_scan_run_id}
-                />
-              </dd>
-            </div>
-          )}
-        </dl>
-      </details>
-
       <section aria-labelledby="contributions-heading">
         <div className="section-heading-row compact-heading">
           <div>
@@ -1758,112 +1760,6 @@ function CandidateInspector({
             </li>
           ))}
         </ul>
-      </section>
-
-      <section aria-labelledby="evidence-heading">
-        <h3 id="evidence-heading">Latest evidence</h3>
-        {!latest || visibleEvidence.length === 0 ? (
-          <p>No current evidence is available.</p>
-        ) : (
-          <ul className="evidence-list">
-            {visibleEvidence.map((item) => {
-              const state = evidenceState(item.availability, item.polarity);
-              return (
-                <li key={item.evidence_id} className={state.className}>
-                  <div className="evidence-card-heading">
-                    <div>
-                      <strong>{evidenceLabel(item.category)}</strong>
-                      <span>{evidenceDirection(item.polarity)}</span>
-                    </div>
-                    <span className={`evidence-state ${state.className}`}>
-                      {state.label}
-                    </span>
-                  </div>
-                  <p>
-                    {item.measures
-                      .filter((measure) => !isTechnicalMeasure(measure.name))
-                      .map((measure) =>
-                        evidenceMeasure(
-                          measure.name,
-                          measure.value,
-                          measure.unit,
-                        ),
-                      )
-                      .join(" · ") ||
-                      item.reason ||
-                      "No current measurement supplied"}
-                  </p>
-                  <small>
-                    {item.provenance.mode.includes("SYNTHETIC")
-                      ? "Synthetic source"
-                      : words(item.provenance.mode)}
-                    {" · "}
-                    {item.source_data_time
-                      ? `Source time ${dateTime(item.source_data_time)}`
-                      : "Source time unavailable"}
-                  </small>
-                  <details className="provenance-details">
-                    <summary>Provenance details</summary>
-                    <dl>
-                      <div>
-                        <dt>Provider</dt>
-                        <dd>{item.provenance.producer.provider}</dd>
-                      </div>
-                      <div>
-                        <dt>Source</dt>
-                        <dd>{item.provenance.source.namespace}</dd>
-                      </div>
-                      <div>
-                        <dt>Mode</dt>
-                        <dd>{words(item.provenance.mode)}</dd>
-                      </div>
-                      <div>
-                        <dt>Version</dt>
-                        <dd>{item.provenance.producer.service_version}</dd>
-                      </div>
-                      <div>
-                        <dt>Native ID</dt>
-                        <dd>
-                          <IdentifierValue
-                            label="native identifier"
-                            value={item.provenance.source.native_id}
-                          />
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>Evidence ID</dt>
-                        <dd>
-                          <IdentifierValue
-                            label="evidence identifier"
-                            value={item.evidence_id}
-                          />
-                        </dd>
-                      </div>
-                      {item.measures.some((measure) =>
-                        isTechnicalMeasure(measure.name),
-                      ) && (
-                        <div>
-                          <dt>Technical values</dt>
-                          <dd>
-                            {item.measures
-                              .filter((measure) =>
-                                isTechnicalMeasure(measure.name),
-                              )
-                              .map(
-                                (measure) =>
-                                  `${words(measure.name)}: ${String(measure.value)}`,
-                              )
-                              .join(" · ")}
-                          </dd>
-                        </div>
-                      )}
-                    </dl>
-                  </details>
-                </li>
-              );
-            })}
-          </ul>
-        )}
       </section>
 
       {detail.context && (
@@ -1939,64 +1835,274 @@ function CandidateInspector({
         ) : (
           <p>Legacy candidate has no reconstructed temporal observations.</p>
         )}
-        <ol className="temporal-timeline">
-          {(detail.observations || []).map((item) => (
-            <li key={item.observation_id}>
-              <time dateTime={item.observed_at}>
-                {dateTime(item.observed_at)}
-              </time>
-              <strong>{words(item.kind)}</strong>
-              <span>{observationLabel(item)}</span>
-              <span>{item.lifecycle_after || "Lifecycle unchanged"}</span>
-              <small>
-                Run {shortId(item.run_id)} · {words(item.reason)} ·{" "}
-                {words(item.coverage)}
-              </small>
-            </li>
-          ))}
-        </ol>
+        <h3 className="disclosure-heading">
+          <button
+            type="button"
+            aria-expanded={observationsExpanded}
+            aria-controls="candidate-observation-details"
+            onClick={() => setObservationsExpanded((value) => !value)}
+          >
+            <span>Observation details</span>
+            <span className="disclosure-summary">
+              {detail.observations.length} observation
+              {detail.observations.length === 1 ? "" : "s"}
+            </span>
+            {detail.freshness === "STALE" && (
+              <span className="evidence-state is-stale">Stale</span>
+            )}
+            <span className="disclosure-indicator" aria-hidden="true">
+              {observationsExpanded ? "▾" : "▸"}
+            </span>
+          </button>
+        </h3>
+        {observationsExpanded && (
+          <ol id="candidate-observation-details" className="temporal-timeline">
+            {(detail.observations || []).map((item) => (
+              <li key={item.observation_id}>
+                <time dateTime={item.observed_at}>
+                  {dateTime(item.observed_at)}
+                </time>
+                <strong>{words(item.kind)}</strong>
+                <span>{observationLabel(item)}</span>
+                <span>{item.lifecycle_after || "Lifecycle unchanged"}</span>
+                <small>
+                  Run {shortId(item.run_id)} · {words(item.reason)} ·{" "}
+                  {words(item.coverage)}
+                </small>
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
+
+      <section aria-labelledby="evidence-heading">
+        <h3 id="evidence-heading" className="disclosure-heading">
+          <button
+            type="button"
+            aria-expanded={evidenceExpanded}
+            aria-controls="candidate-latest-evidence"
+            onClick={() => setEvidenceExpanded((value) => !value)}
+          >
+            <span>Latest evidence</span>
+            <span className="disclosure-summary">{evidenceSummary.text}</span>
+            {evidenceSummary.status && (
+              <span
+                className={`evidence-state ${evidenceSummary.status.className}`}
+              >
+                {evidenceSummary.status.label}
+              </span>
+            )}
+            <span className="disclosure-indicator" aria-hidden="true">
+              {evidenceExpanded ? "▾" : "▸"}
+            </span>
+          </button>
+        </h3>
+        {evidenceExpanded && (
+          <div id="candidate-latest-evidence">
+            {!latest || visibleEvidence.length === 0 ? (
+              <p>No current evidence is available.</p>
+            ) : (
+              <ul className="evidence-list">
+                {visibleEvidence.map((item) => {
+                  const state = evidenceState(item.availability, item.polarity);
+                  return (
+                    <li key={item.evidence_id} className={state.className}>
+                      <div className="evidence-card-heading">
+                        <div>
+                          <strong>{evidenceLabel(item.category)}</strong>
+                          <span>{evidenceDirection(item.polarity)}</span>
+                        </div>
+                        <span className={`evidence-state ${state.className}`}>
+                          {state.label}
+                        </span>
+                      </div>
+                      <p>
+                        {item.measures
+                          .filter(
+                            (measure) => !isTechnicalMeasure(measure.name),
+                          )
+                          .map((measure) =>
+                            evidenceMeasure(
+                              measure.name,
+                              measure.value,
+                              measure.unit,
+                            ),
+                          )
+                          .join(" · ") ||
+                          item.reason ||
+                          "No current measurement supplied"}
+                      </p>
+                      <small>
+                        {item.provenance.mode.includes("SYNTHETIC")
+                          ? "Synthetic source"
+                          : words(item.provenance.mode)}
+                        {" · "}
+                        {item.source_data_time
+                          ? `Source time ${dateTime(item.source_data_time)}`
+                          : "Source time unavailable"}
+                      </small>
+                      <details className="provenance-details">
+                        <summary>Provenance details</summary>
+                        <dl>
+                          <div>
+                            <dt>Provider</dt>
+                            <dd>{item.provenance.producer.provider}</dd>
+                          </div>
+                          <div>
+                            <dt>Source</dt>
+                            <dd>{item.provenance.source.namespace}</dd>
+                          </div>
+                          <div>
+                            <dt>Mode</dt>
+                            <dd>{words(item.provenance.mode)}</dd>
+                          </div>
+                          <div>
+                            <dt>Version</dt>
+                            <dd>{item.provenance.producer.service_version}</dd>
+                          </div>
+                          <div>
+                            <dt>Native ID</dt>
+                            <dd>
+                              <IdentifierValue
+                                label="native identifier"
+                                value={item.provenance.source.native_id}
+                              />
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>Evidence ID</dt>
+                            <dd>
+                              <IdentifierValue
+                                label="evidence identifier"
+                                value={item.evidence_id}
+                              />
+                            </dd>
+                          </div>
+                          {item.measures.some((measure) =>
+                            isTechnicalMeasure(measure.name),
+                          ) && (
+                            <div>
+                              <dt>Technical values</dt>
+                              <dd>
+                                {item.measures
+                                  .filter((measure) =>
+                                    isTechnicalMeasure(measure.name),
+                                  )
+                                  .map(
+                                    (measure) =>
+                                      `${words(measure.name)}: ${String(measure.value)}`,
+                                  )
+                                  .join(" · ")}
+                              </dd>
+                            </div>
+                          )}
+                        </dl>
+                      </details>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        )}
       </section>
 
       <section aria-labelledby="history-heading">
-        <h3 id="history-heading">Snapshot history</h3>
-        <p>Immutable observations, newest first.</p>
-        <ol className="snapshot-timeline">
-          {snapshots.map((snapshot, index) => (
-            <li
-              key={snapshot.snapshot_id}
-              className={index === 0 ? "is-latest" : undefined}
-            >
-              <div className="snapshot-title">
-                <strong>Snapshot {snapshot.sequence}</strong>
-                {index === 0 && <span className="discovery-badge">Newest</span>}
-              </div>
-              <span>{dateTime(snapshot.observed_at)}</span>
-              <dl>
-                <div>
-                  <dt>Lifecycle</dt>
-                  <dd>
-                    {snapshot.lifecycle} ·{" "}
-                    {words(
-                      snapshot.lifecycle_reason || "persisted snapshot state",
-                    )}
-                  </dd>
+        <h3 id="history-heading" className="disclosure-heading">
+          <button
+            type="button"
+            aria-expanded={snapshotsExpanded}
+            aria-controls="candidate-snapshot-history"
+            onClick={() => setSnapshotsExpanded((value) => !value)}
+          >
+            <span>Snapshot history</span>
+            <span className="disclosure-summary">
+              {snapshots.length} snapshot{snapshots.length === 1 ? "" : "s"}
+            </span>
+            {detail.legacy_profile && (
+              <span className="discovery-badge is-legacy">Legacy</span>
+            )}
+            <span className="disclosure-indicator" aria-hidden="true">
+              {snapshotsExpanded ? "▾" : "▸"}
+            </span>
+          </button>
+        </h3>
+        {snapshotsExpanded && (
+          <ol id="candidate-snapshot-history" className="snapshot-timeline">
+            {snapshots.map((snapshot, index) => (
+              <li
+                key={snapshot.snapshot_id}
+                className={index === 0 ? "is-latest" : undefined}
+              >
+                <div className="snapshot-title">
+                  <strong>Snapshot {snapshot.sequence}</strong>
+                  {index === 0 && (
+                    <span className="discovery-badge">Newest</span>
+                  )}
                 </div>
-                <div>
-                  <dt>Relevance</dt>
-                  <dd>{percent(snapshot.relevance.value)}</dd>
-                </div>
-                <div>
-                  <dt>Tolerance</dt>
-                  <dd>{toleranceLabel(snapshot.tolerance.state)}</dd>
-                </div>
-              </dl>
-              <small>
-                {snapshotChangeLabel(snapshot, snapshots[index + 1])}
-              </small>
-            </li>
-          ))}
-        </ol>
+                <span>{dateTime(snapshot.observed_at)}</span>
+                <dl>
+                  <div>
+                    <dt>Lifecycle</dt>
+                    <dd>
+                      {snapshot.lifecycle} ·{" "}
+                      {words(
+                        snapshot.lifecycle_reason || "persisted snapshot state",
+                      )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Relevance</dt>
+                    <dd>{percent(snapshot.relevance.value)}</dd>
+                  </div>
+                  <div>
+                    <dt>Tolerance</dt>
+                    <dd>{toleranceLabel(snapshot.tolerance.state)}</dd>
+                  </div>
+                </dl>
+                <small>
+                  {snapshotChangeLabel(snapshot, snapshots[index + 1])}
+                </small>
+              </li>
+            ))}
+          </ol>
+        )}
       </section>
+
+      <details className="candidate-provenance provenance-details">
+        <summary>Candidate provenance</summary>
+        <dl>
+          <div>
+            <dt>Candidate ID</dt>
+            <dd>
+              <IdentifierValue
+                label="candidate identifier"
+                value={detail.candidate_id}
+              />
+            </dd>
+          </div>
+          <div>
+            <dt>Episode ID</dt>
+            <dd>
+              <IdentifierValue
+                label="episode identifier"
+                value={detail.episode_id}
+              />
+            </dd>
+          </div>
+          {detail.latest_scan_run_id && (
+            <div>
+              <dt>Latest run</dt>
+              <dd>
+                <IdentifierValue
+                  label="latest scan run identifier"
+                  value={detail.latest_scan_run_id}
+                />
+              </dd>
+            </div>
+          )}
+        </dl>
+      </details>
 
       <section aria-labelledby="explanation-heading">
         <div className="section-heading-row">

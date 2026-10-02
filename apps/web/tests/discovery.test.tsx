@@ -619,6 +619,27 @@ test("runs a bounded scan and exposes evidence, degradation, history and no trad
   );
   expect(selectedRow).toHaveAttribute("data-selected", "true");
   expect(within(selectedRow!).getByText("Relative volume")).toBeInTheDocument();
+  const evidenceDisclosure = within(inspector).getByRole("button", {
+    name: /Latest evidence/,
+  });
+  const observationDisclosure = within(inspector).getByRole("button", {
+    name: /Observation details/,
+  });
+  const snapshotDisclosure = within(inspector).getByRole("button", {
+    name: /Snapshot history/,
+  });
+  expect(evidenceDisclosure).toHaveAttribute("aria-expanded", "false");
+  expect(observationDisclosure).toHaveAttribute("aria-expanded", "false");
+  expect(snapshotDisclosure).toHaveAttribute("aria-expanded", "false");
+  expect(within(inspector).getByText("1 available")).toBeInTheDocument();
+  expect(within(inspector).getByText("2 observations")).toBeInTheDocument();
+  expect(within(inspector).getByText("1 snapshot")).toBeInTheDocument();
+  expect(
+    within(inspector).queryByText(/Relative volume: 2.4 ratio/),
+  ).not.toBeInTheDocument();
+  expect(within(inspector).queryByText("Snapshot 1")).not.toBeInTheDocument();
+  fireEvent.click(evidenceDisclosure);
+  expect(evidenceDisclosure).toHaveAttribute("aria-expanded", "true");
   expect(
     within(selectedRow!).getByText("First observation"),
   ).toBeInTheDocument();
@@ -660,11 +681,21 @@ test("runs a bounded scan and exposes evidence, degradation, history and no trad
   expect(
     within(inspector).getByText(/Enable it under Settings/),
   ).toBeInTheDocument();
+  fireEvent.click(snapshotDisclosure);
+  expect(snapshotDisclosure).toHaveAttribute("aria-expanded", "true");
   expect(within(inspector).getByText(/Snapshot 1/)).toBeInTheDocument();
   const temporalHistory = within(inspector)
     .getByRole("heading", { name: "Observation history" })
     .closest("section");
   expect(temporalHistory).not.toBeNull();
+  expect(
+    within(temporalHistory as HTMLElement).getByText("Last observed"),
+  ).toBeInTheDocument();
+  expect(
+    within(temporalHistory as HTMLElement).queryByText("Partial failure"),
+  ).not.toBeInTheDocument();
+  fireEvent.click(observationDisclosure);
+  expect(observationDisclosure).toHaveAttribute("aria-expanded", "true");
   expect(
     within(temporalHistory as HTMLElement).getAllByText("Not evaluated").length,
   ).toBeGreaterThan(0);
@@ -1444,9 +1475,12 @@ test("groups duplicate current evidence while preserving usable provenance", asy
   const inspector = await screen.findByRole("complementary", {
     name: "RELIANCE",
   });
-  const evidenceList = within(inspector).getByRole("heading", {
-    name: "Latest evidence",
-  }).nextElementSibling;
+  const evidenceDisclosure = within(inspector).getByRole("button", {
+    name: /Latest evidence/,
+  });
+  expect(evidenceDisclosure).toHaveAttribute("aria-expanded", "false");
+  fireEvent.click(evidenceDisclosure);
+  const evidenceList = inspector.querySelector("#candidate-latest-evidence ul");
   expect(evidenceList?.querySelectorAll(":scope > li")).toHaveLength(1);
   expect(
     within(inspector).getByText(/Relative volume: 2.4 ratio/),
@@ -1458,6 +1492,85 @@ test("groups duplicate current evidence while preserving usable provenance", asy
     within(inspector).getByRole("button", { name: "Copy evidence identifier" }),
   ).toBeInTheDocument();
   expect(inspector).toHaveClass("candidate-inspector");
+});
+
+test("keeps critical evidence limitations visible while evidence is collapsed", async () => {
+  const currentEvidence = detail.snapshots[0].evidence[0];
+  const limitedDetail = {
+    ...detail,
+    freshness: "STALE",
+    legacy_profile: true,
+    snapshots: [
+      {
+        ...detail.snapshots[0],
+        evidence: [
+          currentEvidence,
+          {
+            ...currentEvidence,
+            evidence_id: "60000000-0000-0000-0000-000000000002",
+            category: "MARKET_CONTEXT",
+            availability: "MISSING",
+            polarity: "NEUTRAL",
+          },
+          {
+            ...currentEvidence,
+            evidence_id: "60000000-0000-0000-0000-000000000003",
+            category: "TECHNICAL",
+            availability: "PARTIAL",
+            polarity: "NEUTRAL",
+          },
+          {
+            ...currentEvidence,
+            evidence_id: "60000000-0000-0000-0000-000000000004",
+            category: "PRICE",
+            availability: "PRESENT",
+            polarity: "CONFLICTING",
+          },
+        ],
+      },
+    ],
+  };
+  const fetcher = vi.fn((input: string | URL | Request) => {
+    const url = String(input);
+    if (url.endsWith("/status")) return json(providers);
+    if (url.includes("/scans?")) return json([]);
+    if (url.includes("/candidates?")) return json({ items: [candidate] });
+    if (url.endsWith("/settings")) return json(settings);
+    if (url.endsWith(candidate.candidate_id)) return json(limitedDetail);
+    throw new Error(`Unexpected ${url}`);
+  });
+  vi.stubGlobal("fetch", fetcher);
+  render(<DiscoveryWorkspace />);
+  const queue = await screen.findByRole("table", { name: "Discovery queue" });
+  fireEvent.click(within(queue).getByRole("button", { name: "Review" }));
+  const inspector = await screen.findByRole("complementary", {
+    name: "RELIANCE",
+  });
+  const disclosure = within(inspector).getByRole("button", {
+    name: /Latest evidence/,
+  });
+  expect(disclosure).toHaveAttribute("aria-expanded", "false");
+  expect(disclosure).toHaveTextContent("2 available");
+  expect(disclosure).toHaveTextContent("1 missing");
+  expect(disclosure).toHaveTextContent("1 partial");
+  expect(disclosure).toHaveTextContent("1 conflict");
+  expect(within(disclosure).getByText("Conflict")).toBeInTheDocument();
+  expect(
+    within(
+      within(inspector).getByRole("button", { name: /Observation details/ }),
+    ).getByText("Stale"),
+  ).toBeInTheDocument();
+  expect(
+    within(
+      within(inspector).getByRole("button", { name: /Snapshot history/ }),
+    ).getByText("Legacy"),
+  ).toBeInTheDocument();
+  expect(inspector.querySelector("#candidate-latest-evidence")).toBeNull();
+  fireEvent.click(disclosure);
+  expect(disclosure).toHaveAttribute("aria-expanded", "true");
+  expect(
+    inspector.querySelectorAll("#candidate-latest-evidence li"),
+  ).toHaveLength(4);
 });
 
 test("shows typed feedback when history actions cannot complete", async () => {

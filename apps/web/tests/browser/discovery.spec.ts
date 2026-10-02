@@ -206,11 +206,13 @@ test("Scan & Discover presents a responsive evidence workstation with route-leve
   await expect(detail).toContainText(
     "Attention score, not probability of profit",
   );
-  await expect(detail).toContainText("Snapshot 1");
   await expect(detail).toContainText("Latest evidence");
-  await expect(detail).toContainText("Source time");
+  await expect(detail).toContainText(/\d+ available/);
+  await expect(detail).toContainText(/\d+ observation/);
+  await expect(detail).toContainText(/\d+ snapshot/);
+  await expect(detail).not.toContainText("Snapshot 1");
+  await expect(detail).not.toContainText("Source time");
   await expect(detail).toContainText("Optional AI explanation");
-  await expect(detail).toContainText("Evidence available");
   await expect(detail).toContainText("Within");
   await expect(
     detail.getByRole("heading", { name: "Observation history" }),
@@ -220,11 +222,69 @@ test("Scan & Discover presents a responsive evidence workstation with route-leve
   await expect(
     detail.getByRole("img", { name: /Recent observation trend:.*Present/ }),
   ).toBeVisible();
+  const evidenceDisclosure = detail.getByRole("button", {
+    name: /Latest evidence/,
+  });
+  const observationDisclosure = detail.getByRole("button", {
+    name: /Observation details/,
+  });
+  const snapshotDisclosure = detail.getByRole("button", {
+    name: /Snapshot history/,
+  });
+  await expect(evidenceDisclosure).toHaveAttribute("aria-expanded", "false");
+  await expect(observationDisclosure).toHaveAttribute("aria-expanded", "false");
+  await expect(snapshotDisclosure).toHaveAttribute("aria-expanded", "false");
   expect(
     await detail.evaluate(
       (element) => element.scrollWidth <= element.clientWidth + 1,
     ),
   ).toBe(true);
+  if ([390, 1440].includes(width)) {
+    await page.screenshot({
+      path: info.outputPath("candidate-review-default-collapsed.png"),
+      fullPage: true,
+      animations: "disabled",
+    });
+  }
+
+  await evidenceDisclosure.focus();
+  await page.keyboard.press("Enter");
+  await expect(evidenceDisclosure).toHaveAttribute("aria-expanded", "true");
+  await expect(detail).toContainText("Source time");
+  await expect(detail).toContainText("Evidence available");
+  if ([390, 1440].includes(width)) {
+    await page.screenshot({
+      path: info.outputPath("candidate-review-evidence-expanded.png"),
+      fullPage: true,
+      animations: "disabled",
+    });
+  }
+  await evidenceDisclosure.focus();
+  await page.keyboard.press("Space");
+  await expect(evidenceDisclosure).toHaveAttribute("aria-expanded", "false");
+  await expect(detail).not.toContainText("Source time");
+  await evidenceDisclosure.click();
+
+  await observationDisclosure.focus();
+  await page.keyboard.press("Enter");
+  await expect(observationDisclosure).toHaveAttribute("aria-expanded", "true");
+  await expect(detail.locator("#candidate-observation-details")).toContainText(
+    "Present",
+  );
+  if (width === 1440) {
+    await page.screenshot({
+      path: info.outputPath("candidate-review-observations-expanded.png"),
+      fullPage: true,
+      animations: "disabled",
+    });
+  }
+  await observationDisclosure.focus();
+  await page.keyboard.press("Space");
+  await expect(observationDisclosure).toHaveAttribute("aria-expanded", "false");
+
+  await snapshotDisclosure.click();
+  await expect(snapshotDisclosure).toHaveAttribute("aria-expanded", "true");
+  await expect(detail).toContainText("Snapshot 1");
   await detail.getByText("Candidate provenance").click();
   await expect(
     detail.getByRole("button", { name: "Copy candidate identifier" }),
@@ -236,6 +296,18 @@ test("Scan & Discover presents a responsive evidence workstation with route-leve
   await expect(
     detail.getByRole("button", { name: "Copy native identifier" }).first(),
   ).toBeVisible();
+
+  const mcxQueueRow = discoveryQueue.locator('[data-candidate-symbol="MCX"]');
+  await mcxQueueRow.getByRole("button", { name: "Review" }).click();
+  const mcxDetail = page.getByRole("complementary", { name: "MCX" });
+  await expect(mcxDetail).toBeVisible();
+  await expect(
+    mcxDetail.getByRole("button", { name: /Latest evidence/ }),
+  ).toHaveAttribute("aria-expanded", "true");
+  await relianceQueueRow.getByRole("button", { name: "Review" }).click();
+  await expect(detail).toBeVisible();
+  await expect(evidenceDisclosure).toHaveAttribute("aria-expanded", "true");
+
   await page.screenshot({
     path: info.outputPath("selected-candidate.png"),
     fullPage: true,
