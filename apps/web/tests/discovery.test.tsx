@@ -280,40 +280,38 @@ const detail = {
 };
 const providers = [
   {
-    id: "internal",
-    label: "Internal Scanner V0",
-    enabled: true,
-    mode: "LOCAL_SYNTHETIC",
-    health: "AVAILABLE",
-    role: "DISCOVERY",
-    capabilities: ["scan"],
-    limitations: ["Discovery/matching only; no live market-evidence claim."],
-    last_success_at: null,
-    last_error: null,
-  },
-  {
-    id: "real-tradingview",
-    label: "TradingView real evidence",
-    enabled: true,
+    id: "dhan",
+    label: "Dhan market data",
+    enabled: false,
     mode: "REMOTE",
     health: "AUTH_REQUIRED",
-    role: "EVIDENCE",
-    capabilities: ["exact-batch", "ohlcv"],
-    limitations: [
-      "Authentication required before live evidence can be fetched.",
-    ],
+    role: "MARKET_DATA",
+    capabilities: ["canonical-instrument-resolution", "daily-ohlcv"],
+    limitations: ["operator-managed-credentials"],
+    last_success_at: null,
+    last_error: "Configure Dhan credentials.",
+  },
+  {
+    id: "internal-scanner-v0",
+    label: "Internal Scanner V0",
+    enabled: true,
+    mode: "SYNTHETIC",
+    health: "AVAILABLE",
+    role: "SCANNER",
+    capabilities: ["deterministic-scan", "provider-neutral-series"],
+    limitations: [],
     last_success_at: null,
     last_error: null,
   },
   {
-    id: "tradingview-synthetic",
-    label: "TradingView contract validation",
+    id: "tapetide",
+    label: "TapTide market intelligence",
     enabled: true,
-    mode: "SYNTHETIC_VALIDATION",
+    mode: "REMOTE",
     health: "RATE_LIMITED",
-    role: "VALIDATION",
-    capabilities: ["exact-batch"],
-    limitations: ["Synthetic contract validation only."],
+    role: "MARKET_INTELLIGENCE",
+    capabilities: ["market-pulse", "india-vix"],
+    limitations: ["optional-enrichment"],
     last_success_at: null,
     last_error: "Daily request budget reached",
   },
@@ -546,9 +544,7 @@ test("runs a bounded scan and exposes evidence, degradation, history and no trad
     .closest("section");
   expect(statusStrip).toHaveClass("workspace-status-strip");
   expect(within(statusStrip!).getByText("Synthetic Data")).toBeInTheDocument();
-  expect(
-    within(statusStrip!).getAllByText("Validation").length,
-  ).toBeGreaterThan(0);
+  expect(within(statusStrip!).getByText("Scanner")).toBeInTheDocument();
   expect(setupPanel).not.toContainElement(statusStrip);
   const history = screen.getByRole("list", { name: "Recent discovery scans" });
   expect(within(history).getByText(/Internal · 2 symbols/)).toBeInTheDocument();
@@ -928,7 +924,7 @@ test("manages five recent scans, complete setup reuse, archived history and past
   ).toHaveValue("POSITIONAL_SHORT");
   expect(screen.getByRole("combobox", { name: /^Horizon/ })).toHaveValue("15d");
   expect(screen.getByRole("combobox", { name: /^Provider/ })).toHaveValue(
-    "tradingview-synthetic",
+    "synthetic",
   );
   expect(
     screen.getByRole("combobox", { name: /^Market context requirement/ }),
@@ -1272,14 +1268,15 @@ test.each([
   "renders provider operational state %s/%s as text",
   async (health, enabled, expected) => {
     const providerStates = [
-      providers[0],
       {
-        ...providers[1],
+        ...providers[0],
         enabled,
         mode: "REMOTE",
         health,
         last_error: null,
       },
+      providers[1],
+      providers[2],
     ];
     const fetcher = vi.fn((input: string | URL | Request) => {
       const url = String(input);
@@ -1294,11 +1291,13 @@ test.each([
     await screen.findByRole("heading", {
       name: "Provider and evidence readiness",
     });
-    expect(screen.getByText("Live")).toBeInTheDocument();
     const providerCard = screen
-      .getByText("TradingView real evidence")
+      .getByText("Dhan market data")
       .closest("article");
     expect(providerCard).not.toBeNull();
+    expect(
+      within(providerCard as HTMLElement).getByText("Live"),
+    ).toBeInTheDocument();
     expect(
       within(providerCard as HTMLElement).getByText(expected),
     ).toBeInTheDocument();
@@ -1581,27 +1580,27 @@ test("ranks current v2 relevance before legacy scores and labels legacy provenan
   ).toBeInTheDocument();
 });
 
-test("renders real TradingView current-chart provenance without realtime or completed-bar claims", () => {
+test("renders Dhan current-chart provenance with completed-bar truth", () => {
   const base = evidenceChart("as_scanned");
   const chart = {
     ...base,
     mode: "current",
     state: "AVAILABLE",
     message: null,
-    provider: "tradingview",
-    data_mode: "LIVE_SNAPSHOT",
-    bar_finality: "PROVIDER_UNSPECIFIED",
+    provider: "dhan",
+    data_mode: "EOD",
+    bar_finality: "COMPLETED",
     bars: base.bars.map((bar) => ({
       ...bar,
-      finality: "PROVIDER_UNSPECIFIED",
+      finality: "COMPLETED",
     })),
     retention: {
       ...base.retention,
-      source_class: "PROVIDER_RESTRICTED",
-      historical_chart_reconstructable: false,
-      scan_bars_retained: false,
+      source_class: "LICENSED_RETAINED",
+      historical_chart_reconstructable: true,
+      scan_bars_retained: true,
       current_chart_available: true,
-      limitation: "TradingView retention rights are unknown.",
+      limitation: "Licensed retained scan bars.",
     },
   } as Parameters<
     typeof import("../src/components/discovery/evidence-chart-drawer").EvidenceChartDrawer
@@ -1614,16 +1613,16 @@ test("renders real TradingView current-chart provenance without realtime or comp
       onMode={vi.fn()}
     />,
   );
-  expect(screen.getByText("TRADINGVIEW MARKET DATA")).toBeInTheDocument();
-  expect(screen.getByText(/Finality unspecified/)).toBeInTheDocument();
-  expect(screen.queryByText(/realtime/i)).not.toBeInTheDocument();
+  expect(screen.getByText("DHAN MARKET DATA")).toBeInTheDocument();
+  expect(screen.getByText(/Completed bars/)).toBeInTheDocument();
+  expect(screen.queryByText(/TradingView/i)).not.toBeInTheDocument();
   expect(screen.getByRole("tab", { name: "Current chart" })).toHaveAttribute(
     "aria-selected",
     "true",
   );
 });
 
-test("renders retention-restricted real as-scanned evidence without inventing bars", () => {
+test("renders legacy TradingView retention-restricted history without inventing bars", () => {
   const base = evidenceChart("as_scanned");
   const chart = {
     ...base,
@@ -1674,7 +1673,7 @@ test.each(["AUTH_REQUIRED", "RATE_LIMITED", "EXACT_MISSING"] as const)(
       mode: "current",
       state,
       message: `Typed ${state.toLowerCase()} provider state.`,
-      provider: "tradingview",
+      provider: "dhan",
       data_mode: "LIVE_SNAPSHOT",
       bar_finality: "PROVIDER_UNSPECIFIED",
       bars: [],
@@ -1683,9 +1682,9 @@ test.each(["AUTH_REQUIRED", "RATE_LIMITED", "EXACT_MISSING"] as const)(
       metrics: [],
       retention: {
         ...base.retention,
-        source_class: "PROVIDER_RESTRICTED",
-        historical_chart_reconstructable: false,
-        scan_bars_retained: false,
+        source_class: "LICENSED_RETAINED",
+        historical_chart_reconstructable: true,
+        scan_bars_retained: true,
         current_chart_available: true,
         archive_bar_count: 0,
         displayed_bar_count: 0,

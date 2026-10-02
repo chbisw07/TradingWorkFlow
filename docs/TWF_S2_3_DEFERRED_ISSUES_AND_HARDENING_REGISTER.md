@@ -1,5 +1,7 @@
 # S2-3 — Deferred issues and Sprint-2 hardening register
 
+> **2026-10-02 decommission disposition:** this register remains the historical S2-3/TradingView hardening record. TradingView broad-screener, OHLCV-retention, bar-finality, delayed/realtime, exact-batch, and successful-live-row items are no longer active runtime blockers because TradingView is decommissioned from S&D. They are closed as **DECOMMISSIONED / HISTORICAL**, not retroactively proven. Generic MCP revocation, OAuth lifecycle, provider health, dependency advisories, generation fencing, durable permits, and cleanup/recovery items remain applicable to TapTide and future MCP providers.
+
 Date: 2026-09-30. S2-3 is **ACCEPTED / FROZEN WITH DEFERRED HARDENING**.
 Sprint 2 remains ACTIVE. This register is mandatory input to consolidated
 Sprint-2 Hardening after S2-4 through S2-8, internal validation, user testing and
@@ -164,3 +166,14 @@ The following items remain open and are carried into user validation:
 - **WebKit host/runtime issue unchanged:** Chromium remains the practical browser-validation surface until the known environment issue is resolved.
 
 No new provider hardening item was discovered by the implementation-only phase. The 2026-10-02 controlled-run preflight was `NOT_RUN`: the active local profile had TradingView scanning and response-contract verification disabled and registered no MCP provider, so the safe runtime guard prevented remote dispatch. A later operator-configured, owner-authorized product run may add evidence or a concrete new item, but may not silently close these limitations.
+
+## Active Dhan/TapTide hardening register — 2026-10-02
+
+- **Dhan live validation:** run the bounded four-symbol workflow when credentials are available; zero legitimate matches is acceptable.
+- **Dhan licensing:** confirm production/commercial retention and redistribution rights before any deployment beyond bounded internal evidence retention.
+- **Dhan token lifecycle:** individual access tokens are owner-configured through encrypted Settings storage (with optional operator bootstrap) and expire; show `AUTH_REQUIRED` truthfully and do not invent refresh support.
+- **Zerodha contract proof:** implement and independently validate a second adapter before presenting provider interchangeability as operational.
+- **TapTide live validation:** authorize one bounded owner-scoped connection, validate the initial capability set and timestamps, and retain `NOT_RUN` while unconfigured.
+- **TapTide plan limits/licensing:** provider-enforced plan limits and downstream data rights require operator review; cold calls are capped and successful results use a short fenced cache.
+- **Generic MCP:** remote revocation cleanup, cryptography disposition, provider health, stale-generation safety, durable operation permits, hard deadlines, and disconnect recovery retain their existing dispositions.
+- **Generic MCP full-suite timing stability:** three 960-test runs each produced one different deadline/cleanup-sensitive MCP failure under accumulated suite load, while the affected finalization/recovery/remediation set passed 44/44 when rerun together. Treat the backend full-regression gate as open until the timing flake is reproduced and stabilized without weakening the hard-deadline contract.

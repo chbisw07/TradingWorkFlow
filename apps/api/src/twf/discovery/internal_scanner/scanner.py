@@ -97,7 +97,12 @@ class InternalScannerV0:
     manifest = ProviderManifest(
         identity=IDENTITY,
         capabilities=("sd.scan",),
-        source_modes=(SourceMode.SYNTHETIC,),
+        source_modes=(
+            SourceMode.SYNTHETIC,
+            SourceMode.LIVE_SNAPSHOT,
+            SourceMode.DELAYED,
+            SourceMode.EOD,
+        ),
         max_items=MAX_INSTRUMENTS,
         supported_metrics=tuple(METRICS),
         supported_operators=OPERATORS,
@@ -132,7 +137,7 @@ class InternalScannerV0:
         definition = run.definition
         if (
             definition.timeframe not in INTERVAL_SECONDS
-            or definition.source_mode != SourceMode.SYNTHETIC
+            or definition.source_mode not in self.manifest.source_modes
             or set(definition.required_capabilities) != {"sd.scan"}
             or any(not supported(c) for c in definition.criteria)
         ):
@@ -156,6 +161,8 @@ class InternalScannerV0:
                 raw = await self.source.read(context, instrument, run.definition.timeframe)
                 series = MarketSeries.model_validate(raw.model_dump())
                 if series.instrument != instrument or series.interval != run.definition.timeframe:
+                    raise DataUnavailable(DataReason.MALFORMED_SERIES)
+                if series.provenance.mode != run.definition.source_mode:
                     raise DataUnavailable(DataReason.MALFORMED_SERIES)
                 bars = series.at(context.as_of)
                 if not bars:
@@ -201,7 +208,7 @@ class InternalScannerV0:
                 provenance = Provenance(
                     producer=IDENTITY,
                     source=series.provenance.source,
-                    mode=SourceMode.SYNTHETIC,
+                    mode=series.provenance.mode,
                     observation_key=input_digest,
                     transformation=RevisionRef(id="internal-v0", version=basis_version),
                     dependence_group=series.provenance.dependence_group,
@@ -321,7 +328,7 @@ class InternalScannerV0:
             owner_id=context.owner_id,
             request_id=context.correlation.request_id,
             as_of=context.as_of,
-            source_mode=SourceMode.SYNTHETIC,
+            source_mode=run.definition.source_mode,
             completeness="COMPLETE",
             items=tuple(matches),
         )

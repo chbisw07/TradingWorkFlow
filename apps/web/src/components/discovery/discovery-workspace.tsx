@@ -8,7 +8,9 @@ import {
   type RefObject,
 } from "react";
 import {
+  activeProviderChoice,
   discoveryApi,
+  type ActiveProviderChoice,
   type Candidate,
   type CandidateDetail,
   type ContextMode,
@@ -19,7 +21,6 @@ import {
   type Evidence,
   type HistoricalScanDetail,
   type LlmExplanation,
-  type ProviderChoice,
   type ProviderStatus,
   type RunTemporalView,
   type RunViewMode,
@@ -332,12 +333,12 @@ function contextValue(availability: string, value: string | number | null) {
 
 function providerModeLabel(mode: ProviderStatus["mode"]) {
   if (mode === "REMOTE") return "Live";
-  if (mode === "SYNTHETIC_VALIDATION") return "Validation";
-  return "Synthetic Data";
+  if (mode === "SYNTHETIC") return "Synthetic Data";
+  return "Local";
 }
 
 function providerRoleLabel(role: ProviderStatus["role"]) {
-  return role === "VALIDATION" ? "Contract validation" : words(role);
+  return words(role);
 }
 
 function providerHealthLabel(
@@ -395,13 +396,16 @@ function evidenceMeasure(
 
 function sourceLabel(value: string) {
   if (value === "twf-native") return "TWF scan + market context";
-  if (value === "tradingview") return "TradingView";
+  if (value === "dhan") return "Dhan market data";
+  if (value === "tapetide") return "TapTide market intelligence";
+  if (value === "tradingview") return "TradingView (historical)";
   return words(value);
 }
 
 function evidenceSummary(sources: string[]) {
-  if (sources.includes("tradingview") && sources.includes("twf-native"))
-    return "Scan + market context";
+  if (sources.includes("dhan") && sources.includes("tapetide"))
+    return "Dhan scan + TapTide context";
+  if (sources.includes("dhan")) return "Dhan scan evidence";
   if (sources.includes("twf-native")) return "Scan + market context";
   return `${sources.length} evidence source${sources.length === 1 ? "" : "s"}`;
 }
@@ -1219,10 +1223,6 @@ function ProviderStatusStrip({
               {providerHealthLabel(item.health, item.enabled)}
             </span>
             {item.last_error && <small>{item.last_error}</small>}
-            {item.id === "tradingview-synthetic" &&
-              item.health === "RATE_LIMITED" && (
-                <small>Live exact-row proof pending</small>
-              )}
           </article>
         ))}
         <article className="status-strip-item">
@@ -2093,7 +2093,7 @@ export function DiscoveryWorkspace({
   const [universe, setUniverse] = useState(
     "RELIANCE, MCX, HDFCBANK, INFY, BSE, NIFTY, BANKNIFTY",
   );
-  const [provider, setProvider] = useState<ProviderChoice>("internal");
+  const [provider, setProvider] = useState<ActiveProviderChoice>("synthetic");
   const [profile, setProfile] = useState("RELATIVE_VOLUME");
   const [horizon, setHorizon] = useState<HorizonValue>("5d");
   const [intent, setIntent] = useState<IntentValue>("INTRADAY_LONG");
@@ -2190,7 +2190,7 @@ export function DiscoveryWorkspace({
     const defaultRecommendation =
       PROFILE_RECOMMENDATIONS[currentSettings.default_profile] ||
       PROFILE_RECOMMENDATIONS.RELATIVE_VOLUME;
-    setProvider(currentSettings.default_provider);
+    setProvider(activeProviderChoice(currentSettings.default_provider));
     setProfile(currentSettings.default_profile);
     const defaultHorizon = currentSettings.default_horizon as HorizonValue;
     setHorizon(defaultHorizon);
@@ -2304,7 +2304,7 @@ export function DiscoveryWorkspace({
     }
     setError("");
     setProfile(scan.profile);
-    setProvider(scan.provider);
+    setProvider(activeProviderChoice(scan.provider));
     setUniverse(scan.universe.join(", "));
     setContextMode(scan.context_mode || "partial");
     setContextPolicy(scan.context_policy || "ALLOW_PARTIAL");
@@ -2314,7 +2314,11 @@ export function DiscoveryWorkspace({
     setHorizonOverridden(true);
     setPastScansOpen(false);
     setNotice("");
-    setToast("Historical scan setup loaded. Review before running.");
+    setToast(
+      scan.provider === "real-tradingview"
+        ? "Historical setup loaded and mapped to current real provider Dhan. Review before running."
+        : "Historical scan setup loaded. Review before running.",
+    );
   }
 
   async function loadRunTemporal(runId: string, mode: RunViewMode) {
@@ -2858,23 +2862,20 @@ export function DiscoveryWorkspace({
                       <select
                         value={provider}
                         onChange={(event) =>
-                          setProvider(event.target.value as ProviderChoice)
+                          setProvider(
+                            event.target.value as ActiveProviderChoice,
+                          )
                         }
                         aria-describedby="provider-help"
                       >
-                        <option value="internal">
-                          Internal Scanner V0 · synthetic
+                        <option value="synthetic">
+                          Synthetic validation data
                         </option>
-                        <option value="real-tradingview">
-                          Real evidence · Internal Scanner + TradingView
-                        </option>
-                        <option value="tradingview-synthetic">
-                          TradingView adapter · validation
-                        </option>
+                        <option value="real">Real market data · Dhan</option>
                       </select>
                       <small id="provider-help">
-                        Internal Scanner discovers matches; real mode verifies
-                        only those matches with TradingView market data.
+                        Both modes use the same Internal Scanner V0 path. Real
+                        mode evaluates authoritative Dhan OHLCV directly.
                       </small>
                     </label>
                   </div>

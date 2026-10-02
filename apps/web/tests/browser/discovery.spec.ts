@@ -26,7 +26,6 @@ test("Scan & Discover presents a responsive evidence workstation with route-leve
   await expect(
     page.getByText(/Discovery never authorizes a trade/),
   ).toBeVisible();
-  await expect(page.getByText("SYNTHETIC VALIDATION DATA")).toHaveCount(0);
   await expect(page.locator(".data-mode-banner")).toHaveCount(0);
   const statusStrip = page.getByRole("region", {
     name: "Provider and evidence readiness",
@@ -37,9 +36,7 @@ test("Scan & Discover presents a responsive evidence workstation with route-leve
     }),
   ).toBeVisible();
   await expect(statusStrip.getByText("Synthetic Data")).toBeVisible();
-  await expect(
-    statusStrip.getByText("Validation", { exact: true }),
-  ).toBeVisible();
+  await expect(statusStrip.getByText("Scanner", { exact: true })).toBeVisible();
   expect(
     await page
       .locator(".discovery-hero")
@@ -265,7 +262,7 @@ test("Scan & Discover presents a responsive evidence workstation with route-leve
   const recentScans = page.getByRole("list", {
     name: "Recent discovery scans",
   });
-  await expect(recentScans).toContainText("Internal");
+  await expect(recentScans).toContainText("Synthetic");
   await expect(recentScans).toContainText("symbols");
   await expect(recentScans).toContainText("matches");
   await recentScans.getByText("Actions").first().click();
@@ -347,9 +344,19 @@ test("Scan & Discover presents a responsive evidence workstation with route-leve
     animations: "disabled",
   });
 
-  await page
-    .locator('select[aria-describedby="provider-help"]')
-    .selectOption("tradingview-synthetic");
+  const providerSelect = page.locator(
+    'select[aria-describedby="provider-help"]',
+  );
+  await expect(providerSelect.locator('option[value="real"]')).toHaveText(
+    "Real market data · Dhan",
+  );
+  await expect(
+    providerSelect.locator('option[value="tradingview-synthetic"]'),
+  ).toHaveCount(0);
+  await expect(
+    providerSelect.locator('option[value="real-tradingview"]'),
+  ).toHaveCount(0);
+  await providerSelect.selectOption("synthetic");
   const validationScanResponse = page.waitForResponse(
     (response) =>
       response.request().method() === "POST" &&
@@ -369,20 +376,21 @@ test("Scan & Discover presents a responsive evidence workstation with route-leve
   await validationMatches
     .getByRole("button", { name: "View scan evidence chart for RELIANCE" })
     .click();
-  const unavailableChart = page.getByRole("dialog", {
+  const currentChart = page.getByRole("dialog", {
     name: "RELIANCE evidence chart",
   });
-  await unavailableChart.getByRole("tab", { name: "Current chart" }).click();
-  await expect(unavailableChart).toContainText("RETENTION RESTRICTED");
-  await expect(unavailableChart).toContainText(
-    /As-scanned evidence remains available/,
+  await currentChart.getByRole("tab", { name: "Current chart" }).click();
+  await expect(currentChart).toContainText("CURRENT CHART");
+  await expect(currentChart).toContainText("SYNTHETIC DATA");
+  await expect(currentChart).toContainText(
+    "Deterministic validation bars are retained.",
   );
   await page.screenshot({
-    path: info.outputPath("unavailable-current-chart.png"),
+    path: info.outputPath("provider-neutral-current-chart.png"),
     fullPage: true,
     animations: "disabled",
   });
-  await unavailableChart
+  await currentChart
     .getByRole("button", { name: "Close evidence chart" })
     .click();
 

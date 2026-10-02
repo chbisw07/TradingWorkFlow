@@ -1,6 +1,6 @@
 """Owner-scoped Scan & Discover product API; no opportunity or trading authority."""
 
-from typing import Annotated
+from typing import Annotated, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, Response
@@ -9,6 +9,8 @@ from starlette.responses import JSONResponse
 from twf.api.auth import Database, require_origin
 from twf.api.errors import error_response
 from twf.api.mcp import Manager, Who
+from twf.discovery.dhan_credentials import DhanCredentialManager
+from twf.discovery.market_intelligence import TapTideMarketIntelligence
 from twf.discovery.product import (
     CandidateDetail,
     DiscoverySettings,
@@ -29,7 +31,6 @@ from twf.discovery.product import (
     TemporalHistoryPage,
 )
 from twf.discovery.product_service import ProductFailure, ScanDiscoverService
-from twf.discovery.tradingview.evidence import TradingViewEvidenceGateway
 
 router = APIRouter(
     prefix="/api/v1/discovery",
@@ -45,9 +46,19 @@ def use_cases(
     manager: Manager,
 ) -> ScanDiscoverService:
     response.headers["Cache-Control"] = "no-store"
-    gateway = TradingViewEvidenceGateway(manager, request.app.state.settings.tradingview_scan, who)
+    intelligence = TapTideMarketIntelligence(
+        manager, who, request.app.state.market_intelligence_cache
+    )
+    credentials = cast(DhanCredentialManager, request.app.state.dhan_credentials)
+    capture = credentials.capture(who.owner_id, ready_only=True)
     return ScanDiscoverService(
-        session, who.owner_id, getattr(request.state, "request_id", None), gateway
+        session,
+        who.owner_id,
+        getattr(request.state, "request_id", None),
+        capture.provider,
+        intelligence,
+        market_data_state=capture.status.state.value,
+        market_data_error=capture.status.last_error,
     )
 
 

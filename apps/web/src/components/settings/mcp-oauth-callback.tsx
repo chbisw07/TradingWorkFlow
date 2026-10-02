@@ -5,11 +5,12 @@ import { useEffect, useRef, useState } from "react";
 
 type CallbackState = "working" | "success" | "error";
 
-export function TradingViewOAuthCallback() {
+export function McpOAuthCallback() {
   const [state, setState] = useState<CallbackState>("working");
   const [message, setMessage] = useState(
-    "Completing your owner-scoped TradingView authorization…",
+    "Completing your provider authorization…",
   );
+  const [providerName, setProviderName] = useState("Provider");
   const callbackStarted = useRef(false);
 
   useEffect(() => {
@@ -19,7 +20,9 @@ export function TradingViewOAuthCallback() {
     const code = parameters.get("code") || "";
     const oauthState = parameters.get("state") || "";
     const connectionId = sessionStorage.getItem("twf.mcp.connection_id") || "";
-
+    const savedName =
+      sessionStorage.getItem("twf.mcp.provider_name") || "Provider";
+    setProviderName(savedName);
     window.history.replaceState(null, "", "/settings/mcp/callback");
 
     if (
@@ -38,7 +41,7 @@ export function TradingViewOAuthCallback() {
       return;
     }
 
-    fetch("/api/v1/settings/mcp/connections/" + connectionId + "/callback", {
+    fetch(`/api/v1/settings/mcp/connections/${connectionId}/callback`, {
       method: "POST",
       cache: "no-store",
       headers: { "Content-Type": "application/json" },
@@ -48,15 +51,16 @@ export function TradingViewOAuthCallback() {
         if (!response.ok) throw new Error();
         await response.json();
         sessionStorage.removeItem("twf.mcp.connection_id");
+        sessionStorage.removeItem("twf.mcp.provider_name");
         setState("success");
         setMessage(
-          "TradingView authorization is saved. Return to Settings and test the provider connection before using real market evidence.",
+          `${savedName} authorization is saved. Return to Settings and test the connection.`,
         );
       })
       .catch(() => {
         setState("error");
         setMessage(
-          "TradingView authorization could not be completed. Return to Settings and retry with a fresh authorization.",
+          `${savedName} authorization could not be completed. Return to Settings and retry with a fresh authorization.`,
         );
       });
   }, []);
@@ -64,12 +68,12 @@ export function TradingViewOAuthCallback() {
   return (
     <main className="login-page">
       <section className="login-card" aria-labelledby="mcp-callback-heading">
-        <p className="eyebrow">TRADINGVIEW CONNECTION</p>
+        <p className="eyebrow">MCP PROVIDER CONNECTION</p>
         <h1 id="mcp-callback-heading">
           {state === "working"
             ? "Completing authorization"
             : state === "success"
-              ? "TradingView connected"
+              ? `${providerName} connected`
               : "Authorization incomplete"}
         </h1>
         <p role={state === "error" ? "alert" : "status"}>{message}</p>

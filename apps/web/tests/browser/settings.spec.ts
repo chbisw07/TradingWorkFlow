@@ -18,11 +18,19 @@ test("personal settings persist, profiles apply, stale edits conflict and both t
     page.getByRole("heading", { name: "Settings", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Provider connections" }),
+    page.getByRole("heading", { name: "Data providers" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Add TradingView connection" }),
+    page.getByRole("heading", { name: "Dhan market data" }),
   ).toBeVisible();
+  await expect(page.getByText("Authentication required")).toBeVisible();
+  await page.getByRole("button", { name: "Configure Dhan" }).click();
+  await expect(page.getByLabel("Dhan access token")).toHaveAttribute(
+    "type",
+    "password",
+  );
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(page.getByLabel("Dhan access token")).toHaveCount(0);
   await page.getByLabel("Setup density").selectOption("compact");
   await page.getByLabel("Default analysis horizon").selectOption("15d");
   await page

@@ -235,6 +235,8 @@ def test_migration_history_and_metadata() -> None:
         "mcp_oauth_attempts",
         "mcp_operations",
         "mcp_secrets",
+        "dhan_market_data_connections",
+        "dhan_market_data_secrets",
         "discovery_settings",
         "discovery_comparison_scopes",
         "discovery_temporal_lanes",
@@ -260,7 +262,7 @@ def test_migration_history_and_metadata() -> None:
         with db.connect() as connection:
             assert (
                 MigrationContext.configure(connection).get_current_revision()
-                == "0015_discovery_evidence_series"
+                == "0016_dhan_market_data_credentials"
             )
             assert inspect(connection).get_table_names() == [
                 "alembic_version",
@@ -269,6 +271,8 @@ def test_migration_history_and_metadata() -> None:
                 "broker_attempts",
                 "broker_order_intents",
                 "broker_secrets",
+                "dhan_market_data_connections",
+                "dhan_market_data_secrets",
                 "discovery_active_slots",
                 "discovery_comparison_scopes",
                 "discovery_episodes",
@@ -300,7 +304,7 @@ def test_migration_history_and_metadata() -> None:
         with db.connect() as connection:
             assert (
                 MigrationContext.configure(connection).get_current_revision()
-                == "0015_discovery_evidence_series"
+                == "0016_dhan_market_data_credentials"
             )
     finally:
         db.dispose()

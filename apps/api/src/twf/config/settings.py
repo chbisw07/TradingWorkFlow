@@ -7,7 +7,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
 
 from twf import __version__
-from twf.discovery.tradingview.config import TradingViewSettings
+from twf.discovery.market_data import DhanMarketDataSettings
 from twf.integrations.config import ServiceDescriptor, validate_policy
 from twf.integrations.mcp.contracts import ProviderConfig
 
@@ -53,7 +53,7 @@ class Settings(BaseSettings):
             raise ValueError("Broker callback requires HTTPS or loopback and /brokers/callback")
         return value
 
-    tradingview_scan: TradingViewSettings = Field(default_factory=TradingViewSettings)
+    dhan_market_data: DhanMarketDataSettings = Field(default_factory=DhanMarketDataSettings)
 
     mcp_providers: tuple[ProviderConfig, ...] = Field(default=(), max_length=16)
 

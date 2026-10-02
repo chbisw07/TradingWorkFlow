@@ -52,7 +52,7 @@ test("unsupported settings paths and oversized payloads never reach API", async 
       await PUT(
         new Request("https://web.example/api/v1/settings/values", {
           method: "PUT",
-          body: "x".repeat(4097),
+          body: "x".repeat(12_289),
         }),
         { params: Promise.resolve({ path: ["values"] }) },
       )

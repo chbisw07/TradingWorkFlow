@@ -70,7 +70,7 @@ def temporal_client() -> Iterator[TestClient]:
 def payload(**changes: Any) -> dict[str, Any]:
     result: dict[str, Any] = {
         "universe": ["RELIANCE"],
-        "provider": "internal",
+        "provider": "synthetic",
         "profile": "RELATIVE_VOLUME",
         "horizon": "5d",
         "intent": "MOMENTUM",
@@ -476,7 +476,7 @@ def test_duplicate_source_sample_cannot_manufacture_confirmation(
         session.commit()
 
 
-def test_profile_and_provider_semantics_use_distinct_comparison_scopes(
+def test_profile_and_horizon_semantics_use_distinct_comparison_scopes(
     temporal_client: TestClient,
 ) -> None:
     internal = run(temporal_client, idempotency_key="internal-relative")
@@ -485,15 +485,15 @@ def test_profile_and_provider_semantics_use_distinct_comparison_scopes(
         profile="MOMENTUM",
         idempotency_key="internal-momentum",
     )
-    tradingview = run(
+    longer_horizon = run(
         temporal_client,
-        provider="tradingview-synthetic",
-        idempotency_key="tradingview-relative",
+        horizon="15d",
+        idempotency_key="longer-horizon-relative",
     )
     candidate_ids = {
         internal["candidates"][0]["candidate_id"],
         momentum["candidates"][0]["candidate_id"],
-        tradingview["candidates"][0]["candidate_id"],
+        longer_horizon["candidates"][0]["candidate_id"],
     }
     assert len(candidate_ids) == 3
     app = cast(FastAPI, temporal_client.app)

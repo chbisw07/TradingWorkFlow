@@ -1,5 +1,7 @@
 # TradingWorkFlow (TWF) — Detailed Roadmap
 
+> **2026-10-02 provider decision:** the accepted historical TradingView S2-3 record remains intact, but TradingView is decommissioned from active runtime. Dhan is the first authoritative `MarketDataProvider`; TapTide is the first optional `MarketIntelligenceProvider`. The migration is implemented and pending user validation; it does not create a new Git freeze.
+
 > **2026-09-29 S&D architecture acceptance:** The dated S&D extension below is **ACCEPTED / IMPLEMENTATION AUTHORIZED** within the [Sprint-2 delivery plan](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md). The [independent acceptance record](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) supersedes its 2026-09-28 proposal status. Sprint 2 is **IMPLEMENTED / READY FOR USER VALIDATION**. S2-1 is **ACCEPTED / FROZEN**; S2-2 Internal Scanner V0 is **ACCEPTED / FROZEN**; S2-3A is DURABILITY REMEDIATED / INTEGRATED INTO S2-3; S2-3 is **ACCEPTED / FROZEN WITH DEFERRED HARDENING**. S2-4 through S2-7 are **IMPLEMENTED** and S2-8 is **IMPLEMENTED / INTERNAL VALIDATION COMPLETE**. Final acceptance/freeze remains pending user validation, adversarial review, consolidated hardening, and verification. Earlier acceptance history and separate TI/TM/provider/security gates remain unchanged; proposal wording in the dated extension records its origin, not the current review status.
 
 ## Status
@@ -415,14 +417,14 @@ This accepted overlay supersedes the immediate TM-before-Scanner scheduling in s
 that earlier sequence and BW gate inventory remain historical. TWF milestone IDs
 and accepted/frozen evidence are unchanged; “Sprint 2” is not a rename of TWF-2.
 
-| Existing milestone / track        | Bounded contribution                                                                                                     | Not claimed complete                                                                    |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
-| TWF-3 Scanner Integration         | ScanProvider contracts, TradingView MCP adapter after verification, independent internal V0, normalization and discovery | All future scanner/monitoring capabilities                                              |
-| TWF-2.3 Candidate Workspace       | Discovery queue, intent/horizon/evidence/details/history                                                                 | Entire TWF-2, consoles, global watchlists or UX-B1                                      |
-| TWF-1.5 / TWF-1.6 extension seams | Versioned S&D settings and provider-domain contracts                                                                     | Reopening frozen foundations or pretending health-only clients implement domain methods |
-| TWF-4 future integration          | Optional bounded LLM Level-0 delivered early in S&D                                                                      | TI deep intelligence or Opportunity qualification                                       |
-| UX-B2                             | Independently useful discovery with no LLM/TV dependency                                                                 | Full end-to-end trading UX closure                                                      |
-| TWF-5 / TWF-6 / TWF-7–10          | Future handoff/evaluation architecture only                                                                              | TM, LOB, automatic execution, full alerts, ML or production hardening                   |
+| Existing milestone / track        | Bounded contribution                                                                                                                  | Not claimed complete                                                                    |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| TWF-3 Scanner Integration         | Provider-neutral market-data contract, Dhan authoritative data, Internal Scanner V0, optional TapTide MI, normalization and discovery | All future scanner/monitoring capabilities                                              |
+| TWF-2.3 Candidate Workspace       | Discovery queue, intent/horizon/evidence/details/history                                                                              | Entire TWF-2, consoles, global watchlists or UX-B1                                      |
+| TWF-1.5 / TWF-1.6 extension seams | Versioned S&D settings and provider-domain contracts                                                                                  | Reopening frozen foundations or pretending health-only clients implement domain methods |
+| TWF-4 future integration          | Optional bounded LLM Level-0 delivered early in S&D                                                                                   | TI deep intelligence or Opportunity qualification                                       |
+| UX-B2                             | Independently useful discovery with no LLM/TV dependency                                                                              | Full end-to-end trading UX closure                                                      |
+| TWF-5 / TWF-6 / TWF-7–10          | Future handoff/evaluation architecture only                                                                                           | TM, LOB, automatic execution, full alerts, ML or production hardening                   |
 
 The architecture part of S2-0 is accepted; provider/data/policy decisions remain
 required before dependent slices. The S2-1 contracts and synthetic foundation are accepted/frozen. S2-2 Internal Scanner V0 is accepted/frozen after [focused re-review](TWF_S2_2_INTERNAL_SCANNER_V0_REREVIEW.md). S2-3A generic MCP connection/authentication is DURABILITY REMEDIATED / INTEGRATED INTO S2-3; S2-3 Real Scan Provider Integration (TradingView MCP first) is ACCEPTED / FROZEN WITH DEFERRED HARDENING; the bounded synthetic adapter is implemented and S2-4 is NEXT. Subsequent slices cover market context, verified
@@ -443,7 +445,7 @@ contracts, construction/LOB and future learning remain separately gated.
 | S&D acceptance 1     | 2026-09-29 | ACCEPTED / IMPLEMENTATION AUTHORIZED     | Independent S&D architecture acceptance; staged Sprint-2 scope only, no runtime delivery or prior milestone change; see [review](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) |
 | S2-1 acceptance      | 2026-09-29 | ACCEPTED / FROZEN                        | Focused remediation re-review records GO_S2_2; Internal Scanner V0 ACTIVE / NEXT only; see [re-review](TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_REREVIEW.md)           |
 
-## S2-3 exact-universe correction — 2026-09-30
+## Historical S2-3 exact-universe correction — 2026-09-30
 
 Generic MCP durability remediation and the TradingView exact-universe ScanProvider are
 implemented together. The [implementation record](TWF_S2_3_TRADINGVIEW_MCP_SCAN_PROVIDER_IMPLEMENTATION.md),
@@ -474,6 +476,16 @@ The Scan & Discover user-validation surface now includes an on-demand evidence c
 
 Status remains **IMPLEMENTED / READY FOR USER VALIDATION**. The chart feature does not mark Sprint 2 accepted/frozen and does not waive the successful-live-row or provider-licensing hardening items.
 
-## Real market evidence integration — 2026-10-02
+## Historical TradingView real-evidence integration — superseded 2026-10-02
 
 A user-validation bridge now combines Internal Scanner discovery with TradingView exact-symbol and bounded OHLCV evidence. It provides explicit synthetic versus real modes, typed evidence verification, contradiction-aware admission/relevance, real scan-driven observations and on-demand Current Chart data without using the unreliable broad screener or assuming provider retention rights. Synthetic CI remains unchanged. The work adds no new schema and remains **IMPLEMENTED / READY FOR USER VALIDATION**; final Sprint-2 acceptance/freeze is still pending controlled live verification and the existing hardening process.
+
+## Provider migration status — 2026-10-02
+
+- TradingView MCP: historical/decommissioned from active S&D; records and generic MCP state preserved.
+- Dhan market data: first active authoritative real provider; implementation ready for bounded user validation.
+- Zerodha market data: next compatible provider contract, not implemented by this migration.
+- TapTide MI: first optional bounded intelligence adapter; implementation ready for user validation, with live result reported only when configured.
+- Synthetic: retained as deterministic offline/CI provider through the same normalized scanner path.
+
+This migration changes provider architecture, not Sprint-2's boundary. Scan & Discover still ends at `DiscoveryCandidate`.

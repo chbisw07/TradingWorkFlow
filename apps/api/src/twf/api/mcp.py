@@ -12,9 +12,17 @@ from twf.api.auth import Database, require_origin
 from twf.api.errors import error_response
 from twf.integrations.contracts import Contract, RequestContext
 from twf.integrations.mcp.connection import ConnectionManager
-from twf.integrations.mcp.contracts import Authorization, Code, ConnectionView, Context, Failure
+from twf.integrations.mcp.contracts import (
+    AuthMode,
+    Authorization,
+    Code,
+    ConnectionView,
+    Context,
+    Failure,
+)
 
 router = APIRouter(prefix="/api/v1/settings/mcp", tags=["MCP provider connections"])
+DECOMMISSIONED_PRODUCT_PROVIDERS = frozenset({"tradingview"})
 
 
 def principal(request: Request, response: Response, db: Database) -> Context:
@@ -40,6 +48,12 @@ def manager(request: Request) -> ConnectionManager:
 
 
 Manager = Annotated[ConnectionManager, Depends(manager)]
+
+
+class ProviderRegistration(Contract):
+    provider_id: str = Field(min_length=1, max_length=64)
+    display_name: str = Field(min_length=1, max_length=80)
+    auth_mode: AuthMode
 
 
 class Create(Contract):
@@ -88,6 +102,20 @@ async def mcp_error(request: Request, exc: Exception) -> JSONResponse:
     return response
 
 
+@router.get("/providers")
+def providers(who: Who, service: Manager) -> tuple[ProviderRegistration, ...]:
+    del who
+    return tuple(
+        ProviderRegistration(
+            provider_id=item.provider_id,
+            display_name=item.display_name,
+            auth_mode=item.auth_mode,
+        )
+        for item in sorted(service.providers.values(), key=lambda row: row.display_name)
+        if item.provider_id not in DECOMMISSIONED_PRODUCT_PROVIDERS
+    )
+
+
 @router.get("/connections")
 def connections(who: Who, service: Manager) -> tuple[ConnectionView, ...]:
     return service.connections(who)
@@ -95,6 +123,8 @@ def connections(who: Who, service: Manager) -> tuple[ConnectionView, ...]:
 
 @router.post("/connections", dependencies=[Depends(require_origin)])
 async def create(payload: Create, who: Who, service: Manager) -> ConnectionView:
+    if payload.provider_id in DECOMMISSIONED_PRODUCT_PROVIDERS:
+        raise Failure(Code.NOT_CONFIGURED)
     return await service.create(who, payload.provider_id, payload.display_name)
 
 

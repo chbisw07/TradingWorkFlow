@@ -1,5 +1,5 @@
-import { TradingViewOAuthCallback } from "../../../../components/settings/tradingview-oauth-callback";
+import { McpOAuthCallback } from "../../../../components/settings/mcp-oauth-callback";
 
-export default function TradingViewOAuthCallbackPage() {
-  return <TradingViewOAuthCallback />;
+export default function McpOAuthCallbackPage() {
+  return <McpOAuthCallback />;
 }

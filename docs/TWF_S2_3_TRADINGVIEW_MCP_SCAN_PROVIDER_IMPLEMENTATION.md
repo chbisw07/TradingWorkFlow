@@ -1,5 +1,7 @@
 # S2-3 — TradingView MCP ScanProvider implementation
 
+> **HISTORICAL / DECOMMISSIONED — 2026-10-02.** This document preserves the successfully implemented and evaluated TradingView MCP integration and its acceptance evidence. TradingView is no longer an active TWF runtime/data provider. Do not use this document as current setup guidance. Active architecture is defined by [Market Data Provider Architecture](TWF_MARKET_DATA_PROVIDER_ARCHITECTURE.md) and [Market Intelligence Provider Architecture](TWF_MARKET_INTELLIGENCE_PROVIDER_ARCHITECTURE.md). Generic MCP infrastructure and historical rows remain preserved.
+
 Date: 2026-09-30. Status: **ACCEPTED / FROZEN WITH DEFERRED HARDENING**.
 Sprint 2 remains ACTIVE. S2-1/S2-2/S2-3 and Broker V2 are ACCEPTED / FROZEN.
 S2-3A durability is integrated into S2-3. S2-4 is NEXT. The S2-3 Git checkpoint

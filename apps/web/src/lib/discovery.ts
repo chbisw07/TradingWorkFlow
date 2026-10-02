@@ -1,16 +1,28 @@
+export type ActiveProviderChoice = "synthetic" | "real";
 export type ProviderChoice =
-  "internal" | "real-tradingview" | "tradingview-synthetic";
+  | ActiveProviderChoice
+  | "internal"
+  | "real-tradingview"
+  | "tradingview-synthetic";
+
+export function activeProviderChoice(
+  value: ProviderChoice,
+): ActiveProviderChoice {
+  if (value === "real" || value === "real-tradingview") return "real";
+  return "synthetic";
+}
+
 export type ContextMode = "healthy" | "partial" | "unavailable" | "stale";
 export type ContextPolicy = "REQUIRE_COMPLETE" | "ALLOW_PARTIAL" | "OPTIONAL";
 
 export type ProviderStatus = {
-  id: ProviderChoice;
+  id: string;
   label: string;
   enabled: boolean;
-  mode: "LOCAL_SYNTHETIC" | "REMOTE" | "SYNTHETIC_VALIDATION";
+  mode: "LOCAL" | "REMOTE" | "SYNTHETIC";
   health:
     "AVAILABLE" | "DEGRADED" | "AUTH_REQUIRED" | "RATE_LIMITED" | "UNAVAILABLE";
-  role: "DISCOVERY" | "EVIDENCE" | "VALIDATION";
+  role: "MARKET_DATA" | "SCANNER" | "MARKET_INTELLIGENCE" | "CONTEXT";
   capabilities: string[];
   limitations: string[];
   last_success_at: string | null;
@@ -23,6 +35,11 @@ export type Instrument = {
   exchange: string;
   segment: string;
   native: { namespace: string; native_id: string; revision: string };
+  instrument_type?: string | null;
+  provider_symbol?: string | null;
+  expiry?: string | null;
+  strike?: string | number | null;
+  right?: string | null;
 };
 
 export type Relevance = {
@@ -261,9 +278,9 @@ export type ScanSummary = {
   context_availability: MarketContext["availability"];
   degraded: string[];
   evidence_lineage?: {
-    discovery_provider: "internal-scanner-v0";
-    evidence_provider: "tradingview";
-    data_mode: "LIVE_EVIDENCE";
+    discovery_provider: string;
+    evidence_provider: string;
+    data_mode: string;
     connection_id: string | null;
     generation: number | null;
     requested_symbols: string[];

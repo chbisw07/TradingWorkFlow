@@ -2,7 +2,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { SurfaceState } from "../ui/surface-state";
 import { DiscoverySettingsSection } from "../discovery/discovery-settings";
-import { TradingViewConnectionSection } from "./tradingview-connection";
+import { ProviderConnectionsSection } from "./provider-connections";
 
 type Values = {
   density?: "comfortable" | "compact";
@@ -340,7 +340,7 @@ export function SettingsCenter() {
               </button>
             )}
           </section>
-          <TradingViewConnectionSection />
+          <ProviderConnectionsSection />
           <DiscoverySettingsSection />
         </>
       )}

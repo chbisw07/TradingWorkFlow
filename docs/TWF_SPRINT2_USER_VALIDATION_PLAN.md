@@ -1,5 +1,7 @@
 # Sprint 2 Scan & Discover — user validation plan
 
+> **2026-10-02 validation amendment:** Do not execute the historical TradingView workflows below. Active validation uses Dhan real market data and optional TapTide MI as specified in the final section. Historical TradingView runs must remain readable without an active TradingView connection.
+
 **Product state:** IMPLEMENTED / READY FOR USER VALIDATION  
 **Audience:** product owner/operator  
 **Result of this plan:** observations for later adversarial review and hardening; it does not itself freeze Sprint 2
@@ -44,7 +46,7 @@ This plan reflects the **final product stabilization and scan-driven temporal-st
 - Confirm status is communicated in text with a dot and does not depend on color or look like a button.
 - If TradingView is rate limited, confirm the strip states that live exact-row proof remains pending.
 
-### 4. TradingView contract-validation flow
+### 4. Historical TradingView validation flow — do not run for active acceptance
 
 - Select **TradingView adapter · validation** and run a supported exact universe.
 - Confirm the UI identifies synthetic validation data and makes no live-data claim.
@@ -180,11 +182,9 @@ For each workflow, record PASS/FAIL, browser/viewport, user-visible behavior, sc
 
 Acceptance requires numerical reconciliation, no-lookahead behavior, owner isolation, truthful legacy/retention states and visual recognition of the matched evidence within seconds. This validation does not accept or freeze Sprint 2.
 
-## Opt-in real TradingView evidence workflow — 2026-10-02
+## Historical opt-in TradingView workflow — decommissioned
 
-This workflow is separate from deterministic CI and requires the existing secure TradingView OAuth connection.
-
-The implementation-phase preflight found the active local profile intentionally unconfigured for live TradingView access, so no remote call was attempted. This workflow remains pending: enable the verified provider profile, complete owner-scoped OAuth, then perform the single bounded run below. Do not bypass the safe defaults merely to obtain a live result.
+This numbered workflow is retained only as historical evidence of the former provider validation plan. **Do not execute it and do not re-enable TradingView for active acceptance.** The original preflight and expected observations remain below so prior decisions stay auditable.
 
 1. After the operator has registered the provider and enabled real evidence, open **Settings → Provider connections**, select **Add TradingView connection**, then **Authorize TradingView**. Complete consent in the same browser and return through `/settings/mcp/callback`. Confirm Settings reports **Ready for real evidence** and the provider strip shows **TradingView market evidence · Live · Evidence** as Ready. Do not share a connection between test users.
 2. Choose **Real evidence · Internal Scanner + TradingView**, use one supported profile, and use a small universe such as `RELIANCE, INFY, HDFCBANK, MCX, NIFTY`.
@@ -196,3 +196,16 @@ The implementation-phase preflight found the active local profile intentionally 
 8. Disconnect after live validation using the normal MCP lifecycle. Preserve any truthful cleanup-pending state; do not wait indefinitely for remote revocation.
 
 Record provider response state, requested/returned/missing identities, source timestamps, verification, candidate count and Current Chart result. Live validation is opt-in and never part of CI.
+
+## Active Dhan and TapTide validation workflow — 2026-10-02
+
+1. Open **Settings → Data providers → Dhan market data**, choose **Configure Dhan**, enter the current Dhan client ID and access token, save, and select **Test Dhan connection**. Confirm Settings and the S&D strip show **Dhan market data · Ready**. Never paste credentials into screenshots or Git. Environment configuration remains a development/bootstrap fallback only.
+2. Select **Real market data · Dhan** and run one bounded Relative Volume scan over `RELIANCE, INFY, HDFCBANK, MCX`. Zero matches is valid. Confirm resolved identities are Dhan-native and no TradingView wording is visible.
+3. Confirm each successful evaluated non-match is `ABSENT`; simulate or observe a typed provider failure and confirm `NOT_EVALUATED`. A mixed run must preserve successful symbols.
+4. If a match exists, open **As Scanned** and verify Dhan attribution, exact scanner bars, candles, volume, overlays, scan marker, and matching metrics. Open **Current Chart** and verify it is a separate Dhan read. Capture desktop/mobile screenshots without secrets.
+5. Configure TapTide in `TWF_MCP_PROVIDERS` as `provider_id=tapetide`, using verified OAuth metadata or personal bearer-token `API_KEY` mode. In Settings create/connect/test the owner-scoped connection.
+6. Run one real scan and verify TapTide context provenance/freshness. Disconnect or induce an unavailable state and rerun; Dhan technical scanning must still complete with MI shown as degraded/unavailable.
+7. Open an old TradingView run. Confirm provider/provenance/metrics are unchanged, no active connection is required, and unavailable historical bars remain truthfully unavailable.
+8. Validate keyboard operation, responsive desktop/mobile layouts, archive/restore, Use setup provider migration, and owner isolation.
+
+If credentials are absent, record the corresponding live result as `NOT_RUN`; do not bypass safe configuration or substitute synthetic evidence.

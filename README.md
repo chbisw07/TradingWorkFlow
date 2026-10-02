@@ -65,7 +65,7 @@ Scan & Discover Workstream                              ✅ ARCHITECTURE ACCEPTE
 ├── S2-3A Generic MCP Connection & Authentication       ▶ DURABILITY REMEDIATED / INTEGRATED INTO S2-3
 │
 ├── S2-3  Real Scan Provider Integration
-│         (TradingView MCP first)                       ✅ ACCEPTED / FROZEN WITH DEFERRED HARDENING
+│         Dhan market data + optional TapTide MI        ▶ MIGRATED / READY FOR USER VALIDATION
 │
 ├── S2-4  Market Context / Market Intelligence          ✅ IMPLEMENTED
 │
@@ -119,7 +119,7 @@ sequence remains dated planning history. The next workstream is
 architecture accepted by the [independent review](docs/TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md).
 Sprint 2 is **IMPLEMENTED / READY FOR USER VALIDATION**. [S2-1 domain contracts and synthetic providers](docs/TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION.md)
 are ACCEPTED / FROZEN following focused independent re-review. S2-2 Internal Scanner V0
-is ACCEPTED / FROZEN after [focused re-review](docs/TWF_S2_2_INTERNAL_SCANNER_V0_REREVIEW.md); S2-3A generic MCP connection/authentication is DURABILITY REMEDIATED / INTEGRATED INTO S2-3; S2-3 Real Scan Provider Integration (TradingView MCP first) is ACCEPTED / FROZEN WITH DEFERRED HARDENING. S2-4 through S2-7 are IMPLEMENTED and S2-8 has completed internal implementation validation. User validation, adversarial review, consolidated hardening, verification, and final acceptance remain required. Provider/data/policy gates remain required
+is ACCEPTED / FROZEN after [focused re-review](docs/TWF_S2_2_INTERNAL_SCANNER_V0_REREVIEW.md); S2-3A generic MCP connection/authentication is DURABILITY REMEDIATED / INTEGRATED INTO S2-3. The accepted TradingView S2-3 delivery is preserved as historical evidence; active runtime has migrated to Dhan market data with optional TapTide MI and is ready for user validation. S2-4 through S2-7 are IMPLEMENTED and S2-8 has completed internal implementation validation. User validation, adversarial review, consolidated hardening, verification, and final acceptance remain required. Provider/data/policy gates remain required
 before dependent slices. It ends at
 DiscoveryCandidate, works without LLM/TradingView dependencies in the core, and
 preserves Broker V2 and TI/TM authority. Existing TWF milestone numbers retain their
@@ -278,6 +278,8 @@ Then review the specialist architecture documents as needed.
 ### Scan & Discover — accepted architecture
 
 - [Scan & Discover Architecture](docs/TWF_SCAN_AND_DISCOVER_ARCHITECTURE.md) — subsystem, providers, evidence, lifecycle, relevance, optional LLM and UX
+- [Market Data Provider Architecture](docs/TWF_MARKET_DATA_PROVIDER_ARCHITECTURE.md) — Dhan-first authoritative market data, normalized contracts, evidence integrity, and Zerodha compatibility
+- [Market Intelligence Provider Architecture](docs/TWF_MARKET_INTELLIGENCE_PROVIDER_ARCHITECTURE.md) — optional TapTide MCP claims, failure isolation, bounded calls, and multi-provider readiness
 - [Scan-driven temporal state architecture](docs/TWF_SND_SCAN_DRIVEN_TEMPORAL_STATE_ARCHITECTURE.md) — 2026-10-01 design amendment: immutable observations, comparison/coverage, separate lifecycle and freshness, bounded HOT/COLD history; **GO_IMPLEMENTATION / NOT IMPLEMENTED**
 - [Opportunity Domain Architecture](docs/TWF_OPPORTUNITY_DOMAIN_ARCHITECTURE.md) — shared identities and the future DiscoveryCandidate → Opportunity → TradeOpportunity → LOB progression
 - [Sprint-2 Delivery Plan](docs/TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md) — bounded scope, dependencies and acceptance gates
@@ -287,14 +289,14 @@ Then review the specialist architecture documents as needed.
 - [S2-1 Focused Re-review](docs/TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_REREVIEW.md) — closes S21-01/02/03; GO_S2_2 for Internal Scanner V0 only
 - [S2-2 Internal Scanner V0](docs/TWF_S2_2_INTERNAL_SCANNER_V0.md) — offline native scanning, indicator/condition proofs and S2-1 interoperability; independently accepted / frozen
 - [S2-3A Generic MCP Connection & Authentication](docs/TWF_S2_3A_GENERIC_MCP_PROVIDER_CONNECTION_AUTH_FOUNDATION.md) — durability remediation incorporated into the integrated S2-3 review
-- [S2-2 Focused Re-review](docs/TWF_S2_2_INTERNAL_SCANNER_V0_REREVIEW.md) — closes S22-01; GO_S2_3 for Real Scan Provider Integration (TradingView MCP first) only
+- [S2-2 Focused Re-review](docs/TWF_S2_2_INTERNAL_SCANNER_V0_REREVIEW.md) — closes S22-01; historical GO_S2_3 decision for the original TradingView integration
 - [Integrated Sprint-2 implementation](docs/TWF_SPRINT2_SCAN_DISCOVER_IMPLEMENTATION.md) — S2-4 through S2-8 implementation, persistence, API, UX, and internal validation evidence
 - [Sprint-2 hardening register](docs/TWF_SPRINT2_HARDENING_REGISTER.md) — carried S2-3 obligations and new bounded post-validation hardening
 - [Sprint-2 user validation plan](docs/TWF_SPRINT2_USER_VALIDATION_PLAN.md) — product-owner workflows required before adversarial acceptance
 
 The normative architecture is **ACCEPTED / IMPLEMENTATION AUTHORIZED**; the
 reconciliation record remains historical. Sprint 2 is **IMPLEMENTED / READY FOR USER VALIDATION**, with S2-1
-**ACCEPTED / FROZEN** and S2-2 **ACCEPTED / FROZEN**; S2-3A is **DURABILITY REMEDIATED / INTEGRATED INTO S2-3**; S2-3 is **ACCEPTED / FROZEN WITH DEFERRED HARDENING**; S2-4 through S2-7 are **IMPLEMENTED** and S2-8 is **IMPLEMENTED / INTERNAL VALIDATION COMPLETE**. This is a persistent product implementation awaiting user validation and later adversarial acceptance; no new Git freeze is claimed. Sprint 2 stops at DiscoveryCandidate; later intelligence, construction,
+**ACCEPTED / FROZEN** and S2-2 **ACCEPTED / FROZEN**; S2-3A is **DURABILITY REMEDIATED / INTEGRATED INTO S2-3**; the historical TradingView S2-3 delivery remains **ACCEPTED / FROZEN WITH DEFERRED HARDENING**, while the Dhan/TapTide runtime migration is **IMPLEMENTED / READY FOR USER VALIDATION**; S2-4 through S2-7 are **IMPLEMENTED** and S2-8 is **IMPLEMENTED / INTERNAL VALIDATION COMPLETE**. This is a persistent product implementation awaiting user validation and later adversarial acceptance; no new Git freeze is claimed. Sprint 2 stops at DiscoveryCandidate; later intelligence, construction,
 LOB, managed execution and learning remain separate gates.
 
 ### Data
@@ -381,12 +383,12 @@ Scan & Discover and Opportunity-domain architecture are accepted. Sprint 2 is
 **IMPLEMENTED / READY FOR USER VALIDATION**. S2-1 domain contracts and synthetic providers are **ACCEPTED / FROZEN**. The historical [S2-1 acceptance review](docs/TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_ACCEPTANCE_REVIEW.md)
 returned `HOLD_S2_1`; the [focused re-review](docs/TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_REREVIEW.md)
 closes its three blocking findings and records `GO_S2_2`. S2-2 Internal Scanner V0
-is ACCEPTED / FROZEN following [focused re-review](docs/TWF_S2_2_INTERNAL_SCANNER_V0_REREVIEW.md), which closes S22-01 and records `GO_S2_3`. S2-3A is DURABILITY REMEDIATED / INTEGRATED INTO S2-3; S2-3 is ACCEPTED / FROZEN WITH DEFERRED HARDENING. S2-4 through S2-7 are IMPLEMENTED; S2-8 is IMPLEMENTED / INTERNAL VALIDATION COMPLETE; Sprint 2 is IMPLEMENTED / READY FOR USER VALIDATION. Modify/cancel, additional brokers, Alerts-managed exits, full TI/TM,
+is ACCEPTED / FROZEN following [focused re-review](docs/TWF_S2_2_INTERNAL_SCANNER_V0_REREVIEW.md), which closes S22-01 and records `GO_S2_3`. S2-3A is DURABILITY REMEDIATED / INTEGRATED INTO S2-3; the historical TradingView S2-3 delivery remains ACCEPTED / FROZEN WITH DEFERRED HARDENING; the active Dhan/TapTide migration is IMPLEMENTED / READY FOR USER VALIDATION. S2-4 through S2-7 are IMPLEMENTED; S2-8 is IMPLEMENTED / INTERNAL VALIDATION COMPLETE; Sprint 2 is IMPLEMENTED / READY FOR USER VALIDATION. Modify/cancel, additional brokers, Alerts-managed exits, full TI/TM,
 Trade Construction, LOB and ML/IFL remain separately gated future work.
 
-Documentation revision: **2026-09-30 / S2-4–S2-8 IMPLEMENTED / SPRINT 2 READY FOR USER VALIDATION**.
+Documentation revision: **2026-10-02 / DHAN + TAPTIDE MIGRATION IMPLEMENTED / READY FOR USER VALIDATION**.
 S2-1 is ACCEPTED / FROZEN under `twf-s2-1-discovery-foundation` at `caadc9d`.
-S2-2 is ACCEPTED / FROZEN under `twf-s2-2-internal-scanner-v0` at `e22e17f`; its historical HOLD review is preserved. S2-3 is ACCEPTED / FROZEN WITH DEFERRED HARDENING and ready for its Git checkpoint, which this task does not create. MCP durability remediation is integrated into S2-3; the deferred successful-live-row proof and remote cleanup obligation are preserved in the [S2-3 review](docs/TWF_S2_3_ACCEPTANCE_REVIEW.md) and [hardening register](docs/TWF_S2_3_DEFERRED_ISSUES_AND_HARDENING_REGISTER.md). The integrated implementation and all carried obligations are consolidated in the [Sprint-2 implementation record](docs/TWF_SPRINT2_SCAN_DISCOVER_IMPLEMENTATION.md) and [Sprint-2 hardening register](docs/TWF_SPRINT2_HARDENING_REGISTER.md).
+S2-2 is ACCEPTED / FROZEN under `twf-s2-2-internal-scanner-v0` at `e22e17f`; its historical HOLD review is preserved. The historical TradingView S2-3 delivery is ACCEPTED / FROZEN WITH DEFERRED HARDENING. The active Dhan/TapTide migration is uncommitted and IMPLEMENTED / READY FOR USER VALIDATION; this task creates no checkpoint. MCP durability remediation remains integrated; historical TradingView proof and generic remote-cleanup obligations remain preserved in the [S2-3 review](docs/TWF_S2_3_ACCEPTANCE_REVIEW.md) and [hardening register](docs/TWF_S2_3_DEFERRED_ISSUES_AND_HARDENING_REGISTER.md). The integrated implementation and all carried obligations are consolidated in the [Sprint-2 implementation record](docs/TWF_SPRINT2_SCAN_DISCOVER_IMPLEMENTATION.md) and [Sprint-2 hardening register](docs/TWF_SPRINT2_HARDENING_REGISTER.md).
 Prior accepted milestones and Git freezes remain unchanged.
 
 ---
@@ -422,21 +424,17 @@ Future document families may include:
 
 The [focused temporal-state architecture](docs/TWF_SND_SCAN_DRIVEN_TEMPORAL_STATE_ARCHITECTURE.md) is **IMPLEMENTED / PENDING USER VALIDATION AND INDEPENDENT ACCEPTANCE**. Candidate lifecycle changes through explicit comparable scan observations or audited owner decisions; clock passage affects separately labelled freshness/window validity. HOT is a bounded window over durable history, not an overwrite ring. Coverage must prove evaluated non-matches before recording absence. Sprint 2 remains **IMPLEMENTED / READY FOR USER VALIDATION**; existing acceptance/freeze history is unchanged.
 
-## S2-3 integrated delivery evidence
+## Active market-data and intelligence runtime — 2026-10-02
 
-- [TradingView MCP ScanProvider implementation](docs/TWF_S2_3_TRADINGVIEW_MCP_SCAN_PROVIDER_IMPLEMENTATION.md)
-- [S2-3 bounded acceptance review](docs/TWF_S2_3_ACCEPTANCE_REVIEW.md)
-- [S2-3 deferred issues and hardening register](docs/TWF_S2_3_DEFERRED_ISSUES_AND_HARDENING_REGISTER.md)
+The original TradingView MCP implementation, acceptance record, and hardening evidence remain historical. TradingView was successfully implemented and evaluated, then intentionally decommissioned from active S&D because it is not the selected authoritative source for TWF's machine-driven technical data pipeline. Existing TradingView rows, observations, metrics, provenance, and generic MCP connection records are preserved.
 
-Synthetic SDK-to-ScanMatch validation and durable MCP recovery are implemented.
-Live TradingView OAuth, tool discovery, exact-symbol batch data and OHLCV capability are empirically verified. The broad screener remains unreliable and is not used by the real-evidence bridge. Exact requested-universe batch retrieval remains synthetically covered through ScanRun, ScanMatch and lineage, while the new real mode enriches only Internal Scanner matches. S2-3 remains **ACCEPTED / FROZEN WITH DEFERRED HARDENING**; retention, bar-finality, delay semantics and remote cleanup obligations remain. The later integrated S2-4 through S2-8 product implementation is ready for user validation.
+Active Scan & Discover has two paths:
 
-## Real market evidence integration — 2026-10-02
+- **Synthetic** uses deterministic fixtures through the provider-neutral `MarketDataProvider` contract.
+- **Real** resolves canonical Dhan instruments, retrieves normalized Dhan OHLCV, evaluates the exact same Internal Scanner V0 profiles, records temporal outcomes, and archives the exact evaluated series for As Scanned Evidence Chart reconstruction.
 
-Scan & Discover now has two explicit operating paths. **Synthetic** remains the deterministic offline/CI path. **Real evidence** runs Internal Scanner V0 as the bounded discovery matcher, then enriches only its matched symbols through the existing owner-scoped secure TradingView MCP connection. Exact-symbol requests use `mcp-tv-get-symbol-data-batch` in deterministic chunks of at most 50 with only `close` and `volume`; OHLCV requests use `mcp-tv-get-ohlcv` with profile-horizon-specific bounded windows. Requested, returned, missing, chunk, connection and generation lineage are retained.
+A successful evaluated non-match is `ABSENT`; Dhan authentication, rate-limit, timeout, missing-data, or malformed-response failures are `NOT_EVALUATED`. Current Chart obtains a new bounded Dhan series and cannot rewrite As Scanned truth. Dhan credentials are configured per owner through **Settings → Data providers → Dhan market data**, encrypted at rest, and never returned after saving. `TWF_DHAN_MARKET_DATA` remains an optional operator bootstrap fallback. Real scans require a successful connection test and never fall back to synthetic data.
 
-Real evidence is verification, not a second broad scanner. The product recomputes the pinned scan predicates from provider OHLCV and records `CONFIRMED`, `PARTIALLY_CONFIRMED`, `CONTRADICTED`, `UNVERIFIED`, or `UNAVAILABLE`. Contradicted and unverified matches are excluded from candidate admission. Provider/auth/rate/missing failures create `NOT_EVALUATED`, never `ABSENT`, and there is no silent synthetic fallback.
+TapTide is the first optional `MarketIntelligenceProvider`. It reuses generic MCP connection management and contributes bounded normalized market pulse, volatility, flow, sector/index, news, and event context. TapTide failure cannot block Dhan technical scanning. The product UI contains no active TradingView selector, evidence strip, chart fetch, or TradingView-specific connection action; the generic OAuth/PKCE callback and connection lifecycle remain available for TapTide and future providers.
 
-After the operator registers TradingView through `TWF_MCP_PROVIDERS` and enables `TWF_TRADINGVIEW_SCAN`, a signed-in user can open **Settings → Provider connections**, create a personal TradingView connection and select **Authorize TradingView**. The OAuth callback lands at `/settings/mcp/callback`, scrubs the provider parameters and completes the existing owner/session-bound encrypted connection flow. Scan & Discover reports the real provider as Ready only after that lifecycle completes.
-
-TradingView bars retain provider `t` separately from TWF receipt time. Provider bar finality is **unspecified**, realtime/delayed status is **unresolved**, and retention rights are **unknown**. Consequently, Current Chart fetches TradingView market data on demand, while As Scanned retains numerical predicates and lineage but reports historical chart reconstruction as retention-restricted. The unreliable TradingView broad screener is not called. Watchlists, background monitoring, Opportunity/LOB and trading authority remain outside this change. Sprint 2 remains **IMPLEMENTED / READY FOR USER VALIDATION**, not accepted or frozen by this uncommitted integration.
+See the [Market Data Provider Architecture](docs/TWF_MARKET_DATA_PROVIDER_ARCHITECTURE.md), [Market Intelligence Provider Architecture](docs/TWF_MARKET_INTELLIGENCE_PROVIDER_ARCHITECTURE.md), [Sprint-2 implementation record](docs/TWF_SPRINT2_SCAN_DISCOVER_IMPLEMENTATION.md), and [user validation plan](docs/TWF_SPRINT2_USER_VALIDATION_PLAN.md). This uncommitted migration is **IMPLEMENTED / READY FOR USER VALIDATION** and creates no acceptance tag or freeze.

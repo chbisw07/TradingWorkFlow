@@ -16,15 +16,28 @@ async function forward(
   );
   const allowed =
     (request.method === "GET" &&
-      (["definitions", "values", "profiles", "mcp/connections"].includes(
-        route,
-      ) ||
+      ([
+        "definitions",
+        "values",
+        "profiles",
+        "mcp/providers",
+        "mcp/connections",
+        "market-data/dhan",
+      ].includes(route) ||
         mcpConnection.test(route))) ||
     (request.method === "PUT" &&
       (route === "values" ||
+        route === "market-data/dhan/credentials" ||
         new RegExp("^profiles/" + uuid + "$").test(route))) ||
     (request.method === "POST" &&
-      (["reset", "deactivate", "profiles", "mcp/connections"].includes(route) ||
+      ([
+        "reset",
+        "deactivate",
+        "profiles",
+        "mcp/connections",
+        "market-data/dhan/test",
+        "market-data/dhan/disconnect",
+      ].includes(route) ||
         new RegExp("^profiles/" + uuid + "/apply$").test(route) ||
         mcpAction.test(route)));
   const output = {
@@ -58,7 +71,7 @@ async function forward(
   }
   try {
     const body = request.method === "GET" ? undefined : await request.text();
-    if (body && body.length > 4096)
+    if (body && body.length > 12_288)
       return new Response(null, { status: 413, headers: output });
     const upstream = await fetch(apiOrigin() + "/api/v1/settings/" + route, {
       method: request.method,

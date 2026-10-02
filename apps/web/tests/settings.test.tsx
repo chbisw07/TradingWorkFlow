@@ -5,9 +5,9 @@ vi.mock("../src/components/discovery/discovery-settings", () => ({
     <section aria-label="Scan and Discover settings" />
   ),
 }));
-vi.mock("../src/components/settings/tradingview-connection", () => ({
-  TradingViewConnectionSection: () => (
-    <section aria-label="TradingView provider connections" />
+vi.mock("../src/components/settings/provider-connections", () => ({
+  ProviderConnectionsSection: () => (
+    <section aria-label="Data provider connections" />
   ),
 }));
 import { SettingsCenter } from "../src/components/settings/settings-center";

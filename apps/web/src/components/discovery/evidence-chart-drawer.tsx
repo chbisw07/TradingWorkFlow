@@ -525,9 +525,11 @@ export function EvidenceChartDrawer({
                   <span className="evidence-data-badge">
                     {chart.data_mode === "SYNTHETIC"
                       ? "SYNTHETIC DATA"
-                      : chart.data_mode === "LIVE_SNAPSHOT"
-                        ? "TRADINGVIEW MARKET DATA"
-                        : chart.data_mode}
+                      : chart.provider === "dhan"
+                        ? "DHAN MARKET DATA"
+                        : chart.provider === "tradingview"
+                          ? "HISTORICAL TRADINGVIEW DATA"
+                          : `${chart.data_mode.replaceAll("_", " ")} DATA`}
                   </span>
                 </div>
                 <dl>

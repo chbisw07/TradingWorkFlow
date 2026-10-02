@@ -1,4 +1,4 @@
-"""Immutable, bounded completed-bar input; fixtures only in S2-2."""
+"""Immutable, bounded provider-neutral completed-bar input."""
 
 from enum import StrEnum
 from typing import Annotated, Protocol, Self
@@ -31,8 +31,7 @@ class DataUnavailable(ValueError):
 
 
 class Bar(Contract):
-    # Timestamp is provider/source time. Completion is asserted only by providers
-    # whose contract exposes it; TradingView currently leaves finality unspecified.
+    # Timestamp is provider/source time; available_at records when the bar was final.
     timestamp: Instant
     available_at: Instant
     open: Price
@@ -40,6 +39,8 @@ class Bar(Contract):
     low: Price
     close: Price
     volume: Volume | None
+    open_interest: Volume | None = None
+    finality: str = Field(default="COMPLETED", pattern=r"^(COMPLETED|PROVIDER_UNSPECIFIED)$")
 
     @model_validator(mode="after")
     def coherent(self) -> Self:
@@ -57,6 +58,10 @@ class MarketSeries(Contract):
     adjustment: RevisionRef
     session_basis: RevisionRef
     provenance: Provenance
+    received_at: Instant | None = None
+    requested_count: int | None = Field(default=None, ge=1, le=MAX_BARS)
+    completeness: str = Field(default="COMPLETE", pattern=r"^(COMPLETE|PARTIAL)$")
+    live_bar_excluded: bool = False
     bars: tuple[Bar, ...] = Field(max_length=MAX_BARS)
 
     @model_validator(mode="after")
@@ -79,12 +84,16 @@ class MarketSeries(Contract):
         completed = tuple(b for b in self.bars if b.timestamp <= cutoff)
         if any(b.available_at > cutoff for b in completed):
             raise DataUnavailable(DataReason.SERIES_UNAVAILABLE)
-        step = INTERVAL_SECONDS[self.interval]
-        if any(
-            (b.timestamp - a.timestamp).total_seconds() != step
-            for a, b in zip(completed, completed[1:], strict=False)
-        ):
-            raise DataUnavailable(DataReason.MALFORMED_SERIES)
+        # Exchange calendars naturally contain overnight, weekend, and holiday gaps.
+        # Deterministic fixtures remain gap-free so fixture regressions still detect
+        # accidental omissions without imposing that false rule on real providers.
+        if self.provenance.mode == SourceMode.SYNTHETIC:
+            step = INTERVAL_SECONDS[self.interval]
+            if any(
+                (b.timestamp - a.timestamp).total_seconds() != step
+                for a, b in zip(completed, completed[1:], strict=False)
+            ):
+                raise DataUnavailable(DataReason.MALFORMED_SERIES)
         return completed
 
 

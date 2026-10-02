@@ -22,7 +22,7 @@ from discovery_support import (
 from internal_scanner_support import run_for, series, with_last
 from pydantic import ValidationError
 
-from twf.discovery.domain import Comparison, Criterion, ScanDefinition, ScanMatch, SourceMode
+from twf.discovery.domain import Comparison, Criterion, ScanDefinition, ScanMatch
 from twf.discovery.internal_scanner.market_series import (
     DataReason,
     FixtureMarketSeriesSource,
@@ -264,9 +264,7 @@ def test_fail_fast_no_successful_partial_or_empty_on_bad_instrument() -> None:
     assert evaluate(good).items  # Failure creates no shared indicator/run state.
 
 
-@pytest.mark.parametrize(
-    "change", ["indicator", "interval", "unit", "capability", "mode", "boolean-op"]
-)
+@pytest.mark.parametrize("change", ["indicator", "interval", "unit", "capability", "boolean-op"])
 def test_unsupported_request_before_data_read(change: str) -> None:
     class NeverRead:
         async def read(self, *args: Any) -> MarketSeries:
@@ -281,8 +279,6 @@ def test_unsupported_request_before_data_read(change: str) -> None:
         d = replace(d, criteria=(replace(d.criteria[0], unit="wrong"),))
     elif change == "capability":
         d = replace(d, required_capabilities=("sd.future",))
-    elif change == "mode":
-        d = replace(d, source_mode=SourceMode.LIVE_SNAPSHOT)
     else:
         d = replace(
             d,

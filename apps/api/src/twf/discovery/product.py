@@ -24,9 +24,20 @@ from twf.integrations.contracts import Contract, Identifier
 
 
 class ProviderChoice(StrEnum):
+    SYNTHETIC = "synthetic"
+    REAL = "real"
+    # Legacy values remain parseable so historical rows and old clients are readable.
     INTERNAL = "internal"
     REAL_TRADINGVIEW = "real-tradingview"
     TRADINGVIEW_SYNTHETIC = "tradingview-synthetic"
+
+    @property
+    def active(self) -> "ProviderChoice":
+        if self in {self.INTERNAL, self.TRADINGVIEW_SYNTHETIC}:
+            return self.SYNTHETIC
+        if self == self.REAL_TRADINGVIEW:
+            return self.REAL
+        return self
 
 
 class EvidenceVerification(StrEnum):
@@ -166,7 +177,7 @@ Symbol = Annotated[str, Field(min_length=1, max_length=32, pattern=r"^[A-Z0-9][A
 
 class ProductScanRequest(Contract):
     universe: tuple[Symbol, ...] = Field(min_length=1, max_length=20)
-    provider: ProviderChoice = ProviderChoice.INTERNAL
+    provider: ProviderChoice = ProviderChoice.SYNTHETIC
     profile: Literal[
         "TREND_CONTINUATION",
         "BREAKOUT_WITH_VOLUME",
@@ -212,12 +223,12 @@ class ProductScanRequest(Contract):
 
 
 class ProviderStatus(Contract):
-    id: ProviderChoice
+    id: Identifier
     label: str
     enabled: bool
-    mode: Literal["LOCAL_SYNTHETIC", "REMOTE", "SYNTHETIC_VALIDATION"]
-    health: Literal["AVAILABLE", "DEGRADED", "AUTH_REQUIRED", "RATE_LIMITED"]
-    role: Literal["DISCOVERY", "EVIDENCE", "VALIDATION"] = "DISCOVERY"
+    mode: Literal["LOCAL", "REMOTE", "SYNTHETIC"]
+    health: Literal["AVAILABLE", "DEGRADED", "AUTH_REQUIRED", "RATE_LIMITED", "UNAVAILABLE"]
+    role: Literal["MARKET_DATA", "SCANNER", "MARKET_INTELLIGENCE", "CONTEXT"]
     capabilities: tuple[str, ...]
     limitations: tuple[str, ...] = ()
     last_success_at: AwareDatetime | None = None
@@ -225,9 +236,9 @@ class ProviderStatus(Contract):
 
 
 class RealEvidenceLineage(Contract):
-    discovery_provider: Literal["internal-scanner-v0"] = "internal-scanner-v0"
-    evidence_provider: Literal["tradingview"] = "tradingview"
-    data_mode: Literal["LIVE_EVIDENCE"] = "LIVE_EVIDENCE"
+    discovery_provider: str = "internal-scanner-v0"
+    evidence_provider: str = "dhan"
+    data_mode: str = "AUTHORITATIVE_MARKET_DATA"
     connection_id: UUID | None = None
     generation: int | None = Field(default=None, ge=0)
     requested_symbols: tuple[str, ...] = Field(max_length=64)
@@ -550,7 +561,7 @@ class DiscoverySettings(Contract):
     revision: int = Field(ge=0)
     llm_enabled: bool = False
     llm_provider: Literal["synthetic", "openai", "anthropic", "google"] = "synthetic"
-    default_provider: ProviderChoice = ProviderChoice.INTERNAL
+    default_provider: ProviderChoice = ProviderChoice.SYNTHETIC
     default_profile: str = "RELATIVE_VOLUME"
     default_horizon: HorizonChoice = HorizonChoice.FIVE_DAYS
     low_max: Decimal = Field(default=Decimal("0.60"), ge=0, le=1)

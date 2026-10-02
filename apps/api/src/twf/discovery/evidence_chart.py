@@ -28,6 +28,7 @@ from twf.discovery.product import (
     EvidenceChartSeries,
     EvidenceChartState,
     EvidenceChartThreshold,
+    ProviderChoice,
     ScanSummary,
 )
 
@@ -46,19 +47,24 @@ METRIC_LABELS = {
 
 
 def archive_payload(series: MarketSeries, definition: ScanDefinition) -> dict[str, Any]:
-    """Persist a bounded source snapshot once per match, never in every observation."""
+    """Persist the exact bounded scanner input once per match."""
+    synthetic = series.provenance.mode == SourceMode.SYNTHETIC
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "series": series.model_dump(mode="json"),
         "definition": definition.model_dump(mode="json"),
         "retention": {
-            "source_class": "SYNTHETIC_RETAINED",
+            "source_class": ("SYNTHETIC_RETAINED" if synthetic else "LICENSED_RETAINED"),
             "historical_chart_reconstructable": True,
             "scan_bars_retained": True,
             "current_chart_available": True,
             "limitation": (
-                "Deterministic synthetic bars are retained for validation. Real-provider "
-                "retention requires an explicit provider capability and licence decision."
+                "Deterministic validation bars are retained."
+                if synthetic
+                else (
+                    "A bounded normalized Dhan series is retained as the immutable "
+                    "as-scanned evidence snapshot."
+                )
             ),
         },
     }
@@ -325,7 +331,15 @@ def unavailable_chart(
         definition_revision=match.definition_revision,
         intent=summary.intent,
         horizon=summary.horizon,
-        provider=match.provenance.producer.provider,
+        provider=(
+            "tradingview"
+            if summary.provider == ProviderChoice.REAL_TRADINGVIEW
+            else (
+                "dhan"
+                if summary.provider.active == ProviderChoice.REAL
+                else match.provenance.producer.provider
+            )
+        ),
         data_mode=match.provenance.mode.value,
         timeframe="1d",
         price_unit="INR",
@@ -396,7 +410,9 @@ def build_chart(
     start = len(all_bars) - len(display)
     retention = archived_payload["retention"]
     finality: Literal["COMPLETED", "PROVIDER_UNSPECIFIED"] = (
-        "COMPLETED" if series.provenance.mode == SourceMode.SYNTHETIC else "PROVIDER_UNSPECIFIED"
+        "COMPLETED"
+        if all(item.finality == "COMPLETED" for item in display)
+        else "PROVIDER_UNSPECIFIED"
     )
     return EvidenceChart(
         mode=mode,
@@ -413,8 +429,8 @@ def build_chart(
         definition_revision=match.definition_revision,
         intent=summary.intent,
         horizon=summary.horizon,
-        provider=match.provenance.producer.provider,
-        data_mode=match.provenance.mode.value,
+        provider=series.provenance.producer.provider,
+        data_mode=series.provenance.mode.value,
         timeframe=series.interval,
         price_unit=series.price_unit,
         bar_finality=finality,
@@ -439,8 +455,10 @@ def build_chart(
                 **retention,
                 "archive_bar_count": len(archived_series.bars) if archived_series else 0,
                 "displayed_bar_count": len(display),
-                "current_chart_available": current_series is not None
-                or summary.provider.value == "internal",
+                "current_chart_available": (
+                    current_series is not None
+                    or summary.provider.active == ProviderChoice.SYNTHETIC
+                ),
             }
         ),
         provenance=(

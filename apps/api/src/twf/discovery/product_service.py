@@ -50,16 +50,29 @@ from twf.discovery.domain import (
     digest,
 )
 from twf.discovery.evidence_chart import archive_payload, build_chart, unavailable_chart
-from twf.discovery.internal_scanner.conditions import compare as series_compare
 from twf.discovery.internal_scanner.conditions import measure as series_measure
 from twf.discovery.internal_scanner.market_series import (
     Bar,
+    DataUnavailable,
     FixtureMarketSeriesSource,
     MarketSeries,
 )
 from twf.discovery.internal_scanner.profiles import IDENTITY as INTERNAL_IDENTITY
 from twf.discovery.internal_scanner.profiles import build_profile
-from twf.discovery.internal_scanner.scanner import InternalScannerV0
+from twf.discovery.internal_scanner.scanner import InternalScannerV0, ScannerDataFailure
+from twf.discovery.market_data import (
+    DhanMarketDataProvider,
+    FixtureMarketDataProvider,
+    MarketDataErrorCode,
+    MarketDataFailure,
+    MarketDataProvider,
+)
+from twf.discovery.market_intelligence import (
+    IntelligenceKind,
+    IntelligenceState,
+    MarketIntelligenceBatch,
+    MarketIntelligenceProvider,
+)
 from twf.discovery.product import (
     AdmissionReason,
     AdmissionSummary,
@@ -102,11 +115,6 @@ from twf.discovery.product import (
 )
 from twf.discovery.providers import OperationContext
 from twf.discovery.temporal import RunAdmission, TemporalConflict, TemporalStore
-from twf.discovery.tradingview.evidence import (
-    EvidenceOutcome,
-    SymbolEvidence,
-    TradingViewEvidenceGateway,
-)
 from twf.infrastructure.discovery import (
     DiscoveryActiveSlotRecord,
     DiscoveryEpisodeRecord,
@@ -125,18 +133,6 @@ from twf.integrations.contracts import RequestContext
 POLICY = RevisionRef(id="deterministic-relevance-v2", version="2")
 TEMPORAL_POLICY = RevisionRef(id="scan-driven-temporal", version="1")
 TRANSFORMATION = RevisionRef(id="sprint2-product-normalization", version="1")
-REAL_TRADINGVIEW = ProducerIdentity(
-    service_id="tradingview-real-evidence",
-    provider="tradingview",
-    service_version="1",
-    contract_version="sd.evidence.v1",
-)
-TRADINGVIEW_SYNTHETIC = ProducerIdentity(
-    service_id="tradingview-synthetic-validation",
-    provider="tradingview",
-    service_version="1",
-    contract_version="sd.scan.v1",
-)
 TERMINAL = {
     DiscoveryLifecycleState.EXPIRED.value,
     DiscoveryLifecycleState.REJECTED.value,
@@ -180,14 +176,6 @@ def intent_direction(choice: IntentChoice) -> Literal["LONG", "SHORT"]:
     )
 
 
-def fixture_polarity(fixture: SyntheticInstrumentFixture) -> EvidencePolarity:
-    if fixture.daily_trend > 0:
-        return EvidencePolarity.POSITIVE
-    if fixture.daily_trend < 0:
-        return EvidencePolarity.NEGATIVE
-    return EvidencePolarity.NEUTRAL
-
-
 INDEX_SYMBOLS = frozenset({"NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY"})
 
 
@@ -196,8 +184,6 @@ class SyntheticInstrumentFixture:
     base_price: Decimal
     daily_trend: Decimal
     relative_volume: Decimal
-    technical_evidence: bool
-    tradingview_match: bool
     final_move: Decimal | None = None
     cycle_amplitude: Decimal = Decimal("0.08")
 
@@ -208,8 +194,6 @@ SYNTHETIC_FIXTURES: dict[str, SyntheticInstrumentFixture] = {
         Decimal("2846.40"),
         Decimal("0.18"),
         Decimal("1.95"),
-        True,
-        True,
         Decimal("8.00"),
         Decimal("0.20"),
     ),
@@ -217,8 +201,6 @@ SYNTHETIC_FIXTURES: dict[str, SyntheticInstrumentFixture] = {
         Decimal("3146.80"),
         Decimal("0.34"),
         Decimal("2.60"),
-        True,
-        True,
         None,
         Decimal("0.30"),
     ),
@@ -226,8 +208,6 @@ SYNTHETIC_FIXTURES: dict[str, SyntheticInstrumentFixture] = {
         Decimal("1684.25"),
         Decimal("-0.03"),
         Decimal("0.82"),
-        False,
-        False,
         None,
         Decimal("0.35"),
     ),
@@ -235,8 +215,6 @@ SYNTHETIC_FIXTURES: dict[str, SyntheticInstrumentFixture] = {
         Decimal("1568.60"),
         Decimal("0.22"),
         Decimal("1.30"),
-        True,
-        True,
         Decimal("-2.80"),
         Decimal("0.25"),
     ),
@@ -244,8 +222,6 @@ SYNTHETIC_FIXTURES: dict[str, SyntheticInstrumentFixture] = {
         Decimal("2488.15"),
         Decimal("-0.30"),
         Decimal("1.85"),
-        True,
-        True,
         None,
         Decimal("0.25"),
     ),
@@ -253,8 +229,6 @@ SYNTHETIC_FIXTURES: dict[str, SyntheticInstrumentFixture] = {
         Decimal("24520.30"),
         Decimal("0.10"),
         Decimal("1.25"),
-        True,
-        True,
         None,
         Decimal("0.60"),
     ),
@@ -262,8 +236,6 @@ SYNTHETIC_FIXTURES: dict[str, SyntheticInstrumentFixture] = {
         Decimal("51780.10"),
         Decimal("-0.12"),
         Decimal("2.05"),
-        True,
-        True,
         Decimal("-18.00"),
         Decimal("0.45"),
     ),
@@ -271,8 +243,6 @@ SYNTHETIC_FIXTURES: dict[str, SyntheticInstrumentFixture] = {
         Decimal("3984.50"),
         Decimal("0.04"),
         Decimal("1.20"),
-        False,
-        True,
         None,
         Decimal("0.40"),
     ),
@@ -281,9 +251,7 @@ SYNTHETIC_FIXTURES: dict[str, SyntheticInstrumentFixture] = {
 
 def synthetic_fixture(symbol: str, progression: int = 0) -> SyntheticInstrumentFixture:
     if symbol.startswith("NO"):
-        return SyntheticInstrumentFixture(
-            Decimal("120.00"), Decimal("-0.10"), Decimal("0.70"), False, False
-        )
+        return SyntheticInstrumentFixture(Decimal("120.00"), Decimal("-0.10"), Decimal("0.70"))
     fixture = SYNTHETIC_FIXTURES.get(symbol)
     if fixture is None:
         seed = sum(ord(char) for char in symbol)
@@ -291,8 +259,6 @@ def synthetic_fixture(symbol: str, progression: int = 0) -> SyntheticInstrumentF
             base_price=Decimal(100 + seed % 900),
             daily_trend=Decimal("0.18") + Decimal(seed % 11) / Decimal(100),
             relative_volume=Decimal("1.55") + Decimal(seed % 45) / Decimal(100),
-            technical_evidence=seed % 3 == 0,
-            tradingview_match=True,
         )
     if progression <= 0:
         return fixture
@@ -413,12 +379,21 @@ class ScanDiscoverService:
         session: Session,
         owner_id: UUID,
         request_id: str | None,
-        real_evidence: TradingViewEvidenceGateway | None = None,
+        market_data: MarketDataProvider | None = None,
+        market_intelligence: MarketIntelligenceProvider | None = None,
+        *,
+        market_data_state: str | None = None,
+        market_data_error: str | None = None,
     ) -> None:
         self.session = session
         self.owner_id = owner_id
         self.request_id = request_id or uuid4().hex
-        self.real_evidence = real_evidence
+        self.market_data = market_data
+        self.market_intelligence = market_intelligence
+        self.market_data_state = market_data_state or (
+            "READY" if market_data is not None else "NOT_CONFIGURED"
+        )
+        self.market_data_error = market_data_error
 
     def settings(self) -> DiscoverySettings:
         row = self.session.get(DiscoverySettingsRecord, self.owner_id)
@@ -468,92 +443,6 @@ class ScanDiscoverService:
         )
         return min(int(count or 0), 3)
 
-    def supporting_fixture_evidence(
-        self,
-        run_id: UUID,
-        instrument: InstrumentIdentity,
-        at: datetime,
-        producer: ProducerIdentity,
-        progression: int,
-        source_data_time: datetime | None,
-    ) -> tuple[DiscoveryEvidence, ...]:
-        fixture = synthetic_fixture(instrument.symbol, progression)
-        series = market_series(instrument, at, progression)
-        closes = series.bars
-        close = Decimal(str(closes[-1].close))
-        momentum = Decimal(str(series_measure("roc.10", closes))).quantize(Decimal("0.01"))
-        rsi = Decimal(str(series_measure("rsi.14", closes))).quantize(Decimal("0.1"))
-        relative_volume = Decimal(str(series_measure("relative_volume.20", closes))).quantize(
-            Decimal("0.01")
-        )
-        prov = provenance(producer, instrument, at, "support:" + instrument.symbol)
-
-        def item(
-            category: EvidenceCategory,
-            key: str,
-            measures: tuple[Measure, ...],
-        ) -> DiscoveryEvidence:
-            return DiscoveryEvidence(
-                evidence_id=stable(f"support:{run_id}:{instrument.instrument_id}:{key}"),
-                owner_id=self.owner_id,
-                subject_id=instrument.instrument_id,
-                category=category,
-                polarity=fixture_polarity(fixture),
-                observation_basis="deterministic-daily-fixture",
-                observed_at=at,
-                source_data_time=source_data_time,
-                received_at=at,
-                available_at=at,
-                provenance=prov,
-                measures=measures,
-                reason="deterministic-synthetic-validation-evidence",
-            )
-
-        evidence = [
-            item(
-                EvidenceCategory.INSTRUMENT_PRICE,
-                "price",
-                (
-                    Measure(name="close", value=close, unit="INR"),
-                    Measure(name="momentum.10", value=momentum, unit="percent"),
-                ),
-            ),
-            item(
-                EvidenceCategory.VOLUME_LIQUIDITY,
-                "volume",
-                (Measure(name="relative_volume.20", value=relative_volume, unit="ratio"),),
-            ),
-        ]
-        if fixture.technical_evidence:
-            evidence.append(
-                item(
-                    EvidenceCategory.TECHNICAL,
-                    "technical",
-                    (
-                        Measure(name="rsi.14", value=rsi, unit="index"),
-                        Measure(name="momentum.10", value=momentum, unit="percent"),
-                    ),
-                )
-            )
-        return tuple(evidence)
-
-    def with_supporting_fixture_evidence(
-        self,
-        match: ScanMatch,
-        at: datetime,
-        progression: int,
-        source_data_time: datetime | None,
-    ) -> ScanMatch:
-        supporting = self.supporting_fixture_evidence(
-            match.run_id,
-            match.instrument,
-            at,
-            match.provenance.producer,
-            progression,
-            source_data_time,
-        )
-        return match.model_copy(update={"evidence": (*match.evidence, *supporting)})
-
     def providers(self) -> tuple[ProviderStatus, ...]:
         last = {
             row.provider: row
@@ -563,59 +452,113 @@ class ScanDiscoverService:
                 .order_by(ScanRunRecord.completed_at.asc())
             )
         }
-        internal = last.get(ProviderChoice.INTERNAL.value)
-        tradingview = last.get(ProviderChoice.TRADINGVIEW_SYNTHETIC.value)
-        real = last.get(ProviderChoice.REAL_TRADINGVIEW.value)
-        real_enabled, real_health, real_success = (
-            self.real_evidence.readiness()
-            if self.real_evidence is not None
-            else (False, "AUTH_REQUIRED", None)
+        synthetic = last.get(ProviderChoice.SYNTHETIC.value) or last.get(
+            ProviderChoice.INTERNAL.value
+        )
+        real = last.get(ProviderChoice.REAL.value)
+        dhan_ready = self.market_data is not None and self.market_data_state == "READY"
+        dhan_health = {
+            "READY": "AVAILABLE",
+            "CONFIGURED": "DEGRADED",
+            "AUTH_FAILED": "AUTH_REQUIRED",
+            "RATE_LIMITED": "RATE_LIMITED",
+            "PROVIDER_ERROR": "UNAVAILABLE",
+            "DISABLED": "AUTH_REQUIRED",
+            "NOT_CONFIGURED": "AUTH_REQUIRED",
+        }.get(self.market_data_state, "UNAVAILABLE")
+        dhan_detail = {
+            "CONFIGURED": "Credentials saved; test the connection before running a real scan.",
+            "AUTH_FAILED": "Dhan rejected the saved credentials. Replace or update them.",
+            "RATE_LIMITED": "Dhan rate limited the last connection test. Retry later.",
+            "PROVIDER_ERROR": "Dhan could not complete the last connection test.",
+            "DISABLED": "Dhan market-data access is disabled for this user.",
+            "NOT_CONFIGURED": "Configure Dhan client ID and a current access token.",
+        }.get(self.market_data_state)
+        try:
+            mi_ready, mi_state, mi_success = (
+                self.market_intelligence.readiness()
+                if self.market_intelligence is not None
+                else (False, IntelligenceState.AUTH_REQUIRED, None)
+            )
+        except Exception:
+            mi_ready, mi_state, mi_success = False, IntelligenceState.PROVIDER_ERROR, None
+        mi_health = {
+            IntelligenceState.AVAILABLE: "AVAILABLE",
+            IntelligenceState.PARTIAL: "DEGRADED",
+            IntelligenceState.STALE: "DEGRADED",
+            IntelligenceState.AUTH_REQUIRED: "AUTH_REQUIRED",
+            IntelligenceState.RATE_LIMITED: "RATE_LIMITED",
+            IntelligenceState.UNAVAILABLE: "UNAVAILABLE",
+            IntelligenceState.PROVIDER_ERROR: "DEGRADED",
+        }[mi_state]
+        scanner_last = max(
+            (item for item in (real, synthetic) if item is not None),
+            key=lambda item: aware(item.completed_at),
+            default=None,
+        )
+        scanner_mode = (
+            "SYNTHETIC"
+            if scanner_last is None or scanner_last.provider != ProviderChoice.REAL.value
+            else "LOCAL"
         )
         return (
             ProviderStatus(
-                id=ProviderChoice.INTERNAL,
-                label="Internal Scanner V0",
-                enabled=True,
-                mode="LOCAL_SYNTHETIC",
-                health="AVAILABLE",
-                role="DISCOVERY",
-                capabilities=("deterministic-scan", "five-profiles", "offline-validation"),
-                last_success_at=aware(internal.completed_at) if internal else None,
-            ),
-            ProviderStatus(
-                id=ProviderChoice.REAL_TRADINGVIEW,
-                label="TradingView market evidence",
-                enabled=real_enabled,
+                id="dhan",
+                label="Dhan market data",
+                enabled=dhan_ready,
                 mode="REMOTE",
-                health=cast(Any, real_health),
-                role="EVIDENCE",
+                health=cast(Any, dhan_health),
+                role="MARKET_DATA",
                 capabilities=(
-                    "exact-symbol-batch",
-                    "ohlcv",
-                    "current-evidence-chart",
-                    "source-bar-timestamps",
+                    "canonical-instrument-resolution",
+                    "batch-quotes",
+                    "daily-ohlcv",
+                    "intraday-ohlcv",
                 ),
                 limitations=(
-                    "broad-screener-unreliable",
-                    "bar-finality-unavailable",
-                    "realtime-delay-status-unresolved",
-                    "retention-rights-unknown",
+                    "access-tokens-expire-after-24-hours",
+                    "bounded-internal-evidence-retention",
                 ),
-                last_success_at=real_success or (aware(real.completed_at) if real else None),
-                last_error=None
-                if real_enabled
-                else "Connect and authorize TradingView to use real evidence.",
+                last_success_at=aware(real.completed_at) if real else None,
+                last_error=(
+                    None
+                    if dhan_ready
+                    else (dhan_detail or self.market_data_error or "Dhan is not ready.")
+                ),
             ),
             ProviderStatus(
-                id=ProviderChoice.TRADINGVIEW_SYNTHETIC,
-                label="TradingView exact-batch validation",
+                id="internal-scanner-v0",
+                label="Internal Scanner V0",
                 enabled=True,
-                mode="SYNTHETIC_VALIDATION",
+                mode=cast(Any, scanner_mode),
                 health="AVAILABLE",
-                role="VALIDATION",
-                capabilities=("exact-universe", "synthetic-ci", "provider-lineage"),
-                last_success_at=aware(tradingview.completed_at) if tradingview else None,
-                last_error=None,
+                role="SCANNER",
+                capabilities=("deterministic-scan", "five-profiles", "provider-neutral-series"),
+                last_success_at=(
+                    aware(scanner_last.completed_at) if scanner_last is not None else None
+                ),
+            ),
+            ProviderStatus(
+                id="tapetide",
+                label="TapTide market intelligence",
+                enabled=mi_ready,
+                mode="REMOTE",
+                health=cast(Any, mi_health),
+                role="MARKET_INTELLIGENCE",
+                capabilities=(
+                    "market-pulse",
+                    "india-vix",
+                    "fii-dii",
+                    "fpi-sector-flows",
+                    "index-performance",
+                    "market-news",
+                    "corporate-events",
+                ),
+                limitations=("optional-enrichment", "does-not-authorize-candidate-admission"),
+                last_success_at=mi_success,
+                last_error=None
+                if mi_ready
+                else "Optional market intelligence is not connected; technical scans continue.",
             ),
         )
 
@@ -641,10 +584,9 @@ class ScanDiscoverService:
             }
         )
         provider_class = {
-            ProviderChoice.INTERNAL: "twf-native-synthetic-v1",
-            ProviderChoice.REAL_TRADINGVIEW: "internal-discovery-tradingview-real-evidence-v1",
-            ProviderChoice.TRADINGVIEW_SYNTHETIC: "tradingview-synthetic-v1",
-        }[payload.provider]
+            ProviderChoice.SYNTHETIC: "twf-native-synthetic-v1",
+            ProviderChoice.REAL: "dhan-authoritative-market-data-v1",
+        }[payload.provider.active]
         return ScanComparabilityDescriptor(
             criteria_fingerprint=criteria_fingerprint,
             profile_semantic_class=f"{payload.profile.lower()}.v1",
@@ -652,8 +594,8 @@ class ScanDiscoverService:
             intent=payload.intent.value.lower(),
             horizon=selected_intent.horizon,
             observation_basis=(
-                f"{definition.timeframe}.real-evidence-v1"
-                if payload.provider == ProviderChoice.REAL_TRADINGVIEW
+                f"{definition.timeframe}.dhan-authoritative-v1"
+                if payload.provider.active == ProviderChoice.REAL
                 else f"{definition.timeframe}.synthetic-unadjusted-v1"
             ),
             provider_equivalence_class=provider_class,
@@ -677,263 +619,112 @@ class ScanDiscoverService:
             }
         )
 
-    def as_tradingview_match(self, match: ScanMatch, at: datetime) -> ScanMatch:
-        """Retain profile predicates while changing only provider provenance/mode."""
-        source = provenance(
-            TRADINGVIEW_SYNTHETIC,
-            match.instrument,
-            at,
-            "tradingview:" + match.instrument.symbol,
+    def with_series_evidence(
+        self,
+        match: ScanMatch,
+        series: MarketSeries,
+        at: datetime,
+    ) -> ScanMatch:
+        """Add normalized supporting facts from the exact scanner input series."""
+
+        bars = series.bars
+        close = Decimal(str(bars[-1].close))
+        momentum = Decimal(str(series_measure("roc.10", bars))).quantize(Decimal("0.01"))
+        rsi = Decimal(str(series_measure("rsi.14", bars))).quantize(Decimal("0.1"))
+        relative_volume = Decimal(str(series_measure("relative_volume.20", bars))).quantize(
+            Decimal("0.01")
         )
-        evidence = tuple(
-            item.model_copy(
-                update={
-                    "evidence_id": stable(f"tv-evidence:{match.run_id}:{item.evidence_id}"),
-                    "source_data_time": None,
-                    "provenance": source,
-                    "reason": item.reason or "synthetic-validation-no-live-provider-call",
-                }
-            )
-            for item in match.evidence
-        )
-        return match.model_copy(
-            update={
-                "scan_match_id": stable(
-                    f"tv-match:{match.run_id}:{match.instrument.instrument_id}"
-                ),
-                "evidence": evidence,
-                "provenance": source,
-            }
+        polarity = (
+            EvidencePolarity.POSITIVE
+            if momentum > 0
+            else (EvidencePolarity.NEGATIVE if momentum < 0 else EvidencePolarity.NEUTRAL)
         )
 
-    def normalize_real_match(
-        self, provisional: ScanMatch, item: SymbolEvidence, definition: Any
-    ) -> tuple[ScanMatch, EvidenceVerification]:
-        """Replace provisional fixture evidence with provider-native normalized evidence."""
-        source_time = item.bars[-1].source_time if item.bars else None
-        # TradingView does not expose finality. A following bar proves that the prior
-        # interval has ended, so verification conservatively excludes the newest bar.
-        verification_source_time = item.bars[-2].source_time if len(item.bars) > 1 else None
-        key = digest(
-            {
-                "run": str(provisional.run_id),
-                "instrument": str(provisional.instrument.instrument_id),
-                "outcome": item.outcome.value,
-                "source_time": source_time.isoformat() if source_time else None,
-                "received_at": item.received_at.isoformat(),
-            }
-        )
-        real_provenance = Provenance(
-            producer=REAL_TRADINGVIEW,
-            source=SourceReference(
-                namespace="tradingview",
-                native_id=f"{item.instrument.exchange}:{item.instrument.symbol}",
-                revision="exact-batch-ohlcv-v1",
-            ),
-            mode=SourceMode.LIVE_SNAPSHOT,
-            observation_key=key,
-            transformation=RevisionRef(id="tradingview-real-evidence-normalization", version="1"),
-            dependence_group="tradingview-exact-and-ohlcv",
-        )
-        evidence: list[DiscoveryEvidence] = []
-        verification = EvidenceVerification.UNAVAILABLE
-        if item.quote is not None:
-            quote_measures = [
-                Measure(name="close", value=item.quote.close, unit="price"),
-                Measure(
-                    name="exact-batch-chunk", value=Decimal(item.quote.chunk_index), unit="index"
+        def evidence_item(
+            key: str,
+            category: EvidenceCategory,
+            observation_basis: str,
+            measures: tuple[Measure, ...],
+        ) -> DiscoveryEvidence:
+            return DiscoveryEvidence(
+                evidence_id=stable(f"series-{key}:{match.run_id}:{match.instrument.instrument_id}"),
+                owner_id=self.owner_id,
+                subject_id=match.instrument.instrument_id,
+                category=category,
+                polarity=polarity,
+                observation_basis=observation_basis,
+                observed_at=bars[-1].timestamp,
+                source_data_time=bars[-1].timestamp,
+                received_at=series.received_at or at,
+                available_at=bars[-1].available_at,
+                provenance=series.provenance,
+                measures=measures,
+                reason="normalized-market-series",
+            )
+
+        supporting = (
+            evidence_item(
+                "price",
+                EvidenceCategory.INSTRUMENT_PRICE,
+                f"{series.interval}.authoritative-close",
+                (
+                    Measure(name="close", value=close, unit=series.price_unit),
+                    Measure(name="momentum.10", value=momentum, unit="percent"),
                 ),
-            ]
-            if item.quote.volume is not None:
-                quote_measures.append(
-                    Measure(name="volume", value=item.quote.volume, unit="volume")
-                )
-            evidence.append(
-                DiscoveryEvidence(
-                    evidence_id=stable(
-                        f"real-quote:{provisional.run_id}:{item.instrument.instrument_id}"
-                    ),
-                    owner_id=self.owner_id,
-                    subject_id=item.instrument.instrument_id,
-                    category=EvidenceCategory.INSTRUMENT_PRICE,
-                    polarity=EvidencePolarity.NEUTRAL,
-                    observation_basis="tradingview-exact-batch",
-                    observed_at=item.received_at,
-                    received_at=item.received_at,
-                    source_data_time=None,
-                    provenance=real_provenance,
-                    measures=tuple(quote_measures),
-                    reason="source-timestamp-unavailable",
-                )
-            )
-        if item.outcome == EvidenceOutcome.AVAILABLE and item.bars:
-            series = MarketSeries(
-                instrument=item.instrument,
-                interval=item.interval,
-                price_unit="INR",
-                adjustment=RevisionRef(id="provider-unspecified", version="1"),
-                session_basis=RevisionRef(id="tradingview-provider-calendar", version="1"),
-                provenance=real_provenance,
-                bars=tuple(
-                    Bar(
-                        timestamp=bar.source_time,
-                        available_at=max(bar.source_time, item.received_at),
-                        open=float(bar.open),
-                        high=float(bar.high),
-                        low=float(bar.low),
-                        close=float(bar.close),
-                        volume=None if bar.volume is None else float(bar.volume),
-                    )
-                    for bar in item.bars
-                ),
-            )
-            flags: list[bool] = []
-            technical_measures: list[Measure] = []
-            try:
-                verification_bars = series.bars[:-1]
-                for index, criterion in enumerate(definition.criteria):
-                    observed = Decimal(str(series_measure(criterion.metric, verification_bars)))
-                    matched = series_compare(float(observed), criterion)
-                    flags.append(matched)
-                    technical_measures.append(
-                        Measure(name=criterion.metric, value=observed, unit=criterion.unit)
-                    )
-                    evidence.append(
-                        DiscoveryEvidence(
-                            evidence_id=stable(
-                                f"real-rule:{provisional.run_id}:{item.instrument.instrument_id}:{index}"
-                            ),
-                            owner_id=self.owner_id,
-                            subject_id=item.instrument.instrument_id,
-                            category=EvidenceCategory.PROVIDER_SCAN,
-                            polarity=(
-                                EvidencePolarity.POSITIVE if matched else EvidencePolarity.NEGATIVE
-                            ),
-                            observation_basis=f"{item.interval}-provider-unspecified-finality",
-                            observed_at=item.received_at,
-                            source_data_time=verification_source_time,
-                            received_at=item.received_at,
-                            provenance=real_provenance,
-                            measures=(
-                                Measure(name=criterion.metric, value=observed, unit=criterion.unit),
-                                Measure(
-                                    name="threshold", value=criterion.threshold, unit=criterion.unit
-                                ),
-                                Measure(
-                                    name="operator",
-                                    value=criterion.operator.value,
-                                    unit="comparison",
-                                ),
-                                Measure(name="matched", value=matched, unit="boolean"),
-                            ),
-                            reason="real-ohlcv-recomputed",
-                        )
-                    )
-            except (ValueError, TypeError):
-                flags = []
-            if flags:
-                passed = sum(flags)
-                verification = (
-                    EvidenceVerification.CONFIRMED
-                    if passed == len(flags)
-                    else (
-                        EvidenceVerification.PARTIALLY_CONFIRMED
-                        if passed
-                        else EvidenceVerification.CONTRADICTED
-                    )
-                )
-                evidence.append(
-                    DiscoveryEvidence(
-                        evidence_id=stable(
-                            f"real-technical:{provisional.run_id}:{item.instrument.instrument_id}"
-                        ),
-                        owner_id=self.owner_id,
-                        subject_id=item.instrument.instrument_id,
-                        category=EvidenceCategory.TECHNICAL,
-                        polarity=(
-                            EvidencePolarity.POSITIVE
-                            if verification == EvidenceVerification.CONFIRMED
-                            else EvidencePolarity.NEUTRAL
-                        ),
-                        observation_basis=f"{item.interval}-real-indicators",
-                        observed_at=item.received_at,
-                        source_data_time=verification_source_time,
-                        received_at=item.received_at,
-                        provenance=real_provenance,
-                        measures=tuple(technical_measures),
-                        reason=f"verification-{verification.value.lower()}",
-                    )
-                )
-                if verification == EvidenceVerification.CONTRADICTED:
-                    evidence.append(
-                        DiscoveryEvidence(
-                            evidence_id=stable(
-                                f"real-conflict:{provisional.run_id}:{item.instrument.instrument_id}"
-                            ),
-                            owner_id=self.owner_id,
-                            subject_id=item.instrument.instrument_id,
-                            category=EvidenceCategory.CONFLICTING,
-                            polarity=EvidencePolarity.NEGATIVE,
-                            observation_basis="internal-match-versus-real-ohlcv",
-                            observed_at=item.received_at,
-                            source_data_time=verification_source_time,
-                            received_at=item.received_at,
-                            provenance=real_provenance,
-                            measures=(
-                                Measure(
-                                    name="verification",
-                                    value=EvidenceVerification.CONTRADICTED.value,
-                                    unit="state",
-                                ),
-                            ),
-                            reason="real-evidence-contradicted-provisional-match",
-                        )
-                    )
-            else:
-                verification = EvidenceVerification.UNVERIFIED
-        elif item.quote is not None:
-            verification = EvidenceVerification.UNVERIFIED
-        if not evidence:
-            evidence.append(
-                DiscoveryEvidence(
-                    evidence_id=stable(
-                        f"real-unavailable:{provisional.run_id}:{item.instrument.instrument_id}"
-                    ),
-                    owner_id=self.owner_id,
-                    subject_id=item.instrument.instrument_id,
-                    category=EvidenceCategory.MISSING_UNAVAILABLE,
-                    polarity=EvidencePolarity.UNKNOWN,
-                    observation_basis="tradingview-real-evidence",
-                    observed_at=item.received_at,
-                    received_at=item.received_at,
-                    provenance=real_provenance,
-                    availability="UNAVAILABLE",
-                    reason=item.outcome.value.lower().replace("_", "-"),
-                )
-            )
-        return (
-            provisional.model_copy(
-                update={
-                    "scan_match_id": stable(
-                        f"real-match:{provisional.run_id}:{item.instrument.instrument_id}"
-                    ),
-                    "instrument": item.instrument,
-                    "evidence": tuple(evidence),
-                    "provenance": real_provenance,
-                }
             ),
-            verification,
+            evidence_item(
+                "volume",
+                EvidenceCategory.VOLUME_LIQUIDITY,
+                f"{series.interval}.authoritative-volume",
+                (
+                    Measure(name="relative_volume.20", value=relative_volume, unit="ratio"),
+                    Measure(
+                        name="volume",
+                        value=Decimal(str(bars[-1].volume or 0)),
+                        unit="volume",
+                    ),
+                ),
+            ),
+            evidence_item(
+                "technical",
+                EvidenceCategory.TECHNICAL,
+                f"{series.interval}.authoritative-indicators",
+                (
+                    Measure(name="rsi.14", value=rsi, unit="index"),
+                    Measure(name="momentum.10", value=momentum, unit="percent"),
+                ),
+            ),
         )
+        return match.model_copy(update={"evidence": (*match.evidence, *supporting)})
 
     async def run_scan(self, payload: ProductScanRequest) -> ScanResult:
         started = now_utc()
-        instruments = tuple(identity(symbol) for symbol in payload.universe)
+        active_provider = payload.provider.active
+        payload = payload.model_copy(update={"provider": active_provider})
+        if active_provider == ProviderChoice.REAL and (
+            self.market_data is None or self.market_data_state != "READY"
+        ):
+            raise ProductFailure(409, "DHAN_NOT_READY")
         context = OperationContext(
             owner_id=self.owner_id,
             correlation=RequestContext(request_id=self.request_id),
             as_of=started,
         )
-        proposed_run_id = uuid4()
+        interval = (
+            "1d"
+            if active_provider == ProviderChoice.SYNTHETIC
+            else {
+                HorizonChoice.INTRADAY: "15m",
+                HorizonChoice.ONE_DAY: "1h",
+                HorizonChoice.FIVE_DAYS: "1d",
+                HorizonChoice.FIFTEEN_DAYS: "1d",
+            }[payload.horizon]
+        )
+        source_mode = (
+            SourceMode.SYNTHETIC
+            if active_provider == ProviderChoice.SYNTHETIC
+            else (SourceMode.EOD if interval == "1d" else SourceMode.LIVE_SNAPSHOT)
+        )
         profile = ScanProfileReference(
             profile_id=stable(f"profile:{self.owner_id}:{payload.profile}"),
             owner_id=self.owner_id,
@@ -943,13 +734,15 @@ class ScanDiscoverService:
             payload.profile,
             context,
             stable("definition:" + payload.profile),
-            interval="1d",
+            interval=interval,
             direction=intent_direction(payload.intent),
+            source_mode=source_mode,
         )
         descriptor = self.comparison_descriptor(payload, definition, started)
         request_payload = payload.model_dump(mode="json", exclude={"idempotency_key"})
         request_digest = digest(request_payload)
         temporal = TemporalStore(self.session, self.owner_id)
+        proposed_run_id = uuid4()
         try:
             admission = temporal.admit_run(
                 descriptor,
@@ -979,66 +772,118 @@ class ScanDiscoverService:
             definition=definition,
             as_of=started,
         )
-        progression = self.fixture_progression(payload.provider)
+        progression = self.fixture_progression(active_provider)
+        requested_identities = tuple(identity(symbol) for symbol in payload.universe)
+        failures: dict[UUID, MarketDataErrorCode] = {}
+        instruments: list[InstrumentIdentity] = []
+        series_by_id: dict[UUID, MarketSeries] = {}
+
         try:
-            # Provider I/O begins only after admission was durably committed.
-            series = tuple(market_series(item, started, progression) for item in instruments)
-            provider_result = await InternalScannerV0(FixtureMarketSeriesSource(series)).scan(
-                context, run, instruments
-            )
+            if active_provider == ProviderChoice.SYNTHETIC:
+                fixture_series = tuple(
+                    market_series(item, started, progression) for item in requested_identities
+                )
+                source: MarketDataProvider = FixtureMarketDataProvider(fixture_series)
+                instruments = list(
+                    await source.resolve_instruments(
+                        tuple(item.symbol for item in requested_identities)
+                    )
+                )
+                for item in instruments:
+                    series_by_id[item.instrument_id] = await source.get_ohlcv(
+                        item, interval, as_of=started, count=320
+                    )
+            else:
+                real_source = self.market_data
+                if real_source is None or (
+                    isinstance(real_source, DhanMarketDataProvider)
+                    and not real_source.settings.configured
+                ):
+                    for item in requested_identities:
+                        failures[item.instrument_id] = MarketDataErrorCode.AUTH_REQUIRED
+                    instruments = list(requested_identities)
+                else:
+                    systemic: MarketDataErrorCode | None = None
+                    for fallback in requested_identities:
+                        if systemic is not None:
+                            instruments.append(fallback)
+                            failures[fallback.instrument_id] = systemic
+                            continue
+                        try:
+                            resolved = (await real_source.resolve_instruments((fallback.symbol,)))[
+                                0
+                            ]
+                            instruments.append(resolved)
+                        except MarketDataFailure as exc:
+                            instruments.append(fallback)
+                            failures[fallback.instrument_id] = exc.code
+                            if exc.code in {
+                                MarketDataErrorCode.AUTH_REQUIRED,
+                                MarketDataErrorCode.RATE_LIMITED,
+                                MarketDataErrorCode.TIMEOUT,
+                                MarketDataErrorCode.PROVIDER_ERROR,
+                            }:
+                                systemic = exc.code
+                    for item in instruments:
+                        if item.instrument_id in failures:
+                            continue
+                        try:
+                            series_by_id[item.instrument_id] = await real_source.get_ohlcv(
+                                item, interval, as_of=started, count=320
+                            )
+                        except MarketDataFailure as exc:
+                            failures[item.instrument_id] = exc.code
         except BaseException as exc:
             temporal.fail_run(run_id, type(exc).__name__)
             raise
-        normalized_matches = tuple(
-            self.with_supporting_fixture_evidence(item, started, progression, started)
-            for item in provider_result.items
-        )
-        verification_by_match: dict[UUID, EvidenceVerification] = {}
-        enrichment = None
-        if payload.provider == ProviderChoice.INTERNAL:
-            matches = normalized_matches
-        elif payload.provider == ProviderChoice.TRADINGVIEW_SYNTHETIC:
-            matches = tuple(
-                self.as_tradingview_match(item, started)
-                for item in normalized_matches
-                if synthetic_fixture(item.instrument.symbol, progression).tradingview_match
-            )
-        else:
-            if self.real_evidence is None:
-                real_items = tuple(
-                    SymbolEvidence(
-                        instrument=item.instrument,
-                        outcome=EvidenceOutcome.AUTH_REQUIRED,
-                        interval="1d",
-                        received_at=now_utc(),
-                        limitation="auth-required",
+
+        successful = tuple(item for item in instruments if item.instrument_id in series_by_id)
+        try:
+            if successful:
+                provider_result = await InternalScannerV0(
+                    FixtureMarketSeriesSource(
+                        tuple(series_by_id[item.instrument_id] for item in successful)
                     )
-                    for item in normalized_matches
+                ).scan(context, run, successful)
+                matches = tuple(
+                    self.with_series_evidence(
+                        item, series_by_id[item.instrument.instrument_id], started
+                    )
+                    for item in provider_result.items
                 )
             else:
-                enrichment = await self.real_evidence.enrich(
-                    tuple(item.instrument for item in normalized_matches), payload.horizon.value
+                matches = ()
+        except ScannerDataFailure:
+            for item in successful:
+                failures[item.instrument_id] = MarketDataErrorCode.INVALID_RESPONSE
+            matches = ()
+
+        intelligence: MarketIntelligenceBatch | None = None
+        if active_provider == ProviderChoice.REAL and self.market_intelligence is not None:
+            try:
+                intelligence = await self.market_intelligence.observe(tuple(instruments))
+            except Exception:
+                intelligence = MarketIntelligenceBatch(
+                    provider="tapetide",
+                    state=IntelligenceState.PROVIDER_ERROR,
+                    claims=(),
+                    received_at=now_utc(),
+                    failures=("provider-error",),
                 )
-                real_items = enrichment.symbols
-            real_matches: list[ScanMatch] = []
-            by_instrument = {item.instrument.instrument_id: item for item in real_items}
-            for provisional in normalized_matches:
-                real_item = by_instrument[provisional.instrument.instrument_id]
-                normalized, verification = self.normalize_real_match(
-                    provisional, real_item, definition
-                )
-                real_matches.append(normalized)
-                verification_by_match[normalized.scan_match_id] = verification
-            matches = tuple(real_matches)
         context_snapshot, context_evidence = self.market_context(
-            started, payload.context_mode, instruments, run_id
+            started,
+            payload.context_mode,
+            tuple(instruments),
+            run_id,
+            intelligence=intelligence,
+            real_mode=active_provider == ProviderChoice.REAL,
         )
         context_policy = self.effective_context_policy(payload)
         completed = now_utc()
         run_record = ScanRunRecord(
             id=run_id,
             user_id=self.owner_id,
-            provider=payload.provider.value,
+            provider=active_provider.value,
             status="COMPLETE",
             started_at=started,
             completed_at=completed,
@@ -1063,38 +908,8 @@ class ScanDiscoverService:
                 )
             )
             self.session.flush()
-            matched_series = next(
-                item
-                for item in series
-                if item.instrument.instrument_id == match.instrument.instrument_id
-            )
+            matched_series = series_by_id[match.instrument.instrument_id]
             chart_payload = archive_payload(matched_series, definition)
-            if payload.provider == ProviderChoice.REAL_TRADINGVIEW:
-                chart_payload = {
-                    "schema_version": 2,
-                    "definition": definition.model_dump(mode="json"),
-                    "verification": verification_by_match[match.scan_match_id].value,
-                    "retention": {
-                        "source_class": "PROVIDER_RESTRICTED",
-                        "historical_chart_reconstructable": False,
-                        "scan_bars_retained": False,
-                        "current_chart_available": True,
-                        "limitation": (
-                            "TradingView retention rights are unknown. TWF retains normalized "
-                            "numerical evidence and source timestamps, not provider OHLCV bars."
-                        ),
-                    },
-                    "provider_lineage": {
-                        "connection_id": str(enrichment.connection_id) if enrichment else None,
-                        "generation": enrichment.generation if enrichment else None,
-                        "requested_symbols": list(enrichment.requested_symbols)
-                        if enrichment
-                        else [],
-                        "returned_symbols": list(enrichment.returned_symbols) if enrichment else [],
-                        "missing_symbols": list(enrichment.missing_symbols) if enrichment else [],
-                        "chunk_count": enrichment.chunk_count if enrichment else 0,
-                    },
-                }
             self.session.add(
                 ScanEvidenceSeriesRecord(
                     match_id=match.scan_match_id,
@@ -1111,15 +926,7 @@ class ScanDiscoverService:
                 if item.subject_id == match.instrument.instrument_id
             )
             reason = AdmissionReason.ADMITTED
-            match_verification = verification_by_match.get(match.scan_match_id)
-            if match_verification == EvidenceVerification.CONTRADICTED:
-                reason = AdmissionReason.EXCLUDED_CONTRADICTED
-            elif match_verification in {
-                EvidenceVerification.UNVERIFIED,
-                EvidenceVerification.UNAVAILABLE,
-            }:
-                reason = AdmissionReason.EXCLUDED_UNVERIFIED
-            elif (
+            if (
                 context_policy == ContextPolicy.REQUIRE_COMPLETE
                 and context_snapshot.availability != ContextAvailability.COMPLETE
             ):
@@ -1156,66 +963,72 @@ class ScanDiscoverService:
                     for item in match.evidence
                     if item.source_data_time is not None
                 )
-                provider_unavailable = reason == AdmissionReason.EXCLUDED_UNVERIFIED
                 temporal.append_observation(
                     admission=admission,
                     instrument=match.instrument,
-                    kind=(
-                        DiscoveryObservationKind.NOT_EVALUATED
-                        if provider_unavailable
-                        else DiscoveryObservationKind.PRESENT
-                    ),
-                    coverage=(
-                        EvaluationCoverage.PROVIDER_UNAVAILABLE
-                        if provider_unavailable
-                        else EvaluationCoverage.EVALUATED
-                    ),
-                    reason=(
-                        "real-provider-not-evaluated"
-                        if provider_unavailable
-                        else "matched-not-admitted"
-                    ),
+                    kind=DiscoveryObservationKind.PRESENT,
+                    coverage=EvaluationCoverage.EVALUATED,
+                    reason="matched-not-admitted",
                     observed_at=max(item.observed_at for item in match.evidence),
                     source_data_time=min(source_times) if source_times else None,
                     source_sample_key=self.source_sample_key(match),
                     episode=None,
-                    scan_match_id=None if provider_unavailable else match.scan_match_id,
+                    scan_match_id=match.scan_match_id,
                     evidence_ids=tuple(item.evidence_id for item in match.evidence),
                     context_id=context_snapshot.context_id,
                     provider=match.provenance.producer.provider,
                 )
 
+        successful_ids = set(series_by_id).difference(failures)
         for instrument_item in instruments:
             if instrument_item.instrument_id in match_instruments:
                 continue
+            provider_failure = failures.get(instrument_item.instrument_id)
             episode = temporal.episode_for_observation(
                 admission.scope_id, instrument_item.instrument_id, admission.sequence
             )
-            if episode is not None:
+            if provider_failure is None and episode is not None:
                 self.close_elapsed_episode(episode, admission, started)
             temporal.append_observation(
                 admission=admission,
                 instrument=instrument_item,
-                kind=DiscoveryObservationKind.ABSENT,
-                coverage=EvaluationCoverage.EVALUATED,
-                reason="not-rediscovered",
+                kind=(
+                    DiscoveryObservationKind.NOT_EVALUATED
+                    if provider_failure is not None
+                    else DiscoveryObservationKind.ABSENT
+                ),
+                coverage=(
+                    EvaluationCoverage.PROVIDER_UNAVAILABLE
+                    if provider_failure is not None
+                    else EvaluationCoverage.EVALUATED
+                ),
+                reason=(
+                    f"market-data-{provider_failure.value.lower()}"
+                    if provider_failure is not None
+                    else "not-rediscovered"
+                ),
                 observed_at=started,
-                source_data_time=started,
-                source_sample_key=digest(
-                    {
-                        "instrument": str(instrument_item.instrument_id),
-                        "cutoff": started.isoformat(),
-                        "scope": str(admission.scope_id),
-                    }
+                source_data_time=(
+                    series_by_id[instrument_item.instrument_id].bars[-1].timestamp
+                    if instrument_item.instrument_id in series_by_id
+                    else None
+                ),
+                source_sample_key=(
+                    digest(
+                        {
+                            "instrument": str(instrument_item.instrument_id),
+                            "cutoff": started.isoformat(),
+                            "scope": str(admission.scope_id),
+                        }
+                    )
+                    if provider_failure is None
+                    else None
                 ),
                 episode=episode,
                 context_id=context_snapshot.context_id,
-                provider=(
-                    "twf-native" if payload.provider == ProviderChoice.INTERNAL else "tradingview"
-                ),
+                provider=("dhan" if active_provider == ProviderChoice.REAL else "twf-fixture"),
             )
 
-        evaluated_ids = {item.instrument_id for item in instruments}
         active_slots = tuple(
             self.session.scalars(
                 select(DiscoveryActiveSlotRecord).where(
@@ -1224,8 +1037,9 @@ class ScanDiscoverService:
                 )
             )
         )
+        requested_ids = {item.instrument_id for item in instruments}
         for slot in active_slots:
-            if slot.instrument_id in evaluated_ids:
+            if slot.instrument_id in requested_ids:
                 continue
             excluded_episode = self.session.get(DiscoveryEpisodeRecord, slot.episode_id)
             if excluded_episode is None or excluded_episode.user_id != self.owner_id:
@@ -1233,7 +1047,6 @@ class ScanDiscoverService:
             excluded_instrument = InstrumentIdentity.model_validate(
                 excluded_episode.payload["episode"]["instrument"]
             )
-            self.close_elapsed_episode(excluded_episode, admission, started)
             temporal.append_observation(
                 admission=admission,
                 instrument=excluded_instrument,
@@ -1245,9 +1058,7 @@ class ScanDiscoverService:
                 source_sample_key=None,
                 episode=excluded_episode,
                 context_id=context_snapshot.context_id,
-                provider=(
-                    "twf-native" if payload.provider == ProviderChoice.INTERNAL else "tradingview"
-                ),
+                provider=("dhan" if active_provider == ProviderChoice.REAL else "twf-fixture"),
             )
 
         admission_summary = AdmissionSummary(
@@ -1257,43 +1068,60 @@ class ScanDiscoverService:
             decisions=tuple(decisions),
         )
         evidence_lineage = None
-        if payload.provider == ProviderChoice.REAL_TRADINGVIEW:
-            outcomes = {item.outcome for item in real_items}
-            capability_state = (
-                "AVAILABLE"
-                if outcomes == {EvidenceOutcome.AVAILABLE}
-                else (
-                    "PARTIAL"
-                    if EvidenceOutcome.AVAILABLE in outcomes
-                    else (next(iter(outcomes)).value if len(outcomes) == 1 else "UNAVAILABLE")
-                )
+        if active_provider == ProviderChoice.REAL:
+            returned = tuple(
+                item.symbol for item in instruments if item.instrument_id in successful_ids
             )
-            requested_symbols = tuple(
-                f"{item.instrument.exchange}:{item.instrument.symbol}"
-                for item in normalized_matches
+            missing = tuple(item.symbol for item in instruments if item.instrument_id in failures)
+            states = set(failures.values())
+            capability_state = (
+                "available"
+                if not failures
+                else ("partial" if returned else next(iter(states)).value.lower())
+            )
+            received = max(
+                (
+                    item.received_at
+                    for item in series_by_id.values()
+                    if item.received_at is not None
+                ),
+                default=completed,
             )
             evidence_lineage = RealEvidenceLineage(
-                connection_id=enrichment.connection_id if enrichment else None,
-                generation=enrichment.generation if enrichment else None,
-                requested_symbols=(
-                    enrichment.requested_symbols if enrichment else requested_symbols
-                ),
-                returned_symbols=enrichment.returned_symbols if enrichment else (),
-                missing_symbols=enrichment.missing_symbols if enrichment else requested_symbols,
-                chunk_count=enrichment.chunk_count if enrichment else 0,
-                received_at=enrichment.received_at if enrichment else completed,
-                capability_state=capability_state.lower().replace("_", "-"),
-                limitations=(
-                    "bar-finality-unavailable",
-                    "realtime-delay-status-unresolved",
-                    "retention-rights-unknown",
-                    "broad-screener-not-used",
-                ),
+                evidence_provider="dhan",
+                data_mode="AUTHORITATIVE_MARKET_DATA",
+                requested_symbols=payload.universe,
+                returned_symbols=returned,
+                missing_symbols=missing,
+                chunk_count=len(series_by_id),
+                received_at=received,
+                capability_state=capability_state,
+                limitations=tuple(
+                    dict.fromkeys(
+                        [
+                            *(
+                                f"{symbol.lower()}-{failures[item.instrument_id].value.lower()}"
+                                for symbol, item in zip(payload.universe, instruments, strict=True)
+                                if item.instrument_id in failures
+                            ),
+                            *(
+                                "live-bar-excluded"
+                                for item in series_by_id.values()
+                                if item.live_bar_excluded
+                            ),
+                        ]
+                    )
+                )[:16],
             )
 
+        mi_limitations = (
+            ()
+            if intelligence is None or intelligence.state == IntelligenceState.AVAILABLE
+            else (f"tapetide-{intelligence.state.value.lower()}",)
+        )
         summary = ScanSummary(
             run_id=run_id,
-            provider=payload.provider,
+            provider=active_provider,
             status="COMPLETE",
             started_at=started,
             completed_at=completed,
@@ -1312,16 +1140,8 @@ class ScanDiscoverService:
                 dict.fromkeys(
                     (
                         *context_snapshot.limitations,
-                        *(
-                            (
-                                "tradingview-bar-finality-unavailable",
-                                "tradingview-realtime-delay-status-unresolved",
-                                "tradingview-retention-rights-unknown",
-                                "tradingview-broad-screener-not-used",
-                            )
-                            if payload.provider == ProviderChoice.REAL_TRADINGVIEW
-                            else ()
-                        ),
+                        *mi_limitations,
+                        *(f"dhan-{code.value.lower()}" for code in failures.values()),
                     )
                 )
             ),
@@ -1341,24 +1161,14 @@ class ScanDiscoverService:
             admission,
             {
                 "summary": summary.model_dump(mode="json"),
-                "evaluated": [str(item.instrument_id) for item in instruments],
-                "present": [
-                    str(item.instrument.instrument_id)
-                    for item in matches
-                    if verification_by_match.get(item.scan_match_id)
-                    not in {EvidenceVerification.UNVERIFIED, EvidenceVerification.UNAVAILABLE}
-                ],
+                "evaluated": [str(item) for item in successful_ids],
+                "present": [str(item.instrument.instrument_id) for item in matches],
                 "not_evaluated": [
-                    *(
-                        str(item.instrument.instrument_id)
-                        for item in matches
-                        if verification_by_match.get(item.scan_match_id)
-                        in {EvidenceVerification.UNVERIFIED, EvidenceVerification.UNAVAILABLE}
-                    ),
+                    *(str(item) for item in failures),
                     *(
                         str(slot.instrument_id)
                         for slot in active_slots
-                        if slot.instrument_id not in evaluated_ids
+                        if slot.instrument_id not in requested_ids
                     ),
                 ],
             },
@@ -1399,7 +1209,151 @@ class ScanDiscoverService:
         mode: str,
         instruments: tuple[InstrumentIdentity, ...],
         run_id: UUID,
+        *,
+        intelligence: MarketIntelligenceBatch | None = None,
+        real_mode: bool = False,
     ) -> tuple[MarketContextSnapshot, tuple[DiscoveryEvidence, ...]]:
+        if real_mode:
+            batch = intelligence or MarketIntelligenceBatch(
+                provider="tapetide",
+                state=IntelligenceState.AUTH_REQUIRED,
+                claims=(),
+                received_at=at,
+                failures=("not-connected",),
+            )
+            expected = (
+                IntelligenceKind.MARKET_PULSE,
+                IntelligenceKind.MARKET_VOLATILITY,
+                IntelligenceKind.MARKET_FLOW,
+                IntelligenceKind.SECTOR_FLOW,
+                IntelligenceKind.INDEX_STRENGTH,
+                IntelligenceKind.NEWS_SENTIMENT,
+                IntelligenceKind.CORPORATE_EVENT,
+            )
+            by_kind = {claim.kind: claim for claim in batch.claims}
+            real_dimensions = tuple(
+                ContextDimension(
+                    name=kind.value.lower().replace("_", "-"),
+                    availability="PRESENT" if kind in by_kind else "UNAVAILABLE",
+                    value="available" if kind in by_kind else None,
+                    source="tapetide",
+                    reason=None if kind in by_kind else f"tapetide-{batch.state.value.lower()}",
+                )
+                for kind in expected
+            )
+            present_count = len(by_kind)
+            availability = (
+                ContextAvailability.COMPLETE
+                if present_count == len(expected)
+                else (
+                    ContextAvailability.PARTIAL
+                    if present_count
+                    else (
+                        ContextAvailability.STALE
+                        if batch.state == IntelligenceState.STALE
+                        else ContextAvailability.UNAVAILABLE
+                    )
+                )
+            )
+            producer = ProducerIdentity(
+                service_id="tapetide-market-intelligence",
+                provider="tapetide",
+                service_version="1",
+                contract_version="sd.market-context.v1",
+            )
+            real_evidence: list[DiscoveryEvidence] = []
+            category = {
+                IntelligenceKind.SECTOR_FLOW: EvidenceCategory.SECTOR_INDUSTRY,
+                IntelligenceKind.INDEX_STRENGTH: EvidenceCategory.SECTOR_INDUSTRY,
+                IntelligenceKind.NEWS_SENTIMENT: EvidenceCategory.EVENT_NEWS,
+                IntelligenceKind.CORPORATE_EVENT: EvidenceCategory.EVENT_NEWS,
+            }
+            for instrument in instruments:
+                for claim in batch.claims:
+                    prov = Provenance(
+                        producer=producer,
+                        source=SourceReference(
+                            namespace="tapetide",
+                            native_id=claim.provider_tool,
+                            revision="normalized-mi-v1",
+                        ),
+                        mode=SourceMode.LIVE_SNAPSHOT,
+                        observation_key=digest(
+                            {
+                                "tool": claim.provider_tool,
+                                "subject": claim.subject,
+                                "source_time": (
+                                    claim.source_time.isoformat()
+                                    if claim.source_time is not None
+                                    else None
+                                ),
+                                "received_at": claim.received_at.isoformat(),
+                            }
+                        ),
+                        transformation=RevisionRef(id="tapetide-claim-normalization", version="1"),
+                        dependence_group="tapetide-market-intelligence",
+                    )
+                    real_evidence.append(
+                        DiscoveryEvidence(
+                            evidence_id=stable(
+                                f"mi:{run_id}:{instrument.instrument_id}:{claim.kind.value}"
+                            ),
+                            owner_id=self.owner_id,
+                            subject_id=instrument.instrument_id,
+                            category=category.get(claim.kind, EvidenceCategory.MARKET_CONTEXT),
+                            polarity=EvidencePolarity.NEUTRAL,
+                            observation_basis=claim.kind.value.lower(),
+                            observed_at=claim.source_time or claim.received_at,
+                            source_data_time=claim.source_time,
+                            received_at=claim.received_at,
+                            available_at=claim.received_at,
+                            provenance=prov,
+                            measures=(
+                                Measure(
+                                    name="normalized-fact-count",
+                                    value=Decimal(len(claim.values)),
+                                    unit="count",
+                                ),
+                                Measure(
+                                    name="context-kind",
+                                    value=claim.kind.value,
+                                    unit="category",
+                                ),
+                            ),
+                            reason="optional-market-intelligence-context",
+                        )
+                    )
+            source_times = tuple(
+                claim.source_time for claim in batch.claims if claim.source_time is not None
+            )
+            snapshot_at = batch.received_at
+            snapshot = MarketContextSnapshot(
+                context_id=stable(f"context-snapshot:{run_id}"),
+                owner_id=self.owner_id,
+                observed_at=snapshot_at,
+                source_data_time=max(source_times) if source_times else None,
+                market="india-equities",
+                session="UNKNOWN",
+                availability=availability,
+                dimensions=real_dimensions,
+                producer="tapetide" if batch.claims else "none",
+                producer_version="normalized-mi-v1",
+                evidence_ids=tuple(item.evidence_id for item in real_evidence),
+                limitations=tuple(
+                    dict.fromkeys(
+                        (
+                            *batch.failures,
+                            *(
+                                ()
+                                if batch.state == IntelligenceState.AVAILABLE
+                                else (f"tapetide-{batch.state.value.lower()}",)
+                            ),
+                        )
+                    )
+                )[:16],
+            )
+            return snapshot, tuple(real_evidence)
+
         availability = {
             "healthy": ContextAvailability.COMPLETE,
             "partial": ContextAvailability.PARTIAL,
@@ -1636,7 +1590,7 @@ class ScanDiscoverService:
             min(Decimal(1), score - freshness_penalty + horizon_adjustment),
         )
         conflicts = tuple(
-            "Real TradingView evidence contradicted the provisional internal match."
+            "Authoritative market evidence conflicts with the discovery predicate."
             for item in evidence
             if item.category == EvidenceCategory.CONFLICTING
         )
@@ -2294,7 +2248,11 @@ class ScanDiscoverService:
         ]
         source_data_time = max(source_times) if source_times else None
         verification = EvidenceVerification.UNVERIFIED
-        if match.provenance.producer == REAL_TRADINGVIEW:
+        authoritative_provider = match.provenance.source.namespace
+        if authoritative_provider == "dhan":
+            verification = EvidenceVerification.CONFIRMED
+        elif authoritative_provider == "tradingview":
+            # Historical records retain their original verification vocabulary.
             reasons_set = {item.reason for item in match.evidence}
             if "real-evidence-contradicted-provisional-match" in reasons_set:
                 verification = EvidenceVerification.CONTRADICTED
@@ -2319,7 +2277,11 @@ class ScanDiscoverService:
             symbol=match.instrument.symbol,
             exchange=match.instrument.exchange,
             segment=match.instrument.segment,
-            provider=match.provenance.producer.provider,
+            provider=(
+                authoritative_provider
+                if authoritative_provider in {"dhan", "tradingview"}
+                else match.provenance.producer.provider
+            ),
             why_matched=tuple(reasons),
             raw_reasons=tuple(dict.fromkeys(raw_reasons)),
             key_metrics={key: str(value) for key, value in metrics.items()},
@@ -2862,149 +2824,105 @@ class ScanDiscoverService:
                 source_class="LEGACY_UNKNOWN",
             )
 
+        # TradingView remains historical provenance only. It is never called by active runtime.
         if summary.provider == ProviderChoice.REAL_TRADINGVIEW:
-            if mode == EvidenceChartMode.AS_SCANNED:
-                return unavailable_chart(
-                    mode=mode,
-                    state=EvidenceChartState.RETENTION_RESTRICTED,
-                    message=(
-                        "Historical TradingView bars are not retained because retention rights "
-                        "are unknown. Persisted numerical scan evidence remains available."
-                    ),
-                    match=match,
-                    summary=summary,
-                    source_class="PROVIDER_RESTRICTED",
-                    historical_chart_reconstructable=False,
-                    scan_bars_retained=False,
-                )
-            if self.real_evidence is None:
-                return unavailable_chart(
-                    mode=mode,
-                    state=EvidenceChartState.AUTH_REQUIRED,
-                    message="Current chart requires an authorized TradingView connection.",
-                    match=match,
-                    summary=summary,
-                    source_class="PROVIDER_RESTRICTED",
-                )
-            enrichment = await self.real_evidence.enrich((match.instrument,), summary.horizon.value)
-            item = enrichment.symbols[0]
-            if item.outcome != EvidenceOutcome.AVAILABLE or not item.bars:
-                state = {
-                    EvidenceOutcome.AUTH_REQUIRED: EvidenceChartState.AUTH_REQUIRED,
-                    EvidenceOutcome.RATE_LIMITED: EvidenceChartState.RATE_LIMITED,
-                    EvidenceOutcome.EXACT_MISSING: EvidenceChartState.EXACT_MISSING,
-                }.get(item.outcome, EvidenceChartState.CURRENT_UNAVAILABLE)
-                message = {
-                    EvidenceChartState.AUTH_REQUIRED: (
-                        "Current chart requires TradingView authorization."
-                    ),
-                    EvidenceChartState.RATE_LIMITED: (
-                        "TradingView rate limited the current chart request. Retry later."
-                    ),
-                    EvidenceChartState.EXACT_MISSING: (
-                        "TradingView did not return this exact broker-native symbol."
-                    ),
-                    EvidenceChartState.CURRENT_UNAVAILABLE: (
-                        "Current TradingView OHLCV is unavailable for this symbol."
-                    ),
-                }[state]
-                return unavailable_chart(
-                    mode=mode,
-                    state=state,
-                    message=message,
-                    match=match,
-                    summary=summary,
-                    source_class="PROVIDER_RESTRICTED",
-                )
-            current = MarketSeries(
-                instrument=match.instrument,
-                interval=item.interval,
-                price_unit="INR",
-                adjustment=RevisionRef(id="provider-unspecified", version="1"),
-                session_basis=RevisionRef(id="tradingview-provider-calendar", version="1"),
-                provenance=match.provenance,
-                bars=tuple(
-                    Bar(
-                        timestamp=bar.source_time,
-                        available_at=max(bar.source_time, item.received_at),
-                        open=float(bar.open),
-                        high=float(bar.high),
-                        low=float(bar.low),
-                        close=float(bar.close),
-                        volume=None if bar.volume is None else float(bar.volume),
-                    )
-                    for bar in item.bars
-                ),
-            )
-            try:
-                return build_chart(
-                    mode=mode,
-                    match=match,
-                    summary=summary,
-                    archived_payload=archive.payload,
-                    current_series=current,
-                )
-            except (KeyError, TypeError, ValueError):
-                return unavailable_chart(
-                    mode=mode,
-                    state=EvidenceChartState.RECONSTRUCTION_FAILED,
-                    message="Current TradingView evidence failed integrity checks.",
-                    match=match,
-                    summary=summary,
-                    source_class="PROVIDER_RESTRICTED",
-                )
-
-        if mode == EvidenceChartMode.CURRENT and summary.provider != ProviderChoice.INTERNAL:
-            archived_bars = archive.payload.get("series", {}).get("bars", [])
-            provider_status = next(item for item in self.providers() if item.id == summary.provider)
-            unavailable_state = {
-                "RATE_LIMITED": EvidenceChartState.RATE_LIMITED,
-                "AUTH_REQUIRED": EvidenceChartState.AUTH_REQUIRED,
-                "DEGRADED": EvidenceChartState.CURRENT_UNAVAILABLE,
-            }.get(provider_status.health, EvidenceChartState.RETENTION_RESTRICTED)
-            message = {
-                EvidenceChartState.RATE_LIMITED: (
-                    "Current chart unavailable: provider rate limited. "
-                    "As-scanned evidence remains available."
-                ),
-                EvidenceChartState.AUTH_REQUIRED: (
-                    "Current chart unavailable: provider authentication required."
-                ),
-                EvidenceChartState.CURRENT_UNAVAILABLE: (
-                    "Current chart unavailable: provider health is degraded."
-                ),
-                EvidenceChartState.RETENTION_RESTRICTED: (
-                    "Current chart unavailable: this validation provider has no licensed "
-                    "live chart-data capability. As-scanned evidence remains available."
-                ),
-            }[unavailable_state]
             return unavailable_chart(
                 mode=mode,
-                state=unavailable_state,
-                message=message,
+                state=(
+                    EvidenceChartState.RETENTION_RESTRICTED
+                    if mode == EvidenceChartMode.AS_SCANNED
+                    else EvidenceChartState.CURRENT_UNAVAILABLE
+                ),
+                message=(
+                    "Historical TradingView source bars were not retained; persisted numerical "
+                    "evidence and provenance remain available."
+                    if mode == EvidenceChartMode.AS_SCANNED
+                    else "TradingView is decommissioned. Current evidence uses Dhan on new scans."
+                ),
                 match=match,
                 summary=summary,
                 source_class="PROVIDER_RESTRICTED",
-                historical_chart_reconstructable=True,
-                scan_bars_retained=True,
-                archive_bar_count=len(archived_bars),
+                historical_chart_reconstructable=False,
+                scan_bars_retained=False,
             )
-        synthetic_current: MarketSeries | None = None
+
+        current: MarketSeries | None = None
         if mode == EvidenceChartMode.CURRENT:
-            synthetic_current = market_series(
-                match.instrument,
-                now_utc(),
-                self.fixture_progression(ProviderChoice.INTERNAL),
-            )
+            if summary.provider.active == ProviderChoice.REAL:
+                if self.market_data is None:
+                    return unavailable_chart(
+                        mode=mode,
+                        state=EvidenceChartState.AUTH_REQUIRED,
+                        message="Current chart requires configured Dhan market-data credentials.",
+                        match=match,
+                        summary=summary,
+                        source_class="PROVIDER_RESTRICTED",
+                        historical_chart_reconstructable=True,
+                        scan_bars_retained=True,
+                    )
+                try:
+                    archived_series = MarketSeries.model_validate(archive.payload["series"])
+                    current = await self.market_data.get_ohlcv(
+                        match.instrument,
+                        archived_series.interval,
+                        as_of=now_utc(),
+                        count=320,
+                    )
+                except MarketDataFailure as exc:
+                    state = {
+                        MarketDataErrorCode.AUTH_REQUIRED: EvidenceChartState.AUTH_REQUIRED,
+                        MarketDataErrorCode.RATE_LIMITED: EvidenceChartState.RATE_LIMITED,
+                        MarketDataErrorCode.INSTRUMENT_NOT_FOUND: EvidenceChartState.EXACT_MISSING,
+                        MarketDataErrorCode.AMBIGUOUS_INSTRUMENT: EvidenceChartState.EXACT_MISSING,
+                    }.get(exc.code, EvidenceChartState.CURRENT_UNAVAILABLE)
+                    return unavailable_chart(
+                        mode=mode,
+                        state=state,
+                        message={
+                            EvidenceChartState.AUTH_REQUIRED: (
+                                "Current chart requires configured Dhan market-data credentials."
+                            ),
+                            EvidenceChartState.RATE_LIMITED: (
+                                "Dhan rate limited the current chart request. Retry later."
+                            ),
+                            EvidenceChartState.EXACT_MISSING: (
+                                "Dhan could not resolve this exact provider-native instrument."
+                            ),
+                            EvidenceChartState.CURRENT_UNAVAILABLE: (
+                                "Current Dhan OHLCV is unavailable for this instrument."
+                            ),
+                        }[state],
+                        match=match,
+                        summary=summary,
+                        source_class="PROVIDER_RESTRICTED",
+                        historical_chart_reconstructable=True,
+                        scan_bars_retained=True,
+                    )
+                except (KeyError, TypeError, ValueError):
+                    return unavailable_chart(
+                        mode=mode,
+                        state=EvidenceChartState.RECONSTRUCTION_FAILED,
+                        message="Archived evidence metadata failed integrity checks.",
+                        match=match,
+                        summary=summary,
+                        source_class="LEGACY_UNKNOWN",
+                        scan_bars_retained=True,
+                    )
+            else:
+                current = market_series(
+                    match.instrument,
+                    now_utc(),
+                    self.fixture_progression(ProviderChoice.SYNTHETIC),
+                )
         try:
             return build_chart(
                 mode=mode,
                 match=match,
                 summary=summary,
                 archived_payload=archive.payload,
-                current_series=synthetic_current,
+                current_series=current,
             )
-        except (KeyError, TypeError, ValueError):
+        except (KeyError, TypeError, ValueError, DataUnavailable):
             return unavailable_chart(
                 mode=mode,
                 state=EvidenceChartState.RECONSTRUCTION_FAILED,

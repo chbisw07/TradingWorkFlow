@@ -26,6 +26,9 @@ from twf.main import create_app
 
 def test_authenticated_settings_api_origin_generation_and_no_tool_route(tmp_path: Path) -> None:
     manager, who, server, engine = setup(tmp_path / "api.db")
+    manager.providers["tradingview"] = manager.providers["fixture"].model_copy(
+        update={"provider_id": "tradingview", "display_name": "TradingView"}
+    )
     cookie = "b" * 43
     with manager.factory() as db:
         login = db.get(AuthSession, who.session_hash)
@@ -41,6 +44,15 @@ def test_authenticated_settings_api_origin_generation_and_no_tool_route(tmp_path
         payload = {"provider_id": "fixture", "display_name": "A"}
         assert client.post(base, json=payload).status_code == 403
         headers = {"Origin": manager.settings.allowed_origins[0], "X-Request-ID": "mcp-test"}
+        registrations = client.get("/api/v1/settings/mcp/providers").json()
+        assert [item["provider_id"] for item in registrations] == ["fixture"]
+        retired = client.post(
+            base,
+            json={"provider_id": "tradingview", "display_name": "TradingView"},
+            headers=headers,
+        )
+        assert retired.status_code == 404
+        assert retired.json()["error"]["code"] == "NOT_CONFIGURED"
         response = client.post(base, json=payload, headers=headers)
         assert response.status_code == 200 and response.headers["cache-control"] == "no-store"
         target = base + "/" + response.json()["id"]

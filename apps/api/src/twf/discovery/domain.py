@@ -70,6 +70,11 @@ class InstrumentIdentity(Contract):
     symbol: Text
     exchange: Identifier
     segment: Identifier
+    instrument_type: Identifier | None = None
+    provider_symbol: Text | None = None
+    expiry: Instant | None = None
+    strike: Number | None = None
+    right: Literal["CALL", "PUT"] | None = None
 
 
 class HorizonBasis(StrEnum):

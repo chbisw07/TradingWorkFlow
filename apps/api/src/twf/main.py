@@ -14,6 +14,8 @@ from twf.api.auth import router as auth_router
 from twf.api.broker_orders import router as broker_orders_router
 from twf.api.brokers import broker_error
 from twf.api.brokers import router as brokers_router
+from twf.api.dhan_market_data import dhan_error
+from twf.api.dhan_market_data import router as dhan_market_data_router
 from twf.api.discovery import product_error
 from twf.api.discovery import router as discovery_router
 from twf.api.errors import http_error, unexpected_error, validation_error
@@ -23,14 +25,14 @@ from twf.api.preferences import router as preferences_router
 from twf.api.preferences import settings_error
 from twf.api.routes import create_router
 from twf.api.services import router as services_router
-from twf.api.tradingview import router as tradingview_router
-from twf.api.tradingview import scan_error
 from twf.brokers.contracts import BrokerAdapter, BrokerFailure
 from twf.brokers.service import BrokerService
 from twf.brokers.zerodha import ZerodhaAdapter
 from twf.config.settings import Settings
+from twf.discovery.dhan_credentials import DhanCredentialFailure, DhanCredentialManager
+from twf.discovery.market_data import DhanMarketDataProvider
+from twf.discovery.market_intelligence import TapTideSnapshotCache
 from twf.discovery.product_service import ProductFailure
-from twf.discovery.providers import ProviderFailure
 from twf.infrastructure.database import create_database_engine, create_session_factory
 from twf.integrations.mcp.connection import ConnectionManager
 from twf.integrations.mcp.contracts import Failure as MCPFailure
@@ -64,6 +66,9 @@ def create_app(
         app.state.mcp_manager = ConnectionManager(
             app.state.session_factory, settings, settings.mcp_providers, logger=logger
         )
+        app.state.market_data_provider = DhanMarketDataProvider(settings.dhan_market_data)
+        app.state.dhan_credentials = DhanCredentialManager(app.state.session_factory, settings)
+        app.state.market_intelligence_cache = TapTideSnapshotCache()
         app.state.auth_dummy_hash = PasswordHasher().hash(secrets.token_urlsafe(32))
         app.state.initialized = True
         logger.info("application_started")
@@ -119,10 +124,10 @@ def create_app(
     app.include_router(preferences_router)
     app.include_router(services_router)
     app.include_router(mcp_router)
-    app.include_router(tradingview_router)
+    app.include_router(dhan_market_data_router)
     app.include_router(discovery_router)
-    app.add_exception_handler(ProviderFailure, scan_error)
     app.add_exception_handler(ProductFailure, product_error)
     app.add_exception_handler(MCPFailure, mcp_error)
+    app.add_exception_handler(DhanCredentialFailure, dhan_error)
     app.add_exception_handler(SettingsFailure, settings_error)
     return app

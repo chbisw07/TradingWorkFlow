@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import {
+  activeProviderChoice,
   discoveryApi,
+  type ActiveProviderChoice,
   type DiscoverySettings,
-  type ProviderChoice,
 } from "../../lib/discovery";
 import { SurfaceState } from "../ui/surface-state";
 
@@ -19,8 +20,12 @@ export function DiscoverySettingsSection() {
     setError("");
     try {
       const value = await discoveryApi<DiscoverySettings>("settings");
-      setCurrent(value);
-      setDraft(value);
+      const normalized = {
+        ...value,
+        default_provider: activeProviderChoice(value.default_provider),
+      };
+      setCurrent(normalized);
+      setDraft(normalized);
     } catch (reason) {
       setError((reason as Error).message);
     }
@@ -31,8 +36,12 @@ export function DiscoverySettingsSection() {
     discoveryApi<DiscoverySettings>("settings")
       .then((value) => {
         if (!active) return;
-        setCurrent(value);
-        setDraft(value);
+        const normalized = {
+          ...value,
+          default_provider: activeProviderChoice(value.default_provider),
+        };
+        setCurrent(normalized);
+        setDraft(normalized);
       })
       .catch((reason: unknown) => {
         if (active) setError((reason as Error).message);
@@ -53,8 +62,12 @@ export function DiscoverySettingsSection() {
         "PUT",
         draft,
       );
-      setCurrent(value);
-      setDraft(value);
+      const normalized = {
+        ...value,
+        default_provider: activeProviderChoice(value.default_provider),
+      };
+      setCurrent(normalized);
+      setDraft(normalized);
       setNotice("Scan & Discover defaults saved.");
     } catch (reason) {
       setError((reason as Error).message);
@@ -117,16 +130,13 @@ export function DiscoverySettingsSection() {
                 onChange={(event) =>
                   setDraft({
                     ...draft,
-                    default_provider: event.target.value as ProviderChoice,
+                    default_provider: event.target
+                      .value as ActiveProviderChoice,
                   })
                 }
               >
-                <option value="internal">
-                  Internal Scanner V0 · synthetic
-                </option>
-                <option value="tradingview-synthetic">
-                  TradingView adapter · synthetic
-                </option>
+                <option value="synthetic">Synthetic validation data</option>
+                <option value="real">Real market data · Dhan</option>
               </select>
               <small>
                 Provider mode remains visible in the scan workspace.

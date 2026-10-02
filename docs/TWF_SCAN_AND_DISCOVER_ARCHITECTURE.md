@@ -1,5 +1,7 @@
 # TWF Scan & Discover Architecture
 
+> **2026-10-02 active-runtime amendment:** TradingView is decommissioned from active S&D. The current authoritative market-data path is Dhan through the provider-neutral [`MarketDataProvider`](TWF_MARKET_DATA_PROVIDER_ARCHITECTURE.md); TapTide is optional context through [`MarketIntelligenceProvider`](TWF_MARKET_INTELLIGENCE_PROVIDER_ARCHITECTURE.md). This amendment supersedes active TradingView runtime/provider guidance below. TradingView passages remain historical design/implementation context and do not authorize calls. Generic MCP, historical rows, and provenance remain preserved.
+
 ## Status and authority
 
 Current status: **ACCEPTED / IMPLEMENTATION AUTHORIZED**. Sprint 2 is **IMPLEMENTED / READY FOR USER VALIDATION** under the [implementation record](TWF_SPRINT2_SCAN_DISCOVER_IMPLEMENTATION.md); final acceptance/freeze remains pending. The [independent acceptance record](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) supersedes v0.1 proposal status. Provider/data/policy gates still apply before their dependent slices; future-stage contracts remain conceptual.
@@ -408,7 +410,7 @@ Errors carry safe retryability/operation correlation, not raw bodies, secrets or
 endpoints. Timeout covers the whole operation, streaming/decoding included, with
 bounded bytes, items, fan-out and pages. Health cannot promise fresh data.
 
-## 11. TradingView MCP and other providers
+## 11. Historical TradingView MCP design (superseded for active runtime)
 
 TradingView MCP is planned as the rich scan adapter. The repository contains no
 accepted TradingView MCP server identity, release, authentication or tool schema.
@@ -975,7 +977,7 @@ Revision `0015_discovery_evidence_series` retains one bounded source series per 
 
 Rendering remains explanatory: candles, aligned volume, scan marker and only indicators used by the pinned profile. It adds no arbitrary studies, drawings, trade construction, order controls, Opportunity or LOB authority. Synthetic fixtures are retained and reconstructable. Real-provider bars require an explicit licensing/capability decision; unavailable, rate-limited, authentication-required, restricted, legacy and integrity-failure states remain typed and never cause synthetic substitution.
 
-## Real market evidence integration amendment — 2026-10-02
+## Historical TradingView real-evidence amendment — superseded 2026-10-02
 
 The implemented real-evidence path uses a hybrid provider strategy:
 
@@ -988,3 +990,9 @@ Exact-symbol enrichment uses `mcp-tv-get-symbol-data-batch`, minimum columns (`c
 Provider OHLCV is normalized with the provider bar timestamp and a separate TWF receipt time. The provider supplies no finality flag, so finality is `PROVIDER_UNSPECIFIED`; the product does not claim realtime or delayed delivery. Metric verification conservatively excludes the newest returned bar; the presence of a following bar is the minimum evidence used to treat a prior interval as ended. Scanner predicates are recomputed with the accepted scanner algorithms. Verification is `CONFIRMED`, `PARTIALLY_CONFIRMED`, `CONTRADICTED`, `UNVERIFIED`, or `UNAVAILABLE`. Contradicted and unverified matches are excluded from initial candidate admission, conflicting evidence remains explicit, and real evidence drives deterministic relevance and coverage.
 
 Real provider/auth/rate/missing failures become `NOT_EVALUATED`, never `ABSENT`. Current Chart fetches TradingView market data on demand. Because retention rights are unknown, provider OHLCV is not stored durably for real runs: As Scanned preserves normalized numerical evidence, timestamps and lineage and reports a retention-restricted historical chart. These constraints preserve immutable run/match identity and add no Opportunity, LOB, trading, watchlist, or background-monitoring authority.
+
+## 2026-10-02 authoritative provider amendment
+
+The active domain flow is now `Dhan → normalized MarketSeries → Internal Scanner V0 → ScanMatch/evidence → deterministic relevance → DiscoveryObservation/Candidate → Evidence Chart`. Synthetic fixtures implement the same market-data contract. There is no active TradingView enrichment or verification phase. The exact Dhan series evaluated by the scanner is the immutable As Scanned chart input; Current Chart is an independent on-demand Dhan read. Dhan failure records `NOT_EVALUATED`; only a successful evaluated non-match records `ABSENT`.
+
+TapTide supplies optional normalized Market Intelligence claims through generic MCP. Its claims are separately attributed context and cannot redefine technical predicates or block a Dhan scan. Zero MI providers is supported. The renderer remains provider-neutral. Future Zerodha market data fits the same contract without changing S&D domain objects. Watchlists, Opportunity, LOB, Trade Construction, and trading authority remain outside Sprint 2.

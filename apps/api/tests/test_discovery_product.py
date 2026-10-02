@@ -16,7 +16,18 @@ from sqlalchemy import func, select
 
 from twf.auth import create_user
 from twf.config.settings import Settings
-from twf.discovery.product_service import ScanDiscoverService, identity, market_series
+from twf.discovery.dhan_credentials import (
+    DhanCredentialCapture,
+    DhanCredentialState,
+    DhanCredentialStatus,
+)
+from twf.discovery.domain import SourceMode, SourceReference
+from twf.discovery.market_data import (
+    DHAN_IDENTITY,
+    MarketDataErrorCode,
+    MarketDataFailure,
+)
+from twf.discovery.product_service import identity, market_series
 from twf.infrastructure.database import (
     create_database_engine,
     create_session_factory,
@@ -65,7 +76,7 @@ def post(client: TestClient, path: str, payload: dict[str, Any]) -> Any:
 def scan_payload(**changes: Any) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "universe": ["RELIANCE", "TCS"],
-        "provider": "internal",
+        "provider": "synthetic",
         "profile": "RELATIVE_VOLUME",
         "horizon": "5d",
         "intent": "MOMENTUM",
@@ -78,7 +89,7 @@ def scan_payload(**changes: Any) -> dict[str, Any]:
 
 def test_internal_scan_context_candidates_and_history(product_client: TestClient) -> None:
     result = post(product_client, "/api/v1/discovery/scans", scan_payload())
-    assert result["summary"]["provider"] == "internal"
+    assert result["summary"]["provider"] == "synthetic"
     assert result["summary"]["match_count"] == 1
     assert result["summary"]["candidate_count"] == 1
     assert result["market_context"]["availability"] == "PARTIAL"
@@ -435,32 +446,24 @@ def test_no_match_and_provider_status(product_client: TestClient) -> None:
     assert result["matches"] == [] and result["candidates"] == []
     status = product_client.get("/api/v1/discovery/status").json()
     assert [item["id"] for item in status] == [
-        "internal",
-        "real-tradingview",
-        "tradingview-synthetic",
+        "dhan",
+        "internal-scanner-v0",
+        "tapetide",
     ]
-    assert status[1]["role"] == "EVIDENCE"
-    assert "broad-screener-unreliable" in status[1]["limitations"]
-    assert status[0]["last_success_at"] is not None
+    assert status[0]["role"] == "MARKET_DATA"
+    assert status[1]["role"] == "SCANNER"
+    assert status[2]["role"] == "MARKET_INTELLIGENCE"
+    assert status[1]["last_success_at"] is not None
 
 
-def test_provider_streams_remain_distinct_without_certified_equivalence(
-    product_client: TestClient,
-) -> None:
-    first = post(product_client, "/api/v1/discovery/scans", scan_payload(universe=["RELIANCE"]))
-    second = post(
+def test_legacy_internal_alias_normalizes_to_synthetic(product_client: TestClient) -> None:
+    result = post(
         product_client,
         "/api/v1/discovery/scans",
-        scan_payload(universe=["RELIANCE"], provider="tradingview-synthetic"),
+        scan_payload(universe=["RELIANCE"], provider="internal"),
     )
-    assert first["candidates"][0]["candidate_id"] != second["candidates"][0]["candidate_id"]
-    assert first["candidates"][0]["provider_sources"] == ["twf-native"]
-    assert "tradingview" in second["candidates"][0]["provider_sources"]
-    detail = product_client.get(
-        f"/api/v1/discovery/candidates/{second['candidates'][0]['candidate_id']}"
-    ).json()
-    assert len(detail["snapshots"]) == 1
-    assert detail["snapshots"][0]["source_data_time"] is None
+    assert result["summary"]["provider"] == "synthetic"
+    assert result["matches"][0]["provider"] == "twf-native"
 
 
 def test_llm_is_optional_grounded_and_has_no_authority(product_client: TestClient) -> None:
@@ -696,21 +699,17 @@ def test_u2_match_admission_reconciles_and_explains_exclusions(
     assert blocked["admission"]["decisions"][0]["reason"] == "EXCLUDED_CONTEXT_POLICY"
 
 
-def test_u2_provider_why_matched_parity(product_client: TestClient) -> None:
+def test_u2_synthetic_provider_contract_is_deterministic(product_client: TestClient) -> None:
     payload = scan_payload(
         profile="MOMENTUM",
         universe=["MCX"],
         context_mode="healthy",
     )
-    internal = post(product_client, "/api/v1/discovery/scans", payload)
-    tradingview = post(
-        product_client,
-        "/api/v1/discovery/scans",
-        {**payload, "provider": "tradingview-synthetic"},
-    )
-    assert internal["matches"][0]["why_matched"] == tradingview["matches"][0]["why_matched"]
-    assert internal["matches"][0]["raw_reasons"] == tradingview["matches"][0]["raw_reasons"]
-    assert tradingview["matches"][0]["provider"] == "tradingview"
+    first = post(product_client, "/api/v1/discovery/scans", payload)
+    second = post(product_client, "/api/v1/discovery/scans", payload)
+    assert first["matches"][0]["why_matched"] == second["matches"][0]["why_matched"]
+    assert first["matches"][0]["raw_reasons"] == second["matches"][0]["raw_reasons"]
+    assert second["matches"][0]["provider"] == "twf-native"
 
 
 def test_u2_optional_context_is_not_required_or_lifecycle_degrading(
@@ -1154,88 +1153,27 @@ def test_evidence_chart_overlays_follow_pinned_profile_rules(
     }
 
 
-def test_evidence_chart_current_mode_and_provider_unavailable_state(
+def test_evidence_chart_current_mode_uses_provider_neutral_series(
     product_client: TestClient,
-) -> None:
-    internal = post(
-        product_client,
-        "/api/v1/discovery/scans",
-        scan_payload(universe=["MCX"], profile="MOMENTUM"),
-    )
-    internal_match = internal["matches"][0]
-    current = product_client.get(
-        "/api/v1/discovery/scans/{}/matches/{}/evidence-chart".format(
-            internal["summary"]["run_id"], internal_match["match_id"]
-        ),
-        params={"mode": "current"},
-    )
-    assert current.status_code == 200
-    current_chart = current.json()
-    assert current_chart["mode"] == "current"
-    assert current_chart["state"] == "AVAILABLE"
-    assert all(item["metric"] in {"roc.10", "rsi.14"} for item in current_chart["predicates"])
-
-    validation = post(
-        product_client,
-        "/api/v1/discovery/scans",
-        scan_payload(
-            universe=["RELIANCE"],
-            provider="tradingview-synthetic",
-            profile="RELATIVE_VOLUME",
-        ),
-    )
-    validation_match = validation["matches"][0]
-    unavailable = product_client.get(
-        "/api/v1/discovery/scans/{}/matches/{}/evidence-chart".format(
-            validation["summary"]["run_id"], validation_match["match_id"]
-        ),
-        params={"mode": "current"},
-    ).json()
-    assert unavailable["state"] == "RETENTION_RESTRICTED"
-    assert unavailable["bars"] == []
-    assert unavailable["predicates"]
-    assert unavailable["retention"]["historical_chart_reconstructable"] is True
-    assert unavailable["retention"]["scan_bars_retained"] is True
-    assert unavailable["retention"]["archive_bar_count"] == 260
-    assert "As-scanned evidence remains available" in unavailable["message"]
-
-
-def test_evidence_chart_rate_limit_failure_is_typed_and_preserves_history(
-    product_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     result = post(
         product_client,
         "/api/v1/discovery/scans",
-        scan_payload(
-            universe=["RELIANCE"],
-            provider="tradingview-synthetic",
-            profile="RELATIVE_VOLUME",
-        ),
+        scan_payload(universe=["MCX"], profile="MOMENTUM"),
     )
-    original = ScanDiscoverService.providers
-
-    def rate_limited(service: ScanDiscoverService) -> tuple[Any, ...]:
-        return tuple(
-            item.model_copy(update={"health": "RATE_LIMITED"})
-            if item.id.value == "tradingview-synthetic"
-            else item
-            for item in original(service)
-        )
-
-    monkeypatch.setattr(ScanDiscoverService, "providers", rate_limited)
     match = result["matches"][0]
-    chart = product_client.get(
+    current = product_client.get(
         "/api/v1/discovery/scans/{}/matches/{}/evidence-chart".format(
             result["summary"]["run_id"], match["match_id"]
         ),
         params={"mode": "current"},
-    ).json()
-    assert chart["state"] == "RATE_LIMITED"
-    assert chart["message"] == (
-        "Current chart unavailable: provider rate limited. As-scanned evidence remains available."
     )
-    assert chart["retention"]["historical_chart_reconstructable"] is True
-    assert chart["retention"]["archive_bar_count"] == 260
+    assert current.status_code == 200
+    chart = current.json()
+    assert chart["mode"] == "current"
+    assert chart["state"] == "AVAILABLE"
+    assert chart["provider"] == "twf-native"
+    assert all(item["metric"] in {"roc.10", "rsi.14"} for item in chart["predicates"])
 
 
 def test_evidence_chart_owner_isolation_and_legacy_truthfulness(
@@ -1297,191 +1235,246 @@ def test_evidence_chart_integrity_failure_is_typed(product_client: TestClient) -
     assert chart["predicates"]
 
 
-def real_enrichment(
-    instruments: tuple[Any, ...], *, outcome: str = "AVAILABLE", contradicted: bool = False
-) -> Any:
-    from twf.discovery.tradingview.evidence import (
-        EnrichmentBatch,
-        EvidenceOutcome,
-        ExactQuote,
-        ProviderBar,
-        SymbolEvidence,
-    )
+class FakeDhanMarketData:
+    def __init__(self, failure: MarketDataErrorCode | None = None) -> None:
+        self.failure = failure
+        self.calls: list[tuple[str, str]] = []
 
-    received = datetime.now(UTC)
-    output = []
-    for instrument in instruments:
-        if outcome != "AVAILABLE":
+    async def resolve_instruments(self, symbols: tuple[str, ...]) -> tuple[Any, ...]:
+        output = []
+        security_ids = {"RELIANCE": "2885", "MCX": "31181", "NOMATCH": "99999"}
+        for symbol in symbols:
+            if self.failure == MarketDataErrorCode.INSTRUMENT_NOT_FOUND:
+                raise MarketDataFailure(self.failure)
+            item = identity(symbol)
+            source = SourceReference(
+                namespace="dhan",
+                native_id=f"NSE_EQ:{security_ids.get(symbol, '90000')}",
+                revision="scrip-master-v1",
+            )
             output.append(
-                SymbolEvidence(
-                    instrument=instrument,
-                    outcome=EvidenceOutcome(outcome),
-                    interval="1d",
-                    received_at=received,
-                    limitation=outcome.lower(),
+                item.model_copy(
+                    update={
+                        "native": source,
+                        "provider_symbol": symbol,
+                        "instrument_type": "EQUITY",
+                    }
                 )
             )
-            continue
-        source = market_series(instrument, received - timedelta(days=1))
-        bars = list(source.bars)
-        if contradicted:
-            previous = bars[-1]
-            bars[-1] = previous.model_copy(
-                update={
-                    "open": bars[-2].close - 4,
-                    "high": bars[-2].close - 3,
-                    "low": bars[-2].close - 6,
-                    "close": bars[-2].close - 5,
-                    "volume": 1,
-                }
-            )
-        latest = bars[-1]
-        bars.append(
-            latest.model_copy(
-                update={
-                    "timestamp": latest.timestamp + timedelta(days=1),
-                    "available_at": received,
-                    "open": latest.close,
-                    "high": latest.close + 2,
-                    "low": latest.close - 2,
-                    "close": latest.close + 1,
-                }
-            )
-        )
-        output.append(
-            SymbolEvidence(
-                instrument=instrument,
-                outcome=EvidenceOutcome.AVAILABLE,
-                quote=ExactQuote(
-                    symbol=f"{instrument.exchange}:{instrument.symbol}",
-                    close=Decimal(str(bars[-1].close)),
-                    volume=Decimal(str(bars[-1].volume or 0)),
-                    received_at=received,
-                    chunk_index=0,
-                ),
-                bars=tuple(
-                    ProviderBar(
-                        source_time=bar.timestamp,
-                        open=Decimal(str(bar.open)),
-                        high=Decimal(str(bar.high)),
-                        low=Decimal(str(bar.low)),
-                        close=Decimal(str(bar.close)),
-                        volume=None if bar.volume is None else Decimal(str(bar.volume)),
-                    )
-                    for bar in bars
-                ),
-                interval="1d",
-                received_at=received,
-                limitation="bar-finality-provider-unspecified;retention-rights-unknown",
-            )
-        )
-    requested = tuple(f"{item.exchange}:{item.symbol}" for item in instruments)
-    returned = requested if outcome == "AVAILABLE" else ()
-    return EnrichmentBatch(
-        connection_id=UUID("11111111-1111-1111-1111-111111111111"),
-        generation=3,
-        requested_symbols=requested,
-        returned_symbols=returned,
-        missing_symbols=tuple(item for item in requested if item not in returned),
-        chunk_count=1,
-        symbols=tuple(output),
-        received_at=received,
-    )
+        return tuple(output)
 
-
-def test_real_mode_verifies_matches_and_current_chart_without_retaining_bars(
-    product_client: TestClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from twf.discovery.tradingview.evidence import TradingViewEvidenceGateway
-
-    async def enrich(
-        self: TradingViewEvidenceGateway, instruments: tuple[Any, ...], horizon: str
+    async def get_ohlcv(
+        self,
+        instrument: Any,
+        interval: str,
+        *,
+        as_of: datetime,
+        count: int,
     ) -> Any:
-        assert horizon == "5d"
-        return real_enrichment(instruments)
+        self.calls.append((instrument.symbol, interval))
+        if self.failure is not None:
+            raise MarketDataFailure(self.failure, retryable=True)
+        series = market_series(instrument, as_of - timedelta(seconds=1))
+        return series.model_copy(
+            update={
+                "interval": interval,
+                "provenance": series.provenance.model_copy(
+                    update={
+                        "producer": DHAN_IDENTITY,
+                        "source": instrument.native,
+                        "mode": SourceMode.EOD,
+                        "dependence_group": "dhan-authoritative-market-data",
+                    }
+                ),
+                "received_at": as_of,
+                "requested_count": count,
+                "completeness": "PARTIAL" if len(series.bars) < count else "COMPLETE",
+            }
+        )
 
-    monkeypatch.setattr(TradingViewEvidenceGateway, "enrich", enrich)
-    monkeypatch.setattr(
-        TradingViewEvidenceGateway,
-        "readiness",
-        lambda self: (True, "AVAILABLE", datetime.now(UTC)),
+
+def install_market_data(product_client: TestClient, provider: FakeDhanMarketData) -> None:
+    app = cast(FastAPI, product_client.app)
+    app.state.market_data_provider = provider
+    app.state.dhan_credentials.capture = lambda owner_id, ready_only: DhanCredentialCapture(
+        provider,
+        DhanCredentialStatus(
+            state=DhanCredentialState.READY,
+            configured=True,
+            enabled=True,
+            generation=1,
+            source="DATABASE",
+        ),
     )
+
+
+def test_real_mode_uses_dhan_and_archives_exact_scanner_series(
+    product_client: TestClient,
+) -> None:
+    provider = FakeDhanMarketData()
+    install_market_data(product_client, provider)
     result = post(
         product_client,
         "/api/v1/discovery/scans",
-        scan_payload(universe=["RELIANCE"], provider="real-tradingview"),
+        scan_payload(universe=["RELIANCE"], provider="real"),
     )
-    assert result["summary"]["provider"] == "real-tradingview"
+    assert result["summary"]["provider"] == "real"
     assert result["summary"]["candidate_count"] == 1
+    assert "tapetide-auth_required" in result["summary"]["degraded"]
     lineage = result["summary"]["evidence_lineage"]
     assert lineage["discovery_provider"] == "internal-scanner-v0"
-    assert lineage["evidence_provider"] == "tradingview"
-    assert lineage["requested_symbols"] == ["NSE:RELIANCE"]
-    assert lineage["returned_symbols"] == ["NSE:RELIANCE"]
+    assert lineage["evidence_provider"] == "dhan"
+    assert lineage["requested_symbols"] == ["RELIANCE"]
+    assert lineage["returned_symbols"] == ["RELIANCE"]
     assert lineage["missing_symbols"] == []
-    assert lineage["generation"] == 3
+    assert result["matches"][0]["provider"] == "dhan"
     assert result["matches"][0]["verification"] == "CONFIRMED"
-    assert result["matches"][0]["evidence_coverage"] == "COMPLETE"
     run_id, match_id = result["summary"]["run_id"], result["matches"][0]["match_id"]
     scanned = product_client.get(
         f"/api/v1/discovery/scans/{run_id}/matches/{match_id}/evidence-chart",
         params={"mode": "as_scanned"},
     ).json()
-    assert scanned["state"] == "RETENTION_RESTRICTED"
-    assert scanned["bars"] == []
-    assert scanned["retention"]["scan_bars_retained"] is False
+    assert scanned["state"] == "AVAILABLE"
+    assert scanned["provider"] == "dhan"
+    assert scanned["bars"]
+    assert scanned["retention"]["scan_bars_retained"] is True
     current = product_client.get(
         f"/api/v1/discovery/scans/{run_id}/matches/{match_id}/evidence-chart",
         params={"mode": "current"},
     ).json()
     assert current["state"] == "AVAILABLE"
-    assert current["bar_finality"] == "PROVIDER_UNSPECIFIED"
-    assert current["bars"] and current["source_data_time"]
+    assert current["provider"] == "dhan"
+    assert current["bars"]
+    assert provider.calls == [("RELIANCE", "1d"), ("RELIANCE", "1d")]
 
 
-def test_real_contradiction_is_excluded_and_provider_failure_is_not_evaluated(
-    product_client: TestClient, monkeypatch: pytest.MonkeyPatch
+def test_real_provider_failure_is_not_evaluated_and_does_not_close_episode(
+    product_client: TestClient,
 ) -> None:
-    from twf.discovery.tradingview.evidence import TradingViewEvidenceGateway
-
-    async def contradicted(
-        self: TradingViewEvidenceGateway, instruments: tuple[Any, ...], horizon: str
-    ) -> Any:
-        return real_enrichment(instruments, contradicted=True)
-
-    monkeypatch.setattr(TradingViewEvidenceGateway, "enrich", contradicted)
-    contradicted_result = post(
+    healthy = FakeDhanMarketData()
+    install_market_data(product_client, healthy)
+    first = post(
         product_client,
         "/api/v1/discovery/scans",
-        scan_payload(
-            universe=["RELIANCE"],
-            provider="real-tradingview",
-            idempotency_key="real-contradiction",
-        ),
+        scan_payload(universe=["RELIANCE"], provider="real", idempotency_key="dhan-ok"),
     )
-    assert contradicted_result["matches"][0]["verification"] == "CONTRADICTED"
-    assert contradicted_result["summary"]["candidate_count"] == 0
-    assert contradicted_result["admission"]["decisions"][0]["reason"] == ("EXCLUDED_CONTRADICTED")
-
-    async def unavailable(
-        self: TradingViewEvidenceGateway, instruments: tuple[Any, ...], horizon: str
-    ) -> Any:
-        return real_enrichment(instruments, outcome="RATE_LIMITED")
-
-    monkeypatch.setattr(TradingViewEvidenceGateway, "enrich", unavailable)
+    failed_provider = FakeDhanMarketData(MarketDataErrorCode.RATE_LIMITED)
+    install_market_data(product_client, failed_provider)
     failed = post(
         product_client,
         "/api/v1/discovery/scans",
         scan_payload(
             universe=["RELIANCE"],
-            provider="real-tradingview",
-            idempotency_key="real-provider-failure",
+            provider="real",
+            idempotency_key="dhan-rate-limited",
         ),
     )
-    assert failed["matches"][0]["verification"] == "UNAVAILABLE"
+    assert failed["matches"] == []
     assert failed["summary"]["candidate_count"] == 0
+    assert "dhan-rate_limited" in failed["summary"]["degraded"]
     temporal = product_client.get(
         f"/api/v1/discovery/scans/{failed['summary']['run_id']}/temporal"
     ).json()
-    assert temporal["items"][0]["observation"]["kind"] == "NOT_EVALUATED"
-    assert temporal["items"][0]["observation"]["coverage"] == "PROVIDER_UNAVAILABLE"
+    observation = temporal["items"][0]["observation"]
+    assert observation["kind"] == "NOT_EVALUATED"
+    assert observation["coverage"] == "PROVIDER_UNAVAILABLE"
+    candidate = product_client.get(
+        f"/api/v1/discovery/candidates/{first['candidates'][0]['candidate_id']}"
+    ).json()
+    assert candidate["lifecycle"] in {"NEW", "CURRENT"}
+
+
+def test_real_successful_no_match_records_absent(product_client: TestClient) -> None:
+    install_market_data(product_client, FakeDhanMarketData())
+    result = post(
+        product_client,
+        "/api/v1/discovery/scans",
+        scan_payload(universe=["NOMATCH"], provider="real"),
+    )
+    assert result["matches"] == []
+    temporal = product_client.get(
+        f"/api/v1/discovery/scans/{result['summary']['run_id']}/temporal"
+    ).json()
+    observation = temporal["items"][0]["observation"]
+    assert observation["kind"] == "ABSENT"
+    assert observation["coverage"] == "EVALUATED"
+
+
+def test_dhan_current_chart_rate_limit_is_typed_and_as_scanned_survives(
+    product_client: TestClient,
+) -> None:
+    provider = FakeDhanMarketData()
+    install_market_data(product_client, provider)
+    result = post(
+        product_client,
+        "/api/v1/discovery/scans",
+        scan_payload(universe=["RELIANCE"], provider="real"),
+    )
+    provider.failure = MarketDataErrorCode.RATE_LIMITED
+    match = result["matches"][0]
+    chart = product_client.get(
+        "/api/v1/discovery/scans/{}/matches/{}/evidence-chart".format(
+            result["summary"]["run_id"], match["match_id"]
+        ),
+        params={"mode": "current"},
+    ).json()
+    assert chart["state"] == "RATE_LIMITED"
+    assert "Dhan rate limited" in chart["message"]
+    scanned = product_client.get(
+        "/api/v1/discovery/scans/{}/matches/{}/evidence-chart".format(
+            result["summary"]["run_id"], match["match_id"]
+        ),
+        params={"mode": "as_scanned"},
+    ).json()
+    assert scanned["state"] == "AVAILABLE"
+    assert scanned["bars"]
+
+
+def test_legacy_tradingview_history_and_provenance_remain_readable(
+    product_client: TestClient,
+) -> None:
+    result = post(
+        product_client,
+        "/api/v1/discovery/scans",
+        scan_payload(universe=["RELIANCE"], provider="synthetic"),
+    )
+    run_id = UUID(result["summary"]["run_id"])
+    match_id = UUID(result["matches"][0]["match_id"])
+    with session_scope(cast(FastAPI, product_client.app).state.session_factory) as session:
+        run = session.get(ScanRunRecord, run_id)
+        match = session.get(ScanMatchRecord, match_id)
+        assert run is not None and match is not None
+        summary = dict(run.payload)
+        summary["provider"] = "real-tradingview"
+        run.provider = "real-tradingview"
+        run.payload = summary
+        payload = dict(match.payload)
+        provenance = dict(payload["provenance"])
+        producer = dict(provenance["producer"])
+        source = dict(provenance["source"])
+        producer.update(
+            {
+                "service_id": "tradingview-real-evidence",
+                "provider": "tradingview",
+                "service_version": "1",
+                "contract_version": "sd.evidence.v1",
+            }
+        )
+        source.update({"namespace": "tradingview", "native_id": "NSE:RELIANCE"})
+        provenance.update({"producer": producer, "source": source})
+        payload["provenance"] = provenance
+        match.payload = payload
+        session.commit()
+
+    history = product_client.get("/api/v1/discovery/scans").json()
+    assert history[0]["provider"] == "real-tradingview"
+    detail = product_client.get(f"/api/v1/discovery/scans/{run_id}").json()
+    assert detail["matches"][0]["provider"] == "tradingview"
+    chart = product_client.get(
+        f"/api/v1/discovery/scans/{run_id}/matches/{match_id}/evidence-chart",
+        params={"mode": "as_scanned"},
+    ).json()
+    assert chart["state"] == "RETENTION_RESTRICTED"
+    assert chart["provider"] == "tradingview"
+    assert chart["bars"] == []
+    assert "Historical TradingView" in chart["message"]

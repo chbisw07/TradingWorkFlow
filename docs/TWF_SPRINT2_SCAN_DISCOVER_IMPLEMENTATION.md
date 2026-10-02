@@ -1,5 +1,7 @@
 # Sprint 2 Scan & Discover — integrated implementation record
 
+> **Current runtime record — 2026-10-02:** the active real provider has migrated from TradingView to Dhan authoritative OHLCV. TapTide is the first optional Market Intelligence provider over the preserved generic MCP foundation. The former TradingView implementation sections are historical evidence. This migration is **IMPLEMENTED / READY FOR USER VALIDATION**, uncommitted, and does not alter prior acceptance tags.
+
 **Date:** 2026-09-30  
 **Starting checkpoint:** `a5d7859944cbb25e143488f129cc0bab99dc262b` (`twf-s2-3-tradingview-mcp-provider`)  
 **Program state:** **IMPLEMENTED / READY FOR USER VALIDATION**  
@@ -212,7 +214,7 @@ The owner-scoped endpoint is `GET /api/v1/discovery/scans/{run_id}/matches/{matc
 
 Legacy runs without an archive keep their numerical match evidence and return `LEGACY_UNAVAILABLE`. Corrupt or algorithmically inconsistent archives return `RECONSTRUCTION_FAILED`; no chart is drawn. Sprint 2 remains **IMPLEMENTED / READY FOR USER VALIDATION** and is not accepted or frozen by this feature.
 
-## Real TradingView evidence bridge — 2026-10-02
+## Historical TradingView evidence bridge — decommissioned 2026-10-02
 
 The product now exposes `real-tradingview` alongside the unchanged offline providers. A real run performs Internal Scanner matching first and sends only provisional matches to the secure owner-scoped MCP connection. The gateway allows only `mcp-tv-get-symbol-data-batch` and `mcp-tv-get-ohlcv`, requests minimum exact columns, chunks at 50, performs no automatic retry storm and records exact requested/returned/missing and connection-generation lineage. Broad screener and watchlist tools are not invoked.
 
@@ -225,3 +227,11 @@ The provider strip distinguishes Internal Scanner/Discovery, TradingView/Evidenc
 The web Settings page now exposes the accepted personal MCP lifecycle for TradingView: create, authorize/reauthorize, test, refresh, disconnect, cleanup, recovery and status reload. OAuth uses the public callback at `/settings/mcp/callback`; the landing page removes code/state from browser history before posting them through the same-origin API conduit. Operator registration and the live-evidence feature flag remain deployment configuration, not user-editable secrets.
 
 The 2026-10-02 post-implementation live preflight found the running local profile safely disabled (`tradingview_scan.enabled=false`, response-contract verification disabled, and no registered MCP provider). TWF therefore made no remote provider call and did not bypass the configuration guard or substitute synthetic evidence. Live product validation is recorded as `NOT_RUN` until an operator registers the verified TradingView provider and the owner completes fresh OAuth authorization.
+
+## Dhan authoritative market data and TapTide MI migration — 2026-10-02
+
+The API now composes `DhanMarketDataProvider` from owner-scoped encrypted Settings credentials, with `TWF_DHAN_MARKET_DATA` retained only as an optional bootstrap fallback. Real scans resolve compact-master identities, request bounded Dhan OHLCV, pass normalized completed bars directly into Internal Scanner V0, persist normalized evidence, and archive the exact matched series. Synthetic fixtures use the same provider/scanner boundary. As Scanned validates the archive; Current Chart reads Dhan on demand. There is no active TradingView route, adapter, selector, status card, evidence label, or live chart call.
+
+`TapTideMarketIntelligence` discovers an owner-scoped generic MCP connection named `tapetide`, invokes only seven allowlisted read-only tools, normalizes claims into a stable vocabulary, records source/receipt/freshness provenance, and degrades safely. Successful batches are cached for five minutes with owner/connection/generation/instrument fencing. TapTide errors never block Dhan scanning. Generic OAuth/PKCE, API-key mode, encrypted storage, permits, draining disconnect, and callback handling remain intact.
+
+Migration `0016_dhan_market_data_credentials` adds owner-scoped Dhan connection metadata and separate encrypted secret rows. Existing discovery JSON payloads continue to preserve mixed provider generations, and historical TradingView runs remain readable. The active request values are `synthetic` and `real`; legacy provider values remain parseable only for API/history compatibility and map to the current active mode when setup is reused.

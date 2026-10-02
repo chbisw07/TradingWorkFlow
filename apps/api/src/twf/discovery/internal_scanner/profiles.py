@@ -49,6 +49,7 @@ def build_profile(
     revision: int = 1,
     parameters: ProfileParameters | None = None,
     direction: Literal["LONG", "SHORT", "NEUTRAL"] = "NEUTRAL",
+    source_mode: SourceMode = SourceMode.SYNTHETIC,
 ) -> ScanDefinition:
     if name not in PROFILE_NAMES or interval not in INTERVAL_SECONDS:
         raise ProviderFailure(
@@ -130,7 +131,7 @@ def build_profile(
         revision=revision,
         direction=direction,
         timeframe=interval,
-        source_mode=SourceMode.SYNTHETIC,
+        source_mode=source_mode,
         required_capabilities=("sd.scan",),
         criteria=tuple(
             Criterion.model_validate(
