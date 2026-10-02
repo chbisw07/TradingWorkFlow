@@ -115,7 +115,12 @@ function PriceChart({ chart }: { chart: EvidenceChart }) {
     <figure className="evidence-chart-figure">
       <figcaption>
         <strong>Price evidence</strong>
-        <span>{bars.length} completed daily bars · no post-scan data</span>
+        <span>
+          {bars.length} {chart.timeframe} bars ·{" "}
+          {chart.bar_finality === "COMPLETED"
+            ? "completed"
+            : "provider finality unspecified"}
+        </span>
       </figcaption>
       <svg
         className="evidence-price-chart"
@@ -520,7 +525,9 @@ export function EvidenceChartDrawer({
                   <span className="evidence-data-badge">
                     {chart.data_mode === "SYNTHETIC"
                       ? "SYNTHETIC DATA"
-                      : chart.data_mode}
+                      : chart.data_mode === "LIVE_SNAPSHOT"
+                        ? "TRADINGVIEW MARKET DATA"
+                        : chart.data_mode}
                   </span>
                 </div>
                 <dl>

@@ -25,7 +25,16 @@ from twf.integrations.contracts import Contract, Identifier
 
 class ProviderChoice(StrEnum):
     INTERNAL = "internal"
+    REAL_TRADINGVIEW = "real-tradingview"
     TRADINGVIEW_SYNTHETIC = "tradingview-synthetic"
+
+
+class EvidenceVerification(StrEnum):
+    CONFIRMED = "CONFIRMED"
+    PARTIALLY_CONFIRMED = "PARTIALLY_CONFIRMED"
+    CONTRADICTED = "CONTRADICTED"
+    UNVERIFIED = "UNVERIFIED"
+    UNAVAILABLE = "UNAVAILABLE"
 
 
 class IntentChoice(StrEnum):
@@ -62,6 +71,8 @@ class AdmissionReason(StrEnum):
     ADMITTED = "ADMITTED"
     EXCLUDED_DIRECTION = "EXCLUDED_DIRECTION"
     EXCLUDED_CONTEXT_POLICY = "EXCLUDED_CONTEXT_POLICY"
+    EXCLUDED_CONTRADICTED = "EXCLUDED_CONTRADICTED"
+    EXCLUDED_UNVERIFIED = "EXCLUDED_UNVERIFIED"
 
 
 class ContextDimension(Contract):
@@ -206,9 +217,26 @@ class ProviderStatus(Contract):
     enabled: bool
     mode: Literal["LOCAL_SYNTHETIC", "REMOTE", "SYNTHETIC_VALIDATION"]
     health: Literal["AVAILABLE", "DEGRADED", "AUTH_REQUIRED", "RATE_LIMITED"]
+    role: Literal["DISCOVERY", "EVIDENCE", "VALIDATION"] = "DISCOVERY"
     capabilities: tuple[str, ...]
+    limitations: tuple[str, ...] = ()
     last_success_at: AwareDatetime | None = None
     last_error: str | None = None
+
+
+class RealEvidenceLineage(Contract):
+    discovery_provider: Literal["internal-scanner-v0"] = "internal-scanner-v0"
+    evidence_provider: Literal["tradingview"] = "tradingview"
+    data_mode: Literal["LIVE_EVIDENCE"] = "LIVE_EVIDENCE"
+    connection_id: UUID | None = None
+    generation: int | None = Field(default=None, ge=0)
+    requested_symbols: tuple[str, ...] = Field(max_length=64)
+    returned_symbols: tuple[str, ...] = Field(max_length=64)
+    missing_symbols: tuple[str, ...] = Field(max_length=64)
+    chunk_count: int = Field(ge=0)
+    received_at: AwareDatetime
+    capability_state: Identifier
+    limitations: tuple[Identifier, ...] = Field(max_length=16)
 
 
 class ScanSummary(Contract):
@@ -228,6 +256,7 @@ class ScanSummary(Contract):
     context_policy: ContextPolicy = ContextPolicy.ALLOW_PARTIAL
     context_availability: ContextAvailability
     degraded: tuple[str, ...] = ()
+    evidence_lineage: RealEvidenceLineage | None = None
     archived_at: AwareDatetime | None = None
 
 
@@ -243,6 +272,8 @@ class ScanMatchView(Contract):
     source_mode: str
     source_data_time: AwareDatetime | None = None
     lineage: str
+    verification: EvidenceVerification = EvidenceVerification.UNVERIFIED
+    evidence_coverage: Literal["COMPLETE", "PARTIAL", "NONE"] = "NONE"
 
 
 class EvidenceChartMode(StrEnum):
@@ -256,6 +287,7 @@ class EvidenceChartState(StrEnum):
     CURRENT_UNAVAILABLE = "CURRENT_UNAVAILABLE"
     RATE_LIMITED = "RATE_LIMITED"
     AUTH_REQUIRED = "AUTH_REQUIRED"
+    EXACT_MISSING = "EXACT_MISSING"
     RETENTION_RESTRICTED = "RETENTION_RESTRICTED"
     RECONSTRUCTION_FAILED = "RECONSTRUCTION_FAILED"
 

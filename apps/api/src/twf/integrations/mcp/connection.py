@@ -225,10 +225,10 @@ class ConnectionManager:
         ):
             state, health, error = State.REAUTH_REQUIRED, Health.DEGRADED, Code.REAUTH_REQUIRED
         configured = self.providers.get(row.provider_id)
-        if row.enabled and (
-            configured is None or fingerprint(configured) != row.config_fingerprint
-        ):
-            state, health, error = State.REAUTH_REQUIRED, Health.UNAVAILABLE, Code.STALE
+        if configured is None or fingerprint(configured) != row.config_fingerprint:
+            health, error = Health.UNAVAILABLE, Code.STALE
+            if row.enabled:
+                state = State.REAUTH_REQUIRED
         if row.auth_invalidation_pending:
             state, health, error = State.REAUTH_DRAINING, Health.UNAVAILABLE, Code.REAUTH_REQUIRED
         outstanding = self.pending(db, row.id)
@@ -266,6 +266,18 @@ class ConnectionManager:
     def status(self, who: Context, identity: UUID) -> ConnectionView:
         with self.factory() as db:
             return self.view(db, self.owned(db, who, identity))
+
+    def connections(
+        self, who: Context, provider_id: str | None = None
+    ) -> tuple[ConnectionView, ...]:
+        """List only the caller's connections; never expose another owner's metadata."""
+        with self.factory() as db:
+            self.authorize(db, who)
+            statement = select(MCPConnection).where(MCPConnection.owner_id == who.owner_id)
+            if provider_id is not None:
+                statement = statement.where(MCPConnection.provider_id == provider_id)
+            rows = tuple(db.scalars(statement.order_by(MCPConnection.updated_at.desc())))
+            return tuple(self.view(db, row) for row in rows)
 
     def audit(
         self, who: Context, identity: UUID, generation: int, operation: str, outcome: str

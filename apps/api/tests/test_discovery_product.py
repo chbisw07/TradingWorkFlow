@@ -1,7 +1,7 @@
 """Integrated Sprint-2 product regressions over the real owner-scoped API."""
 
 from collections.abc import Iterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, cast
@@ -434,7 +434,13 @@ def test_no_match_and_provider_status(product_client: TestClient) -> None:
     assert result["summary"]["match_count"] == 0
     assert result["matches"] == [] and result["candidates"] == []
     status = product_client.get("/api/v1/discovery/status").json()
-    assert [item["id"] for item in status] == ["internal", "tradingview-synthetic"]
+    assert [item["id"] for item in status] == [
+        "internal",
+        "real-tradingview",
+        "tradingview-synthetic",
+    ]
+    assert status[1]["role"] == "EVIDENCE"
+    assert "broad-screener-unreliable" in status[1]["limitations"]
     assert status[0]["last_success_at"] is not None
 
 
@@ -1289,3 +1295,193 @@ def test_evidence_chart_integrity_failure_is_typed(product_client: TestClient) -
     assert chart["state"] == "RECONSTRUCTION_FAILED"
     assert chart["bars"] == []
     assert chart["predicates"]
+
+
+def real_enrichment(
+    instruments: tuple[Any, ...], *, outcome: str = "AVAILABLE", contradicted: bool = False
+) -> Any:
+    from twf.discovery.tradingview.evidence import (
+        EnrichmentBatch,
+        EvidenceOutcome,
+        ExactQuote,
+        ProviderBar,
+        SymbolEvidence,
+    )
+
+    received = datetime.now(UTC)
+    output = []
+    for instrument in instruments:
+        if outcome != "AVAILABLE":
+            output.append(
+                SymbolEvidence(
+                    instrument=instrument,
+                    outcome=EvidenceOutcome(outcome),
+                    interval="1d",
+                    received_at=received,
+                    limitation=outcome.lower(),
+                )
+            )
+            continue
+        source = market_series(instrument, received - timedelta(days=1))
+        bars = list(source.bars)
+        if contradicted:
+            previous = bars[-1]
+            bars[-1] = previous.model_copy(
+                update={
+                    "open": bars[-2].close - 4,
+                    "high": bars[-2].close - 3,
+                    "low": bars[-2].close - 6,
+                    "close": bars[-2].close - 5,
+                    "volume": 1,
+                }
+            )
+        latest = bars[-1]
+        bars.append(
+            latest.model_copy(
+                update={
+                    "timestamp": latest.timestamp + timedelta(days=1),
+                    "available_at": received,
+                    "open": latest.close,
+                    "high": latest.close + 2,
+                    "low": latest.close - 2,
+                    "close": latest.close + 1,
+                }
+            )
+        )
+        output.append(
+            SymbolEvidence(
+                instrument=instrument,
+                outcome=EvidenceOutcome.AVAILABLE,
+                quote=ExactQuote(
+                    symbol=f"{instrument.exchange}:{instrument.symbol}",
+                    close=Decimal(str(bars[-1].close)),
+                    volume=Decimal(str(bars[-1].volume or 0)),
+                    received_at=received,
+                    chunk_index=0,
+                ),
+                bars=tuple(
+                    ProviderBar(
+                        source_time=bar.timestamp,
+                        open=Decimal(str(bar.open)),
+                        high=Decimal(str(bar.high)),
+                        low=Decimal(str(bar.low)),
+                        close=Decimal(str(bar.close)),
+                        volume=None if bar.volume is None else Decimal(str(bar.volume)),
+                    )
+                    for bar in bars
+                ),
+                interval="1d",
+                received_at=received,
+                limitation="bar-finality-provider-unspecified;retention-rights-unknown",
+            )
+        )
+    requested = tuple(f"{item.exchange}:{item.symbol}" for item in instruments)
+    returned = requested if outcome == "AVAILABLE" else ()
+    return EnrichmentBatch(
+        connection_id=UUID("11111111-1111-1111-1111-111111111111"),
+        generation=3,
+        requested_symbols=requested,
+        returned_symbols=returned,
+        missing_symbols=tuple(item for item in requested if item not in returned),
+        chunk_count=1,
+        symbols=tuple(output),
+        received_at=received,
+    )
+
+
+def test_real_mode_verifies_matches_and_current_chart_without_retaining_bars(
+    product_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from twf.discovery.tradingview.evidence import TradingViewEvidenceGateway
+
+    async def enrich(
+        self: TradingViewEvidenceGateway, instruments: tuple[Any, ...], horizon: str
+    ) -> Any:
+        assert horizon == "5d"
+        return real_enrichment(instruments)
+
+    monkeypatch.setattr(TradingViewEvidenceGateway, "enrich", enrich)
+    monkeypatch.setattr(
+        TradingViewEvidenceGateway,
+        "readiness",
+        lambda self: (True, "AVAILABLE", datetime.now(UTC)),
+    )
+    result = post(
+        product_client,
+        "/api/v1/discovery/scans",
+        scan_payload(universe=["RELIANCE"], provider="real-tradingview"),
+    )
+    assert result["summary"]["provider"] == "real-tradingview"
+    assert result["summary"]["candidate_count"] == 1
+    lineage = result["summary"]["evidence_lineage"]
+    assert lineage["discovery_provider"] == "internal-scanner-v0"
+    assert lineage["evidence_provider"] == "tradingview"
+    assert lineage["requested_symbols"] == ["NSE:RELIANCE"]
+    assert lineage["returned_symbols"] == ["NSE:RELIANCE"]
+    assert lineage["missing_symbols"] == []
+    assert lineage["generation"] == 3
+    assert result["matches"][0]["verification"] == "CONFIRMED"
+    assert result["matches"][0]["evidence_coverage"] == "COMPLETE"
+    run_id, match_id = result["summary"]["run_id"], result["matches"][0]["match_id"]
+    scanned = product_client.get(
+        f"/api/v1/discovery/scans/{run_id}/matches/{match_id}/evidence-chart",
+        params={"mode": "as_scanned"},
+    ).json()
+    assert scanned["state"] == "RETENTION_RESTRICTED"
+    assert scanned["bars"] == []
+    assert scanned["retention"]["scan_bars_retained"] is False
+    current = product_client.get(
+        f"/api/v1/discovery/scans/{run_id}/matches/{match_id}/evidence-chart",
+        params={"mode": "current"},
+    ).json()
+    assert current["state"] == "AVAILABLE"
+    assert current["bar_finality"] == "PROVIDER_UNSPECIFIED"
+    assert current["bars"] and current["source_data_time"]
+
+
+def test_real_contradiction_is_excluded_and_provider_failure_is_not_evaluated(
+    product_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from twf.discovery.tradingview.evidence import TradingViewEvidenceGateway
+
+    async def contradicted(
+        self: TradingViewEvidenceGateway, instruments: tuple[Any, ...], horizon: str
+    ) -> Any:
+        return real_enrichment(instruments, contradicted=True)
+
+    monkeypatch.setattr(TradingViewEvidenceGateway, "enrich", contradicted)
+    contradicted_result = post(
+        product_client,
+        "/api/v1/discovery/scans",
+        scan_payload(
+            universe=["RELIANCE"],
+            provider="real-tradingview",
+            idempotency_key="real-contradiction",
+        ),
+    )
+    assert contradicted_result["matches"][0]["verification"] == "CONTRADICTED"
+    assert contradicted_result["summary"]["candidate_count"] == 0
+    assert contradicted_result["admission"]["decisions"][0]["reason"] == ("EXCLUDED_CONTRADICTED")
+
+    async def unavailable(
+        self: TradingViewEvidenceGateway, instruments: tuple[Any, ...], horizon: str
+    ) -> Any:
+        return real_enrichment(instruments, outcome="RATE_LIMITED")
+
+    monkeypatch.setattr(TradingViewEvidenceGateway, "enrich", unavailable)
+    failed = post(
+        product_client,
+        "/api/v1/discovery/scans",
+        scan_payload(
+            universe=["RELIANCE"],
+            provider="real-tradingview",
+            idempotency_key="real-provider-failure",
+        ),
+    )
+    assert failed["matches"][0]["verification"] == "UNAVAILABLE"
+    assert failed["summary"]["candidate_count"] == 0
+    temporal = product_client.get(
+        f"/api/v1/discovery/scans/{failed['summary']['run_id']}/temporal"
+    ).json()
+    assert temporal["items"][0]["observation"]["kind"] == "NOT_EVALUATED"
+    assert temporal["items"][0]["observation"]["coverage"] == "PROVIDER_UNAVAILABLE"

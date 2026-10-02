@@ -473,3 +473,7 @@ Watchlists / Universe Management, Custom Typed Time Horizon, Opportunity, Trade 
 The Scan & Discover user-validation surface now includes an on-demand evidence chart for immutable matched results. Additive revision `0015_discovery_evidence_series`, its owner-scoped run-plus-match API and the responsive chart drawer provide exact synthetic as-scanned reconstruction, separate current-data projection, profile-aware candles/volume/overlays, scan markers, normalized rule explanations and typed retention/legacy failures. This is explanatory validation capability only; it adds no Opportunity, LOB, trading or background-monitoring scope.
 
 Status remains **IMPLEMENTED / READY FOR USER VALIDATION**. The chart feature does not mark Sprint 2 accepted/frozen and does not waive the successful-live-row or provider-licensing hardening items.
+
+## Real market evidence integration — 2026-10-02
+
+A user-validation bridge now combines Internal Scanner discovery with TradingView exact-symbol and bounded OHLCV evidence. It provides explicit synthetic versus real modes, typed evidence verification, contradiction-aware admission/relevance, real scan-driven observations and on-demand Current Chart data without using the unreliable broad screener or assuming provider retention rights. Synthetic CI remains unchanged. The work adds no new schema and remains **IMPLEMENTED / READY FOR USER VALIDATION**; final Sprint-2 acceptance/freeze is still pending controlled live verification and the existing hardening process.

@@ -424,3 +424,13 @@ The [implementation record](TWF_SPRINT2_SCAN_DISCOVER_IMPLEMENTATION.md), [conso
 The accepted [Scan & Discover Architecture](TWF_SCAN_AND_DISCOVER_ARCHITECTURE.md) now records the bounded evidence-chart amendment. The [integrated implementation record](TWF_SPRINT2_SCAN_DISCOVER_IMPLEMENTATION.md) owns the runtime/API/migration description; the [user validation plan](TWF_SPRINT2_USER_VALIDATION_PLAN.md) owns visual, responsive and keyboard checks; the [temporal-state architecture](TWF_SND_SCAN_DRIVEN_TEMPORAL_STATE_ARCHITECTURE.md) owns immutable run/match identity and no-lookahead integration; and the [detailed roadmap](TWF_DETAILED_ROADMAP.md) records status without changing milestone acceptance.
 
 The implementation uses additive revision `0015_discovery_evidence_series` and remains **IMPLEMENTED / READY FOR USER VALIDATION**. Sprint 2 is not accepted or frozen. Live-provider historical retention still requires explicit provider capability/licensing evidence; synthetic validation data must not be presented as live.
+
+## Real market evidence integration map — 2026-10-02
+
+- [Scan & Discover Architecture](TWF_SCAN_AND_DISCOVER_ARCHITECTURE.md): normative hybrid provider roles, verification, failure and retention rules.
+- [Sprint-2 implementation record](TWF_SPRINT2_SCAN_DISCOVER_IMPLEMENTATION.md): runtime gateway, API/UI behavior and testable limitations.
+- [Scan-driven temporal-state architecture](TWF_SND_SCAN_DRIVEN_TEMPORAL_STATE_ARCHITECTURE.md): `PRESENT`/`ABSENT`/`NOT_EVALUATED` behavior for real runs.
+- [Sprint-2 user validation plan](TWF_SPRINT2_USER_VALIDATION_PLAN.md): bounded opt-in OAuth/live workflow and visual checks.
+- [S2-3 hardening register](TWF_S2_3_DEFERRED_ISSUES_AND_HARDENING_REGISTER.md): broad-screener, finality, delay, retention, revocation, dependency and browser limitations.
+
+The current runtime status is **IMPLEMENTED / READY FOR USER VALIDATION**. This additive integration does not change prior S2-3 acceptance history and does not mark Sprint 2 accepted or frozen.

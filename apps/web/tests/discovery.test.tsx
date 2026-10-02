@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { DiscoveryWorkspace } from "../src/components/discovery/discovery-workspace";
+import { EvidenceChartDrawer } from "../src/components/discovery/evidence-chart-drawer";
 import { DiscoverySettingsSection } from "../src/components/discovery/discovery-settings";
 
 const settings = {
@@ -284,7 +285,23 @@ const providers = [
     enabled: true,
     mode: "LOCAL_SYNTHETIC",
     health: "AVAILABLE",
+    role: "DISCOVERY",
     capabilities: ["scan"],
+    limitations: ["Discovery/matching only; no live market-evidence claim."],
+    last_success_at: null,
+    last_error: null,
+  },
+  {
+    id: "real-tradingview",
+    label: "TradingView real evidence",
+    enabled: true,
+    mode: "REMOTE",
+    health: "AUTH_REQUIRED",
+    role: "EVIDENCE",
+    capabilities: ["exact-batch", "ohlcv"],
+    limitations: [
+      "Authentication required before live evidence can be fetched.",
+    ],
     last_success_at: null,
     last_error: null,
   },
@@ -294,7 +311,9 @@ const providers = [
     enabled: true,
     mode: "SYNTHETIC_VALIDATION",
     health: "RATE_LIMITED",
+    role: "VALIDATION",
     capabilities: ["exact-batch"],
+    limitations: ["Synthetic contract validation only."],
     last_success_at: null,
     last_error: "Daily request budget reached",
   },
@@ -457,6 +476,8 @@ test("runs a bounded scan and exposes evidence, degradation, history and no trad
           "relative_volume.20": "2.4",
         },
         source_mode: "SYNTHETIC",
+        verification: "CONFIRMED",
+        evidence_coverage: "COMPLETE",
         source_data_time: "2026-09-30T05:59:00Z",
         lineage: "internal-scanner-v0:relative-volume",
       },
@@ -525,7 +546,9 @@ test("runs a bounded scan and exposes evidence, degradation, history and no trad
     .closest("section");
   expect(statusStrip).toHaveClass("workspace-status-strip");
   expect(within(statusStrip!).getByText("Synthetic Data")).toBeInTheDocument();
-  expect(within(statusStrip!).getByText("Validation")).toBeInTheDocument();
+  expect(
+    within(statusStrip!).getAllByText("Validation").length,
+  ).toBeGreaterThan(0);
   expect(setupPanel).not.toContainElement(statusStrip);
   const history = screen.getByRole("list", { name: "Recent discovery scans" });
   expect(within(history).getByText(/Internal · 2 symbols/)).toBeInTheDocument();
@@ -547,7 +570,7 @@ test("runs a bounded scan and exposes evidence, degradation, history and no trad
   expect(
     screen.queryByText("Relative volume elevated"),
   ).not.toBeInTheDocument();
-  expect(screen.getByText("Fresh")).toBeInTheDocument();
+  expect(screen.getByText("Source timestamp available")).toBeInTheDocument();
   expect(screen.getAllByText(/1 admitted · 0 excluded/).length).toBeGreaterThan(
     0,
   );
@@ -799,6 +822,8 @@ test("manages five recent scans, complete setup reuse, archived history and past
             raw_reasons: ["stored-reason"],
             key_metrics: { close: "101.25" },
             source_mode: "SYNTHETIC_VALIDATION",
+            verification: "CONFIRMED",
+            evidence_coverage: "COMPLETE",
             source_data_time: completedAt,
             lineage: "stored-lineage",
           },
@@ -1271,7 +1296,7 @@ test.each([
     });
     expect(screen.getByText("Live")).toBeInTheDocument();
     const providerCard = screen
-      .getByText("TradingView contract validation")
+      .getByText("TradingView real evidence")
       .closest("article");
     expect(providerCard).not.toBeNull();
     expect(
@@ -1555,3 +1580,127 @@ test("ranks current v2 relevance before legacy scores and labels legacy provenan
     within(legacyRow as HTMLElement).getByLabelText(/Legacy candidate/),
   ).toBeInTheDocument();
 });
+
+test("renders real TradingView current-chart provenance without realtime or completed-bar claims", () => {
+  const base = evidenceChart("as_scanned");
+  const chart = {
+    ...base,
+    mode: "current",
+    state: "AVAILABLE",
+    message: null,
+    provider: "tradingview",
+    data_mode: "LIVE_SNAPSHOT",
+    bar_finality: "PROVIDER_UNSPECIFIED",
+    bars: base.bars.map((bar) => ({
+      ...bar,
+      finality: "PROVIDER_UNSPECIFIED",
+    })),
+    retention: {
+      ...base.retention,
+      source_class: "PROVIDER_RESTRICTED",
+      historical_chart_reconstructable: false,
+      scan_bars_retained: false,
+      current_chart_available: true,
+      limitation: "TradingView retention rights are unknown.",
+    },
+  } as Parameters<
+    typeof import("../src/components/discovery/evidence-chart-drawer").EvidenceChartDrawer
+  >[0]["chart"];
+  render(
+    <EvidenceChartDrawer
+      chart={chart}
+      loading={false}
+      onClose={vi.fn()}
+      onMode={vi.fn()}
+    />,
+  );
+  expect(screen.getByText("TRADINGVIEW MARKET DATA")).toBeInTheDocument();
+  expect(screen.getByText(/Finality unspecified/)).toBeInTheDocument();
+  expect(screen.queryByText(/realtime/i)).not.toBeInTheDocument();
+  expect(screen.getByRole("tab", { name: "Current chart" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+});
+
+test("renders retention-restricted real as-scanned evidence without inventing bars", () => {
+  const base = evidenceChart("as_scanned");
+  const chart = {
+    ...base,
+    state: "RETENTION_RESTRICTED",
+    message:
+      "Numerical evidence retained. Historical chart reconstruction unavailable due provider retention policy.",
+    provider: "tradingview",
+    data_mode: "LIVE_SNAPSHOT",
+    bar_finality: "PROVIDER_UNSPECIFIED",
+    bars: [],
+    series: [],
+    thresholds: [],
+    retention: {
+      ...base.retention,
+      source_class: "PROVIDER_RESTRICTED",
+      historical_chart_reconstructable: false,
+      scan_bars_retained: false,
+      current_chart_available: true,
+      archive_bar_count: 0,
+      displayed_bar_count: 0,
+      limitation: "TradingView retention rights are unknown.",
+    },
+  } as Parameters<
+    typeof import("../src/components/discovery/evidence-chart-drawer").EvidenceChartDrawer
+  >[0]["chart"];
+  render(
+    <EvidenceChartDrawer
+      chart={chart}
+      loading={false}
+      onClose={vi.fn()}
+      onMode={vi.fn()}
+    />,
+  );
+  expect(screen.getByText("RETENTION RESTRICTED")).toBeInTheDocument();
+  expect(screen.getByText(/Numerical evidence retained/)).toBeInTheDocument();
+  expect(
+    screen.getByText(/Historical numerical predicates remain available/),
+  ).toBeInTheDocument();
+  expect(screen.queryByLabelText("Visual evidence")).not.toBeInTheDocument();
+});
+
+test.each(["AUTH_REQUIRED", "RATE_LIMITED", "EXACT_MISSING"] as const)(
+  "renders typed real chart failure %s",
+  (state) => {
+    const base = evidenceChart("as_scanned");
+    const chart = {
+      ...base,
+      mode: "current",
+      state,
+      message: `Typed ${state.toLowerCase()} provider state.`,
+      provider: "tradingview",
+      data_mode: "LIVE_SNAPSHOT",
+      bar_finality: "PROVIDER_UNSPECIFIED",
+      bars: [],
+      series: [],
+      thresholds: [],
+      metrics: [],
+      retention: {
+        ...base.retention,
+        source_class: "PROVIDER_RESTRICTED",
+        historical_chart_reconstructable: false,
+        scan_bars_retained: false,
+        current_chart_available: true,
+        archive_bar_count: 0,
+        displayed_bar_count: 0,
+      },
+    } as Parameters<
+      typeof import("../src/components/discovery/evidence-chart-drawer").EvidenceChartDrawer
+    >[0]["chart"];
+    render(
+      <EvidenceChartDrawer
+        chart={chart}
+        loading={false}
+        onClose={vi.fn()}
+        onMode={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(state.replaceAll("_", " "))).toBeInTheDocument();
+  },
+);

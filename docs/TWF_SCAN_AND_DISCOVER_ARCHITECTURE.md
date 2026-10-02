@@ -974,3 +974,17 @@ The product may render an explanatory **Scan Evidence Chart** for a `PRESENT` ma
 Revision `0015_discovery_evidence_series` retains one bounded source series per matched result rather than copying chart payloads into every observation. The chart response includes pinned profile/definition revisions, source provenance, OHLCV bars, profile-relevant indicator series, threshold overlays, normalized predicate evaluations, concise metrics, bar-finality semantics and explicit retention capabilities. The API recomputes each displayed rule with the scanner's accepted algorithms and rejects reconstruction when the retained series does not reconcile with persisted evidence within the scanner tolerance.
 
 Rendering remains explanatory: candles, aligned volume, scan marker and only indicators used by the pinned profile. It adds no arbitrary studies, drawings, trade construction, order controls, Opportunity or LOB authority. Synthetic fixtures are retained and reconstructable. Real-provider bars require an explicit licensing/capability decision; unavailable, rate-limited, authentication-required, restricted, legacy and integrity-failure states remain typed and never cause synthetic substitution.
+
+## Real market evidence integration amendment — 2026-10-02
+
+The implemented real-evidence path uses a hybrid provider strategy:
+
+1. Internal Scanner V0 is the `ScanProvider` and performs deterministic matching over the requested universe.
+2. TradingView is the `EvidenceProvider` and `ChartDataProvider` for only the matched identities. Its proven watchlist-read capability remains future scope and its broad screener is neither required nor called.
+3. Synthetic and real modes remain separate provenance classes. Real-mode provider failure never substitutes fixture evidence.
+
+Exact-symbol enrichment uses `mcp-tv-get-symbol-data-batch`, minimum columns (`close`, `volume`), deterministic chunks of at most 50 and durable requested/returned/missing/chunk lineage. Each exact hit receives a bounded `mcp-tv-get-ohlcv` request according to an explicit horizon mapping: intraday→15m/260, 1d→1h/260, 5d→1D/260, and 15d→1D/320. Unsupported mappings fail explicitly. No aggressive retry or per-symbol fallback fan-out is permitted.
+
+Provider OHLCV is normalized with the provider bar timestamp and a separate TWF receipt time. The provider supplies no finality flag, so finality is `PROVIDER_UNSPECIFIED`; the product does not claim realtime or delayed delivery. Metric verification conservatively excludes the newest returned bar; the presence of a following bar is the minimum evidence used to treat a prior interval as ended. Scanner predicates are recomputed with the accepted scanner algorithms. Verification is `CONFIRMED`, `PARTIALLY_CONFIRMED`, `CONTRADICTED`, `UNVERIFIED`, or `UNAVAILABLE`. Contradicted and unverified matches are excluded from initial candidate admission, conflicting evidence remains explicit, and real evidence drives deterministic relevance and coverage.
+
+Real provider/auth/rate/missing failures become `NOT_EVALUATED`, never `ABSENT`. Current Chart fetches TradingView market data on demand. Because retention rights are unknown, provider OHLCV is not stored durably for real runs: As Scanned preserves normalized numerical evidence, timestamps and lineage and reports a retention-restricted historical chart. These constraints preserve immutable run/match identity and add no Opportunity, LOB, trading, watchlist, or background-monitoring authority.

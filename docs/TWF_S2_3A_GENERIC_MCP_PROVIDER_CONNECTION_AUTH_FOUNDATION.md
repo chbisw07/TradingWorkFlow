@@ -91,6 +91,7 @@ Routes are under `/api/v1/settings/mcp/connections`:
 
 | Method / suffix               | Operation                                                                           |
 | ----------------------------- | ----------------------------------------------------------------------------------- |
+| GET collection                | List only the signed-in owner's personal provider connections                       |
 | POST collection               | Create a disabled personal connection using registered provider ID and display name |
 | GET `/{identity}`             | Read owner-scoped status; no network call or hidden commit                          |
 | POST `/{identity}/connect`    | Enable NONE or API_KEY; body includes expected `generation`, optional `api_key`     |

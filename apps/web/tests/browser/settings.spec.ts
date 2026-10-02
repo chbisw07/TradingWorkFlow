@@ -17,6 +17,12 @@ test("personal settings persist, profiles apply, stale edits conflict and both t
   await expect(
     page.getByRole("heading", { name: "Settings", exact: true }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Provider connections" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Add TradingView connection" }),
+  ).toBeVisible();
   await page.getByLabel("Setup density").selectOption("compact");
   await page.getByLabel("Default analysis horizon").selectOption("15d");
   await page

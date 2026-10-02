@@ -148,3 +148,19 @@ obligations below.
 - **Future action:** Verify vendor semantics before any historical/completed-bar
   expansion.
 - **Target:** Sprint-2 Hardening / later market-data architecture.
+
+## 2026-10-02 real-evidence integration reconciliation
+
+The later empirical diagnostic established that exact-batch data and historical OHLCV can return successfully through the authenticated TradingView MCP connection. `S2H-TV-EXACT-LIVE-01` is therefore **RESOLVED AS A PROVIDER CAPABILITY PROOF**; controlled product-flow validation for the new real-evidence bridge remains pending and must not be confused with the earlier capability proof.
+
+The following items remain open and are carried into user validation:
+
+- **Broad screener unreliable:** the new flow does not call or depend on it. Internal Scanner owns discovery breadth.
+- **Bar finality unavailable:** provider `t` is retained, but no completed-bar claim is made; finality is `PROVIDER_UNSPECIFIED`.
+- **Realtime/delayed semantics unresolved:** UI says TradingView market data and makes no realtime claim.
+- **Retention rights unknown:** real provider bars are not stored durably; As Scanned retains numerical evidence and reports `RETENTION_RESTRICTED`.
+- **Remote revocation cleanup pending:** local authority is removed through the accepted MCP lifecycle; provider reconciliation remains explicit.
+- **Cryptography advisory disposition unchanged:** retain the evidence-based nonblocking disposition; this integration adds no dependency.
+- **WebKit host/runtime issue unchanged:** Chromium remains the practical browser-validation surface until the known environment issue is resolved.
+
+No new provider hardening item was discovered by the implementation-only phase. The 2026-10-02 controlled-run preflight was `NOT_RUN`: the active local profile had TradingView scanning and response-contract verification disabled and registered no MCP provider, so the safe runtime guard prevented remote dispatch. A later operator-configured, owner-authorized product run may add evidence or a concrete new item, but may not silently close these limitations.

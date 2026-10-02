@@ -12,6 +12,7 @@ from twf.discovery.domain import (
     EvidenceCategory,
     ScanDefinition,
     ScanMatch,
+    SourceMode,
 )
 from twf.discovery.internal_scanner.conditions import compare, measure
 from twf.discovery.internal_scanner.indicators import average_volume, sma
@@ -357,7 +358,10 @@ def build_chart(
     archived_payload: dict[str, Any],
     current_series: MarketSeries | None = None,
 ) -> EvidenceChart:
-    archived_series = MarketSeries.model_validate(archived_payload["series"])
+    archived_raw = archived_payload.get("series")
+    archived_series = (
+        MarketSeries.model_validate(archived_raw) if archived_raw is not None else None
+    )
     definition = ScanDefinition.model_validate(archived_payload["definition"])
     series = archived_series if mode == EvidenceChartMode.AS_SCANNED else current_series
     if series is None:
@@ -371,11 +375,16 @@ def build_chart(
             match=match,
             summary=summary,
             source_class="PROVIDER_RESTRICTED",
+            scan_bars_retained=False,
         )
     cutoff = (
         summary.started_at if mode == EvidenceChartMode.AS_SCANNED else series.bars[-1].timestamp
     )
-    all_bars = series.at(cutoff)
+    all_bars = (
+        series.bars
+        if mode == EvidenceChartMode.CURRENT and series.provenance.mode != SourceMode.SYNTHETIC
+        else series.at(cutoff)
+    )
     predicates = (
         _evidence_predicates(match)
         if mode == EvidenceChartMode.AS_SCANNED
@@ -386,6 +395,9 @@ def build_chart(
     display = all_bars[-DISPLAY_BARS:]
     start = len(all_bars) - len(display)
     retention = archived_payload["retention"]
+    finality: Literal["COMPLETED", "PROVIDER_UNSPECIFIED"] = (
+        "COMPLETED" if series.provenance.mode == SourceMode.SYNTHETIC else "PROVIDER_UNSPECIFIED"
+    )
     return EvidenceChart(
         mode=mode,
         state=EvidenceChartState.AVAILABLE,
@@ -405,7 +417,7 @@ def build_chart(
         data_mode=match.provenance.mode.value,
         timeframe=series.interval,
         price_unit=series.price_unit,
-        bar_finality="COMPLETED",
+        bar_finality=finality,
         bars=tuple(
             EvidenceChartBar(
                 timestamp=item.timestamp,
@@ -414,7 +426,7 @@ def build_chart(
                 low=_decimal(item.low),
                 close=_decimal(item.close),
                 volume=None if item.volume is None else _decimal(item.volume),
-                finality="COMPLETED",
+                finality=finality,
             )
             for item in display
         ),
@@ -425,9 +437,10 @@ def build_chart(
         retention=EvidenceChartRetention(
             **{
                 **retention,
-                "archive_bar_count": len(archived_series.bars),
+                "archive_bar_count": len(archived_series.bars) if archived_series else 0,
                 "displayed_bar_count": len(display),
-                "current_chart_available": summary.provider.value == "internal",
+                "current_chart_available": current_series is not None
+                or summary.provider.value == "internal",
             }
         ),
         provenance=(

@@ -20,6 +20,8 @@ def test_no_auth_sdk_lifecycle_allowlist_and_restart(tmp_path: Path) -> None:
 
     async def exercise() -> None:
         row = await manager.create(who, "fixture", "My provider")
+        assert [item.id for item in manager.connections(who)] == [row.id]
+        assert [item.id for item in manager.connections(who, "fixture")] == [row.id]
         with pytest.raises(Failure) as caught:
             await manager.tools(who, row.id, 0)
         assert caught.value.code == Code.CLOSED and not server.calls
@@ -61,6 +63,31 @@ def test_no_auth_sdk_lifecycle_allowlist_and_restart(tmp_path: Path) -> None:
         assert not disconnected.enabled and disconnected.state == State.DISCONNECTED
         with pytest.raises(Failure):
             await manager.tools(who, row.id, row.generation)
+
+    try:
+        asyncio.run(exercise())
+    finally:
+        engine.dispose()
+
+
+def test_disconnected_connection_exposes_stale_provider_registration(tmp_path: Path) -> None:
+    manager, who, _, engine = setup(tmp_path / "mcp.db", AuthMode.OAUTH_2_1)
+
+    async def exercise() -> None:
+        row = await manager.create(who, "fixture", "Old registration")
+        changed = manager.providers["fixture"].model_copy(
+            update={"display_name": "Replacement registration"}
+        )
+        restarted = ConnectionManager(
+            manager.factory, manager.settings, (changed,), http=manager.http
+        )
+
+        current = restarted.status(who, row.id)
+
+        assert current.state == State.DISCONNECTED
+        assert current.error == Code.STALE
+        assert current.health.value == "UNAVAILABLE"
+        assert not current.enabled
 
     try:
         asyncio.run(exercise())

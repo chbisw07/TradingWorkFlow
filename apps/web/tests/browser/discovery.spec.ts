@@ -100,7 +100,9 @@ test("Scan & Discover presents a responsive evidence workstation with route-leve
   await expect(matches).not.toContainText("NSE · INDEX");
   await expect(matches).not.toContainText("HDFCBANK");
   await expect(matches).not.toContainText("BANKNIFTY");
-  await expect(page.getByText("Fresh").first()).toBeVisible();
+  await expect(
+    page.getByText("Source timestamp available").first(),
+  ).toBeVisible();
   await page.screenshot({
     path: info.outputPath("workstation-populated.png"),
     fullPage: true,

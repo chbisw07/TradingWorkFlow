@@ -88,6 +88,11 @@ async def mcp_error(request: Request, exc: Exception) -> JSONResponse:
     return response
 
 
+@router.get("/connections")
+def connections(who: Who, service: Manager) -> tuple[ConnectionView, ...]:
+    return service.connections(who)
+
+
 @router.post("/connections", dependencies=[Depends(require_origin)])
 async def create(payload: Create, who: Who, service: Manager) -> ConnectionView:
     return await service.create(who, payload.provider_id, payload.display_name)

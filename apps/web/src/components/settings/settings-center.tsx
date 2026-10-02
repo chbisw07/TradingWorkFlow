@@ -2,6 +2,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { SurfaceState } from "../ui/surface-state";
 import { DiscoverySettingsSection } from "../discovery/discovery-settings";
+import { TradingViewConnectionSection } from "./tradingview-connection";
 
 type Values = {
   density?: "comfortable" | "compact";
@@ -339,14 +340,7 @@ export function SettingsCenter() {
               </button>
             )}
           </section>
-          <section aria-labelledby="later-heading">
-            <h2 id="later-heading">Integration settings</h2>
-            <p>
-              Provider connections, shared account settings and administration
-              are unavailable in this foundation. No credentials can be entered
-              here.
-            </p>
-          </section>
+          <TradingViewConnectionSection />
           <DiscoverySettingsSection />
         </>
       )}

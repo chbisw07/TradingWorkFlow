@@ -336,6 +336,10 @@ function providerModeLabel(mode: ProviderStatus["mode"]) {
   return "Synthetic Data";
 }
 
+function providerRoleLabel(role: ProviderStatus["role"]) {
+  return role === "VALIDATION" ? "Contract validation" : words(role);
+}
+
 function providerHealthLabel(
   health: ProviderStatus["health"],
   enabled: boolean,
@@ -1203,7 +1207,9 @@ function ProviderStatusStrip({
             <div>
               <strong>{item.label}</strong>
               <span className="provider-mode">
-                {providerModeLabel(item.mode)}
+                <span>{providerModeLabel(item.mode)}</span>
+                <span aria-hidden="true"> · </span>
+                <span>{providerRoleLabel(item.role)}</span>
               </span>
             </div>
             <span
@@ -2859,12 +2865,16 @@ export function DiscoveryWorkspace({
                         <option value="internal">
                           Internal Scanner V0 · synthetic
                         </option>
+                        <option value="real-tradingview">
+                          Real evidence · Internal Scanner + TradingView
+                        </option>
                         <option value="tradingview-synthetic">
                           TradingView adapter · validation
                         </option>
                       </select>
                       <small id="provider-help">
-                        Where the scan evidence comes from.
+                        Internal Scanner discovers matches; real mode verifies
+                        only those matches with TradingView market data.
                       </small>
                     </label>
                   </div>
@@ -3082,8 +3092,13 @@ export function DiscoveryWorkspace({
                                 className={`discovery-badge is-${match.source_data_time ? "fresh" : "unknown"}`}
                               >
                                 {match.source_data_time
-                                  ? "Fresh"
+                                  ? "Source timestamp available"
                                   : "Source time unavailable"}
+                              </span>
+                              <span
+                                className={`discovery-badge is-${match.verification.toLowerCase()}`}
+                              >
+                                {words(match.verification)}
                               </span>
                             </td>
                             <td data-label="Details">
@@ -3091,6 +3106,11 @@ export function DiscoveryWorkspace({
                                 <summary>Details</summary>
                                 <p>Provider: {sourceLabel(match.provider)}</p>
                                 <p>Mode: {words(match.source_mode)}</p>
+                                <p>Verification: {words(match.verification)}</p>
+                                <p>
+                                  Evidence coverage:{" "}
+                                  {words(match.evidence_coverage)}
+                                </p>
                                 <p>Lineage: {match.lineage}</p>
                                 <p>Match ID: {match.match_id}</p>
                                 <p>

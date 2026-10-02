@@ -8,15 +8,25 @@ async function forward(
   const { path } = await context.params;
   const route = path.join("/");
   const uuid = "[0-9a-fA-F-]{36}";
+  const mcpConnection = new RegExp("^mcp/connections/" + uuid + "$");
+  const mcpAction = new RegExp(
+    "^mcp/connections/" +
+      uuid +
+      "/(authorize|callback|refresh|disconnect|test|cleanup|recover)$",
+  );
   const allowed =
     (request.method === "GET" &&
-      ["definitions", "values", "profiles"].includes(route)) ||
+      (["definitions", "values", "profiles", "mcp/connections"].includes(
+        route,
+      ) ||
+        mcpConnection.test(route))) ||
     (request.method === "PUT" &&
       (route === "values" ||
         new RegExp("^profiles/" + uuid + "$").test(route))) ||
     (request.method === "POST" &&
-      (["reset", "deactivate", "profiles"].includes(route) ||
-        new RegExp("^profiles/" + uuid + "/apply$").test(route)));
+      (["reset", "deactivate", "profiles", "mcp/connections"].includes(route) ||
+        new RegExp("^profiles/" + uuid + "/apply$").test(route) ||
+        mcpAction.test(route)));
   const output = {
     "Content-Type": "application/json",
     "Cache-Control": "no-store",

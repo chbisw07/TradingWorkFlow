@@ -1,4 +1,5 @@
-export type ProviderChoice = "internal" | "tradingview-synthetic";
+export type ProviderChoice =
+  "internal" | "real-tradingview" | "tradingview-synthetic";
 export type ContextMode = "healthy" | "partial" | "unavailable" | "stale";
 export type ContextPolicy = "REQUIRE_COMPLETE" | "ALLOW_PARTIAL" | "OPTIONAL";
 
@@ -9,7 +10,9 @@ export type ProviderStatus = {
   mode: "LOCAL_SYNTHETIC" | "REMOTE" | "SYNTHETIC_VALIDATION";
   health:
     "AVAILABLE" | "DEGRADED" | "AUTH_REQUIRED" | "RATE_LIMITED" | "UNAVAILABLE";
+  role: "DISCOVERY" | "EVIDENCE" | "VALIDATION";
   capabilities: string[];
+  limitations: string[];
   last_success_at: string | null;
   last_error: string | null;
 };
@@ -231,6 +234,13 @@ export type ScanMatch = {
   source_mode: string;
   source_data_time: string | null;
   lineage: string;
+  verification:
+    | "CONFIRMED"
+    | "PARTIALLY_CONFIRMED"
+    | "CONTRADICTED"
+    | "UNVERIFIED"
+    | "UNAVAILABLE";
+  evidence_coverage: "COMPLETE" | "PARTIAL" | "NONE";
 };
 
 export type ScanSummary = {
@@ -250,6 +260,20 @@ export type ScanSummary = {
   context_policy?: ContextPolicy;
   context_availability: MarketContext["availability"];
   degraded: string[];
+  evidence_lineage?: {
+    discovery_provider: "internal-scanner-v0";
+    evidence_provider: "tradingview";
+    data_mode: "LIVE_EVIDENCE";
+    connection_id: string | null;
+    generation: number | null;
+    requested_symbols: string[];
+    returned_symbols: string[];
+    missing_symbols: string[];
+    chunk_count: number;
+    received_at: string;
+    capability_state: string;
+    limitations: string[];
+  } | null;
   archived_at?: string | null;
 };
 
@@ -257,7 +281,12 @@ export type AdmissionDecision = {
   match_id: string;
   symbol: string;
   status: "ADMITTED" | "EXCLUDED";
-  reason: "ADMITTED" | "EXCLUDED_DIRECTION" | "EXCLUDED_CONTEXT_POLICY";
+  reason:
+    | "ADMITTED"
+    | "EXCLUDED_DIRECTION"
+    | "EXCLUDED_CONTEXT_POLICY"
+    | "EXCLUDED_CONTRADICTED"
+    | "EXCLUDED_UNVERIFIED";
 };
 
 export type HistoricalScanDetail = {
@@ -358,6 +387,7 @@ export type EvidenceChartState =
   | "CURRENT_UNAVAILABLE"
   | "RATE_LIMITED"
   | "AUTH_REQUIRED"
+  | "EXACT_MISSING"
   | "RETENTION_RESTRICTED"
   | "RECONSTRUCTION_FAILED";
 

@@ -31,7 +31,8 @@ class DataUnavailable(ValueError):
 
 
 class Bar(Contract):
-    # Timestamp is the bar's completion instant, never its opening instant.
+    # Timestamp is provider/source time. Completion is asserted only by providers
+    # whose contract exposes it; TradingView currently leaves finality unspecified.
     timestamp: Instant
     available_at: Instant
     open: Price
@@ -62,8 +63,13 @@ class MarketSeries(Contract):
     def coherent(self) -> Self:
         if self.interval not in INTERVAL_SECONDS:
             raise ValueError("Unsupported interval")
-        if self.provenance.mode != SourceMode.SYNTHETIC:
-            raise ValueError("S2-2 supports explicitly synthetic datasets only")
+        if self.provenance.mode not in {
+            SourceMode.SYNTHETIC,
+            SourceMode.LIVE_SNAPSHOT,
+            SourceMode.DELAYED,
+            SourceMode.EOD,
+        }:
+            raise ValueError("Unsupported source mode")
         if any(a.timestamp >= b.timestamp for a, b in zip(self.bars, self.bars[1:], strict=False)):
             raise ValueError("Bar timestamps must be unique and increasing")
         return self

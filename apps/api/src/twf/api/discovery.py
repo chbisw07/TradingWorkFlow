@@ -6,8 +6,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, Request, Response
 from starlette.responses import JSONResponse
 
-from twf.api.auth import Database, get_current_user, require_origin
+from twf.api.auth import Database, require_origin
 from twf.api.errors import error_response
+from twf.api.mcp import Manager, Who
 from twf.discovery.product import (
     CandidateDetail,
     DiscoverySettings,
@@ -28,7 +29,7 @@ from twf.discovery.product import (
     TemporalHistoryPage,
 )
 from twf.discovery.product_service import ProductFailure, ScanDiscoverService
-from twf.infrastructure.identity import User
+from twf.discovery.tradingview.evidence import TradingViewEvidenceGateway
 
 router = APIRouter(
     prefix="/api/v1/discovery",
@@ -40,10 +41,14 @@ def use_cases(
     request: Request,
     response: Response,
     session: Database,
-    user: Annotated[User, Depends(get_current_user)],
+    who: Who,
+    manager: Manager,
 ) -> ScanDiscoverService:
     response.headers["Cache-Control"] = "no-store"
-    return ScanDiscoverService(session, user.id, getattr(request.state, "request_id", None))
+    gateway = TradingViewEvidenceGateway(manager, request.app.state.settings.tradingview_scan, who)
+    return ScanDiscoverService(
+        session, who.owner_id, getattr(request.state, "request_id", None), gateway
+    )
 
 
 Service = Annotated[ScanDiscoverService, Depends(use_cases)]
@@ -99,13 +104,13 @@ def scan_detail(run_id: UUID, service: Service) -> HistoricalScanDetail:
 
 
 @router.get("/scans/{run_id}/matches/{match_id}/evidence-chart")
-def evidence_chart(
+async def evidence_chart(
     run_id: UUID,
     match_id: UUID,
     service: Service,
     mode: Annotated[EvidenceChartMode, Query()] = EvidenceChartMode.AS_SCANNED,
 ) -> EvidenceChart:
-    return service.evidence_chart(run_id, match_id, mode)
+    return await service.evidence_chart(run_id, match_id, mode)
 
 
 @router.get("/scans/{run_id}/temporal")

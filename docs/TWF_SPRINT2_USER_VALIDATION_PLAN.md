@@ -179,3 +179,20 @@ For each workflow, record PASS/FAIL, browser/viewport, user-visible behavior, sc
 7. Use keyboard only: Tab to a symbol, open the drawer, move through the mode tabs, press Escape and confirm focus returns to the same symbol.
 
 Acceptance requires numerical reconciliation, no-lookahead behavior, owner isolation, truthful legacy/retention states and visual recognition of the matched evidence within seconds. This validation does not accept or freeze Sprint 2.
+
+## Opt-in real TradingView evidence workflow — 2026-10-02
+
+This workflow is separate from deterministic CI and requires the existing secure TradingView OAuth connection.
+
+The implementation-phase preflight found the active local profile intentionally unconfigured for live TradingView access, so no remote call was attempted. This workflow remains pending: enable the verified provider profile, complete owner-scoped OAuth, then perform the single bounded run below. Do not bypass the safe defaults merely to obtain a live result.
+
+1. After the operator has registered the provider and enabled real evidence, open **Settings → Provider connections**, select **Add TradingView connection**, then **Authorize TradingView**. Complete consent in the same browser and return through `/settings/mcp/callback`. Confirm Settings reports **Ready for real evidence** and the provider strip shows **TradingView market evidence · Live · Evidence** as Ready. Do not share a connection between test users.
+2. Choose **Real evidence · Internal Scanner + TradingView**, use one supported profile, and use a small universe such as `RELIANCE, INFY, HDFCBANK, MCX, NIFTY`.
+3. Run once. Confirm Internal Scanner is identified as Discovery and TradingView as Evidence. A zero-candidate result is valid; do not change thresholds merely to force a match.
+4. For each match, inspect verification (`CONFIRMED`, `PARTIALLY CONFIRMED`, `CONTRADICTED`, `UNVERIFIED`, or `UNAVAILABLE`), coverage, source time and provider limitations. Confirm contradictory or unavailable evidence is not silently admitted.
+5. If a real candidate exists, open Current Chart and confirm it says **TradingView market data**, shows plausible candles/volume, and labels provider finality as unspecified. Confirm As Scanned reports retention restriction rather than reconstructing later bars.
+6. Exercise auth-required, rate-limited, exact-missing and OHLCV-unavailable states with mocks or a controlled provider response. Each must remain typed; provider failure must be `NOT_EVALUATED`, never `ABSENT`.
+7. Repeat the real-mode surface at representative mobile and desktop widths. Confirm no synthetic warning is presented as the active real result and no wording claims realtime data.
+8. Disconnect after live validation using the normal MCP lifecycle. Preserve any truthful cleanup-pending state; do not wait indefinitely for remote revocation.
+
+Record provider response state, requested/returned/missing identities, source timestamps, verification, candidate count and Current Chart result. Live validation is opt-in and never part of CI.
