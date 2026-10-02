@@ -12,8 +12,8 @@ async function forward(
   const allowed =
     request.method === "GET"
       ? /^(status|settings|scans|candidates|market-context)$/.test(route) ||
-        new RegExp(`^scans/${id}$`).test(route) ||
-        new RegExp(`^candidates/${id}$`).test(route)
+        new RegExp(`^scans/${id}(/temporal)?$`).test(route) ||
+        new RegExp(`^candidates/${id}(/observations)?$`).test(route)
       : request.method === "PUT"
         ? route === "settings"
         : request.method === "POST" &&

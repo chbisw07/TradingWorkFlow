@@ -19,7 +19,10 @@ import {
   type LlmExplanation,
   type ProviderChoice,
   type ProviderStatus,
+  type RunTemporalView,
+  type RunViewMode,
   type ScanResult,
+  type TemporalObservation,
   type ScanSummary,
 } from "../../lib/discovery";
 import { SurfaceState } from "../ui/surface-state";
@@ -98,6 +101,59 @@ function CandidateRelevance({ candidate }: { candidate: Candidate }) {
         </span>
       ) : null}
     </>
+  );
+}
+
+function observationLabel(item: TemporalObservation) {
+  if (item.kind === "PRESENT") return percent(item.relevance_score);
+  return item.kind === "ABSENT" ? "Absent" : "Not evaluated";
+}
+
+function ageLabel(seconds: number) {
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
+  return `${Math.floor(seconds / 86400)}d`;
+}
+
+function TemporalSparkline({ candidate }: { candidate: Candidate }) {
+  const observations = candidate.temporal?.recent_observations || [];
+  if (observations.length === 0) return <span>History unavailable</span>;
+  const description = observations
+    .map(
+      (item) =>
+        `${dateTime(item.observed_at)} ${words(item.kind)} ${observationLabel(item)} ${item.lifecycle_after || "unchanged"}`,
+    )
+    .join("; ");
+  return (
+    <span
+      className="temporal-sparkline"
+      role="img"
+      aria-label={`Recent observation trend: ${description}`}
+    >
+      {observations.map((item, index) => {
+        const modelBreak =
+          index > 0 &&
+          item.relevance_model !== observations[index - 1].relevance_model;
+        const score =
+          item.kind === "PRESENT" && item.relevance_score !== null
+            ? Number(item.relevance_score)
+            : null;
+        return (
+          <span
+            key={item.observation_id}
+            className={`temporal-point is-${item.kind.toLowerCase().replace("_", "-")}${modelBreak ? " is-model-break" : ""}`}
+            style={
+              score === null
+                ? undefined
+                : { height: `${Math.max(5, score * 28)}px` }
+            }
+            title={`${dateTime(item.observed_at)} · ${words(item.kind)} · ${observationLabel(item)} · ${item.relevance_model || "no relevance model"}`}
+            aria-hidden="true"
+          />
+        );
+      })}
+    </span>
   );
 }
 
@@ -518,8 +574,18 @@ function CandidateMobileList({
               </>
             ) : null}
             <div>
-              <dt>Updated</dt>
-              <dd>{dateTime(candidate.updated_at)}</dd>
+              <dt>Latest observation</dt>
+              <dd>
+                {candidate.temporal
+                  ? `${words(candidate.temporal.latest_observation_kind)} · ${dateTime(candidate.temporal.last_observed_at)}`
+                  : dateTime(candidate.updated_at)}
+              </dd>
+            </div>
+            <div>
+              <dt>Recent trend</dt>
+              <dd>
+                <TemporalSparkline candidate={candidate} />
+              </dd>
             </div>
           </dl>
           <button
@@ -679,7 +745,8 @@ function CandidateQueue({
               <th scope="col">Symbol</th>
               <th scope="col">Setup</th>
               <th scope="col">Relevance</th>
-              <th scope="col">Updated</th>
+              <th scope="col">Observation</th>
+              <th scope="col">Trend</th>
               <th scope="col">State</th>
               <th scope="col">Review</th>
             </tr>
@@ -714,7 +781,34 @@ function CandidateQueue({
                     {candidate.relevance_explanation.band || "UNSCORED"}
                   </span>
                 </td>
-                <td data-label="Updated">{dateTime(candidate.updated_at)}</td>
+                <td data-label="Observation">
+                  <strong>
+                    {candidate.temporal
+                      ? words(candidate.temporal.latest_observation_kind)
+                      : "Legacy"}
+                  </strong>
+                  <span>
+                    {candidate.temporal
+                      ? `${dateTime(candidate.temporal.last_observed_at)} · ${ageLabel(candidate.temporal.observation_age_seconds)} ago`
+                      : dateTime(candidate.updated_at)}
+                  </span>
+                  {candidate.temporal?.relevance_delta !== null &&
+                  candidate.temporal?.relevance_delta !== undefined ? (
+                    <span>
+                      Delta{" "}
+                      {Number(candidate.temporal.relevance_delta) >= 0
+                        ? "+"
+                        : ""}
+                      {Math.round(
+                        Number(candidate.temporal.relevance_delta) * 100,
+                      )}{" "}
+                      pts
+                    </span>
+                  ) : null}
+                </td>
+                <td data-label="Trend">
+                  <TemporalSparkline candidate={candidate} />
+                </td>
                 <td data-label="State">
                   <span
                     className={`discovery-badge is-${candidate.lifecycle.toLowerCase()}`}
@@ -1216,9 +1310,15 @@ function HistoricalScanSummary({ scan }: { scan: ScanSummary }) {
 
 function HistoricalScanView({
   detail,
+  temporal,
+  mode,
+  onMode,
   onBack,
 }: {
   detail: HistoricalScanDetail;
+  temporal: RunTemporalView | null;
+  mode: RunViewMode;
+  onMode: (mode: RunViewMode) => void;
   onBack: () => void;
 }) {
   const { summary, matches, market_context: context } = detail;
@@ -1243,8 +1343,8 @@ function HistoricalScanView({
         </button>
       </div>
       <p className="history-summary-note" role="note">
-        Stored execution evidence is shown exactly as recorded. Viewing does not
-        run a scan or change candidate state.
+        Historical rows remain immutable. Current state is a separate latest
+        projection.
       </p>
       <div className="scan-metrics">
         <div>
@@ -1274,59 +1374,139 @@ function HistoricalScanView({
           <small>{summary.archived_at ? "Archived" : "Active history"}</small>
         </div>
       </div>
-      <div className="discovery-table-wrap" tabIndex={0}>
-        <table className="discovery-table scan-match-table">
-          <caption>Historical scan matches</caption>
-          <thead>
-            <tr>
-              <th scope="col">Symbol</th>
-              <th scope="col">Why matched</th>
-              <th scope="col">Key metrics</th>
-              <th scope="col">Source</th>
-            </tr>
-          </thead>
-          <tbody>
-            {matches.map((match) => (
-              <tr key={match.match_id}>
-                <td data-label="Symbol">
-                  <strong>{match.symbol}</strong>
-                  <span>
-                    {match.exchange} · {match.segment}
-                  </span>
-                </td>
-                <td data-label="Why matched">
-                  <ul className="match-reasons">
-                    {match.why_matched.map((reason) => (
-                      <li key={reason}>{reason}</li>
-                    ))}
-                  </ul>
-                </td>
-                <td data-label="Key metrics">
-                  <ul className="metric-list">
-                    {Object.entries(match.key_metrics)
-                      .slice(0, 4)
-                      .map(([key, value]) => (
-                        <li key={key}>
-                          <span>{metricLabel(key)}</span>
-                          <strong>{formatMetric(key, value)}</strong>
-                        </li>
-                      ))}
-                  </ul>
-                </td>
-                <td data-label="Source">
-                  <strong>{sourceLabel(match.provider)}</strong>
-                  <span>{words(match.source_mode)}</span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div
+        className="run-view-toggle"
+        role="group"
+        aria-label="Historical run view"
+      >
+        <button
+          type="button"
+          aria-pressed={mode === "as_scanned"}
+          onClick={() => onMode("as_scanned")}
+        >
+          As scanned
+        </button>
+        <button
+          type="button"
+          aria-pressed={mode === "current_state"}
+          onClick={() => onMode("current_state")}
+        >
+          Current state
+        </button>
       </div>
-      {matches.length === 0 ? (
+      {temporal ? (
+        <div className="discovery-table-wrap" tabIndex={0}>
+          <table className="discovery-table temporal-run-table">
+            <caption>
+              {mode === "as_scanned"
+                ? "Immutable observations from this run"
+                : "Current candidate state for this run"}
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Instrument</th>
+                <th scope="col">Outcome</th>
+                <th scope="col">Relevance</th>
+                <th scope="col">Lifecycle</th>
+                <th scope="col">Reason</th>
+              </tr>
+            </thead>
+            <tbody>
+              {temporal.items.map((item) => (
+                <tr key={item.observation.observation_id}>
+                  <td data-label="Instrument">
+                    <strong>{item.instrument.symbol}</strong>
+                    <span>
+                      {item.instrument.exchange} · {item.instrument.segment}
+                    </span>
+                  </td>
+                  <td data-label="Outcome">
+                    <strong>{words(item.observation.kind)}</strong>
+                    <span>{dateTime(item.observation.observed_at)}</span>
+                  </td>
+                  <td data-label="Relevance">
+                    {mode === "current_state" && item.candidate
+                      ? percent(
+                          item.candidate.temporal?.last_known_relevance ??
+                            item.candidate.relevance.value,
+                        )
+                      : observationLabel(item.observation)}
+                    <span>
+                      {item.observation.relevance_model || "No score model"}
+                    </span>
+                  </td>
+                  <td data-label="Lifecycle">
+                    {mode === "current_state" && item.candidate
+                      ? item.candidate.lifecycle
+                      : item.observation.lifecycle_after || "Unchanged"}
+                  </td>
+                  <td data-label="Reason">{words(item.observation.reason)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {temporal.items.length === 0 ? (
+            <p className="workspace-empty-copy">
+              No temporal observations were recorded for this legacy run.
+            </p>
+          ) : null}
+        </div>
+      ) : (
         <p className="workspace-empty-copy">
-          This historical scan recorded no matches.
+          Temporal observations are unavailable for this legacy run.
         </p>
-      ) : null}
+      )}
+      <details className="historical-match-details">
+        <summary>Stored match evidence ({matches.length})</summary>
+        <div className="discovery-table-wrap" tabIndex={0}>
+          <table className="discovery-table scan-match-table">
+            <caption>Historical scan matches</caption>
+            <thead>
+              <tr>
+                <th scope="col">Symbol</th>
+                <th scope="col">Why matched</th>
+                <th scope="col">Key metrics</th>
+                <th scope="col">Source</th>
+              </tr>
+            </thead>
+            <tbody>
+              {matches.map((match) => (
+                <tr key={match.match_id}>
+                  <td data-label="Symbol">
+                    <strong>{match.symbol}</strong>
+                    <span>
+                      {match.exchange} · {match.segment}
+                    </span>
+                  </td>
+                  <td data-label="Why matched">
+                    <ul className="match-reasons">
+                      {match.why_matched.map((reason) => (
+                        <li key={reason}>{reason}</li>
+                      ))}
+                    </ul>
+                  </td>
+                  <td data-label="Key metrics">
+                    <ul className="metric-list">
+                      {Object.entries(match.key_metrics)
+                        .slice(0, 4)
+                        .map(([key, value]) => (
+                          <li key={key}>
+                            <span>{metricLabel(key)}</span>
+                            <strong>{formatMetric(key, value)}</strong>
+                          </li>
+                        ))}
+                    </ul>
+                  </td>
+                  <td data-label="Source">
+                    <strong>{sourceLabel(match.provider)}</strong>
+                    <span>{words(match.source_mode)}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
     </section>
   );
 }
@@ -1696,6 +1876,57 @@ function CandidateInspector({
         </section>
       )}
 
+      <section aria-labelledby="temporal-history-heading">
+        <div className="section-heading-row compact-heading">
+          <div>
+            <h3 id="temporal-history-heading">Observation history</h3>
+            <p>Explicit comparable scan outcomes, newest first.</p>
+          </div>
+          <TemporalSparkline candidate={detail} />
+        </div>
+        {detail.temporal ? (
+          <dl className="temporal-facts">
+            <div>
+              <dt>Last observed</dt>
+              <dd>{dateTime(detail.temporal.last_observed_at)}</dd>
+            </div>
+            <div>
+              <dt>Latest comparable scan</dt>
+              <dd>{shortId(detail.temporal.latest_comparable_run_id)}</dd>
+            </div>
+            <div>
+              <dt>Latest present scan</dt>
+              <dd>{shortId(detail.temporal.latest_present_run_id)}</dd>
+            </div>
+            <div>
+              <dt>Observation age / window</dt>
+              <dd>
+                {ageLabel(detail.temporal.observation_age_seconds)} ·{" "}
+                {words(detail.temporal.window_status)}
+              </dd>
+            </div>
+          </dl>
+        ) : (
+          <p>Legacy candidate has no reconstructed temporal observations.</p>
+        )}
+        <ol className="temporal-timeline">
+          {(detail.observations || []).map((item) => (
+            <li key={item.observation_id}>
+              <time dateTime={item.observed_at}>
+                {dateTime(item.observed_at)}
+              </time>
+              <strong>{words(item.kind)}</strong>
+              <span>{observationLabel(item)}</span>
+              <span>{item.lifecycle_after || "Lifecycle unchanged"}</span>
+              <small>
+                Run {shortId(item.run_id)} · {words(item.reason)} ·{" "}
+                {words(item.coverage)}
+              </small>
+            </li>
+          ))}
+        </ol>
+      </section>
+
       <section aria-labelledby="history-heading">
         <h3 id="history-heading">Snapshot history</h3>
         <p>Immutable observations, newest first.</p>
@@ -1824,6 +2055,8 @@ export function DiscoveryWorkspace({
   );
   const [historicalDetail, setHistoricalDetail] =
     useState<HistoricalScanDetail | null>(null);
+  const [runTemporal, setRunTemporal] = useState<RunTemporalView | null>(null);
+  const [runViewMode, setRunViewMode] = useState<RunViewMode>("as_scanned");
   const [settings, setSettings] = useState<DiscoverySettings | null>(null);
   const [result, setResult] = useState<ScanResult | null>(null);
   const [detail, setDetail] = useState<CandidateDetail | null>(null);
@@ -1997,6 +2230,15 @@ export function DiscoveryWorkspace({
     setToast("Historical scan setup loaded. Review before running.");
   }
 
+  async function loadRunTemporal(runId: string, mode: RunViewMode) {
+    setRunTemporal(null);
+    const view = await discoveryApi<RunTemporalView>(
+      `scans/${runId}/temporal?mode=${mode}&limit=100`,
+    );
+    setRunTemporal(view);
+    setRunViewMode(mode);
+  }
+
   async function viewScan(scan: ScanSummary) {
     setHistoryPending(true);
     setError("");
@@ -2005,11 +2247,35 @@ export function DiscoveryWorkspace({
         `scans/${scan.run_id}`,
       );
       setHistoricalDetail(historical);
+      setRunTemporal(null);
+      setRunViewMode("as_scanned");
       setQueueView("active");
       setSelectedHistory(scan);
       setPastScansOpen(false);
+      try {
+        setRunTemporal(
+          await discoveryApi<RunTemporalView>(
+            `scans/${scan.run_id}/temporal?mode=as_scanned&limit=100`,
+          ),
+        );
+      } catch {
+        // Pre-temporal runs remain reviewable through their immutable match detail.
+      }
     } catch {
       setError("Unable to load historical scan.");
+    } finally {
+      setHistoryPending(false);
+    }
+  }
+
+  async function changeRunView(mode: RunViewMode) {
+    if (!selectedHistory || mode === runViewMode) return;
+    setHistoryPending(true);
+    setError("");
+    try {
+      await loadRunTemporal(selectedHistory.run_id, mode);
+    } catch {
+      setError("Unable to load temporal run state.");
     } finally {
       setHistoryPending(false);
     }
@@ -2583,8 +2849,12 @@ export function DiscoveryWorkspace({
               {historicalDetail ? (
                 <HistoricalScanView
                   detail={historicalDetail}
+                  temporal={runTemporal}
+                  mode={runViewMode}
+                  onMode={(mode) => void changeRunView(mode)}
                   onBack={() => {
                     setHistoricalDetail(null);
+                    setRunTemporal(null);
                     setSelectedHistory(null);
                   }}
                 />

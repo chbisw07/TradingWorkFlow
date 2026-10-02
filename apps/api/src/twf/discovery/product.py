@@ -12,10 +12,12 @@ from twf.discovery.domain import (
     CandidateToleranceEnvelope,
     DiscoveryEvidence,
     DiscoveryLifecycleState,
+    DiscoveryObservationKind,
     DiscoveryRelevance,
     FreshnessState,
     InstrumentIdentity,
     RelevanceBand,
+    SourceNovelty,
 )
 from twf.integrations.contracts import Contract, Identifier
 
@@ -165,6 +167,7 @@ class ProductScanRequest(Contract):
     include_llm: bool = False
     context_mode: Literal["healthy", "partial", "unavailable", "stale"] = "partial"
     context_policy: ContextPolicy | None = None
+    idempotency_key: str | None = Field(default=None, min_length=1, max_length=128)
 
     @field_validator("universe")
     @classmethod
@@ -277,6 +280,77 @@ class HistoricalScanDetail(Contract):
     market_context: MarketContextSnapshot | None = None
 
 
+class WindowStatus(StrEnum):
+    OPEN = "OPEN"
+    ENDED = "ENDED"
+    UNKNOWN = "UNKNOWN"
+
+
+class TemporalObservationView(Contract):
+    observation_id: UUID
+    run_id: UUID
+    run_sequence: int = Field(ge=1)
+    observed_at: AwareDatetime
+    source_data_time: AwareDatetime | None = None
+    kind: DiscoveryObservationKind
+    coverage: str
+    novelty: SourceNovelty
+    relevance_score: Decimal | None = Field(default=None, ge=0, le=1)
+    relevance_band: RelevanceBand | None = None
+    relevance_model: str | None = None
+    lifecycle_after: DiscoveryLifecycleState | None = None
+    reason: str
+    comparison_scope_version: int = Field(ge=1)
+    provider: str | None = None
+    is_hot: bool
+
+
+class TemporalSummary(Contract):
+    latest_observation_kind: DiscoveryObservationKind
+    last_observed_at: AwareDatetime
+    latest_comparable_run_id: UUID
+    latest_attempted_run_id: UUID
+    latest_present_run_id: UUID | None = None
+    last_known_relevance: Decimal | None = Field(default=None, ge=0, le=1)
+    relevance_delta: Decimal | None = Field(default=None, ge=-1, le=1)
+    relevance_model: str | None = None
+    hot_count: int = Field(ge=0)
+    total_count: int = Field(ge=0)
+    window_status: WindowStatus
+    observation_age_seconds: int = Field(ge=0)
+    recent_observations: tuple[TemporalObservationView, ...] = ()
+
+
+class TemporalHistoryPage(Contract):
+    items: tuple[TemporalObservationView, ...]
+    total: int = Field(ge=0)
+    limit: int = Field(ge=1, le=100)
+    offset: int = Field(ge=0)
+    hot_size: int = Field(ge=5, le=100)
+    as_of: AwareDatetime
+
+
+class RunViewMode(StrEnum):
+    AS_SCANNED = "as_scanned"
+    CURRENT_STATE = "current_state"
+
+
+class RunTemporalCandidate(Contract):
+    instrument: InstrumentIdentity
+    observation: TemporalObservationView
+    candidate: "CandidateSummary | None" = None
+
+
+class RunTemporalView(Contract):
+    run_id: UUID
+    mode: RunViewMode
+    summary: ScanSummary
+    items: tuple[RunTemporalCandidate, ...]
+    limit: int = Field(ge=1, le=100)
+    offset: int = Field(ge=0)
+    total: int = Field(ge=0)
+
+
 ProfileLineage = Literal[
     "CURRENT_SNAPSHOT",
     "ORIGINATING_SCAN",
@@ -308,6 +382,7 @@ class CandidateSummary(Contract):
     originating_scan_run_id: UUID | None = None
     latest_scan_run_id: UUID | None = None
     updated_at: AwareDatetime
+    temporal: TemporalSummary | None = None
 
 
 class SnapshotView(Contract):
@@ -330,6 +405,7 @@ class CandidateDetail(CandidateSummary):
     explanations: tuple[LLMExplanation, ...]
     context: MarketContextSnapshot | None = None
     previous_episode_id: UUID | None = None
+    observations: tuple[TemporalObservationView, ...] = ()
 
 
 class DiscoverySettings(Contract):
@@ -344,6 +420,7 @@ class DiscoverySettings(Contract):
     freshness_seconds: int = Field(default=900, ge=60, le=86400)
     retention_days: int = Field(default=90, ge=7, le=3650)
     max_history_items: int = Field(default=50, ge=5, le=200)
+    hot_observation_count: int = Field(default=20, ge=5, le=100)
 
     @model_validator(mode="after")
     def ordered(self) -> "DiscoverySettings":

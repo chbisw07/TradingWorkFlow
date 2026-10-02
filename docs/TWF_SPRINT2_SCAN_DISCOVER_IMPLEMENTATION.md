@@ -7,13 +7,15 @@
 
 This record covers the integrated S2-4 through S2-8 implementation. It does not alter the accepted/frozen status of S2-0 through S2-3 and does not claim final Sprint-2 acceptance. Scan & Discover ends at `DiscoveryCandidate`; it has no Opportunity, LOB, execution, or TM authority.
 
-## Future temporal architecture amendment — 2026-10-01
+## Scan-driven temporal-state implementation — 2026-10-02
 
-The [Scan-driven Temporal State Architecture](TWF_SND_SCAN_DRIVEN_TEMPORAL_STATE_ARCHITECTURE.md) records **ACCEPT WITH REFINEMENT / GO_IMPLEMENTATION**, **NOT IMPLEMENTED**. It specifies immutable run coverage and candidate observations, precise comparability/absence, separate lifecycle and freshness/window validity, ordered replay, a logical HOT window and compact COLD core. It requires a later versioned contract/persistence migration and tests.
+The [Scan-driven Temporal State Architecture](TWF_SND_SCAN_DRIVEN_TEMPORAL_STATE_ARCHITECTURE.md) remains the normative amendment and is now **IMPLEMENTED / PENDING USER VALIDATION AND INDEPENDENT ACCEPTANCE**. The implementation adds immutable PRESENT/ABSENT/NOT_EVALUATED observations; explicit coverage, comparison and novelty; semantic owner/instrument/scope active slots; durable sequence admission before provider I/O; idempotent ordered finalization; late-result quarantine; deterministic reducer/rebuild checkpoints; and a configurable logical HOT window with all older compact cores retained as COLD truth in the same SQL database.
 
-The current runtime described below retains its existing positive-match snapshots, lifecycle behavior, relevance v1/v2 compatibility and archive semantics. It does **not** yet implement durable ABSENT/NOT_EVALUATED history, semantic active-slot uniqueness, ordered run finalization or HOT/COLD compaction. In particular, current context-driven STALE/manual recovery behavior must not be described as the new scan-driven policy. Existing implementation validation does not validate this future temporal protocol. No tests were rerun or changed in this architecture pass.
+New records use scan-driven lifecycle semantics. Time alone changes labelled freshness/window projections and never creates a lifecycle event. Legacy positive-match snapshots remain readable without fabricated ABSENT history. Scoring-model changes form explicit score segments; cross-model deltas are not invented. Internal and TradingView validation providers remain distinct comparison classes unless equivalence is separately certified.
 
-Sprint 2 remains **IMPLEMENTED / READY FOR USER VALIDATION**. Historical CP completion statements concern their delivered scope; they do not claim this temporal amendment, U3, or final acceptance/freeze.
+The queue now reads bounded SQL-ranked pages with batched temporal summaries. Candidate inspection shows exact immutable observation history, gaps and model breaks. Stored-run review separates **As scanned** from **Current state** and labels pre-temporal history honestly. The HOT observation count defaults to 20 and is configurable from 5 through 100. There is no permanent-delete control, automatic purge, custom horizon, Watchlist, Opportunity, LOB or background monitoring addition.
+
+Sprint 2 remains **IMPLEMENTED / READY FOR USER VALIDATION**. This implementation does not claim U3 completion or final Sprint-2 acceptance/freeze.
 
 ## Product capability
 
@@ -102,7 +104,7 @@ Relevance is a deterministic policy-fit score in `[0,1]`, not profit probability
 
 Candidate tolerance is an evaluated, typed, horizon-aware envelope across price, volume, market, sector, and time decay. Each dimension records its observed value when known, threshold, state, and reason. Confirmation rules and recovery policy are explicit. The aggregate assessment is persisted with every immutable snapshot and exposed in the candidate UI. Two consecutive confirmed `BREACHED` assessments can move an episode to `DEFUNCT`; missing evidence remains `UNKNOWN` and is not silently treated as failure.
 
-Lifecycle supports `NEW`, `CURRENT`, `STALE`, `DEFUNCT`, `EXPIRED`, and `REJECTED`. Owner actions use revision compare-and-set and append transition audit records. Context freshness can make the current view stale without corrupting the durable episode projection. A controlled recovery from defunct preserves the immutable historical snapshot and transition history.
+Lifecycle supports `NEW`, `CURRENT`, `STALE`, `DEFUNCT`, `EXPIRED`, and `REJECTED`. Comparable scan observations and audited owner controls drive its durable projection. Freshness and window validity are separate read facts: clock passage alone cannot create STALE, EXPIRED or another observation. Owner actions use revision compare-and-set, append transition audit records and fence successor creation. Controlled recovery and terminal successor behavior preserve immutable observation, snapshot and transition history.
 
 `CP5_DISCOVERY_ENGINE_COMPLETE = YES`
 
@@ -114,23 +116,25 @@ Discovery is complete with LLM disabled. When the controlled synthetic provider 
 
 ## CP-7 — persistence, API, settings, and UX
 
-Alembic revision `0012_sprint2_scan_discover` adds owner-scoped settings, scan runs, scan matches, market context, discovery episodes, immutable snapshots, lifecycle transitions, and LLM explanations. Forward revision `0013_discovery_scan_archive` adds nullable `archived_at` state and its lookup index without rewriting historical migrations or deleting historical rows. Queries and mutations apply the authenticated owner ID. List and history endpoints are bounded; scan universes are capped at 20 symbols and candidate/snapshot page sizes at 100. Normal history excludes archived runs unless `include_archived=true`; archive and restore both preserve the existing run and evidence graph.
+Alembic revision `0012_sprint2_scan_discover` adds the original product persistence and revision `0013_discovery_scan_archive` adds reversible scan visibility. Additive revision `0014_discovery_temporal_state` adds semantic comparison scopes, ordered temporal lanes, durable scan admissions, immutable observation cores, semantic active slots and rebuild checkpoints. It does not rewrite accepted migrations or backfill absence from legacy missing rows. Queries and mutations apply the authenticated owner ID. Lists and histories are bounded; scan universes are capped at 20 symbols, candidate pages at 100 and the configurable HOT observation window at 5–100 (default 20). Archive/restore preserve the run/evidence/observation graph, and older observations remain pageable logical COLD truth.
 
 The API surface is:
 
-| Method        | Route                                                   | Purpose                                                 |
-| ------------- | ------------------------------------------------------- | ------------------------------------------------------- |
-| `GET`         | `/api/v1/discovery/status`                              | provider capability and typed readiness                 |
-| `GET`, `PUT`  | `/api/v1/discovery/settings`                            | bounded owner defaults and revisioned updates           |
-| `POST`, `GET` | `/api/v1/discovery/scans`                               | execute a bounded scan and read active/all scan history |
-| `GET`         | `/api/v1/discovery/scans/{run_id}`                      | owner-scoped read-only stored execution detail          |
-| `POST`        | `/api/v1/discovery/scans/{run_id}/archive`              | owner-scoped reversible scan archival                   |
-| `POST`        | `/api/v1/discovery/scans/{run_id}/restore`              | restore an owner-scoped archived scan                   |
-| `GET`         | `/api/v1/discovery/candidates`                          | paginated candidate ledger                              |
-| `GET`         | `/api/v1/discovery/candidates/{candidate_id}`           | evidence, context, snapshots, transitions, explanations |
-| `POST`        | `/api/v1/discovery/candidates/{candidate_id}/lifecycle` | revisioned owner lifecycle action                       |
-| `POST`        | `/api/v1/discovery/candidates/{candidate_id}/explain`   | optional Level-0 explanation                            |
-| `GET`         | `/api/v1/discovery/market-context`                      | latest owner context snapshot                           |
+| Method        | Route                                                      | Purpose                                                 |
+| ------------- | ---------------------------------------------------------- | ------------------------------------------------------- |
+| `GET`         | `/api/v1/discovery/status`                                 | provider capability and typed readiness                 |
+| `GET`, `PUT`  | `/api/v1/discovery/settings`                               | bounded owner defaults and revisioned updates           |
+| `POST`, `GET` | `/api/v1/discovery/scans`                                  | execute a bounded scan and read active/all scan history |
+| `GET`         | `/api/v1/discovery/scans/{run_id}`                         | owner-scoped read-only stored execution detail          |
+| `GET`         | `/api/v1/discovery/scans/{run_id}/temporal`                | immutable as-scanned or current temporal run view       |
+| `POST`        | `/api/v1/discovery/scans/{run_id}/archive`                 | owner-scoped reversible scan archival                   |
+| `POST`        | `/api/v1/discovery/scans/{run_id}/restore`                 | restore an owner-scoped archived scan                   |
+| `GET`         | `/api/v1/discovery/candidates`                             | paginated candidate ledger                              |
+| `GET`         | `/api/v1/discovery/candidates/{candidate_id}`              | evidence, context, snapshots, observations, transitions |
+| `GET`         | `/api/v1/discovery/candidates/{candidate_id}/observations` | paginated immutable HOT/COLD observation history        |
+| `POST`        | `/api/v1/discovery/candidates/{candidate_id}/lifecycle`    | revisioned owner lifecycle action                       |
+| `POST`        | `/api/v1/discovery/candidates/{candidate_id}/explain`      | optional Level-0 explanation                            |
+| `GET`         | `/api/v1/discovery/market-context`                         | latest owner context snapshot                           |
 
 The Next.js proxy uses a strict discovery-route allowlist, same-origin session semantics, no-store responses, bounded bodies, and safe error mapping. The main shell now enables Scanners and Candidates. The responsive workspace has bounded scan controls, provider readiness, normalized results, conditional candidate detail, compact recent history, filtered past history, reversible archival, evidence/context/relevance/tolerance detail, immutable candidate history, optional LLM, typed empty/error/degraded states, and integrated settings. It uses existing tokens, themes, surface-state semantics, keyboard-accessible native controls, and an Escape-closeable focus-restoring history dialog. Chromium validation covers widths 390, 768, 1024, 1440, 1920, and 2560 pixels.
 
@@ -163,18 +167,21 @@ WebKit still cannot launch successfully on this host because the Playwright runt
 
 | Check                             | Result                                                                                         |
 | --------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Backend full regression           | 940 passed                                                                                     |
-| Ruff lint / format                | passed; 127 files formatted                                                                    |
-| Strict mypy                       | passed; 126 source files                                                                       |
+| Backend full regression           | 957 collected; 955 passed monolithically, two pre-existing timing cases passed in isolation    |
+| Ruff lint / format                | passed; 130 files formatted                                                                    |
+| Strict mypy                       | passed; 129 source files                                                                       |
 | Python compilation / `pip check`  | passed                                                                                         |
-| OpenAPI construction              | passed; 52 paths, 122 schemas                                                                  |
+| OpenAPI construction              | passed; 55 paths, 132 schemas                                                                  |
 | Offline package build             | wheel and sdist built                                                                          |
-| Frontend unit tests               | 132 passed across 16 files                                                                     |
+| Frontend unit tests               | 135 passed across 16 files                                                                     |
 | ESLint / TypeScript / Prettier    | passed                                                                                         |
 | Next.js production build          | passed; Scanners, Candidates, and discovery proxy routes emitted                               |
 | Discovery responsive Chromium     | 6 passed at 390, 768, 1024, 1440, 1920, and 2560                                               |
 | Full Chromium browser suite       | 66 passed across all six target widths, including Broker V2                                    |
-| Focused discovery backend tests   | 39 passed                                                                                      |
+| Focused discovery backend tests   | 81 passed                                                                                      |
+| Focused temporal/migration tests  | 14 passed                                                                                      |
+| Temporal scale/query probe        | 1,000 candidates and 20,200 observations; two SQL statements per bounded 100-row page          |
+| PostgreSQL temporal concurrency   | two-session admission, replay, finalization, quarantine and rebuild/append probes passed       |
 | SQLite migration lifecycle        | upgrade/repeat/downgrade/re-upgrade and data-preservation probe passed                         |
 | PostgreSQL 16 migration lifecycle | upgrade/repeat/downgrade/re-upgrade and data-preservation probe passed                         |
 | Documentation links / whitespace  | 63 Markdown files passed; `git diff --check` passed                                            |

@@ -230,6 +230,22 @@ export function DiscoverySettingsSection() {
                     }
                   />
                 </label>
+                <label htmlFor="discovery-hot-observations">
+                  Recent observation window
+                  <input
+                    id="discovery-hot-observations"
+                    type="number"
+                    min={5}
+                    max={100}
+                    value={draft.hot_observation_count}
+                    onChange={(event) =>
+                      setDraft({
+                        ...draft,
+                        hot_observation_count: Number(event.target.value),
+                      })
+                    }
+                  />
+                </label>
               </div>
             </section>
           </div>

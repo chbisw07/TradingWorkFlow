@@ -8,7 +8,8 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Literal, cast
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
-from sqlalchemy import func, select, update
+from sqlalchemy import Float, and_, case, func, select, update
+from sqlalchemy import cast as sql_cast
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -22,8 +23,10 @@ from twf.discovery.domain import (
     DiscoveryEvidence,
     DiscoveryIntent,
     DiscoveryLifecycleState,
+    DiscoveryObservationKind,
     DiscoveryRelevance,
     DiscoverySnapshot,
+    EvaluationCoverage,
     EvidenceCategory,
     EvidencePolarity,
     FreshnessState,
@@ -36,6 +39,7 @@ from twf.discovery.domain import (
     Provenance,
     RelevanceThresholds,
     RevisionRef,
+    ScanComparabilityDescriptor,
     ScanMatch,
     ScanProfileReference,
     ScanRun,
@@ -43,6 +47,7 @@ from twf.discovery.domain import (
     SourceReference,
     ToleranceRule,
     UnderlyingIdentity,
+    digest,
 )
 from twf.discovery.internal_scanner.conditions import measure as series_measure
 from twf.discovery.internal_scanner.market_series import (
@@ -76,17 +81,25 @@ from twf.discovery.product import (
     ProviderStatus,
     RelevanceContribution,
     RelevanceExplanation,
+    RunTemporalCandidate,
+    RunTemporalView,
+    RunViewMode,
     ScanMatchView,
     ScanResult,
     ScanSummary,
     SnapshotView,
+    TemporalHistoryPage,
+    TemporalSummary,
     ToleranceAssessment,
     ToleranceDimensionAssessment,
 )
 from twf.discovery.providers import OperationContext
+from twf.discovery.temporal import RunAdmission, TemporalConflict, TemporalStore
 from twf.infrastructure.discovery import (
+    DiscoveryActiveSlotRecord,
     DiscoveryEpisodeRecord,
     DiscoveryExplanationRecord,
+    DiscoveryObservationRecord,
     DiscoverySettingsRecord,
     DiscoverySnapshotRecord,
     DiscoveryTransitionRecord,
@@ -97,6 +110,7 @@ from twf.infrastructure.discovery import (
 from twf.integrations.contracts import RequestContext
 
 POLICY = RevisionRef(id="deterministic-relevance-v2", version="2")
+TEMPORAL_POLICY = RevisionRef(id="scan-driven-temporal", version="1")
 TRANSFORMATION = RevisionRef(id="sprint2-product-normalization", version="1")
 TRADINGVIEW_SYNTHETIC = ProducerIdentity(
     service_id="tradingview-synthetic-validation",
@@ -553,6 +567,53 @@ class ScanDiscoverService:
             return payload.context_policy
         return ContextPolicy.ALLOW_PARTIAL
 
+    def comparison_descriptor(
+        self,
+        payload: ProductScanRequest,
+        definition: Any,
+        at: datetime,
+    ) -> ScanComparabilityDescriptor:
+        selected_intent = intent(self.owner_id, payload.intent, payload.horizon, at)
+        criteria_fingerprint = digest(
+            {
+                "criteria": [item.model_dump(mode="json") for item in definition.criteria],
+                "combination": definition.combination,
+                "timeframe": definition.timeframe,
+                "required_capabilities": definition.required_capabilities,
+            }
+        )
+        provider_class = {
+            ProviderChoice.INTERNAL: "twf-native-synthetic-v1",
+            ProviderChoice.TRADINGVIEW_SYNTHETIC: "tradingview-synthetic-v1",
+        }[payload.provider]
+        return ScanComparabilityDescriptor(
+            criteria_fingerprint=criteria_fingerprint,
+            profile_semantic_class=f"{payload.profile.lower()}.v1",
+            direction=definition.direction,
+            intent=payload.intent.value.lower(),
+            horizon=selected_intent.horizon,
+            observation_basis=f"{definition.timeframe}.synthetic-unadjusted-v1",
+            provider_equivalence_class=provider_class,
+            data_mode=definition.source_mode,
+            admission_policy=("context-" + self.effective_context_policy(payload).value.lower()),
+            lifecycle_policy=TEMPORAL_POLICY,
+        )
+
+    @staticmethod
+    def source_sample_key(match: ScanMatch) -> str:
+        return digest(
+            {
+                "instrument": str(match.instrument.instrument_id),
+                "basis": sorted(item.observation_basis for item in match.evidence),
+                "source_times": sorted(
+                    item.source_data_time.isoformat()
+                    for item in match.evidence
+                    if item.source_data_time is not None
+                ),
+                "source_keys": sorted(item.provenance.observation_key for item in match.evidence),
+            }
+        )
+
     def as_tradingview_match(self, match: ScanMatch, at: datetime) -> ScanMatch:
         """Retain profile predicates while changing only provider provenance/mode."""
         source = provenance(
@@ -590,8 +651,7 @@ class ScanDiscoverService:
             correlation=RequestContext(request_id=self.request_id),
             as_of=started,
         )
-        run_id = uuid4()
-        progression = self.fixture_progression(payload.provider)
+        proposed_run_id = uuid4()
         profile = ScanProfileReference(
             profile_id=stable(f"profile:{self.owner_id}:{payload.profile}"),
             owner_id=self.owner_id,
@@ -604,6 +664,31 @@ class ScanDiscoverService:
             interval="1d",
             direction=intent_direction(payload.intent),
         )
+        descriptor = self.comparison_descriptor(payload, definition, started)
+        request_payload = payload.model_dump(mode="json", exclude={"idempotency_key"})
+        request_digest = digest(request_payload)
+        temporal = TemporalStore(self.session, self.owner_id)
+        try:
+            admission = temporal.admit_run(
+                descriptor,
+                run_id=proposed_run_id,
+                request_key=payload.idempotency_key or self.request_id,
+                request_digest=request_digest,
+                as_of=started,
+                payload={
+                    "request": request_payload,
+                    "descriptor": descriptor.model_dump(mode="json"),
+                },
+            )
+        except TemporalConflict as exc:
+            raise ProductFailure(409, str(exc)) from exc
+        if admission.replay:
+            cached = temporal.cached_response(admission.run_id)
+            if cached is not None:
+                return ScanResult.model_validate(cached)
+            raise ProductFailure(409, "SCAN_IN_PROGRESS")
+
+        run_id = admission.run_id
         run = ScanRun(
             run_id=run_id,
             owner_id=self.owner_id,
@@ -612,13 +697,19 @@ class ScanDiscoverService:
             definition=definition,
             as_of=started,
         )
-        series = tuple(market_series(item, started, progression) for item in instruments)
-        result = await InternalScannerV0(FixtureMarketSeriesSource(series)).scan(
-            context, run, instruments
-        )
+        progression = self.fixture_progression(payload.provider)
+        try:
+            # Provider I/O begins only after admission was durably committed.
+            series = tuple(market_series(item, started, progression) for item in instruments)
+            provider_result = await InternalScannerV0(FixtureMarketSeriesSource(series)).scan(
+                context, run, instruments
+            )
+        except BaseException as exc:
+            temporal.fail_run(run_id, type(exc).__name__)
+            raise
         normalized_matches = tuple(
             self.with_supporting_fixture_evidence(item, started, progression, started)
-            for item in result.items
+            for item in provider_result.items
         )
         matches = (
             normalized_matches
@@ -649,7 +740,9 @@ class ScanDiscoverService:
         self.session.flush()
         candidates: list[CandidateSummary] = []
         decisions: list[MatchAdmissionDecision] = []
+        match_instruments: set[UUID] = set()
         for match in matches:
+            match_instruments.add(match.instrument.instrument_id)
             self.session.add(
                 ScanMatchRecord(
                     id=match.scan_match_id,
@@ -693,9 +786,97 @@ class ScanDiscoverService:
                         context_snapshot,
                         context_policy,
                         payload.include_llm,
+                        admission,
                     )
                 )
-        admission = AdmissionSummary(
+            else:
+                source_times = tuple(
+                    item.source_data_time
+                    for item in match.evidence
+                    if item.source_data_time is not None
+                )
+                temporal.append_observation(
+                    admission=admission,
+                    instrument=match.instrument,
+                    kind=DiscoveryObservationKind.PRESENT,
+                    coverage=EvaluationCoverage.EVALUATED,
+                    reason="matched-not-admitted",
+                    observed_at=max(item.observed_at for item in match.evidence),
+                    source_data_time=min(source_times) if source_times else None,
+                    source_sample_key=self.source_sample_key(match),
+                    episode=None,
+                    scan_match_id=match.scan_match_id,
+                    evidence_ids=tuple(item.evidence_id for item in match.evidence),
+                    context_id=context_snapshot.context_id,
+                    provider=match.provenance.producer.provider,
+                )
+
+        for instrument_item in instruments:
+            if instrument_item.instrument_id in match_instruments:
+                continue
+            episode = temporal.episode_for_observation(
+                admission.scope_id, instrument_item.instrument_id, admission.sequence
+            )
+            if episode is not None:
+                self.close_elapsed_episode(episode, admission, started)
+            temporal.append_observation(
+                admission=admission,
+                instrument=instrument_item,
+                kind=DiscoveryObservationKind.ABSENT,
+                coverage=EvaluationCoverage.EVALUATED,
+                reason="not-rediscovered",
+                observed_at=started,
+                source_data_time=started,
+                source_sample_key=digest(
+                    {
+                        "instrument": str(instrument_item.instrument_id),
+                        "cutoff": started.isoformat(),
+                        "scope": str(admission.scope_id),
+                    }
+                ),
+                episode=episode,
+                context_id=context_snapshot.context_id,
+                provider=(
+                    "twf-native" if payload.provider == ProviderChoice.INTERNAL else "tradingview"
+                ),
+            )
+
+        evaluated_ids = {item.instrument_id for item in instruments}
+        active_slots = tuple(
+            self.session.scalars(
+                select(DiscoveryActiveSlotRecord).where(
+                    DiscoveryActiveSlotRecord.user_id == self.owner_id,
+                    DiscoveryActiveSlotRecord.scope_id == admission.scope_id,
+                )
+            )
+        )
+        for slot in active_slots:
+            if slot.instrument_id in evaluated_ids:
+                continue
+            excluded_episode = self.session.get(DiscoveryEpisodeRecord, slot.episode_id)
+            if excluded_episode is None or excluded_episode.user_id != self.owner_id:
+                continue
+            excluded_instrument = InstrumentIdentity.model_validate(
+                excluded_episode.payload["episode"]["instrument"]
+            )
+            self.close_elapsed_episode(excluded_episode, admission, started)
+            temporal.append_observation(
+                admission=admission,
+                instrument=excluded_instrument,
+                kind=DiscoveryObservationKind.NOT_EVALUATED,
+                coverage=EvaluationCoverage.NOT_REQUESTED,
+                reason="instrument-outside-run-universe",
+                observed_at=started,
+                source_data_time=None,
+                source_sample_key=None,
+                episode=excluded_episode,
+                context_id=context_snapshot.context_id,
+                provider=(
+                    "twf-native" if payload.provider == ProviderChoice.INTERNAL else "tradingview"
+                ),
+            )
+
+        admission_summary = AdmissionSummary(
             match_count=len(matches),
             admitted_count=len(candidates),
             excluded_count=len(matches) - len(candidates),
@@ -730,14 +911,34 @@ class ScanDiscoverService:
                 payload=context_snapshot.model_dump(mode="json"),
             )
         )
-        self.commit()
-        return ScanResult(
+        temporal.seal_run(
+            admission,
+            {
+                "summary": summary.model_dump(mode="json"),
+                "evaluated": [str(item.instrument_id) for item in instruments],
+                "present": [str(item.instrument.instrument_id) for item in matches],
+                "not_evaluated": [
+                    str(slot.instrument_id)
+                    for slot in active_slots
+                    if slot.instrument_id not in evaluated_ids
+                ],
+            },
+        )
+        temporal.finalize_run(admission)
+        response = ScanResult(
             summary=summary,
             matches=tuple(self.match_view(item) for item in matches),
             candidates=tuple(candidates),
             market_context=context_snapshot,
-            admission=admission,
+            admission=admission_summary,
         )
+        temporal.store_response(run_id, response.model_dump(mode="json"))
+        try:
+            self.commit()
+        except ProductFailure:
+            temporal.fail_run(run_id, "FINALIZATION_CONFLICT")
+            raise
+        return response
 
     @staticmethod
     def match_supports_intent(match: ScanMatch, choice: IntentChoice) -> bool:
@@ -1245,6 +1446,48 @@ class ScanDiscoverService:
             envelope=envelope, horizon=horizon, state=state, dimensions=dimensions
         )
 
+    def close_elapsed_episode(
+        self,
+        episode: DiscoveryEpisodeRecord,
+        admission: RunAdmission,
+        at: datetime,
+    ) -> bool:
+        stored = dict(episode.payload["episode"])
+        if at < datetime.fromisoformat(str(stored["window"]["ends_at"])):
+            return False
+        old_state = episode.state
+        episode.state = DiscoveryLifecycleState.EXPIRED.value
+        episode.revision += 1
+        episode.updated_at = at
+        stored.update({"lifecycle": episode.state, "revision": episode.revision})
+        episode.payload = {
+            **episode.payload,
+            "episode": stored,
+            "lifecycle_reason": "window-closed-by-explicit-scan",
+        }
+        self.session.add(
+            DiscoveryTransitionRecord(
+                episode_id=episode.id,
+                user_id=self.owner_id,
+                revision=episode.revision,
+                occurred_at=at,
+                payload={
+                    "event_type": "WINDOW_CLOSURE",
+                    "from_state": old_state,
+                    "to_state": episode.state,
+                    "reason": "window-closed-by-explicit-scan",
+                    "run_sequence": admission.sequence,
+                    "rule": "scan-driven-temporal-v1",
+                },
+            )
+        )
+        if episode.comparison_scope_id is not None:
+            TemporalStore(self.session, self.owner_id).release_active_slot(
+                episode.comparison_scope_id, episode.instrument_id, episode.id
+            )
+        self.session.flush()
+        return True
+
     def capture_candidate(
         self,
         match: ScanMatch,
@@ -1256,34 +1499,50 @@ class ScanDiscoverService:
         context: MarketContextSnapshot,
         context_policy: ContextPolicy,
         include_llm: bool,
+        admission: RunAdmission,
     ) -> CandidateSummary:
-        existing = self.session.scalar(
-            select(DiscoveryEpisodeRecord)
-            .where(
-                DiscoveryEpisodeRecord.user_id == self.owner_id,
-                DiscoveryEpisodeRecord.instrument_id == match.instrument.instrument_id,
-                DiscoveryEpisodeRecord.intent_key == intent_choice.value,
-                DiscoveryEpisodeRecord.horizon_key == horizon_choice.value,
-                DiscoveryEpisodeRecord.state.not_in(TERMINAL),
-            )
-            .order_by(DiscoveryEpisodeRecord.opened_at.desc())
+        temporal = TemporalStore(self.session, self.owner_id)
+        existing = temporal.episode_for_observation(
+            admission.scope_id, match.instrument.instrument_id, admission.sequence
         )
+        if existing is not None and admission.sequence <= int(
+            existing.payload.get("temporal", {}).get("projected_sequence", 0)
+        ):
+            relevance, _ = self.relevance(
+                evidence,
+                horizon_choice,
+                self.settings(),
+                context,
+                context_policy,
+            )
+            late_source_times = tuple(
+                item.source_data_time
+                for item in match.evidence
+                if item.source_data_time is not None
+            )
+            temporal.append_observation(
+                admission=admission,
+                instrument=match.instrument,
+                kind=DiscoveryObservationKind.PRESENT,
+                coverage=EvaluationCoverage.EVALUATED,
+                reason="late-present-observation",
+                observed_at=max(item.observed_at for item in match.evidence),
+                source_data_time=min(late_source_times) if late_source_times else None,
+                source_sample_key=self.source_sample_key(match),
+                episode=existing,
+                scan_match_id=match.scan_match_id,
+                relevance_score=relevance.displayed_value,
+                relevance_band=relevance.band,
+                relevance_policy=relevance.policy,
+                evidence_ids=tuple(item.evidence_id for item in match.evidence),
+                context_id=context.context_id,
+                provider=match.provenance.producer.provider,
+            )
+            return self.summary(existing)
         previous: DiscoveryEpisodeRecord | None = None
-        if existing is not None:
-            stored = existing.payload["episode"]
-            stored_policy = RevisionRef.model_validate(stored["policy_series"])
-            if stored_policy != POLICY:
-                existing.state = DiscoveryLifecycleState.EXPIRED.value
-                existing.revision += 1
-                existing.updated_at = at
-                previous = existing
-                existing = None
-            elif at >= datetime.fromisoformat(stored["window"]["ends_at"]):
-                existing.state = DiscoveryLifecycleState.EXPIRED.value
-                existing.revision += 1
-                existing.updated_at = at
-                previous = existing
-                existing = None
+        if existing is not None and self.close_elapsed_episode(existing, admission, at):
+            previous = existing
+            existing = None
         if existing is None:
             if previous is None:
                 previous = self.session.scalar(
@@ -1293,7 +1552,6 @@ class ScanDiscoverService:
                         DiscoveryEpisodeRecord.instrument_id == match.instrument.instrument_id,
                         DiscoveryEpisodeRecord.intent_key == intent_choice.value,
                         DiscoveryEpisodeRecord.horizon_key == horizon_choice.value,
-                        DiscoveryEpisodeRecord.state.in_(TERMINAL),
                     )
                     .order_by(DiscoveryEpisodeRecord.opened_at.desc())
                 )
@@ -1309,7 +1567,7 @@ class ScanDiscoverService:
                 instrument=match.instrument,
                 intent=selected_intent,
                 observation_basis=horizon_choice.value,
-                policy_series=POLICY,
+                policy_series=TEMPORAL_POLICY,
                 window=window,
                 opened_at=at,
                 evaluated_at=at,
@@ -1326,15 +1584,21 @@ class ScanDiscoverService:
                 revision=1,
                 snapshot_count=0,
                 previous_episode_id=previous.id if previous else None,
+                comparison_scope_id=admission.scope_id,
                 opened_at=at,
                 updated_at=at,
-                payload={"episode": episode.model_dump(mode="json")},
+                payload={
+                    "episode": episode.model_dump(mode="json"),
+                    "legacy_reconstruction": "NOT_REQUIRED",
+                },
             )
             self.session.add(record)
             self.session.flush()
+            temporal.claim_active_slot(admission.scope_id, record)
         else:
             record = existing
             episode = DiscoveryEpisode.model_validate(record.payload["episode"])
+
         prior_rows = tuple(
             self.session.scalars(
                 select(DiscoverySnapshotRecord)
@@ -1364,9 +1628,9 @@ class ScanDiscoverService:
             intent_fingerprint=episode.intent.fingerprint,
             observation_basis=horizon_choice.value,
             observed_at=max(item.observed_at for item in evidence),
-            source_data_time=min(cast(datetime, item) for item in source_times)
-            if all(source_times)
-            else None,
+            source_data_time=(
+                min(cast(datetime, item) for item in source_times) if all(source_times) else None
+            ),
             evaluated_at=at,
             recorded_at=at,
             evidence=evidence,
@@ -1381,31 +1645,33 @@ class ScanDiscoverService:
             ),
         )
         tolerance = self.tolerance(evidence, horizon_choice, context, episode.window, at)
-        lifecycle = (
-            DiscoveryLifecycleState.CURRENT if sequence >= 2 else DiscoveryLifecycleState.NEW
-        )
-        lifecycle_reason = "comparable-observation" if sequence >= 2 else "first-observation"
-        if prior_rows and tolerance.state == "BREACHED":
-            prior_tolerance = ToleranceAssessment.model_validate(
-                prior_rows[-1].payload["tolerance"]
-            )
-            if prior_tolerance.state == "BREACHED":
-                lifecycle = DiscoveryLifecycleState.DEFUNCT
-                lifecycle_reason = "tolerance-confirmed"
+        lifecycle_override: DiscoveryLifecycleState | None = None
+        lifecycle_reason = "first-observation" if sequence == 1 else "comparable-observation"
         if (
             context_policy != ContextPolicy.OPTIONAL
             and context.availability in {ContextAvailability.STALE, ContextAvailability.UNAVAILABLE}
             and sequence >= 2
         ):
-            lifecycle = DiscoveryLifecycleState.STALE
+            lifecycle_override = DiscoveryLifecycleState.STALE
             lifecycle_reason = (
                 "market-context-stale"
                 if context.availability == ContextAvailability.STALE
                 else "market-context-unavailable"
             )
+        elif prior_rows and tolerance.state == "BREACHED":
+            prior_tolerance = ToleranceAssessment.model_validate(
+                prior_rows[-1].payload["tolerance"]
+            )
+            if prior_tolerance.state == "BREACHED":
+                lifecycle_override = DiscoveryLifecycleState.DEFUNCT
+                lifecycle_reason = "tolerance-confirmed"
+        elif record.state == DiscoveryLifecycleState.DEFUNCT.value and tolerance.state == "WITHIN":
+            lifecycle_override = DiscoveryLifecycleState.CURRENT
+            lifecycle_reason = "tolerance-recovery-verified"
+
         snapshot_payload = {
             "snapshot": snapshot.model_dump(mode="json"),
-            "lifecycle": lifecycle.value,
+            "lifecycle": record.state,
             "lifecycle_reason": lifecycle_reason,
             "profile": profile,
             "context_policy": context_policy.value,
@@ -1413,34 +1679,24 @@ class ScanDiscoverService:
             "tolerance": tolerance.model_dump(mode="json"),
             "context_id": str(context.context_id),
         }
-        self.session.add(
-            DiscoverySnapshotRecord(
-                id=snapshot.snapshot_id,
-                episode_id=record.id,
-                user_id=self.owner_id,
-                sequence=sequence,
-                observed_at=snapshot.observed_at,
-                payload=snapshot_payload,
-            )
+        snapshot_record = DiscoverySnapshotRecord(
+            id=snapshot.snapshot_id,
+            episode_id=record.id,
+            user_id=self.owner_id,
+            sequence=sequence,
+            observed_at=snapshot.observed_at,
+            payload=snapshot_payload,
         )
-        old_state = record.state
+        self.session.add(snapshot_record)
         record.snapshot_count = sequence
-        record.state = (
-            lifecycle.value
-            if lifecycle != DiscoveryLifecycleState.STALE
-            else DiscoveryLifecycleState.CURRENT.value
-        )
-        record.revision += 1 if sequence > 1 else 0
-        record.updated_at = at
         previous_lineage = record.payload.get("scan_lineage", {})
         episode_payload = {
             **episode.model_dump(mode="json"),
             "head_snapshot_id": str(snapshot.snapshot_id),
             "evaluated_at": at.isoformat(),
-            "revision": record.revision,
-            "lifecycle": record.state,
         }
         record.payload = {
+            **record.payload,
             "episode": episode_payload,
             "scan_lineage": {
                 "originating_scan_run_id": previous_lineage.get(
@@ -1451,22 +1707,41 @@ class ScanDiscoverService:
             },
             "lifecycle_reason": lifecycle_reason,
         }
-        if old_state != record.state:
-            self.session.add(
-                DiscoveryTransitionRecord(
-                    episode_id=record.id,
-                    user_id=self.owner_id,
-                    revision=record.revision,
-                    occurred_at=at,
-                    payload={
-                        "from_state": old_state,
-                        "to_state": record.state,
-                        "reason": lifecycle_reason,
-                        "rule": "deterministic-lifecycle-v1",
-                        "snapshot_id": str(snapshot.snapshot_id),
-                    },
+        observation_row = temporal.append_observation(
+            admission=admission,
+            instrument=match.instrument,
+            kind=DiscoveryObservationKind.PRESENT,
+            coverage=EvaluationCoverage.EVALUATED,
+            reason=lifecycle_reason,
+            observed_at=snapshot.observed_at,
+            source_data_time=(
+                min(
+                    item.source_data_time
+                    for item in match.evidence
+                    if item.source_data_time is not None
                 )
-            )
+                if any(item.source_data_time is not None for item in match.evidence)
+                else None
+            ),
+            source_sample_key=self.source_sample_key(match),
+            episode=record,
+            scan_match_id=match.scan_match_id,
+            snapshot_id=snapshot.snapshot_id,
+            relevance_score=relevance.displayed_value,
+            relevance_band=relevance.band,
+            relevance_policy=relevance.policy,
+            evidence_ids=tuple(item.evidence_id for item in evidence),
+            context_id=context.context_id,
+            provider=match.provenance.producer.provider,
+            lifecycle_override=lifecycle_override,
+        )
+        observation = observation_row.payload["observation"]
+        snapshot_payload = {
+            **snapshot_payload,
+            "lifecycle": observation.get("lifecycle_after") or record.state,
+            "lifecycle_reason": observation["reason"],
+        }
+        snapshot_record.payload = snapshot_payload
         summary = self.summary(record, snapshot_payload)
         llm_settings = self.settings()
         if include_llm and llm_settings.llm_enabled and llm_settings.llm_provider == "synthetic":
@@ -1602,11 +1877,30 @@ class ScanDiscoverService:
             if row is None:
                 raise ProductFailure(404, "CANDIDATE_NOT_FOUND")
             payload = row.payload
+        settings = self.settings()
+        temporal_summary = TemporalStore(self.session, self.owner_id).summary(
+            episode, settings.hot_observation_count
+        )
+        return self._candidate_summary(episode, payload, settings, temporal_summary)
+
+    def _candidate_summary(
+        self,
+        episode: DiscoveryEpisodeRecord,
+        payload: dict[str, Any],
+        settings: DiscoverySettings,
+        temporal_summary: TemporalSummary | None,
+    ) -> CandidateSummary:
         snapshot = DiscoverySnapshot.model_validate(payload["snapshot"])
         explanation = RelevanceExplanation.model_validate(payload["relevance_explanation"])
         tolerance = ToleranceAssessment.model_validate(payload["tolerance"])
         sources = tuple(sorted({item.provenance.producer.provider for item in snapshot.evidence}))
         profile, profile_lineage, legacy_profile = self.candidate_profile(episode, payload)
+        freshness_state = FreshnessState.UNKNOWN
+        if snapshot.source_data_time is not None:
+            age = (now_utc() - snapshot.source_data_time).total_seconds()
+            freshness_state = (
+                FreshnessState.FRESH if age <= settings.freshness_seconds else FreshnessState.STALE
+            )
         return CandidateSummary(
             candidate_id=episode.candidate_id,
             episode_id=episode.id,
@@ -1631,11 +1925,7 @@ class ScanDiscoverService:
                 or episode.payload.get("lifecycle_reason")
                 or "state-restored-from-persisted-record"
             ),
-            freshness=(
-                FreshnessState.UNKNOWN
-                if snapshot.source_data_time is None
-                else FreshnessState.FRESH
-            ),
+            freshness=freshness_state,
             snapshot_count=episode.snapshot_count,
             provider_sources=sources,
             originating_scan_run_id=episode.payload.get("scan_lineage", {}).get(
@@ -1645,6 +1935,7 @@ class ScanDiscoverService:
             latest_scan_run_id=episode.payload.get("scan_lineage", {}).get("latest_scan_run_id")
             or (snapshot.lineage.scan.run_id if snapshot.lineage.scan else None),
             updated_at=aware(episode.updated_at),
+            temporal=temporal_summary,
         )
 
     def scan_profile(self, run_id: object) -> str | None:
@@ -1730,14 +2021,80 @@ class ScanDiscoverService:
         )
 
     def candidates(self, limit: int, offset: int) -> PaginatedCandidates:
-        query = select(DiscoveryEpisodeRecord).where(
-            DiscoveryEpisodeRecord.user_id == self.owner_id
+        settings = self.settings()
+        snapshot_payload = DiscoverySnapshotRecord.payload["snapshot"]
+        relevance = snapshot_payload["relevance"]
+        score = sql_cast(relevance["value"].as_string(), Float)
+        policy_id = relevance["policy"]["id"].as_string()
+        policy_version = relevance["policy"]["version"].as_string()
+        source_time = snapshot_payload["source_data_time"].as_string()
+        symbol = snapshot_payload["instrument"]["symbol"].as_string()
+        fresh_cutoff = (now_utc() - timedelta(seconds=settings.freshness_seconds)).isoformat()
+        lifecycle_priority = case(
+            (DiscoveryEpisodeRecord.state == DiscoveryLifecycleState.NEW.value, 0),
+            (DiscoveryEpisodeRecord.state == DiscoveryLifecycleState.CURRENT.value, 1),
+            (DiscoveryEpisodeRecord.state == DiscoveryLifecycleState.STALE.value, 2),
+            (DiscoveryEpisodeRecord.state == DiscoveryLifecycleState.DEFUNCT.value, 3),
+            (DiscoveryEpisodeRecord.state == DiscoveryLifecycleState.EXPIRED.value, 4),
+            else_=5,
         )
-        rows = tuple(self.session.scalars(query))
-        summaries = sorted((self.summary(row) for row in rows), key=self.attention_key)
+        freshness_priority = case(
+            (source_time.is_(None), 1),
+            (source_time >= fresh_cutoff, 0),
+            else_=2,
+        )
+        current_policy = case(
+            (
+                and_(policy_id == POLICY.id, policy_version == POLICY.version),
+                0,
+            ),
+            else_=1,
+        )
+        score_missing = case((score.is_(None), 1), else_=0)
+        query = (
+            select(DiscoveryEpisodeRecord, DiscoverySnapshotRecord)
+            .join(
+                DiscoverySnapshotRecord,
+                and_(
+                    DiscoverySnapshotRecord.episode_id == DiscoveryEpisodeRecord.id,
+                    DiscoverySnapshotRecord.sequence == DiscoveryEpisodeRecord.snapshot_count,
+                    DiscoverySnapshotRecord.user_id == self.owner_id,
+                ),
+            )
+            .where(DiscoveryEpisodeRecord.user_id == self.owner_id)
+            .order_by(
+                current_policy.asc(),
+                score_missing.asc(),
+                score.desc(),
+                lifecycle_priority.asc(),
+                freshness_priority.asc(),
+                DiscoveryEpisodeRecord.updated_at.desc(),
+                symbol.asc(),
+                DiscoveryEpisodeRecord.candidate_id.asc(),
+            )
+            .offset(offset)
+            .limit(limit)
+        )
+        page = tuple(self.session.execute(query))
+        episodes = tuple(item[0] for item in page)
+        temporal = TemporalStore(self.session, self.owner_id).summaries(
+            episodes, settings.hot_observation_count
+        )
+        summaries = tuple(
+            self._candidate_summary(episode, snapshot.payload, settings, temporal.get(episode.id))
+            for episode, snapshot in page
+        )
+        total = int(
+            self.session.scalar(
+                select(func.count())
+                .select_from(DiscoveryEpisodeRecord)
+                .where(DiscoveryEpisodeRecord.user_id == self.owner_id)
+            )
+            or 0
+        )
         return PaginatedCandidates(
-            items=tuple(summaries[offset : offset + limit]),
-            total=len(summaries),
+            items=summaries,
+            total=total,
             limit=limit,
             offset=offset,
             as_of=now_utc(),
@@ -1821,6 +2178,17 @@ class ScanDiscoverService:
             if context_row is not None and context_row.user_id == self.owner_id:
                 context = MarketContextSnapshot.model_validate(context_row.payload)
         head = self.summary(episode, snapshots[-1].payload if snapshots else None)
+        hot_size = self.settings().hot_observation_count
+        observations = (
+            TemporalStore(self.session, self.owner_id)
+            .history_page(
+                episode.id,
+                limit=min(history_limit, hot_size),
+                offset=0,
+                hot_size=hot_size,
+            )
+            .items
+        )
         return CandidateDetail(
             **head.model_dump(),
             snapshots=tuple(views),
@@ -1828,7 +2196,117 @@ class ScanDiscoverService:
             explanations=explanations,
             context=context,
             previous_episode_id=episode.previous_episode_id,
+            observations=observations,
         )
+
+    def temporal_history(self, candidate_id: UUID, limit: int, offset: int) -> TemporalHistoryPage:
+        episode = self.episode_by_candidate(candidate_id)
+        return TemporalStore(self.session, self.owner_id).history_page(
+            episode.id,
+            limit=limit,
+            offset=offset,
+            hot_size=self.settings().hot_observation_count,
+        )
+
+    def run_temporal(
+        self, run_id: UUID, mode: RunViewMode, limit: int, offset: int
+    ) -> RunTemporalView:
+        run = self.session.scalar(
+            select(ScanRunRecord).where(
+                ScanRunRecord.id == run_id,
+                ScanRunRecord.user_id == self.owner_id,
+            )
+        )
+        if run is None:
+            raise ProductFailure(404, "SCAN_NOT_FOUND")
+        predicate = (
+            DiscoveryObservationRecord.run_id == run_id,
+            DiscoveryObservationRecord.user_id == self.owner_id,
+        )
+        total = int(
+            self.session.scalar(
+                select(func.count()).select_from(DiscoveryObservationRecord).where(*predicate)
+            )
+            or 0
+        )
+        rows = tuple(
+            self.session.scalars(
+                select(DiscoveryObservationRecord)
+                .where(*predicate)
+                .order_by(
+                    DiscoveryObservationRecord.instrument_id.asc(),
+                    DiscoveryObservationRecord.recorded_at.asc(),
+                )
+                .offset(offset)
+                .limit(limit)
+            )
+        )
+        temporal = TemporalStore(self.session, self.owner_id)
+        current_candidates: dict[UUID, CandidateSummary] = {}
+        if mode == RunViewMode.CURRENT_STATE:
+            candidate_ids = tuple(
+                dict.fromkeys(row.candidate_id for row in rows if row.candidate_id is not None)
+            )
+            if candidate_ids:
+                current_rows = tuple(
+                    self.session.execute(
+                        select(DiscoveryEpisodeRecord, DiscoverySnapshotRecord)
+                        .join(
+                            DiscoverySnapshotRecord,
+                            and_(
+                                DiscoverySnapshotRecord.episode_id == DiscoveryEpisodeRecord.id,
+                                DiscoverySnapshotRecord.sequence
+                                == DiscoveryEpisodeRecord.snapshot_count,
+                                DiscoverySnapshotRecord.user_id == self.owner_id,
+                            ),
+                        )
+                        .where(
+                            DiscoveryEpisodeRecord.user_id == self.owner_id,
+                            DiscoveryEpisodeRecord.candidate_id.in_(candidate_ids),
+                        )
+                    )
+                )
+                current_episodes = tuple(episode for episode, _snapshot in current_rows)
+                settings = self.settings()
+                current_temporal = temporal.summaries(
+                    current_episodes, settings.hot_observation_count
+                )
+                current_candidates = {
+                    episode.candidate_id: self._candidate_summary(
+                        episode,
+                        snapshot.payload,
+                        settings,
+                        current_temporal.get(episode.id),
+                    )
+                    for episode, snapshot in current_rows
+                }
+        items = tuple(
+            RunTemporalCandidate(
+                instrument=InstrumentIdentity.model_validate(row.payload["instrument"]),
+                observation=temporal.view(row, True),
+                candidate=(
+                    current_candidates.get(row.candidate_id)
+                    if row.candidate_id is not None
+                    else None
+                ),
+            )
+            for row in rows
+        )
+        return RunTemporalView(
+            run_id=run_id,
+            mode=mode,
+            summary=ScanSummary.model_validate(run.payload),
+            items=tuple(items),
+            limit=limit,
+            offset=offset,
+            total=total,
+        )
+
+    def rebuild_candidate_projection(self, candidate_id: UUID) -> CandidateDetail:
+        episode = self.episode_by_candidate(candidate_id)
+        TemporalStore(self.session, self.owner_id).rebuild_projection(episode)
+        self.commit()
+        return self.detail(candidate_id)
 
     def history(
         self, limit: int, offset: int, include_archived: bool = False
@@ -1916,18 +2394,44 @@ class ScanDiscoverService:
         elif action == LifecycleAction.MARK_DEFUNCT:
             target = DiscoveryLifecycleState.DEFUNCT
         elif action == LifecycleAction.RECOVER and old == DiscoveryLifecycleState.DEFUNCT.value:
+            latest_snapshot = self.session.scalar(
+                select(DiscoverySnapshotRecord)
+                .where(
+                    DiscoverySnapshotRecord.episode_id == episode.id,
+                    DiscoverySnapshotRecord.user_id == self.owner_id,
+                )
+                .order_by(DiscoverySnapshotRecord.sequence.desc())
+            )
+            latest_observation = self.session.scalar(
+                select(DiscoveryObservationRecord)
+                .where(
+                    DiscoveryObservationRecord.episode_id == episode.id,
+                    DiscoveryObservationRecord.user_id == self.owner_id,
+                )
+                .order_by(DiscoveryObservationRecord.run_sequence.desc())
+            )
+            if (
+                latest_snapshot is None
+                or latest_observation is None
+                or latest_observation.kind != DiscoveryObservationKind.PRESENT.value
+                or ToleranceAssessment.model_validate(latest_snapshot.payload["tolerance"]).state
+                != "WITHIN"
+            ):
+                raise ProductFailure(422, "RECOVERY_REQUIRES_FRESH_EVIDENCE")
             target = DiscoveryLifecycleState.CURRENT
         else:
             raise ProductFailure(422, "INVALID_TRANSITION")
+        occurred_at = now_utc()
         episode.state = target.value
         episode.revision += 1
-        episode.updated_at = now_utc()
-        stored = episode.payload["episode"]
+        episode.updated_at = occurred_at
+        stored = dict(episode.payload["episode"])
         stored["lifecycle"] = target.value
         stored["revision"] = episode.revision
-        stored["evaluated_at"] = episode.updated_at.isoformat()
+        stored["evaluated_at"] = occurred_at.isoformat()
         if target == DiscoveryLifecycleState.REJECTED:
             stored["rejection_reason"] = "USER_DISMISSED"
+        projected_sequence = int(episode.payload.get("temporal", {}).get("projected_sequence", 0))
         episode.payload = {
             **episode.payload,
             "episode": stored,
@@ -1938,15 +2442,23 @@ class ScanDiscoverService:
                 episode_id=episode.id,
                 user_id=self.owner_id,
                 revision=episode.revision,
-                occurred_at=episode.updated_at,
+                occurred_at=occurred_at,
                 payload={
+                    "event_type": "OWNER_ACTION",
+                    "action": action.value,
+                    "actor_owner_id": str(self.owner_id),
+                    "after_sequence": projected_sequence,
                     "from_state": old,
                     "to_state": target.value,
                     "reason": reason,
-                    "rule": "owner-lifecycle-action-v1",
+                    "rule": "owner-lifecycle-action-v2",
                 },
             )
         )
+        if target == DiscoveryLifecycleState.REJECTED and episode.comparison_scope_id is not None:
+            TemporalStore(self.session, self.owner_id).release_active_slot(
+                episode.comparison_scope_id, episode.instrument_id, episode.id
+            )
         self.commit()
         return self.detail(candidate_id)
 

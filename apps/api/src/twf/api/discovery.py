@@ -19,8 +19,11 @@ from twf.discovery.product import (
     PaginatedCandidates,
     ProductScanRequest,
     ProviderStatus,
+    RunTemporalView,
+    RunViewMode,
     ScanResult,
     ScanSummary,
+    TemporalHistoryPage,
 )
 from twf.discovery.product_service import ProductFailure, ScanDiscoverService
 from twf.infrastructure.identity import User
@@ -93,6 +96,17 @@ def scan_detail(run_id: UUID, service: Service) -> HistoricalScanDetail:
     return service.historical_detail(run_id)
 
 
+@router.get("/scans/{run_id}/temporal")
+def scan_temporal(
+    run_id: UUID,
+    service: Service,
+    mode: Annotated[RunViewMode, Query()] = RunViewMode.AS_SCANNED,
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0, le=10000),
+) -> RunTemporalView:
+    return service.run_temporal(run_id, mode, limit, offset)
+
+
 @router.post("/scans/{run_id}/archive", dependencies=[Depends(require_origin)])
 def archive_scan(run_id: UUID, service: Service) -> ScanSummary:
     return service.set_scan_archived(run_id, True)
@@ -119,6 +133,16 @@ def candidate(
     history_limit: int = Query(default=50, ge=1, le=100),
 ) -> CandidateDetail:
     return service.detail(candidate_id, history_limit)
+
+
+@router.get("/candidates/{candidate_id}/observations")
+def candidate_observations(
+    candidate_id: UUID,
+    service: Service,
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0, le=10000),
+) -> TemporalHistoryPage:
+    return service.temporal_history(candidate_id, limit, offset)
 
 
 @router.post("/candidates/{candidate_id}/lifecycle", dependencies=[Depends(require_origin)])

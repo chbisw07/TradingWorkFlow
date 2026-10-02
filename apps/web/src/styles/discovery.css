@@ -1949,3 +1949,111 @@
     width: 100%;
   }
 }
+
+/* Scan-driven temporal observations */
+.temporal-sparkline {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 3px;
+  min-width: 5rem;
+  min-height: 32px;
+  padding: 2px 4px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.temporal-point {
+  width: 6px;
+  min-height: 5px;
+  border-radius: 2px 2px 0 0;
+  background: var(--accent);
+}
+.temporal-point.is-absent {
+  height: 5px;
+  border: 1px solid var(--status-stale);
+  background: transparent;
+}
+.temporal-point.is-not-evaluated {
+  height: 5px;
+  border: 1px dashed var(--text-muted);
+  background: transparent;
+}
+.temporal-point.is-model-break {
+  margin-inline-start: 5px;
+  border-inline-start: 2px solid var(--text-muted);
+}
+.temporal-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+}
+.temporal-facts > div {
+  padding: var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+.temporal-facts dt,
+.temporal-facts dd {
+  margin: 0;
+}
+.temporal-facts dt {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+.temporal-timeline {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.temporal-timeline li {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+.temporal-timeline li > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.temporal-timeline small {
+  grid-column: 1 / -1;
+  color: var(--text-muted);
+}
+.run-view-toggle {
+  display: inline-flex;
+  gap: var(--space-1);
+  margin-block: var(--space-2) var(--space-3);
+}
+.run-view-toggle button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--surface-accent);
+}
+.historical-match-details {
+  margin-top: var(--space-3);
+}
+.historical-match-details > summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+@media (max-width: 48rem) {
+  .temporal-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .temporal-timeline li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .run-view-toggle {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+}

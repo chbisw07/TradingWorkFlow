@@ -236,6 +236,12 @@ def test_migration_history_and_metadata() -> None:
         "mcp_operations",
         "mcp_secrets",
         "discovery_settings",
+        "discovery_comparison_scopes",
+        "discovery_temporal_lanes",
+        "discovery_scan_admissions",
+        "discovery_active_slots",
+        "discovery_observations",
+        "discovery_projection_checkpoints",
         "discovery_scan_runs",
         "discovery_scan_matches",
         "discovery_market_context",
@@ -253,7 +259,7 @@ def test_migration_history_and_metadata() -> None:
         with db.connect() as connection:
             assert (
                 MigrationContext.configure(connection).get_current_revision()
-                == "0013_discovery_scan_archive"
+                == "0014_discovery_temporal_state"
             )
             assert inspect(connection).get_table_names() == [
                 "alembic_version",
@@ -262,13 +268,19 @@ def test_migration_history_and_metadata() -> None:
                 "broker_attempts",
                 "broker_order_intents",
                 "broker_secrets",
+                "discovery_active_slots",
+                "discovery_comparison_scopes",
                 "discovery_episodes",
                 "discovery_llm_explanations",
                 "discovery_market_context",
+                "discovery_observations",
+                "discovery_projection_checkpoints",
+                "discovery_scan_admissions",
                 "discovery_scan_matches",
                 "discovery_scan_runs",
                 "discovery_settings",
                 "discovery_snapshots",
+                "discovery_temporal_lanes",
                 "discovery_transitions",
                 "mcp_connections",
                 "mcp_oauth_attempts",
@@ -286,7 +298,7 @@ def test_migration_history_and_metadata() -> None:
         with db.connect() as connection:
             assert (
                 MigrationContext.configure(connection).get_current_revision()
-                == "0013_discovery_scan_archive"
+                == "0014_discovery_temporal_state"
             )
     finally:
         db.dispose()
@@ -302,3 +314,95 @@ def test_offline_postgresql_migration(monkeypatch: pytest.MonkeyPatch) -> None:
     sql = output.getvalue()
     assert "0001_empty_baseline" in sql and "alembic_version" in sql
     assert "credential_marker_123" not in sql and "db.invalid" not in sql
+
+
+def test_temporal_migration_preserves_legacy_episode_round_trip(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    database = tmp_path / "temporal-legacy.db"
+    monkeypatch.setenv("TWF_DATABASE_URL", f"sqlite+pysqlite:///{database}")
+    config = Config(str(Path(__file__).parents[1] / "alembic.ini"))
+    command.upgrade(config, "0013_discovery_scan_archive")
+    db = create_database_engine(Settings())
+    owner_id = "11111111111111111111111111111111"
+    episode_id = "22222222222222222222222222222222"
+    candidate_id = "33333333333333333333333333333333"
+    instrument_id = "44444444444444444444444444444444"
+    timestamp = "2026-10-01 09:15:00+00:00"
+    try:
+        with db.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO users "
+                    "(id, username, display_name, password_hash, is_active, created_at, "
+                    "updated_at) VALUES (:id, :username, :display_name, :password_hash, 1, "
+                    ":created_at, :updated_at)"
+                ),
+                {
+                    "id": owner_id,
+                    "username": "legacy-temporal-owner",
+                    "display_name": "Legacy Temporal Owner",
+                    "password_hash": "test-only-hash",
+                    "created_at": timestamp,
+                    "updated_at": timestamp,
+                },
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO discovery_episodes "
+                    "(id, candidate_id, user_id, instrument_id, intent_key, horizon_key, state, "
+                    "revision, snapshot_count, previous_episode_id, opened_at, updated_at, "
+                    "payload) "
+                    "VALUES (:id, :candidate_id, :user_id, :instrument_id, :intent_key, "
+                    ":horizon_key, :state, 7, 0, NULL, :opened_at, :updated_at, :payload)"
+                ),
+                {
+                    "id": episode_id,
+                    "candidate_id": candidate_id,
+                    "user_id": owner_id,
+                    "instrument_id": instrument_id,
+                    "intent_key": "MOMENTUM",
+                    "horizon_key": "5d",
+                    "state": "CURRENT",
+                    "opened_at": timestamp,
+                    "updated_at": timestamp,
+                    "payload": '{"legacy_marker":"preserve-verbatim","relevance_model":"v1"}',
+                },
+            )
+        command.upgrade(config, "head")
+        with db.connect() as connection:
+            row = connection.execute(
+                text(
+                    "SELECT revision, payload, comparison_scope_id FROM discovery_episodes "
+                    "WHERE id = :id"
+                ),
+                {"id": episode_id},
+            ).one()
+            assert row.revision == 7
+            assert "preserve-verbatim" in row.payload
+            assert row.comparison_scope_id is None
+            assert (
+                connection.execute(text("SELECT count(*) FROM discovery_observations")).scalar_one()
+                == 0
+            )
+        command.downgrade(config, "0013_discovery_scan_archive")
+        with db.connect() as connection:
+            row = connection.execute(
+                text("SELECT revision, payload FROM discovery_episodes WHERE id = :id"),
+                {"id": episode_id},
+            ).one()
+            assert row.revision == 7 and "preserve-verbatim" in row.payload
+            assert "comparison_scope_id" not in {
+                column["name"] for column in inspect(connection).get_columns("discovery_episodes")
+            }
+        command.upgrade(config, "head")
+        with db.connect() as connection:
+            assert (
+                connection.execute(
+                    text("SELECT count(*) FROM discovery_episodes WHERE id = :id"),
+                    {"id": episode_id},
+                ).scalar_one()
+                == 1
+            )
+    finally:
+        db.dispose()

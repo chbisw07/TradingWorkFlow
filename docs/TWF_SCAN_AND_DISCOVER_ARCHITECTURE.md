@@ -4,10 +4,10 @@
 
 Current status: **ACCEPTED / IMPLEMENTATION AUTHORIZED**. Sprint 2 is **IMPLEMENTED / READY FOR USER VALIDATION** under the [implementation record](TWF_SPRINT2_SCAN_DISCOVER_IMPLEMENTATION.md); final acceptance/freeze remains pending. The [independent acceptance record](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) supersedes v0.1 proposal status. Provider/data/policy gates still apply before their dependent slices; future-stage contracts remain conceptual.
 
-| Version | Date       | Status                                   | Role and change                                                                                                    |
-| ------- | ---------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| 0.1     | 2026-09-28 | PROPOSED / RECONCILED / READY FOR REVIEW | Normative design proposal for Scan & Discover; separates scanning, discovery, evidence and optional interpretation |
-| 0.2 | 2026-09-29 | ACCEPTED / IMPLEMENTATION AUTHORIZED | Independent architecture acceptance and status reconciliation; bounded by the delivery plan and [review](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md); no runtime implementation |
+| Version | Date       | Status                                   | Role and change                                                                                                                                                                          |
+| ------- | ---------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0.1     | 2026-09-28 | PROPOSED / RECONCILED / READY FOR REVIEW | Normative design proposal for Scan & Discover; separates scanning, discovery, evidence and optional interpretation                                                                       |
+| 0.2     | 2026-09-29 | ACCEPTED / IMPLEMENTATION AUTHORIZED     | Independent architecture acceptance and status reconciliation; bounded by the delivery plan and [review](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md); no runtime implementation |
 
 This is the designated Markdown authority for the accepted S&D subsystem design, not an
 implementation or freeze claim. The [Opportunity domain](TWF_OPPORTUNITY_DOMAIN_ARCHITECTURE.md)
@@ -19,7 +19,7 @@ integration, TI qualification, LOB or TM adoption is claimed implemented by this
 
 ## 2026-10-01 temporal-state amendment
 
-The [scan-driven temporal-state architecture](TWF_SND_SCAN_DRIVEN_TEMPORAL_STATE_ARCHITECTURE.md) is the focused normative amendment for future observation, comparability, lifecycle and HOT/COLD work: **ACCEPT WITH REFINEMENT / GO_IMPLEMENTATION / NOT IMPLEMENTED**. It supersedes the earlier time-derived lifecycle rules within S&D; current runtime is still documented in the implementation record. It does not change historical acceptance or implement Opportunity, LOB, U3, Watchlists, custom horizons or background reevaluation. Markdown is authoritative; the existing DOCX remains a historical reference and has not been synchronized to this amendment.
+The [scan-driven temporal-state architecture](TWF_SND_SCAN_DRIVEN_TEMPORAL_STATE_ARCHITECTURE.md) is the focused normative amendment for observation, comparability, lifecycle and HOT/COLD work: **IMPLEMENTED / PENDING USER VALIDATION AND INDEPENDENT ACCEPTANCE**. Revision `0014_discovery_temporal_state` and the product/API/UI changes implement its immutable PRESENT/ABSENT/NOT_EVALUATED ledger, semantic active slots, durable ordered admission, deterministic reducer, logical HOT/COLD history, checkpoints and bounded temporal views. Earlier time-derived lifecycle rules are superseded for new temporal records; legacy records remain readable without invented absence. This does not change historical acceptance or implement Opportunity, LOB, U3, Watchlists, custom horizons or background reevaluation. Markdown is authoritative; the existing DOCX remains a historical reference and has not been synchronized to this amendment.
 
 ## 1. Executive summary and user problem
 
@@ -557,7 +557,7 @@ automatic policy promotion is included in Sprint 2.
 
 ## 16. Freshness, horizon and after-market operation
 
-The [2026-10-01 temporal amendment](TWF_SND_SCAN_DRIVEN_TEMPORAL_STATE_ARCHITECTURE.md#6-lifecycle-freshness-and-windows) replaces the original clock-derived effective lifecycle for future implementation. Last-observed lifecycle, freshness and fixed-window validity are three separate values. Clock passage can change displayed freshness (`FRESH`, `STALE`, `UNKNOWN`) and window status (`OPEN`, `ENDED`, `UNKNOWN`), but cannot change lifecycle, relevance, tolerance or snapshot history. GET is read-only.
+The [2026-10-01 temporal amendment](TWF_SND_SCAN_DRIVEN_TEMPORAL_STATE_ARCHITECTURE.md#6-lifecycle-freshness-and-windows) replaces the original clock-derived effective lifecycle for the implemented temporal layer. Last-observed lifecycle, freshness and fixed-window validity are three separate values. Clock passage can change displayed freshness (`FRESH`, `STALE`, `UNKNOWN`) and window status (`OPEN`, `ENDED`, `UNKNOWN`), but cannot change lifecycle, relevance, tolerance or snapshot history. GET is read-only.
 
 Source time, receive time, evaluation cutoff and recording time retain distinct meanings. LIVE_SNAPSHOT, DELAYED, EOD and SYNTHETIC remain explicit; successful HTTP does not establish freshness. A thirty-day-old five-day candidate can retain last-observed CURRENT while visibly window-ended and ineligible for current attention. Explicit comparable scanning or an audited owner closure materializes window expiry; no background monitor is required.
 
@@ -567,13 +567,13 @@ Horizon basis, exchange/session calendar, timezone and anchor are pinned. EOD da
 
 Lifecycle is a persisted, rebuildable projection over immutable comparable observations and explicit owner decisions. The [normative reducer](TWF_SND_SCAN_DRIVEN_TEMPORAL_STATE_ARCHITECTURE.md#6-lifecycle-freshness-and-windows) defines precedence and versioned state semantics; the [recovery protocol](TWF_SND_SCAN_DRIVEN_TEMPORAL_STATE_ARCHITECTURE.md#8-ordering-concurrency-and-recovery-protocol) defines ordering and fencing.
 
-| State | Meaning under future scan-driven policy |
-| --- | --- |
-| NEW | First eligible observation; no claim of temporal evolution. |
-| CURRENT | Subsequent comparable distinct eligible PRESENT observations within the fixed window. |
-| STALE | Authoritative comparable ABSENT / NOT_REDISCOVERED; not a synonym for clock-aged evidence. |
-| DEFUNCT | Evidence-backed material breach or explicitly labelled owner override; preterminal, with pinned recovery rules. |
-| EXPIRED | Explicit window-closure decision; no reactivation or timestamp extension. |
+| State    | Meaning under future scan-driven policy                                                                              |
+| -------- | -------------------------------------------------------------------------------------------------------------------- |
+| NEW      | First eligible observation; no claim of temporal evolution.                                                          |
+| CURRENT  | Subsequent comparable distinct eligible PRESENT observations within the fixed window.                                |
+| STALE    | Authoritative comparable ABSENT / NOT_REDISCOVERED; not a synonym for clock-aged evidence.                           |
+| DEFUNCT  | Evidence-backed material breach or explicitly labelled owner override; preterminal, with pinned recovery rules.      |
+| EXPIRED  | Explicit window-closure decision; no reactivation or timestamp extension.                                            |
 | REJECTED | Explicit terminal decision/dismissal with actor/policy and reason; later distinct setup requires a linked successor. |
 
 NOT_EVALUATED is neutral. No default number of absences automatically proves a terminal thesis failure. Missing or old evidence cannot prove a breach/recovery. Tolerance dimensions preserve units, reference basis, thresholds, required evidence, confirmation and recovery policy; only an explicit scan assesses them. Repeated polling of the same sample does not satisfy multi-observation confirmation.
@@ -661,7 +661,7 @@ keys are scoped to owner/operation/request digest; same key with different input
 conflicts. Duplicate input does not duplicate a candidate. SQLite contention is
 bounded and sanitized; verify the same semantics with PostgreSQL concurrent writers.
 
-The [temporal storage and ordering amendment](TWF_SND_SCAN_DRIVEN_TEMPORAL_STATE_ARCHITECTURE.md#7-hot-and-cold-representations) adds ordered run admission/finalization, owner-aware idempotent observations, an active-scope guard, a logical HOT window (default 20), compact durable COLD cores and replay-safe compaction. It replaces completion-order head updates. The current implementation does not yet provide these mechanisms.
+The [temporal storage and ordering amendment](TWF_SND_SCAN_DRIVEN_TEMPORAL_STATE_ARCHITECTURE.md#7-hot-and-cold-representations) adds ordered run admission/finalization, owner-aware idempotent observations, an active-scope guard, a logical HOT window (default 20), compact durable COLD cores and replay-safe compaction. It replaces completion-order head updates. Revision `0014_discovery_temporal_state` and the temporal product service now provide these mechanisms; final acceptance remains pending validation.
 
 Retention is class-specific and licensed: derived evaluation, audit metadata, raw
 captures and provider references have different permitted lifetimes. Immutable
@@ -912,39 +912,39 @@ protected by SL/TP or TM simply because discovery evidence exists.
 
 ## 26. FAQ
 
-| Question                                     | Answer                                                                                                                           |
-| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| Why isn't every ScanMatch a candidate?       | Matching criteria alone may lack timely context, sufficient evidence or intent-relative relevance. Discovery may decline.        |
-| Is a candidate a trade recommendation?       | No. It means worth examining now; it has no constructed trade or authority.                                                      |
-| Why split Scan and Discovery?                | Scan tests criteria; Discovery evaluates attention-worthiness using intent/context and can accept other sources.                 |
-| Can Scan be used alone?                      | Yes; matches and run history are useful without candidates or an LLM.                                                            |
-| Can Discovery run without Scan?              | Yes through CandidateSource; Sprint 2 proves this with a synthetic source, with real external feeds later.                       |
-| Can S&D run without an LLM?                  | Yes; eligibility, relevance, snapshots and lifecycle are deterministic.                                                          |
-| Can I replace the hosted LLM?                | Yes through an explicit eligible profile/model rebind; actual old/new provenance remains.                                        |
-| Can S&D run without TradingView?             | Yes through the internal scanner and approved independent data input; no silent provider substitution.                           |
-| What if TradingView MCP is unavailable?      | Its run fails or is explicitly partial; select the internal profile for a new run if desired.                                    |
-| Why build an internal scanner?               | To prove replacement seams and provide a small native deterministic capability, not reproduce every vendor feature.              |
-| What is Level-0?                             | Optional explanation, comparison and evidence-gap identification, not deep TI qualification or execution.                        |
-| What is grounded versus context-only?        | Verified citations to eligible supplied evidence versus no such factual grounding; neither guarantees correctness.               |
-| Why market intelligence in S&D?              | Attention-worthiness depends on current regime, sector/session and other available context.                                      |
-| How does this differ from TI?                | S&D uses bounded contextual measures; TI owns deeper claims, forecasts, thesis and scientific evaluation.                        |
-| Why can a candidate become STALE?            | Under the temporal amendment, a comparable evaluated non-match yields NOT_REDISCOVERED; evidence age is a separate freshness field.                                                                   |
-| What does DEFUNCT mean?                      | Material tolerance breach requiring a pre-terminal evaluation; verified recovery can occur before expiry/rejection.              |
-| What does EXPIRED mean?                      | An explicit scan/owner decision closed the ended window; clock-only window-ended status is separate and a quote cannot extend it.                                                   |
-| Why preserve rejection reason?               | To explain terminal decisions and evaluate failures, dismissals and expirations separately later.                                |
-| Can the same stock reappear?                 | Yes under another intent or a genuinely new episode after the prior one ends.                                                    |
-| Why a new episode?                           | To preserve the old outcome instead of rewriting/resurrecting failed history.                                                    |
-| Why immutable snapshots?                     | They preserve exactly what was observed and available at each decision.                                                          |
-| Why at least two observations for evolution? | Change requires comparable distinct samples; S1 alone cannot establish improvement.                                              |
-| What does relevance mean?                    | Fit to this versioned intent/horizon/context policy, with coverage and reasons.                                                  |
-| Is 0.94 a 94% chance of profit?              | No. Relevance is not a calibrated return probability.                                                                            |
-| Why horizon-relative scores?                 | The same evidence can matter differently over minutes, sessions or months.                                                       |
-| Can one underlying have several intents?     | Yes; each has explicit horizon, basis and independent episode history.                                                           |
-| What happens after market hours?             | Use labelled completed-session evidence; show ended windows independently of last-observed lifecycle.                                   |
-| How does ML fit?                             | Later evaluate all candidates including non-trades and propose versioned calibrated policies; no live self-learning in Sprint 2. |
-| How will LOB consume trades?                 | Future LOB references qualified, constructed TradeOpportunity revisions and derives readiness without granting authority.        |
-| Where does TI begin?                         | At an explicit deeper-analysis handoff carrying immutable Discovery evidence and exact horizon/identity.                         |
-| Where does TM begin?                         | At managed-risk/authority assessment before managed execution or explicit adoption; never from a discovery score.                |
+| Question                                     | Answer                                                                                                                              |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Why isn't every ScanMatch a candidate?       | Matching criteria alone may lack timely context, sufficient evidence or intent-relative relevance. Discovery may decline.           |
+| Is a candidate a trade recommendation?       | No. It means worth examining now; it has no constructed trade or authority.                                                         |
+| Why split Scan and Discovery?                | Scan tests criteria; Discovery evaluates attention-worthiness using intent/context and can accept other sources.                    |
+| Can Scan be used alone?                      | Yes; matches and run history are useful without candidates or an LLM.                                                               |
+| Can Discovery run without Scan?              | Yes through CandidateSource; Sprint 2 proves this with a synthetic source, with real external feeds later.                          |
+| Can S&D run without an LLM?                  | Yes; eligibility, relevance, snapshots and lifecycle are deterministic.                                                             |
+| Can I replace the hosted LLM?                | Yes through an explicit eligible profile/model rebind; actual old/new provenance remains.                                           |
+| Can S&D run without TradingView?             | Yes through the internal scanner and approved independent data input; no silent provider substitution.                              |
+| What if TradingView MCP is unavailable?      | Its run fails or is explicitly partial; select the internal profile for a new run if desired.                                       |
+| Why build an internal scanner?               | To prove replacement seams and provide a small native deterministic capability, not reproduce every vendor feature.                 |
+| What is Level-0?                             | Optional explanation, comparison and evidence-gap identification, not deep TI qualification or execution.                           |
+| What is grounded versus context-only?        | Verified citations to eligible supplied evidence versus no such factual grounding; neither guarantees correctness.                  |
+| Why market intelligence in S&D?              | Attention-worthiness depends on current regime, sector/session and other available context.                                         |
+| How does this differ from TI?                | S&D uses bounded contextual measures; TI owns deeper claims, forecasts, thesis and scientific evaluation.                           |
+| Why can a candidate become STALE?            | Under the temporal amendment, a comparable evaluated non-match yields NOT_REDISCOVERED; evidence age is a separate freshness field. |
+| What does DEFUNCT mean?                      | Material tolerance breach requiring a pre-terminal evaluation; verified recovery can occur before expiry/rejection.                 |
+| What does EXPIRED mean?                      | An explicit scan/owner decision closed the ended window; clock-only window-ended status is separate and a quote cannot extend it.   |
+| Why preserve rejection reason?               | To explain terminal decisions and evaluate failures, dismissals and expirations separately later.                                   |
+| Can the same stock reappear?                 | Yes under another intent or a genuinely new episode after the prior one ends.                                                       |
+| Why a new episode?                           | To preserve the old outcome instead of rewriting/resurrecting failed history.                                                       |
+| Why immutable snapshots?                     | They preserve exactly what was observed and available at each decision.                                                             |
+| Why at least two observations for evolution? | Change requires comparable distinct samples; S1 alone cannot establish improvement.                                                 |
+| What does relevance mean?                    | Fit to this versioned intent/horizon/context policy, with coverage and reasons.                                                     |
+| Is 0.94 a 94% chance of profit?              | No. Relevance is not a calibrated return probability.                                                                               |
+| Why horizon-relative scores?                 | The same evidence can matter differently over minutes, sessions or months.                                                          |
+| Can one underlying have several intents?     | Yes; each has explicit horizon, basis and independent episode history.                                                              |
+| What happens after market hours?             | Use labelled completed-session evidence; show ended windows independently of last-observed lifecycle.                               |
+| How does ML fit?                             | Later evaluate all candidates including non-trades and propose versioned calibrated policies; no live self-learning in Sprint 2.    |
+| How will LOB consume trades?                 | Future LOB references qualified, constructed TradeOpportunity revisions and derives readiness without granting authority.           |
+| Where does TI begin?                         | At an explicit deeper-analysis handoff carrying immutable Discovery evidence and exact horizon/identity.                            |
+| Where does TM begin?                         | At managed-risk/authority assessment before managed execution or explicit adoption; never from a discovery score.                   |
 
 ## 27. Risks, TBDs and acceptance
 

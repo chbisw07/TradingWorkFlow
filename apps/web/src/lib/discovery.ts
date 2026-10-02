@@ -76,6 +76,43 @@ export type ToleranceAssessment = {
   }>;
 };
 
+export type ObservationKind = "PRESENT" | "ABSENT" | "NOT_EVALUATED";
+
+export type TemporalObservation = {
+  observation_id: string;
+  run_id: string;
+  run_sequence: number;
+  observed_at: string;
+  source_data_time: string | null;
+  kind: ObservationKind;
+  coverage: string;
+  novelty: "NOVEL" | "DUPLICATE" | "UNKNOWN" | "REGRESSED";
+  relevance_score: string | number | null;
+  relevance_band: "LOW" | "MEDIUM" | "HIGH" | null;
+  relevance_model: string | null;
+  lifecycle_after: Candidate["lifecycle"] | null;
+  reason: string;
+  comparison_scope_version: number;
+  provider: string | null;
+  is_hot: boolean;
+};
+
+export type TemporalSummary = {
+  latest_observation_kind: ObservationKind;
+  last_observed_at: string;
+  latest_comparable_run_id: string;
+  latest_attempted_run_id: string;
+  latest_present_run_id: string | null;
+  last_known_relevance: string | number | null;
+  relevance_delta: string | number | null;
+  relevance_model: string | null;
+  hot_count: number;
+  total_count: number;
+  window_status: "OPEN" | "ENDED" | "UNKNOWN";
+  observation_age_seconds: number;
+  recent_observations: TemporalObservation[];
+};
+
 export type Candidate = {
   candidate_id: string;
   episode_id: string;
@@ -103,6 +140,7 @@ export type Candidate = {
   originating_scan_run_id: string | null;
   latest_scan_run_id: string | null;
   updated_at: string;
+  temporal: TemporalSummary | null;
 };
 
 export type MarketContext = {
@@ -165,6 +203,7 @@ export type CandidateDetail = Candidate & {
   explanations: LlmExplanation[];
   context: MarketContext | null;
   previous_episode_id: string | null;
+  observations: TemporalObservation[];
 };
 
 export type LlmExplanation = {
@@ -227,6 +266,31 @@ export type HistoricalScanDetail = {
   market_context: MarketContext | null;
 };
 
+export type TemporalHistoryPage = {
+  items: TemporalObservation[];
+  total: number;
+  limit: number;
+  offset: number;
+  hot_size: number;
+  as_of: string;
+};
+
+export type RunViewMode = "as_scanned" | "current_state";
+
+export type RunTemporalView = {
+  run_id: string;
+  mode: RunViewMode;
+  summary: ScanSummary;
+  items: Array<{
+    instrument: Instrument;
+    observation: TemporalObservation;
+    candidate: Candidate | null;
+  }>;
+  limit: number;
+  offset: number;
+  total: number;
+};
+
 export type ScanResult = {
   summary: ScanSummary;
   matches: ScanMatch[];
@@ -252,6 +316,7 @@ export type DiscoverySettings = {
   freshness_seconds: number;
   retention_days: number;
   max_history_items: number;
+  hot_observation_count: number;
 };
 
 export async function discoveryApi<T>(

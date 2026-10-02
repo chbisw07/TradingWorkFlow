@@ -2,16 +2,17 @@
 
 ## 1. Decision, scope and authority
 
-**Date:** 2026-10-01  
+**Decision date:** 2026-10-01
 **Decision:** **ACCEPT WITH REFINEMENT / GO_IMPLEMENTATION**  
-**Status:** normative design for a future implementation; **NOT IMPLEMENTED**  
-**Review baseline:** `main`, `df6f97d1d5c7298c9547b277af060c7cdd5043a1`; clean worktree before this documentation task.
+**Implementation date:** 2026-10-02
+**Status:** **IMPLEMENTED / PENDING USER VALIDATION AND INDEPENDENT ACCEPTANCE**
+**Implementation baseline:** `main`, `461fae487c978e3391b32b127832456d172d9d86`; implementation remains uncommitted in this task.
 
 Yes: TWF can remain a lean, scan-driven observation system. Accept immutable scan results, derived candidate state, bounded recent history and a compact historical core. Reject interpreting missing rows as failed conditions, replacing the historical record with a twenty-item ring, and treating a tiny score/state tuple as sufficient replay evidence.
 
-This is a focused amendment to the [S&D architecture](TWF_SCAN_AND_DISCOVER_ARCHITECTURE.md) and [Opportunity domain](TWF_OPPORTUNITY_DOMAIN_ARCHITECTURE.md). It supersedes their time-driven effective lifecycle, STALE meaning, comparison-series and temporal storage rules **for the future scan-driven implementation**. All other domain, ownership, provider, security and execution boundaries remain. In particular, the dated [data architecture section 28](TWF_DATA_ARCHITECTURE.md#28-discovery-data-ownership-and-immutable-history--2026-09-28) reference to GET-derived expiry becomes a separate `window_status`, not a change to lifecycle. No accepted historical review is rewritten.
+This is a focused amendment to the [S&D architecture](TWF_SCAN_AND_DISCOVER_ARCHITECTURE.md) and [Opportunity domain](TWF_OPPORTUNITY_DOMAIN_ARCHITECTURE.md). It supersedes their time-driven effective lifecycle, STALE meaning, comparison-series and temporal storage rules **for the implemented scan-driven temporal layer**. All other domain, ownership, provider, security and execution boundaries remain. In particular, the dated [data architecture section 28](TWF_DATA_ARCHITECTURE.md#28-discovery-data-ownership-and-immutable-history--2026-09-28) reference to GET-derived expiry becomes a separate `window_status`, not a change to lifecycle. No accepted historical review is rewritten.
 
-The [implementation record](TWF_SPRINT2_SCAN_DISCOVER_IMPLEMENTATION.md) describes the current runtime, including its differing lifecycle behavior. Sprint 2 remains **IMPLEMENTED / READY FOR USER VALIDATION**; this decision does not accept or freeze Sprint 2, change U1/U2 implementation status, or start U3. No runtime, test, schema or migration change is part of this task. Existing S2-3 live-provider and licensing gates remain in force.
+The [implementation record](TWF_SPRINT2_SCAN_DISCOVER_IMPLEMENTATION.md) describes the current runtime and validation evidence. Sprint 2 remains **IMPLEMENTED / READY FOR USER VALIDATION**; this implementation does not accept or freeze Sprint 2, change U1/U2 acceptance history, or start U3. Existing S2-3 live-provider and licensing gates remain in force.
 
 ### Normative principle
 
@@ -21,7 +22,7 @@ A view, background quote update, provider reconnect, compaction, archive action 
 
 ## 2. Repository findings and reconciliation
 
-These are source-inspection findings, not new execution/test results. Existing runtime test results do not validate the proposed temporal protocol. No backend tests were rerun for this documentation task.
+The table records the pre-implementation findings that motivated the accepted design. The implementation reconciliation after the table records how those gaps are now addressed; it does not rewrite the historical baseline.
 
 | Existing implementation                                                                                                                 | Reusable foundation                                                                                        | Gap / future change                                                                                                                                                                                                                                   |
 | --------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -37,6 +38,16 @@ These are source-inspection findings, not new execution/test results. Existing r
 | [0012](../apps/api/alembic/versions/0012_sprint2_scan_discover.py), [0013](../apps/api/alembic/versions/0013_discovery_scan_archive.py) | SQLAlchemy/Alembic ownership, durable history and reversible archival                                      | Additive migration needed later; never rewrite these accepted revisions. No HOT/COLD, observation coverage or durable processing frontier exists today.                                                                                               |
 
 Current ScanMatch payloads are not rewritten by later scans in the inspected product path. However, a historical detail view reformats stored evidence through today's `match_view`; exact historical presentation requires a pinned rendering/normalization version or the original stored explanation. A live-rendered explanation must not be mislabelled the original text.
+
+### Implementation reconciliation — 2026-10-02
+
+- Alembic revision `0014_discovery_temporal_state` adds comparison scopes, ordered temporal lanes, durable scan admission, immutable observations, semantic active slots and projection checkpoints without rewriting revisions 0012/0013 or inventing negative legacy history.
+- `DiscoveryObservation` accepts exactly `PRESENT`, `ABSENT` and `NOT_EVALUATED`. Coverage, comparison decision, sample novelty, admission and lifecycle effects remain separate typed facts. ABSENT is created only for a complete successful predicate evaluation; provider gaps, partial failures and instruments outside the requested universe remain NOT_EVALUATED.
+- Run admission allocates a durable owner/scope sequence before provider I/O. Provider work runs without a database transaction or lock. Finalization is idempotent, late/out-of-order observations remain immutable audit truth, and only the ordered authoritative frontier advances the current projection.
+- The semantic active-slot constraint fences concurrent episode creation by owner, exact instrument and comparison scope. Owner controls remain revisioned/audited reducer inputs. Clock passage changes freshness/window projections only; it does not create a lifecycle observation.
+- Candidate pages use bounded SQL ordering and batched temporal summaries. The configured HOT window defaults to 20 and is bounded to 5–100; older immutable cores stay queryable as logical COLD rows in the same SQL store. Physical archive publication is not part of this implementation.
+- Candidate inspection exposes exact observation tuples and truthful score gaps/model breaks. Historical runs expose distinct **As scanned** and **Current state** views. Pre-temporal runs remain readable and are explicitly labelled as lacking reconstructed temporal observations.
+- Projection rebuild replays retained immutable cores and records a versioned checkpoint. Ordinary archive visibility never deletes temporal truth. Retention is an explicit seam only; no automatic purge or time-driven background monitor was introduced.
 
 ## 3. Minimal domain model
 
@@ -74,7 +85,7 @@ An episode adds an `episode_id`, immutable anchored window and reason for openin
 
 Do not identify by symbol, underlying alone, UI profile label, provider account, or broker token. NSE/BSE listings and derivative expiries retain separate identities. A verified mapping may relate them for display; it does not make their prices/evaluations equivalent. Provider brand is provenance; an unproven provider semantic class separates histories until equivalence is established. Credentials, connection IDs and reconnect generations remain provenance, not new candidate identities.
 
-Relevance model is **not** the lifecycle identity: a scoring-only revision can continue the episode, with a new score series. A change to admission, tolerance or lifecycle rules starts an explicitly versioned scope/episode lineage. The existing implementation's policy-change expiry behavior remains historical; the future model must not call a configuration change market deterioration or elapsed expiry.
+Relevance model is **not** the lifecycle identity: a scoring-only revision can continue the episode, with a new score series. A change to admission, tolerance or lifecycle rules starts an explicitly versioned scope/episode lineage. The existing implementation's policy-change expiry behavior remains historical; the implemented model does not call a configuration change market deterioration or elapsed expiry.
 
 ### Comparison key and per-instrument predicate
 
@@ -253,7 +264,7 @@ Preserve original `originating_run_id`, `latest_effective_comparable_run_id`, `l
 
 Sparkline contract: timestamp, kind, optional actual relevance/band/model, score-series ID, reason, novelty and source quality. PRESENT gives a measured point only when scored; ABSENT is a gap/absence marker; NOT_EVALUATED is an unknown marker/gap. Never interpolate a line through either gap. Duplicate samples remain inspectable without implying independent confirmation. A model/version change starts a new score segment. Delta is defined only between comparable scored PRESENT observations of the same score series, with intervening absence/unknown disclosed.
 
-Queue contract separates `lifecycle_as_observed`, cause observation/control event, `last_observed_at`, nullable `source_data_time`, last scored relevance/time/version, freshness, window validity, pending projection state, and legacy/replay limitations. Keep current v2-first/legacy-labelled ranking behavior as a presentation cohort policy; no cross-version mathematical conversion. Future U3/sparkline/run-navigation UI is not implemented here.
+Queue contract separates `lifecycle_as_observed`, cause observation/control event, `last_observed_at`, nullable `source_data_time`, last scored relevance/time/version, freshness, window validity, pending projection state, and legacy/replay limitations. Current v2-first/legacy-labelled ranking remains a presentation cohort policy; no cross-version mathematical conversion is invented. The implemented sparkline and run-navigation views are bounded temporal inspection surfaces and do not start U3, Opportunity, Watchlists or continuous monitoring.
 
 For analytics retain full nomination/decline universe accounting, source availability times, exact identities/bases, model/profile versions, context references and censoring/retention reasons. Future +1/+3/+5-day returns, MFE/MAE, survival and calibration require a separately licensed outcome price series, pinned trading calendar, corporate-action and entry-reference basis. These cannot be computed from relevance tuples alone. Do not prepopulate invented outcome values. `evaluation_id` may later reference observation/episode IDs without changing their originals. Include untraded, rejected and archived episodes to avoid survivorship bias.
 
@@ -271,7 +282,9 @@ Ten thousand **historical** episodes need not retain ten thousand active HOT det
 
 Queue pages read at most 100 materialized projections via indexed filters, not all episodes plus N+1 historical payload scans. A selected timeline reads at most N HOT cores; older pages use stable keysets. Compaction/recovery uses bounded batches (initial 100 observations), byte limits and restart cursors. Count/sum counters are checkpointed, never reconstructed from all COLD history on each GET. Full replay is an explicit bounded streaming maintenance operation, not an interactive endpoint.
 
-## 12. Migration strategy (future only)
+## 12. Additive migration and legacy cutover
+
+Revision `0014_discovery_temporal_state` implements this additive cutover. It keeps legacy rows readable, creates no synthetic negative history and leaves accepted revisions 0012/0013 unchanged.
 
 1. Add versioned manifests, observation cores, active-scope/lane progress, control-event references and projection/checkpoint fields with a **new** Alembic revision. Preserve all accepted IDs and historical 0012/0013 migrations. Test PostgreSQL and SQLite upgrades, repeat upgrade, backup/restore and safe downgrade before enabling writes.
 2. Take a consistent migration boundary; use bounded per-owner backfill with durable progress. Import stored snapshots as legacy PRESENT observations only where run/identity linkage is authoritative. Preserve scores, thresholds, model IDs, evidence, lifecycle-at-recording and bytes/hashes of original payloads. Derive original/latest pointers using stored lineage, not today's UI selection.
@@ -281,7 +294,7 @@ Queue pages read at most 100 materialized projections via indexed filters, not a
 6. Retain archived flags and run/match/context graphs. Preserve v1/v2 scores in separate score series with no conversion. No backfill is entitled to make a real-data claim from synthetic data.
 7. Shadow-read the new projection and compare against the known old policy plus intentional semantic changes. Cut over per owner with a write fence: no simultaneous old/new projection writers. Either briefly pause admissions at cutover or persist new-version run intents behind the fence. Rollback before new writes is straightforward; after novel ABSENT/control events exist, old code cannot truthfully represent them. Refuse destructive downgrade without verified export and a specifically approved compatibility plan.
 
-Runtime changes needed are explicit: extend contracts for nullable negative observations, materialized STALE semantics and independent freshness/window fields; persist full coverage; replace broad active lookup with unique semantic scope; make reducer deterministic and bounded; reconcile the strict foundation/reference and product paths. Reuse authentication, MCP/ScanProvider ports, identity, snapshots, context, relevance values, revision patterns, archive UI ownership and error envelopes. Broker V2, TI/TM, execution and provider credential lifecycle remain untouched.
+The runtime now extends contracts for nullable negative observations and independent freshness/window fields, persists coverage, uses a semantic active-slot guard, and applies a deterministic bounded reducer. It reuses authentication, MCP/ScanProvider ports, identity, snapshots, context, relevance values, revision patterns, archive UI ownership and error envelopes. Broker V2, TI/TM, execution and provider credential lifecycle remain untouched. Legacy backfill, physical COLD publication and destructive downgrade remain deliberately absent.
 
 ## 13. Failure and corner-case matrix
 
@@ -318,7 +331,7 @@ Underlying → Universe / Watchlist → S&D → Opportunity / Trade Construction
 
 This is optional information flow, not compulsory orchestration. Each component remains independently usable. S&D works with an explicit instrument list, no Watchlist, LLM, broker or downstream service. Opportunity/Trade Construction may later accept other authorized inputs. LOB owns continuously monitored opportunity/actionability, exact structures, competitive readiness, entry/SL/TP/quantity and validity under its future design. It grants no automatic execution authority. Existing unmanaged manual broker trading remains independent; TM-governed execution still requires TM assessment before dispatch and explicit adoption afterward. Discovery has no execution edge.
 
-## 15. Future acceptance tests
+## 15. Acceptance tests and implementation evidence
 
 | ID  | Test                        | Required oracle                                                                                                                |
 | --- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
@@ -345,11 +358,11 @@ This is optional information flow, not compulsory orchestration. Each component 
 | U   | Migration                   | Preserve legacy/archived/mixed-profile/unknown-time fixtures, no invented ABSENT, repeat backfill idempotent; downgrade guard. |
 | V   | No transaction across I/O   | Block provider/segment upload; DB inspection proves other short writes progress and locks are released.                        |
 
-Run concurrency/migration/failure injection on disposable SQLite and PostgreSQL; source-code names alone are not race evidence. Test source timestamp regressions, holiday/calendar boundaries, equal cutoffs, clock rollback and unknown provenance. Retain U1/U2 queue/history/owner/no-trading regressions. These are planned tests; no runtime tests or migrations are created in this architecture pass.
+The implementation suite exercises the deterministic core on SQLite, including PRESENT→ABSENT→PRESENT, repeated absence, owner-fenced successors, explicit window closure, universe exclusion as NOT_EVALUATED, run views, replay/idempotency, HOT rollover, checkpoint rebuild, late/out-of-order completion, partial coverage, model-series transitions and owner isolation. PostgreSQL 16 validation completed the 0013→0014 upgrade, repeat upgrade, downgrade and re-upgrade cycle with legacy-data preservation, then independently exercised two-session admission, same-run replay, concurrent comparable runs, monotonic finalization, duplicate-observation convergence, late-result quarantine and rebuild/append serialization. A scale probe covered 1,000 candidates and 20,200 observations; the 100-row temporal-summary page and 100-row COLD page each used two SQL statements. Repository validation also retains U1/U2 queue/history/owner/no-trading regressions.
 
 ## 16. Adversarial findings
 
-Severities describe the unrefined proposal/current gaps. Blocking architectural questions below are resolved by this design; implementation remains outstanding.
+Severities describe the original unrefined proposal and pre-implementation gaps. The accepted design resolved the architecture questions, and the 2026-10-02 implementation reconciliation above records the delivered controls. Final acceptance remains pending validation.
 
 | ID     | Severity              | Area                  | Concern                                                                                                | Recommendation                                                                                           |
 | ------ | --------------------- | --------------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
@@ -366,15 +379,15 @@ Severities describe the unrefined proposal/current gaps. Blocking architectural 
 | TSD-11 | DESIGN_REFINEMENT     | Archive meaning       | User archive can be confused with COLD/purge.                                                          | Visibility annotation independent of storage temperature and retention (§9).                             |
 | TSD-12 | IMPORTANT             | Analytics             | Tiny historical tuples alone cannot produce unbiased returns/MFE/MAE.                                  | Preserve denominators, timestamps, identity and licensed outcome-series seam (§10).                      |
 | TSD-13 | FUTURE                | Multi-source/LOB      | New monitoring/aggregation machinery could swallow S&D.                                                | Single-provider minimum; explicit aggregate seam; continuous actionability downstream (§14).             |
-| TSD-14 | NOTE                  | Validation            | Previous runtime acceptance counts are not evidence of a new schema/protocol.                          | Documentation validation only now; execute §15 during implementation.                                    |
+| TSD-14 | NOTE                  | Validation            | Previous runtime acceptance counts are not evidence of a new schema/protocol.                          | Execute and report §15 against the implemented schema/protocol before independent acceptance.            |
 
-## 17. Implementation phases and open decisions
+## 17. Implemented phases and bounded follow-up
 
 Three coherent phases; each includes portable persistence, failure tests and documentation. No micro-gate framework and no new message-bus dependency are required.
 
-1. **Temporal truth and safe cutover:** immutable run manifests/outcomes, semantic keys, durable admission/finalization, observation core, unique episode slot, pure reducer and additive legacy migration. Preserve existing UI via clearly versioned compatibility fields; verify default deny for missing coverage and all ordering/owner races before enabling new writes.
-2. **Bounded operational history:** indexed projection reads, 20-item logical HOT window, compact COLD core/detail policy, verified checkpoints, quotas and safe tiering/export if required. Exercise large-history and rollover/crash tests; same SQL DB is a valid first archive tier.
-3. **Temporal product views:** distinct lifecycle/freshness/window labels, gaps/model segments, run “as scanned” versus current state, source/comparison explanations and retained history. This is a future separately authorized UI scope, not permission to start U3 here.
+1. **Temporal truth and safe cutover — IMPLEMENTED:** immutable outcomes, semantic scopes, durable admission/finalization, observation core, semantic active slots, deterministic reducer and additive migration.
+2. **Bounded operational history — IMPLEMENTED:** indexed/batched projection reads, configurable 5–100 logical HOT window (default 20), retained same-SQL COLD cores, checkpoints and explicit rebuild. Physical archive/export remains a later capacity-driven option and cannot weaken retained truth.
+3. **Temporal product views — IMPLEMENTED:** distinct observation/lifecycle/freshness/window facts, accessible gaps/model segments, exact inspector history and run **As scanned** versus **Current state**. This bounded surface does not authorize U3, Watchlists, custom horizons or background monitoring.
 
 Deferred/separately designed: Watchlists / Universe Management; Custom Typed Time Horizon; Opportunity; Trade Construction; LOB implementation; event-driven continuous monitoring; background candidate reevaluation (outside S&D, not an implied phase); ML calibration; calibrated absence-terminal policies; multi-provider arbitration beyond the conservative seam. Their absence does not block the explicit-list, single-provider implementation.
 
@@ -399,8 +412,8 @@ OUT_OF_ORDER_POLICY = ordered admitted-run finalization; newer pending result wa
 IDEMPOTENCY_KEY = owner + comparison_scope_id + instrument_id + run_id
 MIXED_PROVIDER_COMPARABILITY = denied unless versioned semantic equivalence is certified
 MIXED_PROFILE_VERSION_COMPARABILITY = same semantic class only; changed criteria default incompatible
-IMPLEMENTATION_STATUS = NOT_IMPLEMENTED
+IMPLEMENTATION_STATUS = IMPLEMENTED_PENDING_USER_VALIDATION_AND_INDEPENDENT_ACCEPTANCE
 ARCHITECTURE_DECISION = GO_IMPLEMENTATION
 ```
 
-The central question is answered **YES** with the refinements above. Observation truth, precise absence, bounded storage, deterministic recovery and the S&D/LOB boundary are specified. GO_IMPLEMENTATION is a design-readiness decision, not a claim of shipped behavior or authorization to implement runtime during this documentation task.
+The central implementation question is answered **YES** by repository implementation and internal evidence. Observation truth, precise absence, bounded storage, deterministic recovery and the S&D/LOB boundary are implemented. This does not accept or freeze Sprint 2; user validation and independent acceptance remain pending.

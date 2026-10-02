@@ -141,6 +141,11 @@ test("Scan & Discover presents a responsive evidence workstation with route-leve
   const relianceQueueRow = discoveryQueue.locator(
     '[data-candidate-symbol="RELIANCE"]',
   );
+  await expect(
+    relianceQueueRow.getByRole("img", {
+      name: /Recent observation trend:.*Present/,
+    }),
+  ).toBeVisible();
   await relianceQueueRow.getByRole("button", { name: "Review" }).click();
   const detail = page.getByRole("complementary", { name: "RELIANCE" });
   await expect(page.locator(".scan-workstation-grid")).toHaveClass(
@@ -163,6 +168,14 @@ test("Scan & Discover presents a responsive evidence workstation with route-leve
   await expect(detail).toContainText("Optional AI explanation");
   await expect(detail).toContainText("Evidence available");
   await expect(detail).toContainText("Within");
+  await expect(
+    detail.getByRole("heading", { name: "Observation history" }),
+  ).toBeVisible();
+  await expect(detail).toContainText("Last observed");
+  await expect(detail).toContainText("Latest comparable scan");
+  await expect(
+    detail.getByRole("img", { name: /Recent observation trend:.*Present/ }),
+  ).toBeVisible();
   expect(
     await detail.evaluate(
       (element) => element.scrollWidth <= element.clientWidth + 1,
@@ -215,8 +228,20 @@ test("Scan & Discover presents a responsive evidence workstation with route-leve
   await expect(
     page.getByRole("heading", { name: /Viewing historical scan/ }),
   ).toBeVisible();
+  await page.getByText(/Stored match evidence/).click();
   await expect(
     page.getByRole("table", { name: "Historical scan matches" }),
+  ).toContainText("RELIANCE");
+  const runView = page.getByRole("group", { name: "Historical run view" });
+  await expect(
+    runView.getByRole("button", { name: "As scanned" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    page.getByRole("table", { name: "Immutable observations from this run" }),
+  ).toContainText("Present");
+  await runView.getByRole("button", { name: "Current state" }).click();
+  await expect(
+    page.getByRole("table", { name: "Current candidate state for this run" }),
   ).toContainText("RELIANCE");
   expect(
     await page

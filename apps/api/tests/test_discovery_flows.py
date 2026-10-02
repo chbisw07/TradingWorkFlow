@@ -16,7 +16,6 @@ from discovery_support import (
     scan_run,
     window,
 )
-from pydantic import ValidationError
 
 from twf.discovery.domain import (
     CandidateInput,
@@ -300,8 +299,8 @@ def test_ownership_revision_identity_and_window_guards() -> None:
         service.discover(
             context(owner=OTHER), source_input(), intent(), window(), fixture_id("forged-owner")
         )
-    with pytest.raises(ValidationError):
-        replace(head, lifecycle=State.STALE)
+    stale = replace(head, lifecycle=State.STALE)
+    assert stale.lifecycle == State.STALE
 
 
 def test_concurrent_append_compare_and_swap_has_one_winner() -> None:

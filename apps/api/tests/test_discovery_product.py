@@ -437,20 +437,23 @@ def test_no_match_and_provider_status(product_client: TestClient) -> None:
     assert status[0]["last_success_at"] is not None
 
 
-def test_multi_provider_merges_evidence_with_distinct_lineage(product_client: TestClient) -> None:
+def test_provider_streams_remain_distinct_without_certified_equivalence(
+    product_client: TestClient,
+) -> None:
     first = post(product_client, "/api/v1/discovery/scans", scan_payload(universe=["RELIANCE"]))
     second = post(
         product_client,
         "/api/v1/discovery/scans",
         scan_payload(universe=["RELIANCE"], provider="tradingview-synthetic"),
     )
-    assert first["candidates"][0]["candidate_id"] == second["candidates"][0]["candidate_id"]
-    assert set(second["candidates"][0]["provider_sources"]) >= {"twf-native", "tradingview"}
+    assert first["candidates"][0]["candidate_id"] != second["candidates"][0]["candidate_id"]
+    assert first["candidates"][0]["provider_sources"] == ["twf-native"]
+    assert "tradingview" in second["candidates"][0]["provider_sources"]
     detail = product_client.get(
         f"/api/v1/discovery/candidates/{second['candidates'][0]['candidate_id']}"
     ).json()
-    assert len(detail["snapshots"]) == 2
-    assert detail["snapshots"][1]["source_data_time"] is None
+    assert len(detail["snapshots"]) == 1
+    assert detail["snapshots"][0]["source_data_time"] is None
 
 
 def test_llm_is_optional_grounded_and_has_no_authority(product_client: TestClient) -> None:

@@ -4,7 +4,7 @@
 **Audience:** product owner/operator  
 **Result of this plan:** observations for later adversarial review and hardening; it does not itself freeze Sprint 2
 
-This plan reflects the **final product stabilization before formal user validation**.
+This plan reflects the **final product stabilization and scan-driven temporal-state implementation before formal user validation**.
 
 ## Before starting
 
@@ -108,40 +108,51 @@ Run each **Market context requirement** policy:
 
 Also exercise the existing stale-context test path where available. Confirm missing, unavailable, and stale are distinct and no absent evidence is presented as neutral.
 
-### 10. Snapshot evolution and tolerance
+### 10. Scan-driven temporal history and run truth
+
+- In Discovery settings, confirm **Recent observation window** defaults to 20, accepts 5 through 100 and rejects values outside that range. It controls recent rich detail only; it must not imply deletion of older history.
+- Run one setup where a symbol is PRESENT, then a complete comparable run where it is ABSENT, then another where it is PRESENT. Confirm the same eligible episode records three immutable observations and the latest queue state follows the last authoritative observation.
+- Confirm an instrument outside the requested universe or unresolved by a partial provider run is NOT_EVALUATED, never ABSENT. Repeated/duplicate source samples must not create false confirmation or a false relevance delta.
+- Inspect a queue row and candidate **Observation history**. Confirm it shows last observed time, observation kind, latest effective and present lineage, relevance delta only within a compatible model series, and an accessible sparkline with visible gaps/model breaks.
+- Page beyond the configured HOT window through the observation endpoint/test workflow. Confirm older rows remain available and labelled cold rather than being deleted or overwritten.
+- Open a stored run and switch between **As scanned** and **Current state**. Confirm the immutable run relation does not change, while Current state may show a newer projection or successor. A pre-temporal run must say temporal observations are unavailable instead of reconstructing false history.
+- Leave the page open past a horizon/freshness boundary without running a scan. Confirm the labelled freshness/window projection may age, while lifecycle and observation count do not change.
+- Confirm there is no timer, background-monitoring control, Watchlist/custom-horizon workflow, Opportunity/LOB promotion or trading action in these temporal surfaces.
+
+### 11. Snapshot evolution and tolerance
 
 - Run the same symbol, intent, horizon, and provider at least twice.
 - Confirm the episode moves from a first observation to a comparable current projection and its relevance/evidence can progress deterministically.
 - Confirm **Snapshot history** is newest-first and contains separately numbered immutable observations.
 - Inspect **Horizon-aware tolerance**. Confirm the presentation uses text plus green/amber/red/grey semantics for **Within**, **Near limit**, **Outside**, **Unknown**, or **Unavailable**, retains backend state in accessible detail, explains that tolerance means structural validity for the selected horizon, and does not imply profit, sizing, stop-loss, or trading authority.
 
-### 11. Lifecycle controls and fresh episode
+### 12. Lifecycle controls and fresh episode
 
 - Mark a current candidate defunct, then recover it while allowed; confirm each manual change explains its consequence, requires confirmation, and preserves transition history.
 - Dismiss a test candidate and rerun the same setup.
 - Confirm a new episode links to the prior terminal episode rather than resurrecting it.
 - Attempt an action from a stale browser revision and confirm the UI requests a reload rather than overwriting newer state.
 
-### 12. Optional Level-0 explanation
+### 13. Optional Level-0 explanation
 
 - With the feature disabled, confirm all core discovery behavior works and the candidate says how to enable Optional AI explanation.
 - Enable the controlled synthetic provider, generate an explanation, and confirm grounding, provider/model, prompt version, time, evidence references, and limitations are shown.
 - Select a non-synthetic provider and confirm a typed unavailable result without silent synthetic substitution.
 - Confirm relevance and lifecycle never change because of the explanation.
 
-### 13. Restart persistence
+### 14. Restart persistence
 
 - Record one scan ID, candidate episode, snapshot count, lifecycle, and saved settings.
 - Restart the API and web app without deleting the database.
-- Confirm recent and archived scans, archive state, candidate state, snapshots, transitions, context, explanations, and settings remain present and no terminal episode is resurrected.
+- Confirm recent and archived scans, archive state, candidate state, immutable observations, HOT/COLD pagination, snapshots, transitions, context, explanations, checkpoints, and settings remain present and no terminal episode is resurrected.
 
-### 14. Owner isolation
+### 15. Owner isolation
 
 - Sign in as the second test user.
-- Confirm the first user’s active and archived scans, candidates, evidence, context, explanations, and settings are absent.
+- Confirm the first user’s active and archived scans, candidates, observations, temporal summaries, evidence, context, explanations, and settings are absent.
 - In a test environment, direct requests to view, archive, or restore another owner’s scan and to read another owner’s candidate must return the canonical not-found response.
 
-### 15. UX and responsive review
+### 16. UX and responsive review
 
 Review Scanners, Candidates, candidate detail, and discovery settings at widths 390, 768, 1024, 1440, 1920, and 2560+:
 

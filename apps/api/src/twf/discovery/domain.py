@@ -488,6 +488,111 @@ class DiscoveryLifecycleState(StrEnum):
     REJECTED = "REJECTED"
 
 
+class DiscoveryObservationKind(StrEnum):
+    """Mechanical result for one instrument in one admitted scan."""
+
+    PRESENT = "PRESENT"
+    ABSENT = "ABSENT"
+    NOT_EVALUATED = "NOT_EVALUATED"
+
+
+class EvaluationCoverage(StrEnum):
+    EVALUATED = "EVALUATED"
+    NOT_REQUESTED = "NOT_REQUESTED"
+    PARTIAL_FAILURE = "PARTIAL_FAILURE"
+    MISSING_DATA = "MISSING_DATA"
+    PROVIDER_UNAVAILABLE = "PROVIDER_UNAVAILABLE"
+    SKIPPED = "SKIPPED"
+    INCOMPLETE = "INCOMPLETE"
+
+
+class ObservationComparison(StrEnum):
+    COMPARABLE = "COMPARABLE"
+    INCOMPARABLE = "INCOMPARABLE"
+
+
+class SourceNovelty(StrEnum):
+    NOVEL = "NOVEL"
+    DUPLICATE = "DUPLICATE"
+    UNKNOWN = "UNKNOWN"
+    REGRESSED = "REGRESSED"
+
+
+class ScanComparabilityDescriptor(Contract):
+    """Versioned semantic identity; operational/provider credentials are excluded."""
+
+    schema_version: Literal[1] = 1
+    criteria_fingerprint: Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")]
+    profile_semantic_class: Identifier
+    direction: Literal["LONG", "SHORT", "NEUTRAL"]
+    intent: Identifier
+    horizon: HorizonSpec
+    observation_basis: Identifier
+    provider_equivalence_class: Identifier
+    data_mode: SourceMode
+    admission_policy: Identifier
+    lifecycle_policy: RevisionRef
+
+    @property
+    def fingerprint(self) -> str:
+        return digest(self.model_dump(mode="json"))
+
+
+class DiscoveryObservation(Contract):
+    """Immutable temporal input. Lifecycle-after is an auditable cached reduction."""
+
+    observation_id: UUID
+    owner_id: UUID
+    comparison_scope_id: UUID
+    episode_id: UUID | None = None
+    candidate_id: UUID | None = None
+    run_id: UUID
+    run_sequence: PositiveInt
+    instrument_id: UUID
+    kind: DiscoveryObservationKind
+    comparison: ObservationComparison
+    coverage: EvaluationCoverage
+    novelty: SourceNovelty
+    source_sample_key: str | None = Field(default=None, max_length=128)
+    observed_at: Instant
+    source_data_time: Instant | None = None
+    recorded_at: Instant
+    scan_match_id: UUID | None = None
+    snapshot_id: UUID | None = None
+    relevance_score: Score | None = None
+    relevance_band: RelevanceBand | None = None
+    relevance_policy: RevisionRef | None = None
+    lifecycle_after: DiscoveryLifecycleState | None = None
+    reason: Identifier
+    evidence_ids: tuple[UUID, ...] = Field(default=(), max_length=128)
+    context_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def truthful(self) -> Self:
+        if self.recorded_at < self.observed_at:
+            raise ValueError("Observation cannot be recorded before it was observed")
+        if self.kind == DiscoveryObservationKind.PRESENT:
+            if self.coverage != EvaluationCoverage.EVALUATED or self.scan_match_id is None:
+                raise ValueError("PRESENT requires evaluated coverage and a ScanMatch")
+        elif self.scan_match_id is not None:
+            raise ValueError("Only PRESENT may reference a ScanMatch")
+        if self.kind == DiscoveryObservationKind.ABSENT:
+            if self.coverage != EvaluationCoverage.EVALUATED:
+                raise ValueError("ABSENT requires definitive evaluated coverage")
+            if self.relevance_score is not None or self.relevance_band is not None:
+                raise ValueError("ABSENT relevance is always null")
+        if self.kind == DiscoveryObservationKind.NOT_EVALUATED:
+            if self.coverage == EvaluationCoverage.EVALUATED:
+                raise ValueError("NOT_EVALUATED cannot claim evaluated coverage")
+            if self.relevance_score is not None or self.relevance_band is not None:
+                raise ValueError("NOT_EVALUATED relevance is always null")
+        if (self.episode_id is None) != (self.candidate_id is None):
+            raise ValueError("Candidate and episode references are both present or both absent")
+        if self.source_data_time is not None and self.source_data_time > self.recorded_at:
+            raise ValueError("Future source observation")
+        return self
+
+
 class RejectionReason(StrEnum):
     DEFUNCT_CONFIRMED = "DEFUNCT_CONFIRMED"
     EXPIRED = "EXPIRED"
@@ -517,8 +622,6 @@ class DiscoveryEpisode(Contract):
     def coherent(self) -> Self:
         if self.intent.owner_id != self.owner_id:
             raise ValueError("Intent owner mismatch")
-        if self.lifecycle == DiscoveryLifecycleState.STALE:
-            raise ValueError("STALE is a projection, not durable episode state")
         if (self.lifecycle == DiscoveryLifecycleState.REJECTED) != (
             self.rejection_reason is not None
         ):

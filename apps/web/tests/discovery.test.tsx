@@ -15,6 +15,7 @@ const settings = {
   freshness_seconds: 900,
   retention_days: 90,
   max_history_items: 50,
+  hot_observation_count: 20,
 };
 const context = {
   context_id: "10000000-0000-0000-0000-000000000001",
@@ -132,6 +133,58 @@ const candidate = {
   originating_scan_run_id: "70000000-0000-0000-0000-000000000000",
   latest_scan_run_id: "70000000-0000-0000-0000-000000000001",
   updated_at: "2026-09-30T06:00:00Z",
+  temporal: {
+    latest_observation_kind: "NOT_EVALUATED",
+    last_observed_at: "2026-09-30T05:00:00Z",
+    latest_comparable_run_id: "70000000-0000-0000-0000-000000000000",
+    latest_attempted_run_id: "70000000-0000-0000-0000-000000000001",
+    latest_present_run_id: "70000000-0000-0000-0000-000000000000",
+    last_known_relevance: "0.76",
+    relevance_delta: null,
+    relevance_model: "deterministic-relevance-v2@2",
+    hot_count: 2,
+    total_count: 2,
+    window_status: "OPEN",
+    observation_age_seconds: 3600,
+    recent_observations: [
+      {
+        observation_id: "80000000-0000-0000-0000-000000000001",
+        run_id: "70000000-0000-0000-0000-000000000000",
+        run_sequence: 1,
+        observed_at: "2026-09-30T05:00:00Z",
+        source_data_time: "2026-09-30T04:59:00Z",
+        kind: "PRESENT",
+        coverage: "EVALUATED",
+        novelty: "NOVEL",
+        relevance_score: "0.76",
+        relevance_band: "MEDIUM",
+        relevance_model: "deterministic-relevance-v2@2",
+        lifecycle_after: "NEW",
+        reason: "first-observation",
+        comparison_scope_version: 1,
+        provider: "twf-native",
+        is_hot: true,
+      },
+      {
+        observation_id: "80000000-0000-0000-0000-000000000002",
+        run_id: "70000000-0000-0000-0000-000000000001",
+        run_sequence: 2,
+        observed_at: "2026-09-30T06:00:00Z",
+        source_data_time: null,
+        kind: "NOT_EVALUATED",
+        coverage: "PARTIAL_FAILURE",
+        novelty: "UNKNOWN",
+        relevance_score: null,
+        relevance_band: null,
+        relevance_model: null,
+        lifecycle_after: "NEW",
+        reason: "provider-partial-failure",
+        comparison_scope_version: 1,
+        provider: "twf-native",
+        is_hot: true,
+      },
+    ],
+  },
 };
 const detail = {
   ...candidate,
@@ -185,6 +238,44 @@ const detail = {
   explanations: [],
   context,
   previous_episode_id: null,
+  observations: [
+    {
+      observation_id: "80000000-0000-0000-0000-000000000002",
+      run_id: "70000000-0000-0000-0000-000000000001",
+      run_sequence: 2,
+      observed_at: "2026-09-30T06:00:00Z",
+      source_data_time: null,
+      kind: "NOT_EVALUATED",
+      coverage: "PARTIAL_FAILURE",
+      novelty: "UNKNOWN",
+      relevance_score: null,
+      relevance_band: null,
+      relevance_model: null,
+      lifecycle_after: "NEW",
+      reason: "provider-partial-failure",
+      comparison_scope_version: 1,
+      provider: "twf-native",
+      is_hot: true,
+    },
+    {
+      observation_id: "80000000-0000-0000-0000-000000000001",
+      run_id: "70000000-0000-0000-0000-000000000000",
+      run_sequence: 1,
+      observed_at: "2026-09-30T05:00:00Z",
+      source_data_time: "2026-09-30T04:59:00Z",
+      kind: "PRESENT",
+      coverage: "EVALUATED",
+      novelty: "NOVEL",
+      relevance_score: "0.76",
+      relevance_band: "MEDIUM",
+      relevance_model: "deterministic-relevance-v2@2",
+      lifecycle_after: "NEW",
+      reason: "first-observation",
+      comparison_scope_version: 1,
+      provider: "twf-native",
+      is_hot: true,
+    },
+  ],
 };
 const providers = [
   {
@@ -351,6 +442,11 @@ test("runs a bounded scan and exposes evidence, degradation, history and no trad
     "without-inspector",
   );
   const queue = screen.getByRole("table", { name: "Discovery queue" });
+  expect(
+    within(queue).getByRole("img", {
+      name: /Recent observation trend:.*Present.*Not evaluated/,
+    }),
+  ).toBeInTheDocument();
   const review = within(queue).getByRole("button", { name: "Review" });
   const selectedRow = review.closest("tr");
   fireEvent.click(review);
@@ -404,6 +500,15 @@ test("runs a bounded scan and exposes evidence, degradation, history and no trad
     within(inspector).getByText(/Enable it under Settings/),
   ).toBeInTheDocument();
   expect(within(inspector).getByText(/Snapshot 1/)).toBeInTheDocument();
+  const temporalHistory = within(inspector)
+    .getByRole("heading", { name: "Observation history" })
+    .closest("section");
+  expect(temporalHistory).not.toBeNull();
+  expect(
+    within(temporalHistory as HTMLElement).getAllByText("Not evaluated").length,
+  ).toBeGreaterThan(0);
+  expect(temporalHistory).toHaveTextContent("Partial failure");
+  expect(temporalHistory).toHaveTextContent("Provider partial failure");
   expect(
     within(inspector).getByRole("button", {
       name: "Copy candidate identifier",
@@ -558,6 +663,24 @@ test("manages five recent scans, complete setup reuse, archived history and past
         ],
         market_context: context,
       });
+    if (url.includes(`/scans/${summaries[0].run_id}/temporal?mode=`)) {
+      const currentState = url.includes("mode=current_state");
+      return json({
+        run_id: summaries[0].run_id,
+        mode: currentState ? "current_state" : "as_scanned",
+        summary: summaries[0],
+        items: [
+          {
+            instrument: { ...candidate.instrument, symbol: "AAA" },
+            observation: candidate.temporal.recent_observations[0],
+            candidate: currentState ? candidate : null,
+          },
+        ],
+        limit: 100,
+        offset: 0,
+        total: 1,
+      });
+    }
     if (url.endsWith(`/${summaries[0].run_id}/archive`)) return json(archived);
     if (url.endsWith(`/${summaries[0].run_id}/restore`))
       return json(summaries[0]);
@@ -584,6 +707,22 @@ test("manages five recent scans, complete setup reuse, archived history and past
   expect(
     screen.getByRole("table", { name: "Historical scan matches" }),
   ).toHaveTextContent("Stored historical reason");
+  expect(
+    await screen.findByRole("table", {
+      name: "Immutable observations from this run",
+    }),
+  ).toHaveTextContent("Present");
+  fireEvent.click(screen.getByRole("button", { name: "Current state" }));
+  expect(
+    await screen.findByRole("table", {
+      name: "Current candidate state for this run",
+    }),
+  ).toHaveTextContent("NEW");
+  expect(
+    fetcher.mock.calls.some((call) =>
+      String(call[0]).includes("mode=current_state"),
+    ),
+  ).toBe(true);
   expect(screen.getByLabelText(/Universe symbols/)).toHaveValue(
     "RELIANCE, MCX, HDFCBANK, INFY, BSE, NIFTY, BANKNIFTY",
   );
@@ -791,6 +930,10 @@ test("discovery settings save all bounded values with revision", async () => {
   vi.stubGlobal("fetch", fetcher);
   render(<DiscoverySettingsSection />);
   await screen.findByLabelText("Default provider");
+  expect(screen.getByLabelText("Recent observation window")).toHaveValue(20);
+  fireEvent.change(screen.getByLabelText("Recent observation window"), {
+    target: { value: "5" },
+  });
   fireEvent.click(screen.getByLabelText("Enable optional AI explanation"));
   fireEvent.click(
     screen.getByRole("button", { name: "Save discovery defaults" }),
@@ -801,6 +944,7 @@ test("discovery settings save all bounded values with revision", async () => {
     revision: 0,
     llm_enabled: true,
     llm_provider: "synthetic",
+    hot_observation_count: 5,
   });
 });
 
