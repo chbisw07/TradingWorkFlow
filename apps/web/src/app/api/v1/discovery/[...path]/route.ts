@@ -13,6 +13,7 @@ async function forward(
     request.method === "GET"
       ? /^(status|settings|scans|candidates|market-context)$/.test(route) ||
         new RegExp(`^scans/${id}(/temporal)?$`).test(route) ||
+        new RegExp(`^scans/${id}/matches/${id}/evidence-chart$`).test(route) ||
         new RegExp(`^candidates/${id}(/observations)?$`).test(route)
       : request.method === "PUT"
         ? route === "settings"

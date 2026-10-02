@@ -12,6 +12,8 @@ from twf.discovery.product import (
     CandidateDetail,
     DiscoverySettings,
     DiscoverySettingsUpdate,
+    EvidenceChart,
+    EvidenceChartMode,
     HistoricalScanDetail,
     LifecycleRequest,
     LLMExplanation,
@@ -94,6 +96,16 @@ def scan_history(
 @router.get("/scans/{run_id}")
 def scan_detail(run_id: UUID, service: Service) -> HistoricalScanDetail:
     return service.historical_detail(run_id)
+
+
+@router.get("/scans/{run_id}/matches/{match_id}/evidence-chart")
+def evidence_chart(
+    run_id: UUID,
+    match_id: UUID,
+    service: Service,
+    mode: Annotated[EvidenceChartMode, Query()] = EvidenceChartMode.AS_SCANNED,
+) -> EvidenceChart:
+    return service.evidence_chart(run_id, match_id, mode)
 
 
 @router.get("/scans/{run_id}/temporal")

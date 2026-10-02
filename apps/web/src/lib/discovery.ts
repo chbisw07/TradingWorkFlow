@@ -350,3 +350,85 @@ export async function discoveryApi<T>(
   }
   return response.json() as Promise<T>;
 }
+
+export type EvidenceChartMode = "as_scanned" | "current";
+export type EvidenceChartState =
+  | "AVAILABLE"
+  | "LEGACY_UNAVAILABLE"
+  | "CURRENT_UNAVAILABLE"
+  | "RATE_LIMITED"
+  | "AUTH_REQUIRED"
+  | "RETENTION_RESTRICTED"
+  | "RECONSTRUCTION_FAILED";
+
+export type EvidenceChart = {
+  mode: EvidenceChartMode;
+  state: EvidenceChartState;
+  message: string | null;
+  run_id: string;
+  match_id: string;
+  instrument: Instrument;
+  scan_time: string;
+  source_data_time: string | null;
+  profile: string;
+  profile_revision: number;
+  definition_revision: number;
+  intent: string;
+  horizon: string;
+  provider: string;
+  data_mode: string;
+  timeframe: string;
+  price_unit: string;
+  bar_finality: "COMPLETED" | "PROVIDER_UNSPECIFIED";
+  bars: Array<{
+    timestamp: string;
+    open: string | number;
+    high: string | number;
+    low: string | number;
+    close: string | number;
+    volume: string | number | null;
+    finality: "COMPLETED" | "PROVIDER_UNSPECIFIED";
+  }>;
+  series: Array<{
+    key: string;
+    label: string;
+    panel: "PRICE" | "VOLUME" | "OSCILLATOR";
+    points: Array<{ timestamp: string; value: string | number }>;
+  }>;
+  thresholds: Array<{
+    key: string;
+    label: string;
+    panel: "PRICE" | "VOLUME" | "OSCILLATOR";
+    value: string | number;
+    kind: "LINE" | "UPPER" | "LOWER";
+  }>;
+  predicates: Array<{
+    metric: string;
+    label: string;
+    observed: string | number;
+    operator: "LT" | "LTE" | "EQ" | "GTE" | "GT";
+    threshold: string | number;
+    unit: string;
+    matched: boolean;
+  }>;
+  metrics: Array<{
+    key: string;
+    label: string;
+    value: string | number;
+    unit: string;
+  }>;
+  retention: {
+    source_class:
+      | "SYNTHETIC_RETAINED"
+      | "LICENSED_RETAINED"
+      | "PROVIDER_RESTRICTED"
+      | "LEGACY_UNKNOWN";
+    historical_chart_reconstructable: boolean;
+    scan_bars_retained: boolean;
+    current_chart_available: boolean;
+    archive_bar_count: number;
+    displayed_bar_count: number;
+    limitation: string;
+  };
+  provenance: string;
+};

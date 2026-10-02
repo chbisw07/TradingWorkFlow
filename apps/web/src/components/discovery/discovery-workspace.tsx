@@ -14,6 +14,8 @@ import {
   type ContextMode,
   type ContextPolicy,
   type DiscoverySettings,
+  type EvidenceChart,
+  type EvidenceChartMode,
   type Evidence,
   type HistoricalScanDetail,
   type LlmExplanation,
@@ -25,6 +27,7 @@ import {
   type TemporalObservation,
   type ScanSummary,
 } from "../../lib/discovery";
+import { EvidenceChartDrawer } from "./evidence-chart-drawer";
 import { SurfaceState } from "../ui/surface-state";
 
 type View = "scan" | "candidates";
@@ -1314,12 +1317,18 @@ function HistoricalScanView({
   mode,
   onMode,
   onBack,
+  onOpenEvidence,
 }: {
   detail: HistoricalScanDetail;
   temporal: RunTemporalView | null;
   mode: RunViewMode;
   onMode: (mode: RunViewMode) => void;
   onBack: () => void;
+  onOpenEvidence: (
+    runId: string,
+    matchId: string,
+    trigger: HTMLButtonElement,
+  ) => void;
 }) {
   const { summary, matches, market_context: context } = detail;
   return (
@@ -1473,7 +1482,22 @@ function HistoricalScanView({
               {matches.map((match) => (
                 <tr key={match.match_id}>
                   <td data-label="Symbol">
-                    <strong>{match.symbol}</strong>
+                    <button
+                      type="button"
+                      className="evidence-symbol-link"
+                      aria-label={`View scan evidence chart for ${match.symbol}`}
+                      title="View scan evidence chart"
+                      onClick={(event) =>
+                        onOpenEvidence(
+                          summary.run_id,
+                          match.match_id,
+                          event.currentTarget,
+                        )
+                      }
+                    >
+                      {match.symbol}
+                      <span aria-hidden="true">↗</span>
+                    </button>
                     <span>
                       {match.exchange} · {match.segment}
                     </span>
@@ -2088,7 +2112,64 @@ export function DiscoveryWorkspace({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [toast, setToast] = useState("");
+  const [evidenceChart, setEvidenceChart] = useState<EvidenceChart | null>(
+    null,
+  );
+  const [evidenceIdentity, setEvidenceIdentity] = useState<{
+    runId: string;
+    matchId: string;
+  } | null>(null);
+  const [evidenceLoading, setEvidenceLoading] = useState(false);
+  const evidenceTriggerRef = useRef<HTMLButtonElement | null>(null);
   const inspectorRef = useRef<HTMLElement>(null);
+
+  async function loadEvidenceChart(
+    runId: string,
+    matchId: string,
+    mode: EvidenceChartMode,
+  ) {
+    setEvidenceLoading(true);
+    try {
+      setEvidenceChart(
+        await discoveryApi<EvidenceChart>(
+          `scans/${runId}/matches/${matchId}/evidence-chart?mode=${mode}`,
+        ),
+      );
+    } catch {
+      setEvidenceChart(null);
+      setError("Unable to load scan evidence chart.");
+      setEvidenceIdentity(null);
+    } finally {
+      setEvidenceLoading(false);
+    }
+  }
+
+  function openEvidenceChart(
+    runId: string,
+    matchId: string,
+    trigger: HTMLButtonElement,
+  ) {
+    evidenceTriggerRef.current = trigger;
+    setEvidenceIdentity({ runId, matchId });
+    setEvidenceChart(null);
+    setError("");
+    void loadEvidenceChart(runId, matchId, "as_scanned");
+  }
+
+  function changeEvidenceMode(mode: EvidenceChartMode) {
+    if (!evidenceIdentity || mode === evidenceChart?.mode) return;
+    void loadEvidenceChart(
+      evidenceIdentity.runId,
+      evidenceIdentity.matchId,
+      mode,
+    );
+  }
+
+  function closeEvidenceChart() {
+    evidenceTriggerRef.current?.focus();
+    setEvidenceIdentity(null);
+    setEvidenceChart(null);
+  }
 
   function applyLoadedState(
     providerState: ProviderStatus[],
@@ -2565,6 +2646,14 @@ export function DiscoveryWorkspace({
 
   return (
     <div className="discovery-workspace">
+      {evidenceIdentity ? (
+        <EvidenceChartDrawer
+          chart={evidenceChart}
+          loading={evidenceLoading}
+          onClose={closeEvidenceChart}
+          onMode={changeEvidenceMode}
+        />
+      ) : null}
       <header className="discovery-hero">
         <div>
           <p className="eyebrow">SCAN &amp; DISCOVER</p>
@@ -2857,6 +2946,7 @@ export function DiscoveryWorkspace({
                     setRunTemporal(null);
                     setSelectedHistory(null);
                   }}
+                  onOpenEvidence={openEvidenceChart}
                 />
               ) : result ? (
                 <section
@@ -2946,7 +3036,22 @@ export function DiscoveryWorkspace({
                         {result.matches.map((match) => (
                           <tr key={match.match_id}>
                             <td data-label="Symbol">
-                              <strong>{match.symbol}</strong>
+                              <button
+                                type="button"
+                                className="evidence-symbol-link"
+                                aria-label={`View scan evidence chart for ${match.symbol}`}
+                                title="View scan evidence chart"
+                                onClick={(event) =>
+                                  openEvidenceChart(
+                                    result.summary.run_id,
+                                    match.match_id,
+                                    event.currentTarget,
+                                  )
+                                }
+                              >
+                                {match.symbol}
+                                <span aria-hidden="true">↗</span>
+                              </button>
                               <span>
                                 {match.exchange} · {match.segment}
                               </span>

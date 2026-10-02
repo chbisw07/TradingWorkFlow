@@ -966,3 +966,11 @@ UX and Broker V2 regression isolation. Use injected clocks and deterministic
 providers; acceptance must not depend solely on a live third-party service.
 
 The [2026-09-29 independent review](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) accepts the three-document architecture. Begin with the bounded S2-1 domain/contracts and synthetic-fixture gate; resolve provider/data/policy decisions before their dependent slices. Architecture acceptance is not provider acceptance, live deployment permission, runtime completion or a new Git freeze. The review records the non-blocking relevance-palette follow-up for S2-6.
+
+## Scan evidence chart amendment — 2026-10-02
+
+The product may render an explanatory **Scan Evidence Chart** for a `PRESENT` match. Its immutable identity is `owner_id + run_id + scan_match_id`; a ticker alone never resolves historical evidence. **As scanned** is authoritative and contains only completed bars available at the run cutoff. **Current chart** is a separate latest-data projection and may never overwrite or relabel historical evidence.
+
+Revision `0015_discovery_evidence_series` retains one bounded source series per matched result rather than copying chart payloads into every observation. The chart response includes pinned profile/definition revisions, source provenance, OHLCV bars, profile-relevant indicator series, threshold overlays, normalized predicate evaluations, concise metrics, bar-finality semantics and explicit retention capabilities. The API recomputes each displayed rule with the scanner's accepted algorithms and rejects reconstruction when the retained series does not reconcile with persisted evidence within the scanner tolerance.
+
+Rendering remains explanatory: candles, aligned volume, scan marker and only indicators used by the pinned profile. It adds no arbitrary studies, drawings, trade construction, order controls, Opportunity or LOB authority. Synthetic fixtures are retained and reconstructable. Real-provider bars require an explicit licensing/capability decision; unavailable, rate-limited, authentication-required, restricted, legacy and integrity-failure states remain typed and never cause synthetic substitution.

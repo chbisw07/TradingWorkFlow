@@ -167,3 +167,15 @@ Review Scanners, Candidates, candidate detail, and discovery settings at widths 
 ## Record results
 
 For each workflow, record PASS/FAIL, browser/viewport, user-visible behavior, screenshots where helpful, and any mismatch between product wording and actual evidence. Classify findings as blocker, high hardening, medium hardening, low, or deferred research. Feed results into the later independent Sprint-2 acceptance review; do not relabel Sprint 2 accepted/frozen before that sequence completes.
+
+## Evidence-chart validation workflow — 2026-10-02
+
+1. Run each of the five profiles with deterministic synthetic data and open a matched symbol from **Latest scan result**.
+2. Confirm **As scanned** is selected, the synthetic badge is visible, the final candle/volume bar carries the scan marker, and the metric cards equal the normalized rule list.
+3. For relative volume, verify the final volume spike is visually obvious against the 20-day baseline. For breakout, verify the prior-high threshold and crossing. For momentum, verify ROC/RSI evidence. For pullback/trend continuation, verify only the pinned moving-average and pullback/trend references appear.
+4. Open an older run through **Recent scans → View → Stored match evidence** and confirm the selected historical run ID is shown rather than the latest candidate.
+5. Select **Current chart**. Confirm it is visibly distinct; where current provider data is unavailable, confirm the typed notice does not remove historical predicates.
+6. Repeat at 390, 768, 1024, 1440, 1920 and 2560 pixels. Confirm there is no page overflow, overlapping label, empty reserved region or clipped action, and that candles, thresholds and metric text remain legible.
+7. Use keyboard only: Tab to a symbol, open the drawer, move through the mode tabs, press Escape and confirm focus returns to the same symbol.
+
+Acceptance requires numerical reconciliation, no-lookahead behavior, owner isolation, truthful legacy/retention states and visual recognition of the matched evidence within seconds. This validation does not accept or freeze Sprint 2.

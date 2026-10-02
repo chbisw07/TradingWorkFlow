@@ -147,6 +147,7 @@ def test_lifecycle_and_contracts(settings: Settings) -> None:
             "/api/v1/discovery/scans",
             "/api/v1/discovery/scans/{run_id}",
             "/api/v1/discovery/scans/{run_id}/temporal",
+            "/api/v1/discovery/scans/{run_id}/matches/{match_id}/evidence-chart",
             "/api/v1/discovery/scans/{run_id}/archive",
             "/api/v1/discovery/scans/{run_id}/restore",
             "/api/v1/discovery/candidates",

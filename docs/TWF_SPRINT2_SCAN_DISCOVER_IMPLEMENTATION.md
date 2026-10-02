@@ -203,3 +203,11 @@ The consolidated [Sprint-2 hardening register](TWF_SPRINT2_HARDENING_REGISTER.md
 ## User-validation readiness
 
 The owner workflow is documented in [TWF Sprint-2 User Validation Plan](TWF_SPRINT2_USER_VALIDATION_PLAN.md). S2-4, S2-5, S2-6, and S2-7 are **IMPLEMENTED**. S2-8 is **IMPLEMENTED / INTERNAL VALIDATION COMPLETE**. Sprint 2 is **IMPLEMENTED / READY FOR USER VALIDATION** and is not accepted or frozen by this implementation task.
+
+## Scan evidence chart implementation — 2026-10-02
+
+The matched symbol in latest results and historical **As scanned** results now opens an on-demand, keyboard-accessible right drawer. It shows a visually compact navy/workstation chart with completed-bar candles, exact scan-time marker, aligned volume, profile-specific overlays, normalized pass/fail rules and matching metric cards. At mobile widths the drawer becomes a full-width sheet and SVG content scales without page overflow. The drawer traps keyboard focus, closes with Escape, restores focus to its trigger and provides textual equivalents for every visual predicate.
+
+The owner-scoped endpoint is `GET /api/v1/discovery/scans/{run_id}/matches/{match_id}/evidence-chart?mode=as_scanned|current`. Additive Alembic revision `0015_discovery_evidence_series` stores a bounded 260-bar archive only for matched results; the response window is capped at 72 bars. Historical reconstruction verifies persisted predicates with the exact `internal-scanner-v0` metric functions and includes no post-scan bars. Internal synthetic current data is independently reconstructed. TradingView validation currently returns a typed current-data restriction while preserving its retained synthetic as-scanned proof; this does not assert rights to retain live TradingView data.
+
+Legacy runs without an archive keep their numerical match evidence and return `LEGACY_UNAVAILABLE`. Corrupt or algorithmically inconsistent archives return `RECONSTRUCTION_FAILED`; no chart is drawn. Sprint 2 remains **IMPLEMENTED / READY FOR USER VALIDATION** and is not accepted or frozen by this feature.

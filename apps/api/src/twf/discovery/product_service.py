@@ -49,6 +49,7 @@ from twf.discovery.domain import (
     UnderlyingIdentity,
     digest,
 )
+from twf.discovery.evidence_chart import archive_payload, build_chart, unavailable_chart
 from twf.discovery.internal_scanner.conditions import measure as series_measure
 from twf.discovery.internal_scanner.market_series import (
     Bar,
@@ -67,6 +68,9 @@ from twf.discovery.product import (
     ContextDimension,
     ContextPolicy,
     DiscoverySettings,
+    EvidenceChart,
+    EvidenceChartMode,
+    EvidenceChartState,
     HistoricalScanDetail,
     HorizonChoice,
     IntentChoice,
@@ -104,6 +108,7 @@ from twf.infrastructure.discovery import (
     DiscoverySnapshotRecord,
     DiscoveryTransitionRecord,
     MarketContextRecord,
+    ScanEvidenceSeriesRecord,
     ScanMatchRecord,
     ScanRunRecord,
 )
@@ -750,6 +755,22 @@ class ScanDiscoverService:
                     run_id=run_id,
                     instrument_id=match.instrument.instrument_id,
                     payload=match.model_dump(mode="json"),
+                )
+            )
+            self.session.flush()
+            matched_series = next(
+                item
+                for item in series
+                if item.instrument.instrument_id == match.instrument.instrument_id
+            )
+            self.session.add(
+                ScanEvidenceSeriesRecord(
+                    match_id=match.scan_match_id,
+                    user_id=self.owner_id,
+                    run_id=run_id,
+                    instrument_id=match.instrument.instrument_id,
+                    captured_at=started,
+                    payload=archive_payload(matched_series, definition),
                 )
             )
             extra = tuple(
@@ -2356,6 +2377,109 @@ class ScanDiscoverService:
                 else MarketContextSnapshot.model_validate(context_row.payload)
             ),
         )
+
+    def evidence_chart(
+        self, run_id: UUID, match_id: UUID, mode: EvidenceChartMode
+    ) -> EvidenceChart:
+        run_row = self.session.scalar(
+            select(ScanRunRecord).where(
+                ScanRunRecord.id == run_id,
+                ScanRunRecord.user_id == self.owner_id,
+            )
+        )
+        match_row = self.session.scalar(
+            select(ScanMatchRecord).where(
+                ScanMatchRecord.id == match_id,
+                ScanMatchRecord.run_id == run_id,
+                ScanMatchRecord.user_id == self.owner_id,
+            )
+        )
+        if run_row is None or match_row is None:
+            raise ProductFailure(404, "SCAN_MATCH_NOT_FOUND")
+        summary = ScanSummary.model_validate(run_row.payload)
+        match = ScanMatch.model_validate(match_row.payload)
+        archive = self.session.scalar(
+            select(ScanEvidenceSeriesRecord).where(
+                ScanEvidenceSeriesRecord.match_id == match_id,
+                ScanEvidenceSeriesRecord.run_id == run_id,
+                ScanEvidenceSeriesRecord.user_id == self.owner_id,
+            )
+        )
+        if archive is None:
+            return unavailable_chart(
+                mode=mode,
+                state=EvidenceChartState.LEGACY_UNAVAILABLE,
+                message="Evidence chart unavailable for this legacy scan.",
+                match=match,
+                summary=summary,
+                source_class="LEGACY_UNKNOWN",
+            )
+        if mode == EvidenceChartMode.CURRENT and summary.provider != ProviderChoice.INTERNAL:
+            archived_bars = archive.payload.get("series", {}).get("bars", [])
+            provider_status = next(item for item in self.providers() if item.id == summary.provider)
+            unavailable_state = {
+                "RATE_LIMITED": EvidenceChartState.RATE_LIMITED,
+                "AUTH_REQUIRED": EvidenceChartState.AUTH_REQUIRED,
+                "DEGRADED": EvidenceChartState.CURRENT_UNAVAILABLE,
+            }.get(provider_status.health, EvidenceChartState.RETENTION_RESTRICTED)
+            unavailable_message = {
+                EvidenceChartState.RATE_LIMITED: (
+                    "Current chart unavailable: provider rate limited. "
+                    "As-scanned evidence remains available."
+                ),
+                EvidenceChartState.AUTH_REQUIRED: (
+                    "Current chart unavailable: provider authentication required. "
+                    "As-scanned evidence remains available."
+                ),
+                EvidenceChartState.CURRENT_UNAVAILABLE: (
+                    "Current chart unavailable: provider health is degraded. "
+                    "As-scanned evidence remains available."
+                ),
+                EvidenceChartState.RETENTION_RESTRICTED: (
+                    "Current chart unavailable: this validation provider has no licensed "
+                    "live chart-data capability. As-scanned evidence remains available."
+                ),
+            }[unavailable_state]
+            return unavailable_chart(
+                mode=mode,
+                state=unavailable_state,
+                message=unavailable_message,
+                match=match,
+                summary=summary,
+                source_class="PROVIDER_RESTRICTED",
+                historical_chart_reconstructable=True,
+                scan_bars_retained=True,
+                archive_bar_count=len(archived_bars),
+            )
+        current = None
+        if mode == EvidenceChartMode.CURRENT:
+            current = market_series(
+                match.instrument,
+                now_utc(),
+                self.fixture_progression(ProviderChoice.INTERNAL),
+            )
+        try:
+            return build_chart(
+                mode=mode,
+                match=match,
+                summary=summary,
+                archived_payload=archive.payload,
+                current_series=current,
+            )
+        except (KeyError, TypeError, ValueError):
+            return unavailable_chart(
+                mode=mode,
+                state=EvidenceChartState.RECONSTRUCTION_FAILED,
+                message=(
+                    "Evidence reconstruction failed integrity checks. Persisted numerical "
+                    "evidence remains available."
+                ),
+                match=match,
+                summary=summary,
+                source_class="LEGACY_UNKNOWN",
+                scan_bars_retained=True,
+                archive_bar_count=len(archive.payload.get("series", {}).get("bars", [])),
+            )
 
     def set_scan_archived(self, run_id: UUID, archived: bool) -> ScanSummary:
         row = self.session.scalar(

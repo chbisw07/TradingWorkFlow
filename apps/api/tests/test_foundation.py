@@ -84,6 +84,7 @@ def test_database_boundary() -> None:
             "discovery_projection_checkpoints",
             "discovery_scan_runs",
             "discovery_scan_matches",
+            "discovery_scan_evidence_series",
             "discovery_market_context",
             "discovery_episodes",
             "discovery_snapshots",

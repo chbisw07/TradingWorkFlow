@@ -417,3 +417,9 @@ ARCHITECTURE_DECISION = GO_IMPLEMENTATION
 ```
 
 The central implementation question is answered **YES** by repository implementation and internal evidence. Observation truth, precise absence, bounded storage, deterministic recovery and the S&D/LOB boundary are implemented. This does not accept or freeze Sprint 2; user validation and independent acceptance remain pending.
+
+## Evidence-chart temporal integration — 2026-10-02
+
+A chart is supporting evidence for an immutable `PRESENT` outcome; it is not candidate state. Historical lookup uses the originating run and match identity, so a later candidate projection cannot replace the evidence basis of an earlier observation. `ABSENT` and `NOT_EVALUATED` never receive fabricated positive charts. The archive table is additive to the observation ledger and holds one bounded source snapshot per matched result; observations continue to retain compact references and normalized evidence.
+
+**As scanned** uses only bars whose completion and availability are at or before the admitted run cutoff. It reuses the pinned definition revision and scanner algorithms. **Current chart** is an independent read projection and does not append an observation, change lifecycle/relevance, or rewrite a match. Missing legacy archives, provider retention limits and failed integrity reconciliation are explicit unavailable states. Revision `0015_discovery_evidence_series` does not change the ordering, admission, finalization, rebuild or logical HOT/COLD guarantees of revision `0014_discovery_temporal_state`.

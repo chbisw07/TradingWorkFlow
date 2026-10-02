@@ -418,3 +418,9 @@ Historical S2-3A reviews remain unchanged. The S2-3 Git checkpoint is ready but 
 ## Integrated S2-4 through S2-8 implementation — 2026-09-30
 
 The [implementation record](TWF_SPRINT2_SCAN_DISCOVER_IMPLEMENTATION.md), [consolidated hardening register](TWF_SPRINT2_HARDENING_REGISTER.md), and [user validation plan](TWF_SPRINT2_USER_VALIDATION_PLAN.md) are the current implementation-handoff documents. They do not supersede accepted S2-0 through S2-3 records. Sprint 2 is IMPLEMENTED / READY FOR USER VALIDATION and remains unaccepted/unfrozen until user testing, adversarial review, hardening, and verification complete.
+
+## Scan evidence chart implementation — 2026-10-02
+
+The accepted [Scan & Discover Architecture](TWF_SCAN_AND_DISCOVER_ARCHITECTURE.md) now records the bounded evidence-chart amendment. The [integrated implementation record](TWF_SPRINT2_SCAN_DISCOVER_IMPLEMENTATION.md) owns the runtime/API/migration description; the [user validation plan](TWF_SPRINT2_USER_VALIDATION_PLAN.md) owns visual, responsive and keyboard checks; the [temporal-state architecture](TWF_SND_SCAN_DRIVEN_TEMPORAL_STATE_ARCHITECTURE.md) owns immutable run/match identity and no-lookahead integration; and the [detailed roadmap](TWF_DETAILED_ROADMAP.md) records status without changing milestone acceptance.
+
+The implementation uses additive revision `0015_discovery_evidence_series` and remains **IMPLEMENTED / READY FOR USER VALIDATION**. Sprint 2 is not accepted or frozen. Live-provider historical retention still requires explicit provider capability/licensing evidence; synthetic validation data must not be presented as live.

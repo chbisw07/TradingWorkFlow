@@ -55,6 +55,26 @@ test("discovery proxy allows owner-scoped read-only scan detail", async () => {
   );
 });
 
+test("discovery proxy allows only immutable chart identity reads", async () => {
+  const fetcher = vi
+    .fn()
+    .mockResolvedValue(Response.json({ state: "AVAILABLE" }));
+  vi.stubGlobal("fetch", fetcher);
+  const runId = "70000000-0000-0000-0000-000000000001";
+  const matchId = "71000000-0000-0000-0000-000000000001";
+  const url = `https://web.example/api/v1/discovery/scans/${runId}/matches/${matchId}/evidence-chart?mode=as_scanned`;
+  const response = await GET(new Request(url), {
+    params: Promise.resolve({
+      path: ["scans", runId, "matches", matchId, "evidence-chart"],
+    }),
+  });
+  expect(response.status).toBe(200);
+  expect(fetcher).toHaveBeenCalledWith(
+    `http://api.example/api/v1/discovery/scans/${runId}/matches/${matchId}/evidence-chart?mode=as_scanned`,
+    expect.objectContaining({ method: "GET", cache: "no-store" }),
+  );
+});
+
 test("discovery proxy forwards only bounded scan archive and restore mutations", async () => {
   const fetcher = vi
     .fn()

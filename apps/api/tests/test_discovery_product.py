@@ -2,6 +2,7 @@
 
 from collections.abc import Iterator
 from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any, cast
 from uuid import UUID
@@ -15,7 +16,7 @@ from sqlalchemy import func, select
 
 from twf.auth import create_user
 from twf.config.settings import Settings
-from twf.discovery.product_service import identity, market_series
+from twf.discovery.product_service import ScanDiscoverService, identity, market_series
 from twf.infrastructure.database import (
     create_database_engine,
     create_session_factory,
@@ -1026,3 +1027,265 @@ def test_u2h_current_relevance_precedes_legacy_score_without_mutation(
     after = product_client.get(f"/api/v1/discovery/candidates/{candidate_ids[2]}").json()
     assert after["relevance"] == before["relevance"]
     assert after["snapshots"] == before["snapshots"]
+
+
+def test_evidence_chart_reconstructs_exact_bounded_as_scanned_series(
+    product_client: TestClient,
+) -> None:
+    result = post(
+        product_client,
+        "/api/v1/discovery/scans",
+        scan_payload(universe=["RELIANCE"], profile="BREAKOUT_WITH_VOLUME"),
+    )
+    run_id = result["summary"]["run_id"]
+    match = result["matches"][0]
+    response = product_client.get(
+        f"/api/v1/discovery/scans/{run_id}/matches/{match['match_id']}/evidence-chart"
+    )
+    assert response.status_code == 200
+    chart = response.json()
+    assert chart["state"] == "AVAILABLE"
+    assert chart["mode"] == "as_scanned"
+    assert chart["instrument"]["symbol"] == "RELIANCE"
+    assert 20 < len(chart["bars"]) <= 120
+    assert chart["bars"][-1]["timestamp"] <= result["summary"]["started_at"]
+    assert {item["key"] for item in chart["thresholds"]} == {"breakout-20"}
+    predicates = {item["metric"]: item for item in chart["predicates"]}
+    assert predicates["breakout.20"]["matched"] is True
+    assert abs(
+        Decimal(predicates["relative_volume.20"]["observed"])
+        - Decimal(match["key_metrics"]["relative_volume.20"])
+    ) <= Decimal("1e-9")
+    assert {item["panel"] for item in chart["series"]} >= {"VOLUME"}
+    assert chart["retention"]["archive_bar_count"] == 260
+    assert chart["retention"]["displayed_bar_count"] == len(chart["bars"])
+    assert all(item["finality"] == "COMPLETED" for item in chart["bars"])
+
+
+@pytest.mark.parametrize(
+    ("profile", "symbol", "expected_series", "expected_thresholds"),
+    [
+        (
+            "RELATIVE_VOLUME",
+            "MCX",
+            {"average-volume-20", "roc.10"},
+            {"roc.10-GT-0"},
+        ),
+        (
+            "MOMENTUM",
+            "MCX",
+            {"roc.10", "rsi.14"},
+            {"roc.10-GT-0", "rsi.14-GTE-50"},
+        ),
+        (
+            "BREAKOUT_WITH_VOLUME",
+            "RELIANCE",
+            {"average-volume-20"},
+            {"breakout-20"},
+        ),
+        (
+            "PULLBACK_IN_UPTREND",
+            "INFY",
+            {
+                "sma-20",
+                "sma-50",
+                "sma-200",
+                "pullback-upper",
+                "pullback-lower",
+                "roc.1",
+            },
+            {"roc.1-LT-0"},
+        ),
+        (
+            "TREND_CONTINUATION",
+            "NIFTY",
+            {"sma-50", "sma-200", "rsi.14"},
+            {"rsi.14-GTE-50", "rsi.14-LTE-80"},
+        ),
+    ],
+)
+def test_evidence_chart_overlays_follow_pinned_profile_rules(
+    product_client: TestClient,
+    profile: str,
+    symbol: str,
+    expected_series: set[str],
+    expected_thresholds: set[str],
+) -> None:
+    result = post(
+        product_client,
+        "/api/v1/discovery/scans",
+        scan_payload(universe=[symbol], profile=profile),
+    )
+    match = result["matches"][0]
+    chart = product_client.get(
+        "/api/v1/discovery/scans/{}/matches/{}/evidence-chart".format(
+            result["summary"]["run_id"], match["match_id"]
+        )
+    ).json()
+    assert chart["state"] == "AVAILABLE"
+    assert chart["profile"] == profile
+    with session_scope(cast(FastAPI, product_client.app).state.session_factory) as session:
+        persisted = session.get(ScanMatchRecord, UUID(match["match_id"]))
+        assert persisted is not None
+        pinned = persisted.payload
+    assert chart["profile_revision"] == pinned["profile"]["applied_revision"]
+    assert chart["definition_revision"] == pinned["definition_revision"]
+    assert expected_series <= {item["key"] for item in chart["series"]}
+    assert expected_thresholds <= {item["key"] for item in chart["thresholds"]}
+    assert {item["metric"] for item in chart["predicates"]} == {
+        item["name"]
+        for evidence in pinned["evidence"]
+        if evidence["category"] == "PROVIDER_SCAN"
+        for item in evidence["measures"]
+        if item["name"]
+        not in {
+            "threshold",
+            "operator",
+            "matched",
+            "price-unit",
+            "input-digest",
+        }
+    }
+
+
+def test_evidence_chart_current_mode_and_provider_unavailable_state(
+    product_client: TestClient,
+) -> None:
+    internal = post(
+        product_client,
+        "/api/v1/discovery/scans",
+        scan_payload(universe=["MCX"], profile="MOMENTUM"),
+    )
+    internal_match = internal["matches"][0]
+    current = product_client.get(
+        "/api/v1/discovery/scans/{}/matches/{}/evidence-chart".format(
+            internal["summary"]["run_id"], internal_match["match_id"]
+        ),
+        params={"mode": "current"},
+    )
+    assert current.status_code == 200
+    current_chart = current.json()
+    assert current_chart["mode"] == "current"
+    assert current_chart["state"] == "AVAILABLE"
+    assert all(item["metric"] in {"roc.10", "rsi.14"} for item in current_chart["predicates"])
+
+    validation = post(
+        product_client,
+        "/api/v1/discovery/scans",
+        scan_payload(
+            universe=["RELIANCE"],
+            provider="tradingview-synthetic",
+            profile="RELATIVE_VOLUME",
+        ),
+    )
+    validation_match = validation["matches"][0]
+    unavailable = product_client.get(
+        "/api/v1/discovery/scans/{}/matches/{}/evidence-chart".format(
+            validation["summary"]["run_id"], validation_match["match_id"]
+        ),
+        params={"mode": "current"},
+    ).json()
+    assert unavailable["state"] == "RETENTION_RESTRICTED"
+    assert unavailable["bars"] == []
+    assert unavailable["predicates"]
+    assert unavailable["retention"]["historical_chart_reconstructable"] is True
+    assert unavailable["retention"]["scan_bars_retained"] is True
+    assert unavailable["retention"]["archive_bar_count"] == 260
+    assert "As-scanned evidence remains available" in unavailable["message"]
+
+
+def test_evidence_chart_rate_limit_failure_is_typed_and_preserves_history(
+    product_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result = post(
+        product_client,
+        "/api/v1/discovery/scans",
+        scan_payload(
+            universe=["RELIANCE"],
+            provider="tradingview-synthetic",
+            profile="RELATIVE_VOLUME",
+        ),
+    )
+    original = ScanDiscoverService.providers
+
+    def rate_limited(service: ScanDiscoverService) -> tuple[Any, ...]:
+        return tuple(
+            item.model_copy(update={"health": "RATE_LIMITED"})
+            if item.id.value == "tradingview-synthetic"
+            else item
+            for item in original(service)
+        )
+
+    monkeypatch.setattr(ScanDiscoverService, "providers", rate_limited)
+    match = result["matches"][0]
+    chart = product_client.get(
+        "/api/v1/discovery/scans/{}/matches/{}/evidence-chart".format(
+            result["summary"]["run_id"], match["match_id"]
+        ),
+        params={"mode": "current"},
+    ).json()
+    assert chart["state"] == "RATE_LIMITED"
+    assert chart["message"] == (
+        "Current chart unavailable: provider rate limited. As-scanned evidence remains available."
+    )
+    assert chart["retention"]["historical_chart_reconstructable"] is True
+    assert chart["retention"]["archive_bar_count"] == 260
+
+
+def test_evidence_chart_owner_isolation_and_legacy_truthfulness(
+    product_client: TestClient,
+) -> None:
+    result = post(product_client, "/api/v1/discovery/scans", scan_payload(universe=["RELIANCE"]))
+    run_id = result["summary"]["run_id"]
+    match_id = result["matches"][0]["match_id"]
+    with session_scope(cast(FastAPI, product_client.app).state.session_factory) as session:
+        from twf.infrastructure.discovery import ScanEvidenceSeriesRecord
+
+        archive = session.get(ScanEvidenceSeriesRecord, UUID(match_id))
+        assert archive is not None
+        session.delete(archive)
+        session.commit()
+    legacy = product_client.get(
+        f"/api/v1/discovery/scans/{run_id}/matches/{match_id}/evidence-chart"
+    ).json()
+    assert legacy["state"] == "LEGACY_UNAVAILABLE"
+    assert legacy["bars"] == []
+    assert legacy["predicates"]
+
+    assert product_client.post("/api/v1/auth/logout", headers={"Origin": ORIGIN}).status_code == 200
+    assert (
+        product_client.post(
+            "/api/v1/auth/login",
+            json={"username": "bob", "password": PASSWORD},
+            headers={"Origin": ORIGIN},
+        ).status_code
+        == 200
+    )
+    denied = product_client.get(
+        f"/api/v1/discovery/scans/{run_id}/matches/{match_id}/evidence-chart"
+    )
+    assert denied.status_code == 404
+    assert denied.json()["error"]["code"] == "SCAN_MATCH_NOT_FOUND"
+
+
+def test_evidence_chart_integrity_failure_is_typed(product_client: TestClient) -> None:
+    result = post(product_client, "/api/v1/discovery/scans", scan_payload(universe=["RELIANCE"]))
+    run_id = result["summary"]["run_id"]
+    match_id = result["matches"][0]["match_id"]
+    with session_scope(cast(FastAPI, product_client.app).state.session_factory) as session:
+        from twf.infrastructure.discovery import ScanEvidenceSeriesRecord
+
+        archive = session.get(ScanEvidenceSeriesRecord, UUID(match_id))
+        assert archive is not None
+        payload = dict(archive.payload)
+        stored_series = dict(payload["series"])
+        bars = list(stored_series["bars"])
+        bars[-1] = {**bars[-1], "volume": 1}
+        archive.payload = {**payload, "series": {**stored_series, "bars": bars}}
+        session.commit()
+    chart = product_client.get(
+        f"/api/v1/discovery/scans/{run_id}/matches/{match_id}/evidence-chart"
+    ).json()
+    assert chart["state"] == "RECONSTRUCTION_FAILED"
+    assert chart["bars"] == []
+    assert chart["predicates"]

@@ -107,6 +107,51 @@ test("Scan & Discover presents a responsive evidence workstation with route-leve
     animations: "disabled",
   });
 
+  const evidenceTrigger = matches.getByRole("button", {
+    name: "View scan evidence chart for RELIANCE",
+  });
+  await evidenceTrigger.click();
+  const evidenceDrawer = page.getByRole("dialog", {
+    name: "RELIANCE evidence chart",
+  });
+  await expect(evidenceDrawer).toBeVisible();
+  await expect(
+    evidenceDrawer.getByRole("tab", { name: "As scanned" }),
+  ).toHaveAttribute("aria-selected", "true");
+  await expect(evidenceDrawer.getByText("SYNTHETIC DATA")).toBeVisible();
+  await expect(
+    evidenceDrawer.getByText("Price evidence", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    evidenceDrawer.getByText("Volume evidence", { exact: true }),
+  ).toBeVisible();
+  await expect(evidenceDrawer.getByText("Why this matched")).toBeVisible();
+  await expect(
+    evidenceDrawer.getByText("Relative volume").last(),
+  ).toBeVisible();
+  expect(
+    await evidenceDrawer.evaluate(
+      (element) => element.scrollWidth <= element.clientWidth + 1,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: info.outputPath("evidence-chart-open.png"),
+    fullPage: true,
+    animations: "disabled",
+  });
+  await page.screenshot({
+    path: info.outputPath("evidence-chart-viewport.png"),
+    animations: "disabled",
+  });
+  await page.screenshot({
+    path: info.outputPath("synthetic-as-scanned.png"),
+    fullPage: true,
+    animations: "disabled",
+  });
+  await page.keyboard.press("Escape");
+  await expect(evidenceDrawer).toHaveCount(0);
+  await expect(evidenceTrigger).toBeFocused();
+
   await expect(
     page.getByRole("button", { name: /Current scan \(2\)/ }),
   ).toHaveAttribute("aria-pressed", "true");
@@ -232,6 +277,23 @@ test("Scan & Discover presents a responsive evidence workstation with route-leve
   await expect(
     page.getByRole("table", { name: "Historical scan matches" }),
   ).toContainText("RELIANCE");
+  const historicalEvidenceTrigger = page
+    .getByRole("table", { name: "Historical scan matches" })
+    .getByRole("button", { name: "View scan evidence chart for RELIANCE" });
+  await historicalEvidenceTrigger.click();
+  const historicalEvidence = page.getByRole("dialog", {
+    name: "RELIANCE evidence chart",
+  });
+  await expect(historicalEvidence).toContainText("AS SCANNED");
+  await expect(historicalEvidence).toContainText(/Run [0-9a-f]{8}/);
+  await page.screenshot({
+    path: info.outputPath("historical-run-evidence-chart.png"),
+    fullPage: true,
+    animations: "disabled",
+  });
+  await historicalEvidence
+    .getByRole("button", { name: "Close evidence chart" })
+    .click();
   const runView = page.getByRole("group", { name: "Historical run view" });
   await expect(
     runView.getByRole("button", { name: "As scanned" }),
@@ -282,6 +344,45 @@ test("Scan & Discover presents a responsive evidence workstation with route-leve
     fullPage: true,
     animations: "disabled",
   });
+
+  await page
+    .locator('select[aria-describedby="provider-help"]')
+    .selectOption("tradingview-synthetic");
+  const validationScanResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname === "/api/v1/discovery/scans" &&
+      response.ok(),
+  );
+  const validationRunButton = page.getByRole("button", { name: "Run scan" });
+  await validationRunButton.click();
+  await validationScanResponse;
+  await expect(validationRunButton).toBeEnabled();
+  await expect(
+    page.getByRole("heading", { name: "Latest scan result" }),
+  ).toBeVisible();
+  const validationMatches = page.getByRole("table", {
+    name: "Latest normalized scan matches",
+  });
+  await validationMatches
+    .getByRole("button", { name: "View scan evidence chart for RELIANCE" })
+    .click();
+  const unavailableChart = page.getByRole("dialog", {
+    name: "RELIANCE evidence chart",
+  });
+  await unavailableChart.getByRole("tab", { name: "Current chart" }).click();
+  await expect(unavailableChart).toContainText("RETENTION RESTRICTED");
+  await expect(unavailableChart).toContainText(
+    /As-scanned evidence remains available/,
+  );
+  await page.screenshot({
+    path: info.outputPath("unavailable-current-chart.png"),
+    fullPage: true,
+    animations: "disabled",
+  });
+  await unavailableChart
+    .getByRole("button", { name: "Close evidence chart" })
+    .click();
 
   await recentScans.getByRole("button", { name: "Archive" }).first().click();
   await expect(
@@ -336,6 +437,58 @@ test("Scan & Discover presents a responsive evidence workstation with route-leve
   await page.screenshot({
     path: info.outputPath("candidate-ledger.png"),
     fullPage: true,
+    animations: "disabled",
+  });
+  expect(errors).toEqual([]);
+});
+
+test("profile-aware pullback evidence renders its exact zone without clutter", async ({
+  page,
+  baseURL,
+}, info) => {
+  const width = page.viewportSize()!.width;
+  test.skip(
+    ![390, 1440].includes(width),
+    "Representative mobile and desktop visual validation only",
+  );
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  const login = await page.request.post("/api/v1/auth/login", {
+    headers: { Origin: baseURL! },
+    data: {
+      username: "discovery-" + info.project.name,
+      password: "test-only-browser-password",
+    },
+  });
+  expect(login.ok()).toBe(true);
+  await page.goto("/scanners");
+  await page
+    .locator('select[aria-describedby="profile-help"]')
+    .selectOption("PULLBACK_IN_UPTREND");
+  await page.getByLabel("Universe symbols").fill("INFY");
+  const runButton = page.getByRole("button", { name: "Run scan" });
+  await runButton.click();
+  await expect(runButton).toBeEnabled();
+  const matches = page.getByRole("table", {
+    name: "Latest normalized scan matches",
+  });
+  await matches
+    .getByRole("button", { name: "View scan evidence chart for INFY" })
+    .click();
+  const chart = page.getByRole("dialog", { name: "INFY evidence chart" });
+  await expect(chart).toBeVisible();
+  await expect(chart.locator(".chart-pullback-region")).toHaveCount(1);
+  await expect(chart).toContainText("Pullback zone upper");
+  await expect(chart).toContainText("Pullback zone lower");
+  await expect(chart).toContainText("SMA 50");
+  await expect(chart).toContainText("SMA 200");
+  expect(
+    await chart.evaluate(
+      (element) => element.scrollWidth <= element.clientWidth + 1,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: info.outputPath("pullback-evidence-chart.png"),
     animations: "disabled",
   });
   expect(errors).toEqual([]);

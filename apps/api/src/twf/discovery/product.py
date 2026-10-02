@@ -10,6 +10,7 @@ from pydantic import AwareDatetime, Field, field_validator, model_validator
 
 from twf.discovery.domain import (
     CandidateToleranceEnvelope,
+    Comparison,
     DiscoveryEvidence,
     DiscoveryLifecycleState,
     DiscoveryObservationKind,
@@ -242,6 +243,111 @@ class ScanMatchView(Contract):
     source_mode: str
     source_data_time: AwareDatetime | None = None
     lineage: str
+
+
+class EvidenceChartMode(StrEnum):
+    AS_SCANNED = "as_scanned"
+    CURRENT = "current"
+
+
+class EvidenceChartState(StrEnum):
+    AVAILABLE = "AVAILABLE"
+    LEGACY_UNAVAILABLE = "LEGACY_UNAVAILABLE"
+    CURRENT_UNAVAILABLE = "CURRENT_UNAVAILABLE"
+    RATE_LIMITED = "RATE_LIMITED"
+    AUTH_REQUIRED = "AUTH_REQUIRED"
+    RETENTION_RESTRICTED = "RETENTION_RESTRICTED"
+    RECONSTRUCTION_FAILED = "RECONSTRUCTION_FAILED"
+
+
+class EvidenceChartBar(Contract):
+    timestamp: AwareDatetime
+    open: Decimal = Field(gt=0)
+    high: Decimal = Field(gt=0)
+    low: Decimal = Field(gt=0)
+    close: Decimal = Field(gt=0)
+    volume: Decimal | None = Field(default=None, ge=0)
+    finality: Literal["COMPLETED", "PROVIDER_UNSPECIFIED"]
+
+
+class EvidenceChartPoint(Contract):
+    timestamp: AwareDatetime
+    value: Decimal = Field(allow_inf_nan=False)
+
+
+class EvidenceChartSeries(Contract):
+    key: str = Field(min_length=1, max_length=64)
+    label: str = Field(min_length=1, max_length=80)
+    panel: Literal["PRICE", "VOLUME", "OSCILLATOR"]
+    points: tuple[EvidenceChartPoint, ...] = Field(max_length=120)
+
+
+class EvidenceChartThreshold(Contract):
+    key: str = Field(min_length=1, max_length=64)
+    label: str = Field(min_length=1, max_length=120)
+    panel: Literal["PRICE", "VOLUME", "OSCILLATOR"]
+    value: Decimal = Field(allow_inf_nan=False)
+    kind: Literal["LINE", "UPPER", "LOWER"] = "LINE"
+
+
+class EvidenceChartPredicate(Contract):
+    metric: str = Field(min_length=1, max_length=64)
+    label: str = Field(min_length=1, max_length=120)
+    observed: Decimal = Field(allow_inf_nan=False)
+    operator: Comparison
+    threshold: Decimal = Field(allow_inf_nan=False)
+    unit: str = Field(min_length=1, max_length=32)
+    matched: bool
+
+
+class EvidenceChartMetric(Contract):
+    key: str = Field(min_length=1, max_length=64)
+    label: str = Field(min_length=1, max_length=80)
+    value: Decimal = Field(allow_inf_nan=False)
+    unit: str = Field(min_length=1, max_length=32)
+
+
+class EvidenceChartRetention(Contract):
+    source_class: Literal[
+        "SYNTHETIC_RETAINED",
+        "LICENSED_RETAINED",
+        "PROVIDER_RESTRICTED",
+        "LEGACY_UNKNOWN",
+    ]
+    historical_chart_reconstructable: bool
+    scan_bars_retained: bool
+    current_chart_available: bool
+    archive_bar_count: int = Field(ge=0, le=1024)
+    displayed_bar_count: int = Field(ge=0, le=120)
+    limitation: str = Field(min_length=1, max_length=320)
+
+
+class EvidenceChart(Contract):
+    mode: EvidenceChartMode
+    state: EvidenceChartState
+    message: str | None = Field(default=None, max_length=320)
+    run_id: UUID
+    match_id: UUID
+    instrument: InstrumentIdentity
+    scan_time: AwareDatetime
+    source_data_time: AwareDatetime | None = None
+    profile: str
+    profile_revision: int = Field(ge=1)
+    definition_revision: int = Field(ge=1)
+    intent: IntentChoice
+    horizon: HorizonChoice
+    provider: str
+    data_mode: str
+    timeframe: str
+    price_unit: str
+    bar_finality: Literal["COMPLETED", "PROVIDER_UNSPECIFIED"]
+    bars: tuple[EvidenceChartBar, ...] = Field(max_length=120)
+    series: tuple[EvidenceChartSeries, ...] = Field(max_length=12)
+    thresholds: tuple[EvidenceChartThreshold, ...] = Field(max_length=12)
+    predicates: tuple[EvidenceChartPredicate, ...] = Field(max_length=16)
+    metrics: tuple[EvidenceChartMetric, ...] = Field(max_length=16)
+    retention: EvidenceChartRetention
+    provenance: str = Field(min_length=1, max_length=320)
 
 
 class MatchAdmissionDecision(Contract):

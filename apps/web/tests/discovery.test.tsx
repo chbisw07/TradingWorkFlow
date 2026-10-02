@@ -300,6 +300,118 @@ const providers = [
   },
 ];
 
+function evidenceChart(mode: "as_scanned" | "current") {
+  const unavailable = mode === "current";
+  const bars = unavailable
+    ? []
+    : Array.from({ length: 24 }, (_, index) => ({
+        timestamp: new Date(Date.UTC(2026, 8, 7 + index, 6)).toISOString(),
+        open: String(100 + index * 0.45),
+        high: String(101 + index * 0.45),
+        low: String(99.5 + index * 0.45),
+        close: String(100.6 + index * 0.45),
+        volume: String(index === 23 ? 2400 : 1000),
+        finality: "COMPLETED",
+      }));
+  return {
+    mode,
+    state: unavailable ? "CURRENT_UNAVAILABLE" : "AVAILABLE",
+    message: unavailable
+      ? "Current chart unavailable; retained as-scanned evidence remains usable."
+      : null,
+    run_id: "70000000-0000-0000-0000-000000000001",
+    match_id: "71000000-0000-0000-0000-000000000001",
+    instrument: candidate.instrument,
+    scan_time: "2026-09-30T06:00:00Z",
+    source_data_time: unavailable ? null : "2026-09-30T06:00:00Z",
+    profile: "RELATIVE_VOLUME",
+    profile_revision: 1,
+    definition_revision: 1,
+    intent: "INTRADAY_LONG",
+    horizon: "5d",
+    provider: "twf-native",
+    data_mode: "SYNTHETIC",
+    timeframe: "1d",
+    price_unit: "INR",
+    bar_finality: unavailable ? "PROVIDER_UNSPECIFIED" : "COMPLETED",
+    bars,
+    series: unavailable
+      ? []
+      : [
+          {
+            key: "average-volume-20",
+            label: "20-day average volume",
+            panel: "VOLUME",
+            points: bars.map((bar) => ({
+              timestamp: bar.timestamp,
+              value: "1000",
+            })),
+          },
+          {
+            key: "roc.10",
+            label: "10-day momentum",
+            panel: "OSCILLATOR",
+            points: bars.map((bar, index) => ({
+              timestamp: bar.timestamp,
+              value: String(index / 10),
+            })),
+          },
+        ],
+    thresholds: [
+      {
+        key: "roc.10-GT-0",
+        label: "Required GT 0",
+        panel: "OSCILLATOR",
+        value: "0",
+        kind: "LINE",
+      },
+    ],
+    predicates: [
+      {
+        metric: "relative_volume.20",
+        label: "Relative volume",
+        observed: "2.4",
+        operator: "GTE",
+        threshold: "1.5",
+        unit: "ratio",
+        matched: true,
+      },
+      {
+        metric: "roc.10",
+        label: "10-day momentum",
+        observed: "2.8",
+        operator: "GT",
+        threshold: "0",
+        unit: "percent",
+        matched: true,
+      },
+    ],
+    metrics: unavailable
+      ? []
+      : [
+          { key: "close", label: "Scan price", value: "111", unit: "INR" },
+          {
+            key: "relative_volume.20",
+            label: "Relative volume",
+            value: "2.4",
+            unit: "ratio",
+          },
+        ],
+    retention: {
+      source_class: unavailable ? "PROVIDER_RESTRICTED" : "SYNTHETIC_RETAINED",
+      historical_chart_reconstructable: !unavailable,
+      scan_bars_retained: !unavailable,
+      current_chart_available: false,
+      archive_bar_count: unavailable ? 0 : 260,
+      displayed_bar_count: bars.length,
+      limitation: unavailable
+        ? "Current source is unavailable."
+        : "Deterministic validation bars are retained.",
+    },
+    provenance: "twf-native / 1 · internal-v0 1",
+  };
+}
+
 function json(data: unknown, status = 200) {
   return Promise.resolve({ ok: status < 400, status, json: async () => data });
 }
@@ -372,6 +484,10 @@ test("runs a bounded scan and exposes evidence, degradation, history and no trad
     if (url.includes("/candidates?"))
       return json({ items: init?.method === "POST" ? [] : [candidate] });
     if (url.endsWith("/settings")) return json(settings);
+    if (url.includes("/evidence-chart"))
+      return json(
+        evidenceChart(url.includes("mode=current") ? "current" : "as_scanned"),
+      );
     if (url.endsWith(`/scans/${scan.summary.run_id}`))
       return json({
         summary: scan.summary,
@@ -438,6 +554,32 @@ test("runs a bounded scan and exposes evidence, degradation, history and no trad
   expect(screen.getByText("Admitted")).toBeInTheDocument();
   expect(screen.getAllByText("Details").length).toBeGreaterThan(1);
   expect(screen.getAllByText("RELIANCE").length).toBeGreaterThan(0);
+  const evidenceTrigger = screen.getByRole("button", {
+    name: "View scan evidence chart for RELIANCE",
+  });
+  fireEvent.click(evidenceTrigger);
+  const chartDrawer = await screen.findByRole("dialog", {
+    name: "RELIANCE evidence chart",
+  });
+  expect(
+    within(chartDrawer).getByRole("tab", { name: "As scanned" }),
+  ).toHaveAttribute("aria-selected", "true");
+  expect(within(chartDrawer).getByText("SYNTHETIC DATA")).toBeInTheDocument();
+  expect(within(chartDrawer).getByText("Price evidence")).toBeInTheDocument();
+  expect(within(chartDrawer).getByText("Volume evidence")).toBeInTheDocument();
+  expect(within(chartDrawer).getAllByText("Passed")).toHaveLength(2);
+  fireEvent.click(
+    within(chartDrawer).getByRole("tab", { name: "Current chart" }),
+  );
+  expect(
+    await within(chartDrawer).findByText("CURRENT UNAVAILABLE"),
+  ).toBeInTheDocument();
+  fireEvent.keyDown(document, { key: "Escape" });
+  expect(
+    screen.queryByRole("dialog", { name: /evidence chart/i }),
+  ).not.toBeInTheDocument();
+  await act(async () => undefined);
+  expect(evidenceTrigger).toHaveFocus();
   expect(container.querySelector(".scan-workstation-grid")).toHaveClass(
     "without-inspector",
   );

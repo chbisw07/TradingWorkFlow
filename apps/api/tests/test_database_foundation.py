@@ -244,6 +244,7 @@ def test_migration_history_and_metadata() -> None:
         "discovery_projection_checkpoints",
         "discovery_scan_runs",
         "discovery_scan_matches",
+        "discovery_scan_evidence_series",
         "discovery_market_context",
         "discovery_episodes",
         "discovery_snapshots",
@@ -259,7 +260,7 @@ def test_migration_history_and_metadata() -> None:
         with db.connect() as connection:
             assert (
                 MigrationContext.configure(connection).get_current_revision()
-                == "0014_discovery_temporal_state"
+                == "0015_discovery_evidence_series"
             )
             assert inspect(connection).get_table_names() == [
                 "alembic_version",
@@ -276,6 +277,7 @@ def test_migration_history_and_metadata() -> None:
                 "discovery_observations",
                 "discovery_projection_checkpoints",
                 "discovery_scan_admissions",
+                "discovery_scan_evidence_series",
                 "discovery_scan_matches",
                 "discovery_scan_runs",
                 "discovery_settings",
@@ -298,7 +300,7 @@ def test_migration_history_and_metadata() -> None:
         with db.connect() as connection:
             assert (
                 MigrationContext.configure(connection).get_current_revision()
-                == "0014_discovery_temporal_state"
+                == "0015_discovery_evidence_series"
             )
     finally:
         db.dispose()

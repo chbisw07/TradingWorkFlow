@@ -467,3 +467,9 @@ The [focused temporal-state architecture](TWF_SND_SCAN_DRIVEN_TEMPORAL_STATE_ARC
 This implementation does not rename milestones, reopen Broker V2, complete U3, or freeze Sprint 2. The current program remains **IMPLEMENTED / READY FOR USER VALIDATION**. A literal overwrite ring, permanent history deletion, clock-driven lifecycle monitor, Watchlist/custom-horizon scope, Opportunity/LOB authority and background reevaluation remain outside this work.
 
 Watchlists / Universe Management, Custom Typed Time Horizon, Opportunity, Trade Construction, LOB implementation, event-driven continuous monitoring and ML calibration remain TBD/separately designed. Background candidate reevaluation is outside this S&D implementation scope. Existing real-provider/licensing hardening is not waived by design readiness.
+
+## Scan evidence chart implementation — 2026-10-02
+
+The Scan & Discover user-validation surface now includes an on-demand evidence chart for immutable matched results. Additive revision `0015_discovery_evidence_series`, its owner-scoped run-plus-match API and the responsive chart drawer provide exact synthetic as-scanned reconstruction, separate current-data projection, profile-aware candles/volume/overlays, scan markers, normalized rule explanations and typed retention/legacy failures. This is explanatory validation capability only; it adds no Opportunity, LOB, trading or background-monitoring scope.
+
+Status remains **IMPLEMENTED / READY FOR USER VALIDATION**. The chart feature does not mark Sprint 2 accepted/frozen and does not waive the successful-live-row or provider-licensing hardening items.
