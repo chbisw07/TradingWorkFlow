@@ -29,6 +29,32 @@ Object.assign(env, {
   ),
   TWF_DATABASE_URL: `sqlite+pysqlite:///${directory}/auth.db`,
   TWF_CORS_ORIGINS: '["http://127.0.0.1:3100"]',
+  TWF_MCP_PROVIDERS: JSON.stringify([
+    {
+      schema_version: "mcp.connection.v1",
+      provider_id: "tapetide",
+      display_name: "TapTide",
+      category: "MARKET_INTELLIGENCE",
+      endpoint: "https://mcp.tapetide.com/mcp",
+      auth_mode: "API_KEY",
+      timeout_seconds: 10,
+      max_response_bytes: 262144,
+      max_tools: 64,
+      max_pages: 4,
+      required_tools: [
+        "get_market_pulse",
+        "get_india_vix",
+        "get_fii_dii_detail",
+        "get_fpi_sectors",
+        "get_index_performance",
+        "get_market_news",
+        "get_stock_events",
+      ],
+      retry_count: 0,
+      refresh_policy: "EXPLICIT",
+      health_policy: "INITIALIZE_AND_LIST_TOOLS",
+    },
+  ]),
 });
 const setup = spawnSync(
   python,

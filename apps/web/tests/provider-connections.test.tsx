@@ -10,11 +10,16 @@ function response(data: unknown, status = 200) {
   return { ok: status < 400, status, json: async () => data };
 }
 
-function registration(providerId = "tapetide") {
+function registration(
+  providerId = "tapetide",
+  authMode: "NONE" | "API_KEY" | "OAUTH_2_1" = "API_KEY",
+  category: "MARKET_INTELLIGENCE" | "OTHER" = "MARKET_INTELLIGENCE",
+) {
   return {
     provider_id: providerId,
     display_name: providerId === "tapetide" ? "TapTide" : "Legacy provider",
-    auth_mode: "OAUTH_2_1",
+    auth_mode: authMode,
+    category,
   };
 }
 
@@ -125,7 +130,11 @@ test("shows Dhan market data and creates a configured TapTide connection", async
   fireEvent.click(
     await screen.findByRole("button", { name: "Add TapTide connection" }),
   );
-  await screen.findByRole("button", { name: "Authorize TapTide" });
+  await screen.findByRole("button", { name: "Connect TapTide" });
+  expect(screen.getByLabelText("Personal access token")).toHaveAttribute(
+    "type",
+    "password",
+  );
   const createCall = fetcher.mock.calls.find(
     ([url, init]) =>
       String(url).endsWith("/connections") && init?.method === "POST",
@@ -147,7 +156,7 @@ test("uses generation-fenced generic connection operations", async () => {
   render(<ProviderConnectionsSection />);
   await screen.findAllByText("Ready");
   fireEvent.click(screen.getByRole("button", { name: "Test connection" }));
-  await screen.findByText("TapTide: Test completed.");
+  await screen.findByText("TapTide: Ready.");
   const call = fetcher.mock.calls.find(([url]) =>
     String(url).endsWith("/test"),
   );
@@ -169,6 +178,38 @@ test("does not expose a configured legacy TradingView registration or connection
     "No market-intelligence MCP providers are configured.",
   );
   expect(screen.queryByText("TradingView")).not.toBeInTheDocument();
+});
+
+test("hides generic MCP registrations outside market intelligence", async () => {
+  vi.stubGlobal(
+    "fetch",
+    fetchByPath({
+      registrations: [registration("service", "NONE", "OTHER")],
+    }),
+  );
+  render(<ProviderConnectionsSection />);
+  await screen.findByText(
+    "No market-intelligence MCP providers are configured.",
+  );
+  expect(screen.queryByText("Legacy provider")).not.toBeInTheDocument();
+});
+
+test.each([
+  [{ health: "DEGRADED", error: "TOOL_NOT_FOUND" }, "Degraded"],
+  [{ health: "UNAVAILABLE", error: "RATE_LIMITED" }, "Rate limited"],
+])("renders truthful TapTide status", async (changes, label) => {
+  vi.stubGlobal(
+    "fetch",
+    fetchByPath({
+      registrations: [registration()],
+      connections: [connection(changes)],
+    }),
+  );
+  render(<ProviderConnectionsSection />);
+  expect((await screen.findAllByText(label)).length).toBeGreaterThan(0);
+  expect(screen.getByRole("button", { name: "Reload status" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Test connection" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Disconnect" })).toBeVisible();
 });
 
 test("generic callback scrubs OAuth parameters and completes the same-origin conduit", async () => {

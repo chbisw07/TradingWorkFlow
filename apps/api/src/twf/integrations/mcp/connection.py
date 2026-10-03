@@ -1145,8 +1145,19 @@ class ConnectionManager:
         self, who: Context, identity: UUID, generation: int
     ) -> ConnectionView:
         async def work() -> ConnectionView:
-            await self.tools(who, identity, generation)
-            return await self.write(lambda db: self.view(db, self.owned(db, who, identity)))
+            tools, _ = await self.tools(who, identity, generation)
+            discovered = {tool.name for tool in tools}
+
+            def assess(db: Session) -> ConnectionView:
+                row = self.owned(db, who, identity)
+                config = self.current(row, generation)
+                if set(config.required_tools) - discovered:
+                    row.health = Health.DEGRADED.value
+                    row.error = Code.TOOL_NOT_FOUND.value
+                    row.updated_at = datetime.now(UTC)
+                return self.view(db, row)
+
+            return await self.write(assess)
 
         timeout = min((p.timeout_seconds for p in self.providers.values()), default=0.05)
         return await self.operations.run(timeout, work)

@@ -133,7 +133,12 @@ def test_tapetide_normalizes_bounded_claims_with_provenance() -> None:
     assert len(manager.calls) == 7
     assert all(allowed == TAPTIDE_TOOLS for _, _, allowed in manager.calls)
     call_arguments = {name: arguments for name, arguments, _ in manager.calls}
-    assert call_arguments["get_index_performance"] == {"period": "1m", "category": "sectoral"}
+    assert call_arguments["get_index_performance"] == {
+        "category": "sectoral",
+        "granularity": "month",
+        "periods": 1,
+        "limit": 10,
+    }
     assert call_arguments["get_market_news"] == {"limit": 10}
     assert call_arguments["get_stock_events"] == {
         "symbol": "RELIANCE",
@@ -200,11 +205,19 @@ def test_tapetide_invalid_response_is_provider_error_without_raw_payload() -> No
 
 
 def test_tapetide_readiness_is_generic_connection_health() -> None:
-    provider = adapter(FakeManager(("get_market_pulse",)))
+    provider = adapter(FakeManager(tuple(TAPTIDE_TOOLS)))
     ready, state, success = provider.readiness()
     assert ready is True
     assert state == IntelligenceState.AVAILABLE
     assert success == datetime(2026, 10, 2, 10, tzinfo=UTC)
+
+
+def test_tapetide_readiness_requires_the_bounded_capability_set() -> None:
+    provider = adapter(FakeManager(("get_market_pulse",)))
+    ready, state, success = provider.readiness()
+    assert ready is False
+    assert state == IntelligenceState.PARTIAL
+    assert success is None
 
 
 def test_tapetide_unexpected_runtime_failure_is_sanitized_and_degradable() -> None:

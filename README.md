@@ -117,9 +117,11 @@ state, or trading authority.
 
 TapTide is the first optional provider-neutral MI adapter. Its bounded read-only
 capabilities cover market pulse, India VIX, FII/DII activity, FPI sector activity,
-index/sector context, market news, and corporate events. The adapter and normalized
-contract are implemented, but **live TapTide authorization and capability validation
-have not completed**. TapTide failure cannot block Dhan technical scanning.
+index/sector context, market news, and corporate events. TapTide is registered in the
+local API as a `MARKET_INTELLIGENCE` MCP provider and the generic Settings flow now
+supports owner-scoped personal-token connect, readiness testing, reload, and
+disconnect. **Live owner authorization and capability calls have not completed.**
+TapTide failure cannot block Dhan technical scanning.
 
 ### TradingView and generic MCP
 
@@ -162,8 +164,9 @@ revalidation and hardening gate, together with remote cleanup/recovery obligatio
 
 - Complete broader product-owner validation with real Dhan data across representative
   profiles, instruments, intervals, partial failures, and market conditions.
-- Complete TapTide live authorization and independently validate its bounded
-  capability set. Until then, TapTide is implemented but not live-validated.
+- Enter an owner TapTide personal bearer token through Settings, test the seven
+  required bounded capabilities, and validate the first VIX, FII/DII, sector/index,
+  and news claims. Until then, TapTide is connection-ready but not live-validated.
 - Revalidate generic MCP strict cleanup/deadline timing under full-suite load and
   carry forward the documented remote-cleanup, unresolved-work, diagnostic-fidelity,
   and dependency hardening items.

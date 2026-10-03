@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { afterEach, expect, test, vi } from "vitest";
-import { GET, PUT } from "../src/app/api/v1/settings/[...path]/route";
+import { GET, POST, PUT } from "../src/app/api/v1/settings/[...path]/route";
 vi.mock("../src/lib/auth-server", () => ({
   apiOrigin: () => "http://api.example",
 }));
@@ -74,4 +74,45 @@ test("duplicate session cookies fail closed and network details are not exposed"
   expect(fetcher.mock.calls[0][1].headers.get("Cookie")).toBeNull();
   expect(response.status).toBe(503);
   expect(await response.text()).not.toContain("private-upstream-secret");
+});
+
+test("forwards the generation-fenced generic MCP connect action", async () => {
+  const fetcher = vi.fn().mockResolvedValue(
+    Response.json({
+      id: "83289728-6d31-4dc1-95d5-c53377f82a14",
+      provider_id: "tapetide",
+      generation: 1,
+      state: "CONNECTED",
+    }),
+  );
+  vi.stubGlobal("fetch", fetcher);
+  const connectionId = "83289728-6d31-4dc1-95d5-c53377f82a14";
+  const result = await POST(
+    new Request(
+      `https://web.example/api/v1/settings/mcp/connections/${connectionId}/connect`,
+      {
+        method: "POST",
+        headers: {
+          Cookie: "twf_session=dev",
+          Origin: "https://web.example",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          generation: 0,
+          api_key: "disposable-test-token",
+        }),
+      },
+    ),
+    {
+      params: Promise.resolve({
+        path: ["mcp", "connections", connectionId, "connect"],
+      }),
+    },
+  );
+  expect(result.status).toBe(200);
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(fetcher.mock.calls[0][0]).toBe(
+    `http://api.example/api/v1/settings/mcp/connections/${connectionId}/connect`,
+  );
+  expect(fetcher.mock.calls[0][1].method).toBe("POST");
 });

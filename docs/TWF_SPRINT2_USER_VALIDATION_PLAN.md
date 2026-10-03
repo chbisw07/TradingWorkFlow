@@ -209,3 +209,14 @@ Record provider response state, requested/returned/missing identities, source ti
 8. Validate keyboard operation, responsive desktop/mobile layouts, archive/restore, Use setup provider migration, and owner isolation.
 
 If credentials are absent, record the corresponding live result as `NOT_RUN`; do not bypass safe configuration or substitute synthetic evidence.
+
+## TapTide first-live validation addendum — 2026-10-03
+
+1. Obtain a personal MCP bearer token from the owner's TapTide account. Do not put it in `.env`, Git, screenshots, logs, or chat.
+2. Restart the API with the metadata-only TapTide registration shown in the Market Intelligence architecture document.
+3. In **Settings → Data providers → Market intelligence connections**, choose **Add TapTide connection**, enter the token, choose **Connect TapTide**, then **Test connection**. Confirm **Ready** and seven required tools.
+4. Run one bounded real Dhan scan. Validate only India VIX, FII/DII, one sector/index request and one bounded news request; market pulse is optional. Do not call the full catalog or retry aggressively.
+5. Inspect Market Context and Candidate Review for TapTide source, provider tool, source time when supplied, receipt time and freshness. Missing source time must remain unavailable.
+6. Disconnect or induce an unavailable/rate-limited state and rerun. Dhan technical evaluation must still finish; TapTide and Market Context must show their truthful degraded/partial state.
+
+Until steps 3–5 are completed with an owner token, record all live TapTide capability results as **NOT_RUN**.

@@ -177,3 +177,12 @@ No new provider hardening item was discovered by the implementation-only phase. 
 - **TapTide plan limits/licensing:** provider-enforced plan limits and downstream data rights require operator review; cold calls are capped and successful results use a short fenced cache.
 - **Generic MCP:** remote revocation cleanup, cryptography disposition, provider health, stale-generation safety, durable operation permits, hard deadlines, and disconnect recovery retain their existing dispositions.
 - **Generic MCP full-suite timing stability:** three 960-test runs each produced one different deadline/cleanup-sensitive MCP failure under accumulated suite load, while the affected finalization/recovery/remediation set passed 44/44 when rerun together. Treat the backend full-regression gate as open until the timing flake is reproduced and stabilized without weakening the hard-deadline contract.
+
+## S2H-TAPTIDE-OAUTH-DCR-01 — TapTide OAuth dynamic client registration
+
+- **Severity/status:** LOW / DEFERRED.
+- **Scenario:** TapTide's official OAuth 2.1 path uses dynamic client registration, while the accepted TWF generic OAuth contract requires explicit operator-verified endpoints and a preregistered public client.
+- **Runtime impact:** TWF uses TapTide's officially supported personal bearer-token path through generic encrypted `API_KEY` storage.
+- **Containment:** No endpoint, scope, client ID, secret, or callback metadata is guessed; the server-controlled seven-tool allowlist and all generic MCP safety properties remain in force.
+- **Future action:** Add provider-neutral OAuth protected-resource discovery and DCR only after a separate security design and acceptance review.
+- **Target:** Generic MCP hardening; not a blocker for bounded TapTide personal-token validation.

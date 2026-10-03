@@ -19,7 +19,13 @@ from twf.infrastructure.identity import AuthSession
 from twf.infrastructure.mcp import MCPConnection, MCPSecret
 from twf.integrations.mcp.client import SDKClient
 from twf.integrations.mcp.connection import ConnectionManager
-from twf.integrations.mcp.contracts import AuthMode, Code, Failure, State
+from twf.integrations.mcp.contracts import (
+    AuthMode,
+    Code,
+    Failure,
+    ProviderCategory,
+    State,
+)
 from twf.integrations.mcp.http import HTTPFactory
 from twf.main import create_app
 
@@ -28,6 +34,14 @@ def test_authenticated_settings_api_origin_generation_and_no_tool_route(tmp_path
     manager, who, server, engine = setup(tmp_path / "api.db")
     manager.providers["tradingview"] = manager.providers["fixture"].model_copy(
         update={"provider_id": "tradingview", "display_name": "TradingView"}
+    )
+    manager.providers["tapetide"] = manager.providers["fixture"].model_copy(
+        update={
+            "provider_id": "tapetide",
+            "display_name": "TapTide",
+            "category": ProviderCategory.MARKET_INTELLIGENCE,
+            "required_tools": ("get_india_vix", "get_fii_dii_detail"),
+        }
     )
     cookie = "b" * 43
     with manager.factory() as db:
@@ -45,7 +59,14 @@ def test_authenticated_settings_api_origin_generation_and_no_tool_route(tmp_path
         assert client.post(base, json=payload).status_code == 403
         headers = {"Origin": manager.settings.allowed_origins[0], "X-Request-ID": "mcp-test"}
         registrations = client.get("/api/v1/settings/mcp/providers").json()
-        assert [item["provider_id"] for item in registrations] == ["fixture"]
+        assert [item["provider_id"] for item in registrations] == ["fixture", "tapetide"]
+        assert registrations[0]["category"] == "OTHER"
+        assert registrations[1] == {
+            "provider_id": "tapetide",
+            "display_name": "TapTide",
+            "auth_mode": "NONE",
+            "category": "MARKET_INTELLIGENCE",
+        }
         retired = client.post(
             base,
             json={"provider_id": "tradingview", "display_name": "TradingView"},
@@ -71,6 +92,23 @@ def test_authenticated_settings_api_origin_generation_and_no_tool_route(tmp_path
             ]
             == "DISCONNECTED"
         )
+
+
+def test_required_tools_gate_available_health(tmp_path: Path) -> None:
+    manager, who, _, _ = setup(tmp_path / "required-tools.db")
+    manager.providers["fixture"] = manager.providers["fixture"].model_copy(
+        update={"required_tools": ("read_demo", "required_but_missing")}
+    )
+
+    async def exercise() -> None:
+        row = await manager.create(who, "fixture", "test")
+        row = await manager.connect(who, row.id, row.generation)
+        tested = await manager.test_connection(who, row.id, row.generation)
+        assert tested.health.value == "DEGRADED"
+        assert tested.error == Code.TOOL_NOT_FOUND
+        assert {tool.name for tool in tested.tools} == {"read_demo", "write_demo"}
+
+    asyncio.run(exercise())
 
 
 def test_expired_token_refresh_restart_and_stale_refresh(tmp_path: Path) -> None:

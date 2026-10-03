@@ -291,7 +291,9 @@ class TapTideMarketIntelligence:
 
     def readiness(self) -> tuple[bool, IntelligenceState, datetime | None]:
         try:
-            identity, _, _ = self.connection()
+            identity, _, discovered = self.connection()
+            if not TAPTIDE_TOOLS.issubset(discovered):
+                return False, IntelligenceState.PARTIAL, None
             view = self.manager.status(self.who, identity)
             return True, IntelligenceState.AVAILABLE, view.last_success_at
         except Failure as error:
@@ -302,7 +304,12 @@ class TapTideMarketIntelligence:
     @staticmethod
     def arguments(tool: str, instruments: tuple[InstrumentIdentity, ...]) -> dict[str, JsonValue]:
         if tool == "get_index_performance":
-            return {"period": "1m", "category": "sectoral"}
+            return {
+                "category": "sectoral",
+                "granularity": "month",
+                "periods": 1,
+                "limit": 10,
+            }
         if tool == "get_market_news":
             return {"limit": 10}
         if tool == "get_stock_events":

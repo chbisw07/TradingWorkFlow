@@ -16,6 +16,7 @@ type Registration = {
   provider_id: string;
   display_name: string;
   auth_mode: "NONE" | "API_KEY" | "OAUTH_2_1";
+  category: "MARKET_INTELLIGENCE" | "OTHER";
 };
 
 type Connection = {
@@ -118,6 +119,26 @@ function words(value: string) {
     .replace(/^./, (c) => c.toUpperCase());
 }
 
+function connectionStatus(connection: Connection) {
+  if (connection.error === "RATE_LIMITED") return "Rate limited";
+  if (
+    connection.state === "AUTH_REQUIRED" ||
+    connection.state === "REAUTH_REQUIRED"
+  )
+    return "Authentication required";
+  if (connection.state === "DISCONNECTED") return "Not connected";
+  if (
+    connection.state === "DISCONNECTING" ||
+    connection.state === "REAUTH_DRAINING"
+  )
+    return "Disconnecting";
+  if (connection.state === "CONNECTED" && connection.health === "AVAILABLE")
+    return "Ready";
+  if (connection.health === "DEGRADED") return "Degraded";
+  if (connection.health === "UNAVAILABLE") return "Error";
+  return "Connected";
+}
+
 export function ProviderConnectionsSection() {
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
@@ -144,7 +165,11 @@ export function ProviderConnectionsSection() {
         ],
       );
       setRegistrations(
-        configured.filter((item) => item.provider_id !== "tradingview"),
+        configured.filter(
+          (item) =>
+            item.provider_id !== "tradingview" &&
+            item.category === "MARKET_INTELLIGENCE",
+        ),
       );
       setConnections(rows.filter((item) => item.provider_id !== "tradingview"));
       setProviderStatus(statuses);
@@ -213,7 +238,9 @@ export function ProviderConnectionsSection() {
       );
       setKeys((current) => ({ ...current, [connection.id]: "" }));
       replaceConnection(row);
-      setNotice(`${connection.display_name} connected.`);
+      setNotice(
+        `${connection.display_name} connected. Test the connection to verify its required capabilities.`,
+      );
     });
   }
 
@@ -289,7 +316,11 @@ export function ProviderConnectionsSection() {
           : { generation: connection.generation },
       );
       replaceConnection(row);
-      setNotice(`${connection.display_name}: ${words(action)} completed.`);
+      setNotice(
+        action === "test"
+          ? `${connection.display_name}: ${connectionStatus(row)}.`
+          : `${connection.display_name}: ${words(action)} completed.`,
+      );
     });
   }
 
@@ -465,7 +496,7 @@ export function ProviderConnectionsSection() {
             >
               <h3>{registration.display_name}</h3>
               <p>
-                Optional market intelligence · {words(registration.auth_mode)}
+                Market intelligence provider · {words(registration.auth_mode)}
               </p>
               <button
                 disabled={pending}
@@ -480,6 +511,7 @@ export function ProviderConnectionsSection() {
           connection.state === "CONNECTED" && connection.enabled;
         const ready = authorized && connection.health === "AVAILABLE";
         const registrationChanged = connection.error === "STALE_GENERATION";
+        const status = connectionStatus(connection);
         return (
           <div className="settings-integration-card" key={connection.id}>
             <div className="settings-integration-heading">
@@ -491,7 +523,7 @@ export function ProviderConnectionsSection() {
                 </p>
               </div>
               <span className={ready ? "status-success" : "status-warning"}>
-                {ready ? "Ready" : "Action required"}
+                {status}
               </span>
             </div>
             <p>
@@ -499,6 +531,17 @@ export function ProviderConnectionsSection() {
               tools discovered · {connection.operations_pending} operation(s)
               pending
             </p>
+            {connection.error === "TOOL_NOT_FOUND" && (
+              <p>
+                Required market-intelligence capabilities were not discovered.
+                Reload or test again after the provider makes them available.
+              </p>
+            )}
+            {connection.error === "RATE_LIMITED" && (
+              <p>
+                The provider is rate limited. Retry after its window resets.
+              </p>
+            )}
             {connection.last_success_at && (
               <p>
                 Last provider success:{" "}

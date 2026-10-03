@@ -1,7 +1,7 @@
 # TWF Market Intelligence Provider Architecture
 
-Status: **IMPLEMENTED / PARTIAL — LIVE AUTHORIZATION AND VALIDATION NOT RUN**
-Date: 2026-10-02
+Status: **IMPLEMENTED / READY FOR OWNER AUTHORIZATION — LIVE VALIDATION NOT RUN**
+Date: 2026-10-03
 
 ## Decision
 
@@ -58,20 +58,19 @@ Deep options analytics, exhaustive fundamentals, analyst forecasts, portfolio/wa
 
 TapTide uses the existing generic MCP foundation: owner isolation, ProviderConfig registration, OAuth 2.1/PKCE, encrypted secret references, generation fencing, durable operation permits, draining disconnect, hard deadlines, response limits, server-controlled tool allowlists, and sanitized failures.
 
-The official remote endpoint is `https://mcp.tapetide.com/mcp`. TWF can use either:
+The official [TapTide MCP documentation](https://mcp.tapetide.com/) identifies the remote endpoint as `https://mcp.tapetide.com/mcp` over Streamable HTTP. It documents OAuth 2.1 with PKCE and dynamic client registration, plus personal bearer tokens. The current TWF OAuth contract intentionally accepts only operator-verified, preregistered public clients; it does not perform dynamic client registration. TapTide therefore uses the already-supported generic `API_KEY` mode for this bounded integration. OAuth DCR is deferred rather than approximated.
 
-- a verified OAuth ProviderConfig with pre-registered public-client metadata; or
-- `API_KEY` mode with a TapTide personal bearer token entered through Settings.
-
-A minimal personal-token provider registration is operator configuration:
+The operator registration is metadata only:
 
 ```dotenv
-TWF_MCP_PROVIDERS='[{"provider_id":"tapetide","display_name":"TapTide","endpoint":"https://mcp.tapetide.com/mcp","auth_mode":"API_KEY","timeout_seconds":10,"max_response_bytes":262144,"max_tools":64,"max_pages":4}]'
+TWF_MCP_PROVIDERS='[{"schema_version":"mcp.connection.v1","provider_id":"tapetide","display_name":"TapTide","category":"MARKET_INTELLIGENCE","endpoint":"https://mcp.tapetide.com/mcp","auth_mode":"API_KEY","timeout_seconds":10,"max_response_bytes":262144,"max_tools":64,"max_pages":4,"required_tools":["get_market_pulse","get_india_vix","get_fii_dii_detail","get_fpi_sectors","get_index_performance","get_market_news","get_stock_events"],"retry_count":0,"refresh_policy":"EXPLICIT","health_policy":"INITIALIZE_AND_LIST_TOOLS"}]'
 ```
 
-After restart, a signed-in owner opens **Settings → Provider connections**, creates a TapTide connection, supplies the personal token to Connect, and tests the connection. The token is encrypted through the existing secret store and never returned to the page. Do not put it in Git.
+After API restart, a signed-in owner opens **Settings → Data providers → Market intelligence connections**, adds TapTide, enters a personal bearer token, selects **Connect TapTide**, and then **Test connection**. Connect stores the token through the existing encrypted owner-scoped secret lifecycle. Test performs MCP initialization and tool discovery. The connection is **Ready** only when all seven bounded capabilities are present; a missing required capability is **Degraded**. Tokens are never returned to the page or written to Git.
 
-Generic OAuth and `/settings/mcp/callback` remain provider-neutral. Existing TradingView connection rows are not deleted, but the product UI filters the decommissioned TradingView provider from active connection choices.
+A public `tools/list` probe on 2026-10-03 returned 55 tools and all seven required tools above. Their provider annotations were read-only, non-destructive, idempotent, and closed-world. TWF does not treat annotations as authority and does not expose the remaining catalog: business calls retain the fixed seven-tool server allowlist. The live schema uses a bounded one-completed-month sector ranking (`category=sectoral`, `granularity=month`, `periods=1`, `limit=10`), and news/events remain capped at 10/5 results. The published free tier currently permits 50 successful calls per day and 1,000 per month, with separate burst controls; provider limits remain authoritative and can yield a typed rate-limited state.
+
+Generic OAuth/PKCE and `/settings/mcp/callback` remain provider-neutral for providers whose verified metadata fits the existing contract. Existing TradingView connection rows are not deleted, but the product UI filters the decommissioned TradingView provider from active connection choices.
 
 ## Failure isolation
 

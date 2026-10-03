@@ -17,6 +17,11 @@ class AuthMode(StrEnum):
     OAUTH_2_1 = "OAUTH_2_1"
 
 
+class ProviderCategory(StrEnum):
+    OTHER = "OTHER"
+    MARKET_INTELLIGENCE = "MARKET_INTELLIGENCE"
+
+
 class State(StrEnum):
     DISCONNECTED = "DISCONNECTED"
     DISCONNECTING = "DISCONNECTING"
@@ -111,6 +116,7 @@ class ProviderConfig(Contract):
     schema_version: Literal["mcp.connection.v1"] = "mcp.connection.v1"
     provider_id: Identifier
     display_name: str = Field(min_length=1, max_length=80)
+    category: ProviderCategory = ProviderCategory.OTHER
     endpoint: str
     auth_mode: AuthMode = AuthMode.NONE
     oauth: OAuthConfig | None = None
@@ -118,6 +124,7 @@ class ProviderConfig(Contract):
     max_response_bytes: int = Field(default=262144, ge=1024, le=1048576)
     max_tools: int = Field(default=64, ge=1, le=128)
     max_pages: int = Field(default=4, ge=1, le=8)
+    required_tools: tuple[Identifier, ...] = Field(default=(), max_length=32)
     # Mutating/ambiguous calls are never automatically retried.
     retry_count: Literal[0] = 0
     refresh_policy: Literal["EXPLICIT"] = "EXPLICIT"
@@ -128,6 +135,10 @@ class ProviderConfig(Contract):
         https_url(self.endpoint)
         if (self.auth_mode == AuthMode.OAUTH_2_1) != (self.oauth is not None):
             raise ValueError("OAuth configuration must match the authentication mode")
+        if len(set(self.required_tools)) != len(self.required_tools):
+            raise ValueError("Required MCP tools must be unique")
+        if len(self.required_tools) > self.max_tools:
+            raise ValueError("Required MCP tools cannot exceed the discovery limit")
         return self
 
 

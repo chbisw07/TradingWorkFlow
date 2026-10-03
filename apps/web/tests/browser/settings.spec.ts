@@ -24,6 +24,31 @@ test("personal settings persist, profiles apply, stale edits conflict and both t
     page.getByRole("heading", { name: "Dhan market data" }),
   ).toBeVisible();
   await expect(page.getByText("Authentication required")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Market intelligence connections" }),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "TapTide" })).toBeVisible();
+  await page.getByRole("button", { name: "Add TapTide connection" }).click();
+  await expect(page.getByLabel("Personal access token")).toHaveAttribute(
+    "type",
+    "password",
+  );
+  await expect(
+    page.getByRole("button", { name: "Connect TapTide" }),
+  ).toBeDisabled();
+  await page
+    .getByLabel("Personal access token")
+    .fill("disposable-browser-test-token");
+  await page.getByRole("button", { name: "Connect TapTide" }).click();
+  await expect(
+    page.getByText(
+      "TapTide connected. Test the connection to verify its required capabilities.",
+    ),
+  ).toBeVisible();
+  await expect(page.getByText("State: Connected")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Test connection" }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Configure Dhan" }).click();
   await expect(page.getByLabel("Dhan access token")).toHaveAttribute(
     "type",

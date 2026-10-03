@@ -19,6 +19,7 @@ from twf.integrations.mcp.contracts import (
     ConnectionView,
     Context,
     Failure,
+    ProviderCategory,
 )
 
 router = APIRouter(prefix="/api/v1/settings/mcp", tags=["MCP provider connections"])
@@ -54,6 +55,7 @@ class ProviderRegistration(Contract):
     provider_id: str = Field(min_length=1, max_length=64)
     display_name: str = Field(min_length=1, max_length=80)
     auth_mode: AuthMode
+    category: ProviderCategory
 
 
 class Create(Contract):
@@ -110,6 +112,7 @@ def providers(who: Who, service: Manager) -> tuple[ProviderRegistration, ...]:
             provider_id=item.provider_id,
             display_name=item.display_name,
             auth_mode=item.auth_mode,
+            category=item.category,
         )
         for item in sorted(service.providers.values(), key=lambda row: row.display_name)
         if item.provider_id not in DECOMMISSIONED_PRODUCT_PROVIDERS

@@ -12,7 +12,7 @@ async function forward(
   const mcpAction = new RegExp(
     "^mcp/connections/" +
       uuid +
-      "/(authorize|callback|refresh|disconnect|test|cleanup|recover)$",
+      "/(connect|authorize|callback|refresh|disconnect|test|cleanup|recover)$",
   );
   const allowed =
     (request.method === "GET" &&
