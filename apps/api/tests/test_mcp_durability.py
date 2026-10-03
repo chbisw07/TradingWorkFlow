@@ -14,6 +14,7 @@ from test_mcp_finalization import Fixture, api_key
 from test_mcp_remediation import fixture as fixture
 
 from twf.infrastructure.mcp import MCPOperation
+from twf.integrations.contracts import Health
 from twf.integrations.mcp.connection import ConnectionManager
 from twf.integrations.mcp.contracts import Code, Failure, State
 
@@ -63,7 +64,9 @@ def test_auth_intent_blocks_recreated_worker(fixture: Fixture, phase: str, itera
 
 
 @pytest.mark.parametrize("iteration", range(3))
-def test_lost_commit_ack_and_failed_repair_remain_visible(fixture: Fixture, iteration: int) -> None:
+def test_lost_commit_ack_reconciles_committed_success_without_replay(
+    fixture: Fixture, iteration: int
+) -> None:
     m, who, server, _ = fixture
     api_key(m)
 
@@ -98,12 +101,13 @@ def test_lost_commit_ack_and_failed_repair_remain_visible(fixture: Fixture, iter
             assert p and p.reconciliation_required and p.provider_outcome == "SUCCESS"
             p.deadline_at = datetime.now(UTC) - timedelta(seconds=1)
             db.commit()
-        await peer.recover(who, row.id)
-        await peer.recover(who, row.id)
+        recovered = await peer.recover(who, row.id)
+        assert not recovered.recovery_required and recovered.operations_pending == 0
+        assert await peer.recover(who, row.id) == recovered
         with m.factory() as db:
             p = db.scalar(select(MCPOperation).where(MCPOperation.connection_id == row.id))
-            assert p and p.state == "UNRESOLVED" and p.outcome is None
-            assert p.reconciliation_required and p.provider_outcome == "SUCCESS"
+            assert p and p.state == "COMPLETE" and p.outcome == "SUCCESS"
+            assert not p.reconciliation_required and p.provider_outcome == "SUCCESS"
         assert len(server.calls) == before
 
     asyncio.run(run())
@@ -264,20 +268,27 @@ def test_actual_process_loss_after_commit(fixture: Fixture, terminal: str) -> No
         async def restart() -> None:
             before = len(server.calls)
             result = await peer.recover(who, row.id)
-            assert result.recovery_required and result.operations_pending == 1
             assert await peer.recover(who, row.id) == result
-            with pytest.raises(Failure):
-                await peer.tools(who, row.id, row.generation)
+            if terminal == "AUTH_LOSS":
+                assert result.recovery_required and result.operations_pending == 1
+                with pytest.raises(Failure):
+                    await peer.tools(who, row.id, row.generation)
+            else:
+                # Recovery only acknowledges the durable success receipt. The
+                # already-observed TIMEOUT/CANCELLED result above remains final.
+                assert not result.recovery_required and result.operations_pending == 0
             assert len(server.calls) == before
 
         asyncio.run(restart())
         with m.factory() as db:
             p = db.scalar(select(MCPOperation).where(MCPOperation.connection_id == row.id))
-            assert p and p.state == "UNRESOLVED" and p.reconciliation_required
+            assert p
             if terminal == "AUTH_LOSS":
+                assert p.state == "UNRESOLVED" and p.reconciliation_required
                 assert p.outcome == "REAUTH_REQUIRED" and p.provider_outcome is None
             else:
-                assert p.outcome is None and p.provider_outcome == "SUCCESS"
+                assert p.state == "COMPLETE" and not p.reconciliation_required
+                assert p.outcome == "SUCCESS" and p.provider_outcome == "SUCCESS"
     finally:
         if child.is_alive():
             child.terminate()
@@ -286,30 +297,53 @@ def test_actual_process_loss_after_commit(fixture: Fixture, terminal: str) -> No
         writer.close()
 
 
-def test_lost_success_receipt_is_owned_and_recoverable(fixture: Fixture) -> None:
-    m, who, _, _ = fixture
+def test_sqlite_receipt_contention_is_recoverable_without_provider_replay(
+    fixture: Fixture,
+) -> None:
+    m, who, server, engine = fixture
+    if engine.dialect.name != "sqlite":
+        pytest.skip("Explicit BEGIN IMMEDIATE contention is SQLite-specific")
     api_key(m)
 
     async def run() -> None:
-        row = await m.create(who, "fixture", "receipt-fault")
+        row = await m.create(who, "fixture", "receipt-contention")
         row = await m.connect(who, row.id, 0, SecretStr("synthetic-key"))
         tx = m.transaction
         audits: list[tuple[str, str]] = []
         m.audit = lambda *args: audits.append((args[-2], args[-1]))  # type: ignore[method-assign]
 
-        def fault(fn: Callable[[Session], Any]) -> Any:
-            if fn.__name__ == "receipt":
-                raise Failure(Code.STORAGE)
-            return tx(fn)
+        def contend(fn: Callable[[Session], Any]) -> Any:
+            if fn.__name__ != "receipt":
+                return tx(fn)
+            # Hold SQLite's write reservation for every bounded transaction retry.
+            # This deterministic lock replaces scheduler timing as the reproducer.
+            with m.factory() as locker:
+                locker.connection().exec_driver_sql("BEGIN IMMEDIATE")
+                try:
+                    return tx(fn)
+                finally:
+                    locker.rollback()
 
-        m.transaction = fault  # type: ignore[method-assign, assignment]
+        m.transaction = contend  # type: ignore[method-assign, assignment]
         await m.tools(who, row.id, row.generation)
         assert await m.operations.drain(2)
         assert ("delivery_receipt", "UNRESOLVED") in audits
         assert not any(outcome == "SUCCESS" for _, outcome in audits)
-        assert m.status(who, row.id).recovery_required
+        blocked = m.status(who, row.id)
+        assert blocked.recovery_required and blocked.operations_pending == 1
+        assert blocked.health == Health.DEGRADED and blocked.error == Code.STALE
         peer = ConnectionManager(m.factory, m.settings, tuple(m.providers.values()), http=m.http)
+        before = len(server.calls)
         with pytest.raises(Failure):
             await peer.tools(who, row.id, row.generation)
+        recovered = await peer.recover(who, row.id)
+        assert not recovered.recovery_required and recovered.operations_pending == 0
+        assert await peer.recover(who, row.id) == recovered
+        assert len(server.calls) == before
+        with m.factory() as db:
+            permit = db.scalar(select(MCPOperation).where(MCPOperation.connection_id == row.id))
+            assert permit and permit.state == "COMPLETE"
+            assert permit.outcome == permit.provider_outcome == "SUCCESS"
+            assert not permit.reconciliation_required
 
     asyncio.run(run())

@@ -14,6 +14,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
+import twf.api.discovery as discovery_api
 from twf.auth import create_user
 from twf.config.settings import Settings
 from twf.discovery.dhan_credentials import (
@@ -26,6 +27,12 @@ from twf.discovery.market_data import (
     DHAN_IDENTITY,
     MarketDataErrorCode,
     MarketDataFailure,
+)
+from twf.discovery.market_intelligence import (
+    IntelligenceClaim,
+    IntelligenceKind,
+    IntelligenceState,
+    MarketIntelligenceBatch,
 )
 from twf.discovery.product_service import identity, market_series
 from twf.infrastructure.database import (
@@ -1306,6 +1313,141 @@ def install_market_data(product_client: TestClient, provider: FakeDhanMarketData
             source="DATABASE",
         ),
     )
+
+
+class FixedMarketIntelligence:
+    def __init__(self, batch: MarketIntelligenceBatch) -> None:
+        self.batch = batch
+
+    def readiness(self) -> tuple[bool, IntelligenceState, datetime | None]:
+        return bool(self.batch.claims), self.batch.state, self.batch.received_at
+
+    async def observe(self, instruments: tuple[Any, ...]) -> MarketIntelligenceBatch:
+        assert instruments
+        return self.batch
+
+
+def _install_intelligence(monkeypatch: pytest.MonkeyPatch, batch: MarketIntelligenceBatch) -> None:
+    monkeypatch.setattr(
+        discovery_api,
+        "TapTideMarketIntelligence",
+        lambda *_: FixedMarketIntelligence(batch),
+    )
+
+
+def test_real_scan_retains_partial_tapetide_claims_and_safe_limitations(
+    product_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    now = datetime.now(UTC)
+    batch = MarketIntelligenceBatch(
+        provider="tapetide",
+        state=IntelligenceState.PARTIAL,
+        claims=(
+            IntelligenceClaim(
+                kind=IntelligenceKind.MARKET_VOLATILITY,
+                subject="INDIA_MARKET",
+                scope="MARKET",
+                values={"level": 14.2},
+                provider="tapetide",
+                provider_tool="get_india_vix",
+                source_time=now,
+                received_at=now,
+                freshness="CURRENT",
+                source_reference="tapetide-mcp:get_india_vix",
+            ),
+            IntelligenceClaim(
+                kind=IntelligenceKind.MARKET_FLOW,
+                subject="INDIA_MARKET",
+                scope="MARKET",
+                values={"fii_net_flow": -1250.5, "dii_net_flow": 920.2},
+                provider="tapetide",
+                provider_tool="get_fii_dii_detail",
+                source_time=now,
+                received_at=now,
+                freshness="CURRENT",
+                source_reference="tapetide-mcp:get_fii_dii_detail",
+            ),
+        ),
+        received_at=now,
+        failures=(
+            "get_index_performance:stale_generation",
+            "get_market_news:rate_limited",
+        ),
+    )
+    _install_intelligence(monkeypatch, batch)
+    dhan = FakeDhanMarketData()
+    install_market_data(product_client, dhan)
+
+    result = post(
+        product_client,
+        "/api/v1/discovery/scans",
+        scan_payload(universe=["RELIANCE"], provider="real"),
+    )
+
+    assert result["summary"]["status"] == "COMPLETE"
+    assert result["summary"]["candidate_count"] == 1
+    assert result["matches"][0]["provider"] == "dhan"
+    assert result["matches"][0]["verification"] == "CONFIRMED"
+    assert result["market_context"]["availability"] == "PARTIAL"
+    assert result["market_context"]["producer"] == "tapetide"
+    assert set(result["market_context"]["limitations"]) >= {
+        "tapetide-sector-index-stale-generation",
+        "tapetide-news-rate-limited",
+    }
+    serialized = repr(result)
+    assert "get_index_performance:stale_generation" not in serialized
+    assert "get_market_news:rate_limited" not in serialized
+    detail = product_client.get(
+        f"/api/v1/discovery/candidates/{result['candidates'][0]['candidate_id']}"
+    ).json()
+    assert detail["context"]["availability"] == "PARTIAL"
+    assert set(detail["provider_sources"]) >= {"dhan", "tapetide"}
+    assert dhan.calls == [("RELIANCE", "1d")]
+
+
+def test_real_scan_completes_when_all_tapetide_capabilities_fail(
+    product_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    now = datetime.now(UTC)
+    batch = MarketIntelligenceBatch(
+        provider="tapetide",
+        state=IntelligenceState.UNAVAILABLE,
+        claims=(),
+        received_at=now,
+        failures=(
+            "get_india_vix:stale_generation",
+            "get_fii_dii_detail:rate_limited",
+            "get_index_performance:service_unavailable",
+            "get_market_news:provider-error",
+        ),
+    )
+    _install_intelligence(monkeypatch, batch)
+    dhan = FakeDhanMarketData()
+    install_market_data(product_client, dhan)
+
+    result = post(
+        product_client,
+        "/api/v1/discovery/scans",
+        scan_payload(universe=["RELIANCE"], provider="real"),
+    )
+
+    assert result["summary"]["status"] == "COMPLETE"
+    assert result["summary"]["candidate_count"] == 1
+    assert result["matches"][0]["provider"] == "dhan"
+    assert result["market_context"]["availability"] == "UNAVAILABLE"
+    assert set(result["market_context"]["limitations"]) >= {
+        "tapetide-vix-stale-generation",
+        "tapetide-fii-dii-rate-limited",
+        "tapetide-sector-index-service-unavailable",
+        "tapetide-news-provider-error",
+    }
+    assert "get_india_vix:stale_generation" not in repr(result)
+    detail = product_client.get(
+        f"/api/v1/discovery/candidates/{result['candidates'][0]['candidate_id']}"
+    ).json()
+    assert detail["context"]["availability"] == "UNAVAILABLE"
+    assert "dhan" in detail["provider_sources"]
+    assert dhan.calls == [("RELIANCE", "1d")]
 
 
 def test_real_mode_uses_dhan_and_archives_exact_scanner_series(

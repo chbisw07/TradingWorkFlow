@@ -29,6 +29,35 @@ TAPTIDE_TOOLS = frozenset(
     }
 )
 
+_LIMITATION_SUBJECTS = {
+    "get_market_pulse": "market-pulse",
+    "get_india_vix": "vix",
+    "get_fii_dii_detail": "fii-dii",
+    "get_fpi_sectors": "sector",
+    "get_index_performance": "sector-index",
+    "get_market_news": "news",
+    "get_stock_events": "corporate-event",
+}
+_LIMITATION_FAILURES = {
+    **{code.value.lower(): code.value.lower().replace("_", "-") for code in Code},
+    "provider-error": "provider-error",
+    "invalid-response": "invalid-response",
+    "bounded-intelligence-tools-not-discovered": "tools-not-discovered",
+}
+
+
+def tapetide_limitation_codes(failures: tuple[str, ...]) -> tuple[str, ...]:
+    """Classify provider failures without leaking raw strings into domain identifiers."""
+    normalized: list[str] = []
+    for failure in failures:
+        tool, separator, raw_code = failure.partition(":")
+        subject = _LIMITATION_SUBJECTS.get(tool, "provider") if separator else "provider"
+        code = _LIMITATION_FAILURES.get(raw_code if separator else failure, "provider-error")
+        limitation = f"tapetide-{subject}-{code}"
+        if limitation not in normalized:
+            normalized.append(limitation)
+    return tuple(normalized[:16])
+
 
 class IntelligenceKind(StrEnum):
     MARKET_PULSE = "MARKET_PULSE"

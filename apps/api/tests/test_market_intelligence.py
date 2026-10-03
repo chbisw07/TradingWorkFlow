@@ -15,6 +15,7 @@ from twf.discovery.market_intelligence import (
     MarketIntelligenceProvider,
     TapTideMarketIntelligence,
     TapTideSnapshotCache,
+    tapetide_limitation_codes,
 )
 from twf.discovery.product_service import identity
 from twf.integrations.contracts import Health
@@ -161,6 +162,27 @@ def test_tapetide_all_stale_claims_produce_stale_state() -> None:
     assert result.state == IntelligenceState.STALE
     assert result.claims[0].freshness == "STALE"
     assert result.claims[0].values["level"] == 13.5
+
+
+def test_tapetide_failure_details_map_to_bounded_domain_identifiers() -> None:
+    failures = (
+        "get_india_vix:stale_generation",
+        "get_fii_dii_detail:rate_limited",
+        "get_index_performance:service_unavailable",
+        "get_market_news:provider-error",
+        "provider diagnostic:secret-bearing unknown text",
+    )
+    assert tapetide_limitation_codes(failures) == (
+        "tapetide-vix-stale-generation",
+        "tapetide-fii-dii-rate-limited",
+        "tapetide-sector-index-service-unavailable",
+        "tapetide-news-provider-error",
+        "tapetide-provider-provider-error",
+    )
+    serialized = ",".join(tapetide_limitation_codes(failures))
+    assert ":" not in serialized
+    assert "secret-bearing" not in serialized
+    assert all(len(item) <= 64 for item in tapetide_limitation_codes(failures))
 
 
 def test_tapetide_partial_rate_limit_retains_successful_claims() -> None:

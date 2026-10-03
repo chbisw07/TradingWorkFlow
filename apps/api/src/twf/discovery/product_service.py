@@ -72,6 +72,7 @@ from twf.discovery.market_intelligence import (
     IntelligenceState,
     MarketIntelligenceBatch,
     MarketIntelligenceProvider,
+    tapetide_limitation_codes,
 )
 from twf.discovery.product import (
     AdmissionReason,
@@ -1342,7 +1343,7 @@ class ScanDiscoverService:
                 limitations=tuple(
                     dict.fromkeys(
                         (
-                            *batch.failures,
+                            *tapetide_limitation_codes(batch.failures),
                             *(
                                 ()
                                 if batch.state == IntelligenceState.AVAILABLE

@@ -232,15 +232,17 @@ class ConnectionManager:
         if row.auth_invalidation_pending:
             state, health, error = State.REAUTH_DRAINING, Health.UNAVAILABLE, Code.REAUTH_REQUIRED
         outstanding = self.pending(db, row.id)
+        recovery_required = row.auth_invalidation_pending or any(
+            p.reconciliation_required
+            or p.state == "UNRESOLVED"
+            or utc(p.deadline_at) <= datetime.now(UTC)
+            for p in outstanding
+        )
+        if recovery_required and not row.auth_invalidation_pending:
+            health, error = Health.DEGRADED, error or Code.STALE
         return ConnectionView(
             operations_pending=len(outstanding),
-            recovery_required=row.auth_invalidation_pending
-            or any(
-                p.reconciliation_required
-                or p.state == "UNRESOLVED"
-                or utc(p.deadline_at) <= datetime.now(UTC)
-                for p in outstanding
-            ),
+            recovery_required=recovery_required,
             id=row.id,
             owner_id=row.owner_id,
             provider_id=row.provider_id,
@@ -654,7 +656,18 @@ class ConnectionManager:
 
     async def refresh(self, who: Context, identity: UUID, generation: int) -> ConnectionView:
         timeout = min((p.timeout_seconds for p in self.providers.values()), default=0.05)
-        return await self.operations.run(timeout, lambda: self._refresh(who, identity, generation))
+        return await self.operations.run(
+            timeout, lambda: self._reconciled_refresh(who, identity, generation)
+        )
+
+    async def _reconciled_refresh(
+        self, who: Context, identity: UUID, generation: int
+    ) -> ConnectionView:
+        if self.status(who, identity).recovery_required:
+            # A restarted worker cannot see another process's finished receipt task.
+            # Reconcile only durable terminal evidence before rotating credentials.
+            await self.recover(who, identity)
+        return await self._refresh(who, identity, generation)
 
     async def _refresh(self, who: Context, identity: UUID, generation: int) -> ConnectionView:
         def claim(db: Session) -> tuple[ProviderConfig, TokenBundle, int]:
@@ -902,6 +915,23 @@ class ConnectionManager:
                     if permit.outcome in {None, "SUCCESS"}:
                         permit.outcome = Code.REAUTH_REQUIRED.value
             for permit in self.pending(db, identity):
+                # A fully committed provider/caller success has only lost its
+                # post-return receipt. Clearing that marker is local,
+                # idempotent bookkeeping: it never replays provider I/O and it
+                # cannot promote a timed-out/cancelled invocation to success.
+                if (
+                    not row.auth_invalidation_pending
+                    and permit.connection_id == row.id
+                    and permit.owner_id == row.owner_id
+                    and permit.generation == row.generation
+                    and permit.state == "COMPLETE"
+                    and permit.cleanup_state == "COMPLETE"
+                    and permit.outcome == "SUCCESS"
+                    and permit.provider_outcome == "SUCCESS"
+                    and permit.completed_at is not None
+                ):
+                    permit.reconciliation_required = False
+                    continue
                 # A live owner may still reconcile. Time alone never proves a worker
                 # stopped or a successful response was delivered to its caller.
                 if utc(permit.deadline_at) <= datetime.now(UTC):
