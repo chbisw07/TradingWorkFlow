@@ -29,6 +29,17 @@ WHO = Context(
 )
 
 
+class FakeOperations:
+    def __init__(self, failure: Code | None = None) -> None:
+        self.failure = failure
+        self.waits = 0
+
+    async def wait_receipts(self) -> None:
+        self.waits += 1
+        if self.failure is not None:
+            raise Failure(self.failure)
+
+
 class FakeManager:
     def __init__(
         self,
@@ -40,6 +51,7 @@ class FakeManager:
         self.payloads = payloads or {}
         self.failures = failures or {}
         self.calls: list[tuple[str, dict[str, Any], frozenset[str]]] = []
+        self.operations = FakeOperations()
 
     def connections(self, who: Context, provider_id: str) -> tuple[Any, ...]:
         assert who == WHO and provider_id == "tapetide"
@@ -132,6 +144,7 @@ def test_tapetide_normalizes_bounded_claims_with_provenance() -> None:
     serialized = result.model_dump_json()
     assert "provider_private" not in serialized and "MUST_NOT_ESCAPE" not in serialized
     assert len(manager.calls) == 7
+    assert manager.operations.waits == 1
     assert all(allowed == TAPTIDE_TOOLS for _, _, allowed in manager.calls)
     call_arguments = {name: arguments for name, arguments, _ in manager.calls}
     assert call_arguments["get_index_performance"] == {
@@ -195,6 +208,21 @@ def test_tapetide_partial_rate_limit_retains_successful_claims() -> None:
     assert result.state == IntelligenceState.PARTIAL
     assert len(result.claims) == 1
     assert result.failures == ("get_india_vix:rate_limited",)
+
+
+def test_tapetide_receipt_handoff_failure_retains_claim_and_degrades() -> None:
+    manager = FakeManager(
+        ("get_india_vix",),
+        {"get_india_vix": {"latest": 14.2}},
+    )
+    manager.operations = FakeOperations(Code.STALE)
+
+    result = asyncio.run(adapter(manager).observe(()))
+
+    assert result.state == IntelligenceState.PARTIAL
+    assert len(result.claims) == 1
+    assert result.failures == ("provider:stale_generation",)
+    assert manager.operations.waits == 1
 
 
 def test_tapetide_auth_and_provider_failures_are_typed() -> None:

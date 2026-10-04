@@ -446,6 +446,15 @@ class TapTideMarketIntelligence:
             except Exception:
                 strongest_failure = IntelligenceState.PROVIDER_ERROR
                 failures.append(f"{tool}:provider-error")
+        # The public tool result may win just before its durable delivery receipt.
+        # Finish that already-owned, bounded handoff before the caller starts scan
+        # persistence so SQLite never has to upgrade a snapshot across the receipt
+        # write. This does not replay provider I/O or broaden the tool deadline.
+        try:
+            await self.manager.operations.wait_receipts()
+        except Failure as error:
+            strongest_failure = _failure_state(error)
+            failures.append(f"provider:{error.code.value.lower()}")
         stale_claims = tuple(claim for claim in claims if claim.freshness == "STALE")
         state = (
             IntelligenceState.STALE
