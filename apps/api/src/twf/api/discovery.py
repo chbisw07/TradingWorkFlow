@@ -82,7 +82,15 @@ def update_settings(payload: DiscoverySettingsUpdate, service: Service) -> Disco
 
 @router.post("/scans", dependencies=[Depends(require_origin)], status_code=201)
 async def run_scan(payload: ProductScanRequest, service: Service, request: Request) -> ScanResult:
-    result = await service.run_scan(payload)
+    try:
+        result = await service.run_scan(payload)
+    except BaseException as exc:
+        try:
+            service.fail_scan_request(payload, type(exc).__name__)
+        except Exception:
+            # Cleanup must not replace the original typed request failure.
+            pass
+        raise
     request.app.state.logger.info(
         "discovery_scan_completed",
         extra={

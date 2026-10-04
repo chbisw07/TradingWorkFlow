@@ -121,6 +121,7 @@ from twf.infrastructure.discovery import (
     DiscoveryEpisodeRecord,
     DiscoveryExplanationRecord,
     DiscoveryObservationRecord,
+    DiscoveryScanAdmissionRecord,
     DiscoverySettingsRecord,
     DiscoverySnapshotRecord,
     DiscoveryTransitionRecord,
@@ -443,6 +444,22 @@ class ScanDiscoverService:
             )
         )
         return min(int(count or 0), 3)
+
+    def fail_scan_request(self, payload: ProductScanRequest, reason: str) -> None:
+        """Best-effort terminal state for an admitted request that failed later."""
+
+        self.session.rollback()
+        request_key = payload.idempotency_key or self.request_id
+        row = self.session.scalar(
+            select(DiscoveryScanAdmissionRecord).where(
+                DiscoveryScanAdmissionRecord.user_id == self.owner_id,
+                DiscoveryScanAdmissionRecord.request_key == request_key,
+            )
+        )
+        if row is None or row.status != "ADMITTED":
+            self.session.rollback()
+            return
+        TemporalStore(self.session, self.owner_id).fail_run(row.run_id, reason)
 
     def providers(self) -> tuple[ProviderStatus, ...]:
         last = {
@@ -773,7 +790,15 @@ class ScanDiscoverService:
             definition=definition,
             as_of=started,
         )
-        progression = self.fixture_progression(active_provider)
+        # Fixture progression is synthetic-only state. Reading it for a real
+        # scan starts a request-session transaction that would otherwise span
+        # Dhan and TapTide I/O and can prevent SQLite from later upgrading its
+        # snapshot to persist the completed scan.
+        progression = (
+            self.fixture_progression(active_provider)
+            if active_provider == ProviderChoice.SYNTHETIC
+            else 0
+        )
         requested_identities = tuple(identity(symbol) for symbol in payload.universe)
         failures: dict[UUID, MarketDataErrorCode] = {}
         instruments: list[InstrumentIdentity] = []

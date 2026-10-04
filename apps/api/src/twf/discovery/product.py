@@ -172,7 +172,10 @@ class LLMExplanation(Contract):
     limitations: tuple[str, ...] = Field(default=(), max_length=16)
 
 
-Symbol = Annotated[str, Field(min_length=1, max_length=32, pattern=r"^[A-Z0-9][A-Z0-9._-]*$")]
+Symbol = Annotated[
+    str,
+    Field(min_length=1, max_length=32, pattern=r"^[A-Z0-9][A-Z0-9.&_-]*$"),
+]
 
 
 class ProductScanRequest(Contract):

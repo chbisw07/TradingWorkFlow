@@ -288,6 +288,48 @@ function compatibleIntentForHorizon(
   return preferred;
 }
 
+const UNIVERSE_SYMBOL_PATTERN = /^[A-Z0-9][A-Z0-9.&_-]*$/;
+
+export function parseUniverseInput(value: string): {
+  symbols: string[];
+  error: string | null;
+} {
+  const symbols = value
+    .split(/[\s,]+/)
+    .map((item) => item.trim().toUpperCase())
+    .filter(Boolean);
+  if (symbols.length === 0) {
+    return { symbols, error: "Enter at least one NSE symbol." };
+  }
+  if (symbols.length > 20) {
+    return {
+      symbols,
+      error: `Enter no more than 20 symbols; ${symbols.length} were provided.`,
+    };
+  }
+  const invalid = [
+    ...new Set(symbols.filter((item) => !UNIVERSE_SYMBOL_PATTERN.test(item))),
+  ];
+  if (invalid.length > 0) {
+    return {
+      symbols,
+      error: `Check these symbols: ${invalid.join(", ")}. Use broker symbols containing letters, digits, ., _, -, or &.`,
+    };
+  }
+  const duplicates = [
+    ...new Set(
+      symbols.filter((item, index) => symbols.indexOf(item) !== index),
+    ),
+  ];
+  if (duplicates.length > 0) {
+    return {
+      symbols,
+      error: `Remove duplicate symbols: ${duplicates.join(", ")}.`,
+    };
+  }
+  return { symbols, error: null };
+}
+
 function shortId(value: string | null | undefined) {
   return value ? value.slice(0, 8) : "Unavailable";
 }
@@ -2232,6 +2274,9 @@ export function DiscoveryWorkspace({
     matchId: string;
   } | null>(null);
   const [evidenceLoading, setEvidenceLoading] = useState(false);
+  const [evidenceError, setEvidenceError] = useState("");
+  const [evidenceRequestedMode, setEvidenceRequestedMode] =
+    useState<EvidenceChartMode>("as_scanned");
   const evidenceTriggerRef = useRef<HTMLButtonElement | null>(null);
   const inspectorRef = useRef<HTMLElement>(null);
 
@@ -2240,7 +2285,9 @@ export function DiscoveryWorkspace({
     matchId: string,
     mode: EvidenceChartMode,
   ) {
+    setEvidenceRequestedMode(mode);
     setEvidenceLoading(true);
+    setEvidenceError("");
     try {
       setEvidenceChart(
         await discoveryApi<EvidenceChart>(
@@ -2249,8 +2296,9 @@ export function DiscoveryWorkspace({
       );
     } catch {
       setEvidenceChart(null);
-      setError("Unable to load scan evidence chart.");
-      setEvidenceIdentity(null);
+      setEvidenceError(
+        "The chart request did not complete. The scan result has not been replaced.",
+      );
     } finally {
       setEvidenceLoading(false);
     }
@@ -2264,6 +2312,7 @@ export function DiscoveryWorkspace({
     evidenceTriggerRef.current = trigger;
     setEvidenceIdentity({ runId, matchId });
     setEvidenceChart(null);
+    setEvidenceError("");
     setError("");
     void loadEvidenceChart(runId, matchId, "as_scanned");
   }
@@ -2281,6 +2330,7 @@ export function DiscoveryWorkspace({
     evidenceTriggerRef.current?.focus();
     setEvidenceIdentity(null);
     setEvidenceChart(null);
+    setEvidenceError("");
   }
 
   function applyLoadedState(
@@ -2545,10 +2595,12 @@ export function DiscoveryWorkspace({
 
   async function runScan(event: FormEvent) {
     event.preventDefault();
-    const symbols = universe
-      .split(/[\s,]+/)
-      .map((item) => item.trim().toUpperCase())
-      .filter(Boolean);
+    const { symbols, error: universeError } = parseUniverseInput(universe);
+    if (universeError) {
+      setError(universeError);
+      setNotice("");
+      return;
+    }
     setPending(true);
     setError("");
     setNotice("");
@@ -2727,6 +2779,11 @@ export function DiscoveryWorkspace({
     ].sort(),
   };
   const scanAdmission = result ? admissionFor(result) : null;
+  const displayedResultProvider = result
+    ? activeProviderChoice(result.summary.provider)
+    : null;
+  const displayedResultDiffersFromSetup =
+    displayedResultProvider !== null && displayedResultProvider !== provider;
   const latestSummary =
     result?.summary || recentScans[0] || selectedHistory || null;
   const topCandidate = [...candidates].sort((left, right) =>
@@ -2766,8 +2823,17 @@ export function DiscoveryWorkspace({
         <EvidenceChartDrawer
           chart={evidenceChart}
           loading={evidenceLoading}
+          error={evidenceError}
           onClose={closeEvidenceChart}
           onMode={changeEvidenceMode}
+          onRetry={() => {
+            if (!evidenceIdentity) return;
+            void loadEvidenceChart(
+              evidenceIdentity.runId,
+              evidenceIdentity.matchId,
+              evidenceRequestedMode,
+            );
+          }}
         />
       ) : null}
       <header className="discovery-hero">
@@ -3082,6 +3148,17 @@ export function DiscoveryWorkspace({
                     </div>
                     <span>{dateTime(result.summary.completed_at)}</span>
                   </div>
+                  {displayedResultDiffersFromSetup ? (
+                    <p className="result-mode-note" role="status">
+                      <strong>PREVIOUS SCAN RESULT</strong>
+                      Showing previous{" "}
+                      {displayedResultProvider === "synthetic"
+                        ? "Synthetic"
+                        : "Real/Dhan"}{" "}
+                      scan result. Current setup is{" "}
+                      {provider === "real" ? "Real/Dhan" : "Synthetic"}.
+                    </p>
+                  ) : null}
                   {result.matches.some((match) =>
                     match.source_mode.includes("SYNTHETIC"),
                   ) && (

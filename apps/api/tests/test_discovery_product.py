@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
 import twf.api.discovery as discovery_api
+import twf.discovery.product_service as product_service_module
 from twf.auth import create_user
 from twf.config.settings import Settings
 from twf.discovery.dhan_credentials import (
@@ -34,7 +35,13 @@ from twf.discovery.market_intelligence import (
     IntelligenceState,
     MarketIntelligenceBatch,
 )
-from twf.discovery.product_service import identity, market_series
+from twf.discovery.product import ProductScanRequest
+from twf.discovery.product_service import (
+    ProductFailure,
+    ScanDiscoverService,
+    identity,
+    market_series,
+)
 from twf.infrastructure.database import (
     create_database_engine,
     create_session_factory,
@@ -42,6 +49,7 @@ from twf.infrastructure.database import (
 )
 from twf.infrastructure.discovery import (
     DiscoveryEpisodeRecord,
+    DiscoveryScanAdmissionRecord,
     DiscoverySnapshotRecord,
     ScanMatchRecord,
     ScanRunRecord,
@@ -568,6 +576,12 @@ def test_settings_cas_and_input_bounds(product_client: TestClient) -> None:
         ).status_code
         == 422
     )
+
+
+def test_scan_request_accepts_broker_native_symbol_with_ampersand() -> None:
+    request = ProductScanRequest.model_validate(scan_payload(universe=["M&M"]))
+
+    assert request.universe == ("M&M",)
 
 
 def test_schema_and_rows_are_owner_scoped(product_client: TestClient) -> None:
@@ -1451,8 +1465,21 @@ def test_real_scan_completes_when_all_tapetide_capabilities_fail(
 
 
 def test_real_mode_uses_dhan_and_archives_exact_scanner_series(
-    product_client: TestClient,
+    product_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    def synthetic_state_is_forbidden(*args: Any, **kwargs: Any) -> Any:
+        pytest.fail("real scans must not access or construct synthetic fixture state")
+
+    monkeypatch.setattr(
+        ScanDiscoverService,
+        "fixture_progression",
+        synthetic_state_is_forbidden,
+    )
+    monkeypatch.setattr(
+        product_service_module,
+        "FixtureMarketDataProvider",
+        synthetic_state_is_forbidden,
+    )
     provider = FakeDhanMarketData()
     install_market_data(product_client, provider)
     result = post(
@@ -1488,6 +1515,38 @@ def test_real_mode_uses_dhan_and_archives_exact_scanner_series(
     assert current["provider"] == "dhan"
     assert current["bars"]
     assert provider.calls == [("RELIANCE", "1d"), ("RELIANCE", "1d")]
+
+
+def test_failed_real_scan_marks_durable_admission_failed(
+    product_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    install_market_data(product_client, FakeDhanMarketData())
+
+    def fail_final_commit(self: ScanDiscoverService) -> None:
+        raise ProductFailure(503, "PERSISTENCE_PROBE")
+
+    monkeypatch.setattr(ScanDiscoverService, "commit", fail_final_commit)
+    response = product_client.post(
+        "/api/v1/discovery/scans",
+        json=scan_payload(
+            universe=["RELIANCE"],
+            provider="real",
+            idempotency_key="real-persistence-probe",
+        ),
+        headers={"Origin": ORIGIN},
+    )
+    assert response.status_code == 503
+
+    factory = cast(FastAPI, product_client.app).state.session_factory
+    with session_scope(factory) as session:
+        admission = session.scalar(
+            select(DiscoveryScanAdmissionRecord).where(
+                DiscoveryScanAdmissionRecord.request_key == "real-persistence-probe"
+            )
+        )
+        assert admission is not None
+        assert admission.status == "FAILED"
+        assert admission.payload["failure_reason"] == "ProductFailure"
 
 
 def test_real_provider_failure_is_not_evaluated_and_does_not_close_episode(

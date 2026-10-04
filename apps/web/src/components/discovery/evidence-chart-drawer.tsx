@@ -407,13 +407,17 @@ function OscillatorChart({ chart }: { chart: EvidenceChart }) {
 export function EvidenceChartDrawer({
   chart,
   loading,
+  error,
   onClose,
   onMode,
+  onRetry,
 }: {
   chart: EvidenceChart | null;
   loading: boolean;
+  error: string;
   onClose: () => void;
   onMode: (mode: EvidenceChartMode) => void;
+  onRetry: () => void;
 }) {
   const panel = useRef<HTMLElement>(null);
   const title = chart
@@ -508,6 +512,15 @@ export function EvidenceChartDrawer({
           {loading ? (
             <div className="evidence-loading" role="status">
               Loading evidence chart…
+            </div>
+          ) : null}
+          {!loading && !chart && error ? (
+            <div className="evidence-unavailable" role="alert">
+              <strong>Evidence chart unavailable</strong>
+              <p>{error}</p>
+              <button type="button" onClick={onRetry}>
+                Retry evidence chart
+              </button>
             </div>
           ) : null}
           {!loading && chart ? (

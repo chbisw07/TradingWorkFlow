@@ -1,6 +1,9 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
-import { DiscoveryWorkspace } from "../src/components/discovery/discovery-workspace";
+import {
+  DiscoveryWorkspace,
+  parseUniverseInput,
+} from "../src/components/discovery/discovery-workspace";
 import { EvidenceChartDrawer } from "../src/components/discovery/evidence-chart-drawer";
 import { DiscoverySettingsSection } from "../src/components/discovery/discovery-settings";
 
@@ -18,6 +21,19 @@ const settings = {
   max_history_items: 50,
   hot_observation_count: 20,
 };
+test("accepts broker-native ampersands and explains invalid universes", () => {
+  expect(parseUniverseInput("RELIANCE, M&M")).toEqual({
+    symbols: ["RELIANCE", "M&M"],
+    error: null,
+  });
+  expect(parseUniverseInput("RELIANCE, RELIANCE").error).toBe(
+    "Remove duplicate symbols: RELIANCE.",
+  );
+  expect(parseUniverseInput("RELIANCE, BAD/SYMBOL").error).toContain(
+    "Check these symbols: BAD/SYMBOL",
+  );
+});
+
 const context = {
   context_id: "10000000-0000-0000-0000-000000000001",
   observed_at: "2026-09-30T06:00:00Z",
@@ -750,6 +766,143 @@ test("runs a bounded scan and exposes evidence, degradation, history and no trad
     "aria-pressed",
     "false",
   );
+});
+
+test("keeps previous synthetic provenance explicit after a real scan failure and makes chart retry visible", async () => {
+  const readyProviders = providers.map((item) =>
+    item.id === "dhan"
+      ? {
+          ...item,
+          enabled: true,
+          health: "AVAILABLE" as const,
+          last_error: null,
+        }
+      : item,
+  );
+  const scan = {
+    summary: {
+      run_id: "70000000-0000-0000-0000-000000000091",
+      provider: "synthetic",
+      status: "COMPLETE",
+      started_at: "2026-10-04T04:38:50Z",
+      completed_at: "2026-10-04T04:38:51Z",
+      profile: "BREAKOUT_WITH_VOLUME",
+      horizon: "5d",
+      intent: "POSITIONAL_LONG",
+      universe_size: 1,
+      universe: ["RELIANCE"],
+      match_count: 1,
+      candidate_count: 0,
+      context_mode: "partial",
+      context_policy: "ALLOW_PARTIAL",
+      context_availability: "PARTIAL",
+      degraded: [],
+      archived_at: null,
+    },
+    matches: [
+      {
+        match_id: "71000000-0000-0000-0000-000000000091",
+        symbol: "RELIANCE",
+        exchange: "NSE",
+        provider: "twf-native",
+        segment: "EQ",
+        why_matched: ["Upside breakout confirmed"],
+        raw_reasons: ["breakout.20"],
+        key_metrics: { close: "2902.54", "relative_volume.20": "2.4" },
+        source_mode: "SYNTHETIC",
+        verification: "CONFIRMED",
+        evidence_coverage: "COMPLETE",
+        source_data_time: "2026-10-04T04:38:50Z",
+        lineage: "internal-scanner-v0:breakout-with-volume",
+      },
+    ],
+    candidates: [],
+    market_context: context,
+    admission: {
+      match_count: 1,
+      admitted_count: 1,
+      excluded_count: 0,
+      decisions: [
+        {
+          match_id: "71000000-0000-0000-0000-000000000091",
+          symbol: "RELIANCE",
+          status: "ADMITTED",
+          reason: "ADMITTED",
+        },
+      ],
+    },
+  };
+  let scanRequests = 0;
+  let chartRequests = 0;
+  const fetcher = vi.fn((input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    if (url.endsWith("/status")) return json(readyProviders);
+    if (url.includes("/scans?")) return json([]);
+    if (url.includes("/candidates?")) return json({ items: [] });
+    if (url.endsWith("/settings")) return json(settings);
+    if (url.includes("/evidence-chart")) {
+      chartRequests += 1;
+      return chartRequests === 1
+        ? json({ error: { code: "PROVIDER_ERROR" } }, 503)
+        : json(evidenceChart("as_scanned"));
+    }
+    if (url.endsWith("/scans") && init?.method === "POST") {
+      scanRequests += 1;
+      return scanRequests === 1
+        ? json(scan, 201)
+        : json({ error: { code: "PROVIDER_ERROR" } }, 503);
+    }
+    throw new Error(`Unexpected ${url}`);
+  });
+  vi.stubGlobal("fetch", fetcher);
+  render(<DiscoveryWorkspace />);
+
+  await screen.findByRole("button", { name: "Run scan" });
+  fireEvent.click(screen.getByRole("button", { name: "Run scan" }));
+  await screen.findByRole("heading", { name: "Latest scan result" });
+
+  fireEvent.change(screen.getByRole("combobox", { name: /^Provider/ }), {
+    target: { value: "real" },
+  });
+  expect(screen.getByText("PREVIOUS SCAN RESULT")).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      /Showing previous Synthetic scan result.*Current setup is Real\/Dhan/,
+    ),
+  ).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Run scan" }));
+  expect(
+    await screen.findByText(/Scan & Discover is unavailable/),
+  ).toBeInTheDocument();
+  const requestBodies = fetcher.mock.calls
+    .filter(
+      (call) =>
+        String(call[0]).endsWith("/scans") && call[1]?.method === "POST",
+    )
+    .map((call) => JSON.parse(call[1]?.body as string));
+  expect(requestBodies.at(-1)?.provider).toBe("real");
+  expect(screen.getByText("PREVIOUS SCAN RESULT")).toBeInTheDocument();
+
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: "View scan evidence chart for RELIANCE",
+    }),
+  );
+  const failedDrawer = await screen.findByRole("dialog", {
+    name: "Scan evidence chart",
+  });
+  expect(
+    within(failedDrawer).getByText("Evidence chart unavailable"),
+  ).toBeInTheDocument();
+  fireEvent.click(
+    within(failedDrawer).getByRole("button", { name: "Retry evidence chart" }),
+  );
+  const loadedDrawer = await screen.findByRole("dialog", {
+    name: "RELIANCE evidence chart",
+  });
+  expect(within(loadedDrawer).getByText("SYNTHETIC DATA")).toBeInTheDocument();
+  expect(chartRequests).toBe(2);
 });
 
 test("uses compact first-run and inspector states inside one workstation", async () => {
@@ -1722,8 +1875,10 @@ test("renders Dhan current-chart provenance with completed-bar truth", () => {
     <EvidenceChartDrawer
       chart={chart}
       loading={false}
+      error=""
       onClose={vi.fn()}
       onMode={vi.fn()}
+      onRetry={vi.fn()}
     />,
   );
   expect(screen.getByText("DHAN MARKET DATA")).toBeInTheDocument();
@@ -1765,8 +1920,10 @@ test("renders legacy TradingView retention-restricted history without inventing 
     <EvidenceChartDrawer
       chart={chart}
       loading={false}
+      error=""
       onClose={vi.fn()}
       onMode={vi.fn()}
+      onRetry={vi.fn()}
     />,
   );
   expect(screen.getByText("RETENTION RESTRICTED")).toBeInTheDocument();
@@ -1809,8 +1966,10 @@ test.each(["AUTH_REQUIRED", "RATE_LIMITED", "EXACT_MISSING"] as const)(
       <EvidenceChartDrawer
         chart={chart}
         loading={false}
+        error=""
         onClose={vi.fn()}
         onMode={vi.fn()}
+        onRetry={vi.fn()}
       />,
     );
     expect(screen.getByText(state.replaceAll("_", " "))).toBeInTheDocument();
