@@ -367,11 +367,49 @@ test("persistent Watchlists, instrument detail, CSV, notes, archive and responsi
     .getByRole("button", { name: "Export (CSV)", exact: false })
     .click();
   expect((await download).suggestedFilename()).toBe("watchlist.csv");
-  await page.getByLabel("Select INFY", { exact: true }).check();
-  await page.getByRole("button", { name: "Remove selected" }).click();
+  const remove = page.getByRole("button", {
+    name: "Remove INFY from My Core Updated",
+    exact: true,
+  });
+  await expect(remove).toBeVisible();
+  const removeBox = await remove.boundingBox();
+  expect(removeBox!.x).toBeGreaterThanOrEqual(0);
+  expect(removeBox!.x + removeBox!.width).toBeLessThanOrEqual(
+    page.viewportSize()!.width,
+  );
+  await expect(remove).toHaveAttribute(
+    "title",
+    "Remove INFY from My Core Updated",
+  );
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await remove.focus();
+  await page.keyboard.press("Enter");
+  await expect(remove).toBeVisible();
+  page.once("dialog", (dialog) => dialog.accept());
+  await remove.focus();
+  await page.keyboard.press("Space");
   await expect(
     page.getByRole("button", { name: "All 4", exact: true }),
   ).toBeVisible();
+  await expect(
+    page
+      .locator(".wl-activity")
+      .filter({ hasText: "REMOVED" })
+      .filter({ hasText: "INFY" }),
+  ).toBeVisible();
+  await navigator.getByRole("button", { name: /Momentum/ }).click();
+  await expect(page.getByLabel("Select INFY", { exact: true })).toBeVisible();
+  await navigator.getByRole("button", { name: /My Core Updated/ }).click();
+  await expect(
+    page.getByRole("button", { name: "Trash", exact: true }),
+  ).toBeVisible();
+  if (info.project.name.match(/1440|1920|2560/)) {
+    const navBox = await page.locator(".wl-navigator").boundingBox();
+    const mainBox = await page.locator(".wl-main").boundingBox();
+    expect(
+      Math.abs(navBox!.y + navBox!.height - mainBox!.y - mainBox!.height),
+    ).toBeLessThan(2);
+  }
   await page.locator(".wl-detail-head summary").click();
   await page
     .getByRole("button", { name: "Move to Trash", exact: true })

@@ -33,6 +33,7 @@ import {
   type WatchQuote,
 } from "../../lib/watchlists";
 import { OrderTicket } from "../brokers/order-ticket";
+import { Icon } from "../shell/icon";
 import { WatchDialog } from "./dialog";
 import { MarketChart } from "./market-chart";
 
@@ -797,9 +798,14 @@ export function WatchlistsWorkspace() {
           <button
             className="wl-trash"
             aria-pressed={trash}
+            aria-label={trash ? "Active watchlists" : "Trash"}
+            title={
+              trash ? "Show active watchlists" : "View archived watchlists"
+            }
             onClick={() => setTrash(!trash)}
           >
-            {trash ? "← Active watchlists" : "♧ Trash"}
+            <Icon name="trash" />
+            {trash ? "Active watchlists" : "Trash"}
           </button>
           {!loaded && <p role="status">Loading watchlists…</p>}
         </aside>
@@ -1207,19 +1213,23 @@ export function WatchlistsWorkspace() {
                               >
                                 S
                               </button>
-                              <details>
-                                <summary
-                                  aria-label={`${i.instrument.symbol} actions`}
-                                >
-                                  ⋮
-                                </summary>
-                                <button
-                                  disabled={busy || current.archived}
-                                  onClick={() => void remove([id])}
-                                >
-                                  Remove {i.instrument.symbol}
-                                </button>
-                              </details>
+                              <button
+                                className="wl-remove"
+                                aria-label={`Remove ${i.instrument.symbol} from ${current.name}`}
+                                title={`Remove ${i.instrument.symbol} from ${current.name}`}
+                                disabled={busy || current.archived}
+                                onClick={() => {
+                                  if (
+                                    window.confirm(
+                                      `Remove ${i.instrument.symbol} from ${current.name}? Other watchlists are not affected.`,
+                                    )
+                                  ) {
+                                    void remove([id]);
+                                  }
+                                }}
+                              >
+                                <Icon name="trash" />
+                              </button>
                             </div>
                           </td>
                         </tr>
