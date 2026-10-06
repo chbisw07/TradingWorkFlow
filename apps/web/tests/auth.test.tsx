@@ -66,6 +66,7 @@ test("current identity is displayed and logout returns to login", async () => {
     </UserSession>,
   );
   expect(screen.getByText("Alice Trader")).toBeVisible();
+  fireEvent.click(screen.getByText("Alice Trader"));
   fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
   await waitFor(() => expect(replace).toHaveBeenCalledWith("/login"));
 });
@@ -88,6 +89,7 @@ test("failed logout remains visible and offers retry", async () => {
       <UserMenu />
     </UserSession>,
   );
+  fireEvent.click(screen.getByText("Alice Trader"));
   fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "Unable to sign out",

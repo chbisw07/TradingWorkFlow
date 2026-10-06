@@ -1,0 +1,469 @@
+/* Outer application frame. Workspace component tokens and behavior stay intact. */
+.redesigned-shell {
+  --shell-header-height: 64px;
+  --shell-sidebar-width: 202px;
+  --shell-background: #101821;
+  --shell-surface: #121d29;
+  --shell-sidebar: #13202d;
+  --shell-border: #293b4f;
+  --shell-text: #e5edf7;
+  --shell-secondary: #b4c5d9;
+  --shell-muted: #9bafc8;
+  --shell-active: #193b32;
+  --shell-accent: #88d3aa;
+  --shell-hover: #203144;
+  --shell-avatar: #236fb5;
+  --shell-on-avatar: #ffffff;
+  --shell-backdrop: #07142480;
+  background: var(--shell-background);
+}
+[data-theme="light"] .redesigned-shell {
+  --shell-background: #f8fafc;
+  --shell-surface: #ffffff;
+  --shell-sidebar: #f5f9fc;
+  --shell-border: #e2e9f1;
+  --shell-text: #10213f;
+  --shell-secondary: #354e70;
+  --shell-muted: #657c9c;
+  --shell-active: #e0f3e7;
+  --shell-accent: #168344;
+  --shell-hover: #eaf0f6;
+}
+.redesigned-shell .skip-link {
+  z-index: 100;
+}
+.redesigned-shell .top-bar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: var(--shell-surface);
+  color: var(--shell-text);
+  border-color: var(--shell-border);
+}
+.redesigned-shell .top-bar-primary {
+  display: grid;
+  grid-template-columns: minmax(250px, 0.8fr) minmax(180px, 1.4fr) auto auto;
+  min-height: var(--shell-header-height);
+  gap: 20px;
+  padding: 8px 24px;
+}
+.redesigned-shell .brand {
+  gap: 22px;
+}
+.redesigned-shell .brand-mark {
+  font-size: 40px;
+  line-height: 1;
+  letter-spacing: -0.08em;
+  padding: 0;
+}
+.redesigned-shell .brand-mark span {
+  color: var(--shell-accent);
+}
+.brand-copy {
+  display: grid;
+  gap: 1px;
+}
+.redesigned-shell .brand-name {
+  display: block;
+  font-size: 17px;
+  letter-spacing: 0;
+  line-height: 1.3;
+}
+.brand-tagline {
+  font-size: 11px;
+  white-space: nowrap;
+}
+.global-search {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 10px;
+  border: 1px solid var(--shell-border);
+  border-radius: 6px;
+  padding: 9px 12px;
+  color: var(--shell-muted);
+}
+.global-search svg {
+  flex-shrink: 0;
+}
+.global-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--shell-secondary);
+  font: inherit;
+  font-size: 12px;
+}
+.global-search input::placeholder {
+  color: var(--shell-muted);
+  opacity: 1;
+}
+.global-search > span {
+  font-size: 10px;
+  white-space: nowrap;
+}
+.market-ticker-summary {
+  display: flex;
+  align-items: center;
+}
+.market-ticker-summary > div {
+  padding: 0 14px;
+  border-left: 1px solid var(--shell-border);
+}
+.market-ticker-summary > div:first-child {
+  border-left: 0;
+  padding-left: 0;
+}
+.market-ticker-summary dt {
+  font-size: 10px;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+}
+.market-ticker-summary dd {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+}
+.market-ticker-summary strong {
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.market-ticker-summary dd span {
+  font-size: 10px;
+  color: var(--shell-muted);
+}
+.redesigned-shell .top-bar-user {
+  gap: 8px;
+  margin: 0;
+  flex-wrap: nowrap;
+}
+.redesigned-shell .shell-icon-button,
+.redesigned-shell .theme-toggle {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  padding: 0;
+  background: transparent;
+  color: var(--shell-secondary);
+  box-shadow: none;
+}
+.redesigned-shell .shell-icon-button:disabled {
+  opacity: 0.7;
+}
+.redesigned-shell .shell-icon-button:not(:disabled):hover,
+.redesigned-shell .theme-toggle:hover {
+  background: var(--shell-hover);
+}
+.redesigned-shell .nav-toggle {
+  display: none;
+}
+.redesigned-shell .user-menu {
+  position: relative;
+  display: block;
+}
+.user-menu > summary {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+  list-style: none;
+  min-height: 40px;
+  color: var(--shell-text, var(--text));
+  border-radius: 5px;
+}
+.user-menu > summary::-webkit-details-marker {
+  display: none;
+}
+.redesigned-shell .avatar {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--shell-avatar);
+  color: var(--shell-on-avatar);
+  font-size: 16px;
+}
+.redesigned-shell .current-user {
+  max-width: 100px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.user-menu-content {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  z-index: 31;
+  width: 210px;
+  padding: 6px;
+  border: 1px solid var(--shell-border, var(--border));
+  border-radius: 7px;
+  background: var(--shell-surface, var(--surface));
+  box-shadow: 0 4px 12px #00000014;
+}
+.user-menu-content a,
+.user-menu .user-menu-content button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  padding: 10px 12px;
+  text-align: left;
+  color: var(--shell-text, var(--text));
+  font: inherit;
+}
+.user-menu-content a:hover,
+.user-menu-content button:hover {
+  background: var(--shell-hover, var(--surface-hover));
+}
+.user-menu-content [role="alert"] {
+  display: block;
+  padding: 10px;
+}
+.redesigned-shell .shell-grid {
+  grid-template-columns: var(--shell-sidebar-width) minmax(0, 1fr);
+  align-items: start;
+}
+.desktop-sidebar {
+  position: sticky;
+  top: var(--shell-header-height);
+  height: calc(100dvh - var(--shell-header-height));
+  overflow-y: auto;
+  scrollbar-width: thin;
+  background: var(--shell-sidebar);
+  border-right: 1px solid var(--shell-border);
+}
+.redesigned-shell .primary-nav {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding: 12px 11px 14px;
+  border: 0;
+  background: var(--shell-sidebar);
+  color: var(--shell-secondary);
+}
+.redesigned-shell .nav-content {
+  display: block;
+}
+.sidebar-section + .sidebar-section {
+  border-top: 1px solid var(--shell-border);
+  margin-top: 12px;
+  padding-top: 6px;
+}
+.redesigned-shell .nav-caption {
+  display: block;
+  padding: 8px 13px 4px;
+  color: var(--shell-muted);
+  font: 600 10px/1.5 var(--font-sans);
+  letter-spacing: 0.1em;
+}
+.redesigned-shell .primary-nav ul {
+  display: block;
+  margin: 0;
+}
+.redesigned-shell .nav-item {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  min-height: 42px;
+  padding: 9px 14px;
+  gap: 17px;
+  border: 0;
+  border-radius: 5px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--shell-secondary);
+}
+.redesigned-shell .nav-item svg {
+  flex-shrink: 0;
+}
+.redesigned-shell .nav-item:hover {
+  background: var(--shell-hover);
+}
+.redesigned-shell .nav-item[aria-current="page"] {
+  background: var(--shell-active);
+  color: var(--shell-text);
+  font-weight: 600;
+  box-shadow: inset 2px 0 var(--shell-accent);
+}
+.redesigned-shell .nav-item[aria-current="page"] svg {
+  color: var(--shell-accent);
+}
+.sidebar-footer {
+  margin-top: auto;
+  padding: 38px 12px 0;
+  color: var(--shell-secondary);
+  font-size: 10px;
+  line-height: 1.8;
+}
+.sidebar-footer > div {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+.redesigned-shell .sidebar-footer .brand-mark {
+  font-size: 28px;
+  color: var(--shell-text);
+}
+.redesigned-shell .workspace-frame {
+  max-width: none;
+  margin: 0;
+  padding: 16px 20px 28px;
+}
+.navigation-drawer {
+  max-width: min(320px, 88vw);
+  width: 320px;
+  max-height: 100dvh;
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: var(--shell-sidebar);
+  color: var(--shell-text);
+}
+.navigation-drawer::backdrop {
+  background: var(--shell-backdrop);
+}
+body:has(.navigation-drawer[open]) {
+  overflow: hidden;
+}
+.drawer-content {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.drawer-content .primary-nav {
+  flex: 1;
+}
+.drawer-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--shell-border);
+  font-weight: 600;
+}
+.redesigned-shell :is(#preferences, #integrations, #advanced) {
+  scroll-margin-top: calc(var(--shell-header-height) + 20px);
+}
+.planned-workspace {
+  padding: 24px;
+  display: grid;
+  justify-items: start;
+  gap: 18px;
+}
+.broker-settings-link {
+  padding: 12px 0;
+}
+@media (max-width: 1399px) and (min-width: 1200px) {
+  .redesigned-shell .top-bar-primary {
+    gap: 12px;
+    padding-inline: 16px;
+    grid-template-columns: 245px minmax(150px, 1fr) auto auto;
+  }
+  .market-ticker-summary > div {
+    padding-inline: 9px;
+  }
+  .redesigned-shell .current-user {
+    max-width: 80px;
+  }
+  .global-search > span {
+    display: none;
+  }
+}
+@media (max-width: 1199px) {
+  .redesigned-shell {
+    --shell-header-height: 114px;
+  }
+  .redesigned-shell .top-bar-primary {
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    gap: 8px 14px;
+    padding: 8px 20px;
+  }
+  .redesigned-shell .nav-toggle {
+    display: grid;
+  }
+  .redesigned-shell .brand {
+    gap: 14px;
+  }
+  .redesigned-shell .brand-mark {
+    font-size: 32px;
+  }
+  .redesigned-shell .top-bar-user {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .global-search {
+    grid-column: 1 / 3;
+    grid-row: 2;
+  }
+  .market-ticker-summary {
+    grid-column: 3;
+    grid-row: 2;
+  }
+  .desktop-sidebar {
+    display: none;
+  }
+  .redesigned-shell .shell-grid {
+    display: block;
+  }
+  .redesigned-shell .workspace-frame {
+    padding: 16px;
+  }
+}
+@media (max-width: 699px) {
+  .redesigned-shell {
+    --shell-header-height: 150px;
+  }
+  .redesigned-shell .top-bar-primary {
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    padding: 6px 12px;
+    gap: 6px 8px;
+  }
+  .redesigned-shell .brand {
+    gap: 0;
+  }
+  .redesigned-shell .brand-copy,
+  .redesigned-shell .current-user,
+  .notifications-button,
+  .user-menu > summary > svg {
+    display: none;
+  }
+  .redesigned-shell .top-bar-user {
+    gap: 6px;
+  }
+  .global-search {
+    grid-column: 1 / -1;
+  }
+  .global-search > span {
+    display: none;
+  }
+  .market-ticker-summary {
+    grid-row: 3;
+    grid-column: 1 / -1;
+    justify-content: space-between;
+    padding: 2px 0;
+  }
+  .market-ticker-summary > div {
+    padding-inline: 12px;
+    flex: 1;
+  }
+  .market-ticker-summary > div:last-child {
+    padding-right: 0;
+  }
+  .market-ticker-summary dd {
+    gap: 6px;
+  }
+  .redesigned-shell .workspace-frame {
+    padding: 12px;
+  }
+}

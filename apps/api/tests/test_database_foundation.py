@@ -252,6 +252,10 @@ def test_migration_history_and_metadata() -> None:
         "discovery_snapshots",
         "discovery_transitions",
         "discovery_llm_explanations",
+        "watchlists",
+        "watchlist_items",
+        "watchlist_notes",
+        "watchlist_activity",
     }
     assert set(Base.metadata.naming_convention) == {"pk", "fk", "ix", "uq", "ck"}
     command.upgrade(config, "head")
@@ -261,8 +265,7 @@ def test_migration_history_and_metadata() -> None:
     try:
         with db.connect() as connection:
             assert (
-                MigrationContext.configure(connection).get_current_revision()
-                == "0016_dhan_market_data_credentials"
+                MigrationContext.configure(connection).get_current_revision() == "0017_watchlists"
             )
             assert inspect(connection).get_table_names() == [
                 "alembic_version",
@@ -296,6 +299,10 @@ def test_migration_history_and_metadata() -> None:
                 "preference_profiles",
                 "user_preferences",
                 "users",
+                "watchlist_activity",
+                "watchlist_items",
+                "watchlist_notes",
+                "watchlists",
             ]
         command.downgrade(config, "base")
         with db.connect() as connection:
@@ -303,8 +310,7 @@ def test_migration_history_and_metadata() -> None:
         command.upgrade(config, "head")
         with db.connect() as connection:
             assert (
-                MigrationContext.configure(connection).get_current_revision()
-                == "0016_dhan_market_data_credentials"
+                MigrationContext.configure(connection).get_current_revision() == "0017_watchlists"
             )
     finally:
         db.dispose()
@@ -320,6 +326,8 @@ def test_offline_postgresql_migration(monkeypatch: pytest.MonkeyPatch) -> None:
     sql = output.getvalue()
     assert "0001_empty_baseline" in sql and "alembic_version" in sql
     assert "credential_marker_123" not in sql and "db.invalid" not in sql
+    assert "version_num VARCHAR(128)" in sql
+    assert sql.count("CREATE TABLE alembic_version") == 1
 
 
 def test_temporal_migration_preserves_legacy_episode_round_trip(

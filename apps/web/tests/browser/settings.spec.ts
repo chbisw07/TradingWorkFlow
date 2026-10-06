@@ -99,6 +99,7 @@ test("personal settings persist, profiles apply, stale edits conflict and both t
   }
   await page.getByRole("button", { name: "Deactivate profile" }).click();
   await expect(page.getByText(/Profile detached/)).toBeVisible();
+  await page.locator(".user-menu > summary").click();
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page).toHaveURL(/login$/);
   expect((await page.request.get("/api/v1/settings/values")).status()).toBe(

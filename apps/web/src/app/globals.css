@@ -4,3 +4,7 @@
 @import "../styles/settings.css";
 @import "../styles/brokers.css";
 @import "../styles/discovery.css";
+
+@import "../styles/app-shell.css";
+
+@import "../styles/watchlists.css";

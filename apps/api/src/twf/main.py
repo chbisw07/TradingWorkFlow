@@ -25,6 +25,8 @@ from twf.api.preferences import router as preferences_router
 from twf.api.preferences import settings_error
 from twf.api.routes import create_router
 from twf.api.services import router as services_router
+from twf.api.watchlists import router as watchlists_router
+from twf.api.watchlists import watchlist_error
 from twf.brokers.contracts import BrokerAdapter, BrokerFailure
 from twf.brokers.service import BrokerService
 from twf.brokers.zerodha import ZerodhaAdapter
@@ -42,6 +44,8 @@ from twf.middleware import ErrorBoundaryMiddleware, RequestContextMiddleware
 from twf.observability import create_logger
 from twf.preferences import SettingsFailure
 from twf.schemas import ErrorResponse
+from twf.watchlists.market import WatchlistHistoryCache, WatchlistQuoteCache
+from twf.watchlists.service import WatchlistFailure
 
 
 def create_app(
@@ -69,6 +73,8 @@ def create_app(
         app.state.market_data_provider = DhanMarketDataProvider(settings.dhan_market_data)
         app.state.dhan_credentials = DhanCredentialManager(app.state.session_factory, settings)
         app.state.market_intelligence_cache = TapTideSnapshotCache()
+        app.state.watchlist_quotes = WatchlistQuoteCache()
+        app.state.watchlist_history = WatchlistHistoryCache()
         app.state.auth_dummy_hash = PasswordHasher().hash(secrets.token_urlsafe(32))
         app.state.initialized = True
         logger.info("application_started")
@@ -126,6 +132,8 @@ def create_app(
     app.include_router(mcp_router)
     app.include_router(dhan_market_data_router)
     app.include_router(discovery_router)
+    app.include_router(watchlists_router)
+    app.add_exception_handler(WatchlistFailure, watchlist_error)
     app.add_exception_handler(ProductFailure, product_error)
     app.add_exception_handler(MCPFailure, mcp_error)
     app.add_exception_handler(DhanCredentialFailure, dhan_error)

@@ -164,6 +164,7 @@ def test_quote_batch_request_and_normalization() -> None:
                     "NSE_EQ": {
                         "2885": {
                             "last_price": 2920.5,
+                            "net_change": 25.5,
                             "ohlc": {"open": 2900, "high": 2930, "low": 2890, "close": 2895},
                             "volume": 123456,
                             "oi": 0,
@@ -181,7 +182,7 @@ def test_quote_batch_request_and_normalization() -> None:
     assert captured["headers"]["access-token"] == "test-access-token"
     value = result[0]
     assert str(value.last_price) == "2920.5"
-    assert str(value.previous_close) == "2895"
+    assert str(value.previous_close) == "2895.0"
     assert str(value.volume) == "123456"
     assert value.provider_source_time is None
     assert value.provider == "dhan"
@@ -371,3 +372,34 @@ def test_malformed_quote_and_ohlcv_values_are_typed_invalid_responses() -> None:
             )
         )
     assert ohlcv_failure.value.code == MarketDataErrorCode.INVALID_RESPONSE
+
+
+@pytest.mark.parametrize(
+    "net, expected", [(25.5, "2895.0"), (-25.5, "2946.0"), (0, None), (None, None)]
+)
+def test_quote_previous_session_does_not_use_daily_close(
+    net: float | None, expected: str | None
+) -> None:
+    def respond(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "status": "success",
+                "data": {
+                    "NSE_EQ": {
+                        "2885": {
+                            "last_price": 2920.5,
+                            "net_change": net,
+                            "ohlc": {"close": 2920.5},
+                            "last_trade_time": "06/10/2026 15:59:59",
+                        }
+                    }
+                },
+            },
+        )
+
+    provider, instrument = provider_with_identity(respond)
+    quote = asyncio.run(provider.get_quotes((instrument,)))[0]
+    assert (str(quote.previous_close) if quote.previous_close is not None else None) == expected
+    assert quote.provider_source_time is not None
+    assert quote.provider_source_time.isoformat() == "2026-10-06T15:59:59+05:30"

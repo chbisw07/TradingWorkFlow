@@ -1,127 +1,96 @@
 "use client";
-
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useRef, useState } from "react";
-import { Icon, type IconName } from "./icon";
+import { Icon } from "./icon";
+import { navigationSections, type NavigationItem } from "./navigation";
+import { useLocationHash } from "./use-location-hash";
+import { version } from "../../../package.json";
 
-export const navigationItems: { label: string; icon: IconName }[] = [
-  { label: "Home", icon: "home" },
-  { label: "Brokers", icon: "positions" },
-  { label: "Watchlists", icon: "watchlists" },
-  { label: "Scanners", icon: "scanners" },
-  { label: "Candidates", icon: "candidates" },
-  { label: "Positions", icon: "positions" },
-  { label: "Orders", icon: "orders" },
-  { label: "Alerts", icon: "alerts" },
-  { label: "Consoles", icon: "consoles" },
-  { label: "History", icon: "history" },
-  { label: "Settings", icon: "settings" },
-];
-
-export function PrimaryNavigation() {
-  const [expanded, setExpanded] = useState(false);
-  const toggle = useRef<HTMLButtonElement>(null);
-  const pathname = usePathname();
+function SidebarItem({
+  item,
+  active,
+  onNavigate,
+}: {
+  item: NavigationItem;
+  active: boolean;
+  onNavigate?: () => void;
+}) {
+  const contents = (
+    <>
+      <Icon name={item.icon} />
+      <span>{item.label}</span>
+    </>
+  );
+  // Native anchors keep hashchange, focus and same-page Settings navigation reliable.
   return (
-    <nav
-      className="primary-nav"
-      aria-label="Primary navigation"
-      data-expanded={expanded}
-      onKeyDown={(event) => {
-        if (event.key === "Escape" && expanded) {
-          setExpanded(false);
-          toggle.current?.focus();
-        }
-      }}
-    >
-      <button
-        ref={toggle}
-        type="button"
-        className="nav-toggle"
-        aria-expanded={expanded}
-        aria-controls="primary-nav-items"
-        onClick={() => setExpanded(!expanded)}
-      >
-        <span>Workspace navigation</span>
-        <span aria-hidden="true">{expanded ? "−" : "+"}</span>
-      </button>
-      <div className="nav-content" id="primary-nav-items">
-        <p className="nav-caption">WORKSPACE</p>
-        <ul>
-          {navigationItems.map(({ label, icon }, index) => (
-            <li key={label}>
-              {index === 0 ||
-              label === "Settings" ||
-              label === "Brokers" ||
-              label === "Scanners" ||
-              label === "Candidates" ? (
-                <Link
-                  href={
-                    label === "Brokers"
-                      ? "/brokers"
-                      : label === "Scanners"
-                        ? "/scanners"
-                        : label === "Candidates"
-                          ? "/candidates"
-                          : label === "Settings"
-                            ? "/settings"
-                            : "/"
-                  }
-                  className="nav-item"
-                  aria-current={
-                    (label === "Brokers" && pathname.startsWith("/brokers")) ||
-                    (label === "Scanners" &&
-                      pathname.startsWith("/scanners")) ||
-                    (label === "Candidates" &&
-                      pathname.startsWith("/candidates")) ||
-                    pathname ===
-                      (label === "Brokers"
-                        ? "/brokers"
-                        : label === "Settings"
-                          ? "/settings"
-                          : "/")
-                      ? "page"
-                      : undefined
-                  }
-                  onClick={() => setExpanded(false)}
-                >
-                  <Icon name={icon} />
-                  <span>{label}</span>
-                </Link>
-              ) : (
-                <button
-                  type="button"
-                  className="nav-item"
-                  disabled
-                  aria-label={`${label} — coming later`}
-                >
-                  <Icon name={icon} />
-                  <span>{label}</span>
-                  <span className="nav-later" aria-hidden="true">
-                    Later
-                  </span>
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
-        <p className="nav-note">
-          {pathname.startsWith("/brokers")
-            ? "Broker workspace"
-            : pathname.startsWith("/scanners") ||
-                pathname.startsWith("/candidates")
-              ? "Scan & Discover"
-              : "Foundation preview"}
-          <br />
-          {pathname.startsWith("/brokers")
-            ? "Permissions are shown per account."
-            : pathname.startsWith("/scanners") ||
-                pathname.startsWith("/candidates")
-              ? "Discovery has no trading authority."
-              : "Trading is not enabled."}
-        </p>
+    <li>
+      {item.href.includes("#") ? (
+        <a
+          href={item.href}
+          className="nav-item"
+          aria-current={active ? "page" : undefined}
+          onClick={onNavigate}
+        >
+          {contents}
+        </a>
+      ) : (
+        <Link
+          href={item.href}
+          className="nav-item"
+          aria-current={active ? "page" : undefined}
+          onClick={onNavigate}
+        >
+          {contents}
+        </Link>
+      )}
+    </li>
+  );
+}
+export function PrimaryNavigation({ onNavigate }: { onNavigate?: () => void }) {
+  const pathname = usePathname();
+  const hash = useLocationHash();
+  return (
+    <nav className="primary-nav" aria-label="Primary navigation">
+      <div className="nav-content">
+        {navigationSections.map((section) => (
+          <section
+            className="sidebar-section"
+            key={section.label}
+            aria-label={section.label}
+          >
+            <h2 className="nav-caption">{section.label}</h2>
+            <ul>
+              {section.items.map((item) => {
+                const [route, anchor] = item.href.split("#");
+                const active = anchor
+                  ? pathname === route &&
+                    (hash || "#preferences") === `#${anchor}`
+                  : route === "/"
+                    ? pathname === "/"
+                    : pathname === route || pathname.startsWith(route + "/");
+                return (
+                  <SidebarItem
+                    key={item.href}
+                    item={item}
+                    active={active}
+                    onNavigate={onNavigate}
+                  />
+                );
+              })}
+            </ul>
+          </section>
+        ))}
       </div>
+      <footer className="sidebar-footer">
+        <div>
+          <span className="brand-mark" aria-hidden="true">
+            twf<span>.</span>
+          </span>
+          <span>v{version}</span>
+        </div>
+        <p>© 2026 TradingWorkFlow</p>
+        <p>Scan. Discover. Trade Smarter.</p>
+      </footer>
     </nav>
   );
 }

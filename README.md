@@ -141,7 +141,22 @@ revalidation and hardening gate, together with remote cleanup/recovery obligatio
 
 ## What Works Today
 
-- Authenticated TWF web application with responsive shell and theme switching.
+- **Watchlists — implemented / ready for user validation, not accepted or frozen:**
+  persistent owner-scoped equity/index/futures/options lists, archive/restore, search,
+  CSV import/export, bulk move/copy, notes/activity, batched Dhan overlays, lazy
+  charts and existing Broker V2 preview handoff. Optional TapTide news remains
+  independent. Live quote/chart validation currently needs renewed Dhan credentials;
+  live preview needs broker reauthorization. See the
+  [Watchlists architecture](docs/TWF_WATCHLIST_ARCHITECTURE.md) and
+  [implementation evidence](docs/TWF_WATCHLIST_IMPLEMENTATION_REPORT.md).
+
+- Authenticated TWF web application with a shared header, grouped navigation,
+  responsive drawer, and theme switching. Existing Brokers and Scanners workspaces
+  remain intact inside the new frame. Brokers is available from the workspace sidebar, user menu, or
+  Settings → Integrations; Preferences, Integrations, and Advanced link into the
+  same Settings page. Global symbol search and header market values are explicitly
+  unavailable until their shared services are implemented. See the
+  [shell implementation update](docs/TWF_TWF1_1_FRONTEND_SHELL.md#2026-10-06-application-shell-redesign).
 - Personal Settings, validated profiles, service status, and owner-scoped provider
   configuration.
 - Accepted Broker V1 read-only Zerodha workspace and Broker V2 opt-in manual order
@@ -174,7 +189,7 @@ revalidation and hardening gate, together with remote cleanup/recovery obligatio
   complete final Sprint-2 acceptance and freeze. Sprint 2 is not accepted/frozen now.
 - Validate the temporal-state implementation independently; its architecture and
   implementation are complete, while user validation and acceptance remain pending.
-- Keep Watchlists / Universe Management as a separate TBD design.
+- Complete Watchlists live user validation after refreshing Dhan credentials and reconnecting the trading broker; collection persistence and automated UI validation are implemented. Broader Universe Management remains separate.
 - Keep Custom Typed Time Horizon as a separate TBD design.
 - Defer richer scanner/profile parameterization, saved overrides/presets, and user
   tuning to a later refinement. Any future design must record the exact parameter

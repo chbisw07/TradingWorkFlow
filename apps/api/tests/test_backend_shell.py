@@ -100,6 +100,21 @@ def test_lifecycle_and_contracts(settings: Settings) -> None:
         }
         schema = client.get("/openapi.json").json()
         assert set(schema["paths"]) == {
+            "/api/v1/watchlists",
+            "/api/v1/watchlists/instruments",
+            "/api/v1/watchlists/{key}",
+            "/api/v1/watchlists/{key}/items",
+            "/api/v1/watchlists/{key}/items/{instrument_id}",
+            "/api/v1/watchlists/{key}/items/{instrument_id}/chart",
+            "/api/v1/watchlists/{key}/items/{instrument_id}/news",
+            "/api/v1/watchlists/{key}/items/{instrument_id}/broker-instrument",
+            "/api/v1/watchlists/{key}/remove",
+            "/api/v1/watchlists/{key}/transfer",
+            "/api/v1/watchlists/{key}/notes",
+            "/api/v1/watchlists/{key}/universe",
+            "/api/v1/watchlists/{key}/export",
+            "/api/v1/watchlists/{key}/import",
+            "/api/v1/watchlists/{key}/quotes",
             "/api/v1/brokers/providers",
             "/api/v1/brokers/setup",
             "/api/v1/brokers/accounts",

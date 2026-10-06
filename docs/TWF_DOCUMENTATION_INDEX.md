@@ -2,6 +2,15 @@
 
 > **2026-10-02 active provider map:** Dhan is the first authoritative `MarketDataProvider`; TapTide is the first optional `MarketIntelligenceProvider`; TradingView is historical/decommissioned from active S&D. Generic MCP and historical provenance remain. The Dhan/TapTide migration is implemented and pending user validation; no commit/tag/freeze is claimed.
 
+## Current Watchlists implementation
+
+- [Watchlists architecture](TWF_WATCHLIST_ARCHITECTURE.md): owner-scoped collections,
+  canonical identities, Dhan overlays, broker independence, inbound source metadata,
+  immutable universe snapshots and migration requirements.
+- [Watchlists implementation report](TWF_WATCHLIST_IMPLEMENTATION_REPORT.md): validation,
+  screenshot evidence, live authorization limitations and scorecard. Implemented / ready
+  for user validation; not accepted or frozen.
+
 ## Status
 
 **Authoritative documentation map for TWF**

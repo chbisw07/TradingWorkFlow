@@ -26,7 +26,12 @@ export function OrderTicket({
   close,
 }: {
   account: Account;
-  initial?: { instrument: Instrument; side: Side };
+  initial?: {
+    instrument: Instrument;
+    side: Side;
+    quantity?: number;
+    orderType?: string;
+  };
   recovery?: Intent;
   close: () => void;
 }) {
@@ -89,15 +94,18 @@ export function OrderTicket({
           );
         if (controller.signal.aborted) return;
         setCapability(c);
-        const launchPrice = c.order_types[0].price_required
+        const selectedRule =
+          c.order_types.find((r) => r.name === initial?.orderType) ||
+          c.order_types[0];
+        const launchPrice = selectedRule.price_required
           ? quotePrice(launchQuote.current, instrument.tick_size)
           : null;
         if (launchPrice !== null) priceInitialized.current = true;
         setForm({
           product: c.products[0],
-          order_type: c.order_types[0].name,
-          validity: c.order_types[0].validities[0],
-          count: "1",
+          order_type: selectedRule.name,
+          validity: selectedRule.validities[0],
+          count: String(initial?.quantity || 1),
           price: launchPrice || "",
           trigger_price: "",
         });
@@ -106,7 +114,7 @@ export function OrderTicket({
         if (e.name !== "AbortError") setError(e.message);
       });
     return () => controller.abort();
-  }, [base, instrument]);
+  }, [base, instrument, initial?.orderType, initial?.quantity]);
   const rule = capability?.order_types.find((t) => t.name === form.order_type);
   const quotes = useBrokerQuotes(
     base,

@@ -442,6 +442,21 @@ class DhanMarketDataProvider:
                 cast(dict[str, object], ohlc_raw) if isinstance(ohlc_raw, dict) else {}
             )
             try:
+                last = _decimal(row.get("last_price"), positive=True)
+                # Dhan ohlc.close is the day's closing price, not previous close.
+                # Closing snapshots can reset net_change to zero. Such a zero is
+                # ambiguous until Watchlists can compare dated daily history.
+                net = _decimal(row["net_change"]) if row.get("net_change") is not None else None
+                previous = last - net if net is not None and net != 0 else None
+                source_time = None
+                raw_time = row.get("last_trade_time")
+                if isinstance(raw_time, str):
+                    for pattern in ("%d/%m/%Y %H:%M:%S", "%Y-%m-%d %H:%M:%S"):
+                        try:
+                            source_time = datetime.strptime(raw_time, pattern).replace(tzinfo=IST)
+                            break
+                        except ValueError:
+                            continue
                 output.append(
                     QuoteSnapshot(
                         instrument=item,
@@ -455,9 +470,8 @@ class DhanMarketDataProvider:
                         low=None
                         if ohlc.get("low") in {None, 0}
                         else _decimal(ohlc["low"], positive=True),
-                        previous_close=None
-                        if ohlc.get("close") in {None, 0}
-                        else _decimal(ohlc["close"], positive=True),
+                        previous_close=previous if previous is not None and previous > 0 else None,
+                        provider_source_time=source_time,
                         volume=None if row.get("volume") is None else _decimal(row["volume"]),
                         open_interest=None if row.get("oi") is None else _decimal(row["oi"]),
                         received_at=received,

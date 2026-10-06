@@ -491,15 +491,12 @@ test("Scan & Discover presents a responsive evidence workstation with route-leve
   await pastScans.getByRole("button", { name: "Close past scans" }).click();
   await expect(pastScans).toHaveCount(0);
 
-  const navigation = page.getByRole("navigation", {
-    name: "Primary navigation",
-  });
-  const candidateLink = navigation.getByRole("link", { name: "Candidates" });
-  if (!(await candidateLink.isVisible())) {
-    await navigation
-      .getByRole("button", { name: "Workspace navigation" })
-      .click();
-  }
+  if (width < 1200)
+    await page.getByRole("button", { name: "Workspace navigation" }).click();
+  const navigation = page.locator(
+    width < 1200 ? ".navigation-drawer nav" : ".desktop-sidebar nav",
+  );
+  const candidateLink = navigation.getByRole("link", { name: "Discovery" });
   await candidateLink.click();
   await expect(page).toHaveURL(/\/candidates$/);
   await expect(

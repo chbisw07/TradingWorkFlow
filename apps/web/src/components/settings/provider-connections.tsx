@@ -1,4 +1,6 @@
 "use client";
+import Link from "next/link";
+import { useSettingsSectionLink } from "./settings-section-link";
 
 import { useCallback, useEffect, useState } from "react";
 import { discoveryApi, type ProviderStatus } from "../../lib/discovery";
@@ -335,10 +337,21 @@ export function ProviderConnectionsSection() {
     DISABLED: "Disabled",
   };
   const dhanReady = dhanStatus?.state === "READY";
+  useSettingsSectionLink("integrations", loaded);
 
   return (
-    <section aria-labelledby="provider-connections-heading">
+    <section
+      id="integrations"
+      tabIndex={-1}
+      aria-labelledby="provider-connections-heading"
+    >
       <h2 id="provider-connections-heading">Data providers</h2>
+      <p className="broker-settings-link">
+        Trading accounts:{" "}
+        <Link className="text-link" href="/brokers">
+          Manage broker connections
+        </Link>
+      </p>
       <p>
         Market data and optional intelligence connections are managed
         separately.

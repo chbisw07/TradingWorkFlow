@@ -3,15 +3,19 @@
 > **2026-09-29 S&D architecture acceptance:** The dated S&D extension below is **ACCEPTED / IMPLEMENTATION AUTHORIZED** within the [Sprint-2 delivery plan](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md). The [independent acceptance record](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) supersedes its 2026-09-28 proposal status. Sprint 2 is **ACTIVE / NEXT; implementation not started**. Earlier acceptance history and separate TI/TM/provider/security gates remain unchanged; proposal wording in the dated extension records its origin, not the current review status.
 
 ## Status
+
 **TWF-0 accepted UX baseline, reconciled with configuration and UX buckets on 2026-09-25**
 
 ## 1. Purpose
+
 Define the user-experience architecture for a fast, responsive, trader-oriented web application that unifies scanner, TI, TM, LLM, broker-facing state, alerts, consoles, and workflow history without collapsing their ownership boundaries.
 
 ## 2. UX North Star
+
 > A trader should be able to discover, understand, decide, approve, monitor, and review without losing instrument or workflow context.
 
 ## 3. Core UX Principles
+
 1. Desktop-first, responsive web application.
 2. Persistent workspace rather than page-by-page navigation.
 3. Minimal full-page reloads.
@@ -24,6 +28,7 @@ Define the user-experience architecture for a fast, responsive, trader-oriented 
 10. Degraded service states are explicit, never silently hidden.
 
 ## 4. Primary Trader Journey
+
 ```text
 Login
   ↓
@@ -48,7 +53,39 @@ Position monitoring
 Close / history / future feedback
 ```
 
+## 2026-10-06 outer shell navigation update
+
+The approved outer frame has a full-width brand/search/market/user header,
+a 202px desktop sidebar, and the existing functional workspaces in the remaining
+area. This update supersedes the earlier outer navigation arrangement below;
+workflow, broker, scanner, market-data, intelligence, and authority boundaries
+remain unchanged.
+
+- **WORKSPACE:** Home, Brokers, Market Overview, Scanners, Discovery, Watchlists, Positions,
+  Orders, Alerts.
+- **TOOLS:** Options Analytics, Strategy Builder, Risk & Greeks.
+- **INSIGHTS:** Market Intelligence, News & Events.
+- **SETTINGS:** Preferences, Integrations, Advanced.
+
+Discovery maps to the existing `/candidates` route. Brokers remains at `/brokers`,
+reachable from the current-user disclosure and Settings → Integrations. Settings
+uses `#preferences`, `#integrations`, and `#advanced` anchors on the same page;
+Advanced opens its existing disclosure. Planned destinations explicitly say
+“Coming later”; global Positions and Orders also link to existing account-specific
+Broker views. Unknown routes retain not-found handling.
+
+The search field is visibly disabled. NIFTY, BANKNIFTY, and INDIA VIX show unavailable
+values until shared market-overview data is wired; this redesign adds no data feed
+or mock live quotes. The sidebar version comes from frontend package metadata.
+
+Below 1200px, navigation becomes a native modal drawer with keyboard focus
+containment, Escape dismissal, and focus return. The document remains the main
+scroll surface. Theme preferences, owner identity, auth guards, and logout retain
+their existing semantics. Shell colors are isolated from functional workspace
+component tokens. See the [implementation record](TWF_TWF1_1_FRONTEND_SHELL.md#2026-10-06-application-shell-redesign).
+
 ## 5. Application Shell
+
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ User | Workspace | Broker | Market | Active LLM | Alerts | Service Health │
@@ -64,7 +101,9 @@ Close / history / future feedback
 ```
 
 ## 6. Navigation Model
+
 Primary areas:
+
 - Home / Cockpit
 - Watchlists
 - Scanners
@@ -79,7 +118,9 @@ Primary areas:
 Navigation should preserve current instrument/workflow context where practical.
 
 ## 7. Workspace Model
+
 A workspace is user-owned and may persist:
+
 - selected watchlist;
 - selected instrument;
 - open panels/tabs;
@@ -90,7 +131,9 @@ A workspace is user-owned and may persist:
 - display preferences.
 
 ## 8. Candidate Workspace
+
 Must be able to show:
+
 - scanner source/provenance;
 - instrument details;
 - chart/market context;
@@ -105,7 +148,9 @@ Must be able to show:
 - workflow/audit timeline.
 
 ## 9. Distinct Visual Semantics
+
 Do not visually conflate:
+
 - intelligence/analysis;
 - forecast;
 - recommendation;
@@ -117,7 +162,9 @@ Do not visually conflate:
 Each should have distinct labels/state badges.
 
 ## 10. Realtime UX
+
 Realtime updates may include:
+
 - scanner candidates;
 - market data snapshots;
 - positions/orders;
@@ -127,6 +174,7 @@ Realtime updates may include:
 - consoles.
 
 Requirements:
+
 - visible freshness timestamp;
 - stale state indicator;
 - reconnect state;
@@ -135,7 +183,9 @@ Requirements:
 - preserve user interaction during streams.
 
 ## 11. Console Architecture
+
 Reusable `WebConsole` surface:
+
 - timestamp;
 - source/service;
 - severity/state;
@@ -147,6 +197,7 @@ Reusable `WebConsole` surface:
 - optional command input only where explicitly authorized.
 
 Potential instances:
+
 - TI console
 - TM console
 - Scanner console
@@ -155,13 +206,17 @@ Potential instances:
 - Audit console
 
 ## 12. Responsive Strategy
+
 Priority:
+
 1. desktop/laptop trading layout;
 2. tablet review/monitoring;
 3. mobile monitoring/alerts, not full dense trading cockpit initially.
 
 ## 13. Keyboard and Power-User UX
+
 Potential shortcuts:
+
 - instrument search;
 - switch watchlist;
 - next/previous candidate;
@@ -173,7 +228,9 @@ Potential shortcuts:
 No shortcut may bypass authority/security checks.
 
 ## 14. Loading / Empty / Stale / Error States
+
 Every major panel must define:
+
 - loading;
 - empty;
 - stale;
@@ -184,7 +241,9 @@ Every major panel must define:
 - disconnected stream.
 
 ## 15. User Settings
+
 Editable user preferences may include:
+
 - theme;
 - layout;
 - watchlists;
@@ -194,12 +253,14 @@ Editable user preferences may include:
 - display precision.
 
 Must not silently modify:
+
 - trading authority;
 - risk limits;
 - broker permissions;
 - service trust policy.
 
 ## 16. Accessibility
+
 - keyboard navigation;
 - focus visibility;
 - sufficient contrast;
@@ -209,7 +270,9 @@ Must not silently modify:
 - avoid color as sole state indicator.
 
 ## 17. Performance UX Targets
+
 Architectural targets:
+
 - shell loads quickly;
 - panel switching feels immediate;
 - user input never blocked by slow external services;
@@ -219,7 +282,9 @@ Architectural targets:
 Exact SLOs should be defined after prototype measurements.
 
 ## 18. Initial UX Acceptance
+
 The complete miniature checkpoint belongs to TWF-6, with UX developed progressively through TWF-2–5. It should demonstrate:
+
 - login;
 - persistent shell;
 - watchlist;
@@ -233,6 +298,7 @@ The complete miniature checkpoint belongs to TWF-6, with UX developed progressiv
 - workflow history.
 
 ## 19. Open Decisions
+
 - component library;
 - charting library;
 - docking/resizable panel library;
@@ -243,6 +309,7 @@ The complete miniature checkpoint belongs to TWF-6, with UX developed progressiv
 - TradingView embedding vs native charting.
 
 ## 20. UX Invariants
+
 1. TWF remains the trader-facing orchestration product.
 2. No UI state may silently become authority state.
 3. Service ownership remains visible.
@@ -258,7 +325,6 @@ The [configuration architecture v0.6](TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLE
 Work/Administration contexts are useful in both APS and ACS when backend rights exist. Show realm, account and acting identity persistently. Switching context cannot elevate privilege. Unsupported administration remains an honest unavailable preview. Discovery may show sanitized unavailable/upgrade cards; internal capabilities stay hidden. Configuration repair must remain available to authorized actors even while capability use is disabled.
 
 The [UX Bucket Roadmap](TWF_UX_BUCKET_ROADMAP.md) defines UX-B1 foundation, UX-B2 operational trading and UX-B3 mature architecture coverage. These complement functional milestones; TWF-1 completion does not require trading screens or all UX-B1 features assigned to TWF-2. UX-B2/B3 panel details evolve with real contracts. Preserve accepted token/theme quality, all eight shell states, responsive recomposition and authority/provenance across devices. Synthetic fixtures must be labelled and contract-tested; a successful mock is not live service or trading authorization.
-
 
 ## 22. Scan and discovery UX proposal — 2026-09-28
 
@@ -290,7 +356,7 @@ the whole bucket complete. The UX DOCX requires regeneration after acceptance.
 
 ### Revision history addition
 
-| Revision | Date | Status | Role / change |
-| --- | --- | --- | --- |
-| S&D reconciliation 1 | 2026-09-28 | PROPOSED / RECONCILED / READY FOR REVIEW | Normative design/planning extension: Scan and discovery UX proposal; prior history and acceptance preserved |
-| S&D acceptance 1 | 2026-09-29 | ACCEPTED / IMPLEMENTATION AUTHORIZED | Independent S&D architecture acceptance; staged Sprint-2 scope only, no runtime delivery or prior milestone change; see [review](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) |
+| Revision             | Date       | Status                                   | Role / change                                                                                                                                                                         |
+| -------------------- | ---------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S&D reconciliation 1 | 2026-09-28 | PROPOSED / RECONCILED / READY FOR REVIEW | Normative design/planning extension: Scan and discovery UX proposal; prior history and acceptance preserved                                                                           |
+| S&D acceptance 1     | 2026-09-29 | ACCEPTED / IMPLEMENTATION AUTHORIZED     | Independent S&D architecture acceptance; staged Sprint-2 scope only, no runtime delivery or prior milestone change; see [review](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) |

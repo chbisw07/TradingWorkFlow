@@ -20,10 +20,12 @@ test("shell recomposes with reachable regions, keyboard controls and no page ove
   await expect(
     page.getByText("TWF-1.1 Frontend Shell", { exact: true }),
   ).toBeVisible();
-  const nav = page.getByRole("navigation", { name: "Primary navigation" });
-  const toggle = page.getByRole("button", { name: "Workspace navigation" });
   const width = page.viewportSize()!.width;
-  if (width < 700) {
+  const nav = page.locator(
+    width < 1200 ? ".navigation-drawer nav" : ".desktop-sidebar nav",
+  );
+  const toggle = page.getByRole("button", { name: "Workspace navigation" });
+  if (width < 1200) {
     await expect(
       nav.getByRole("link", { name: "Home", exact: true }),
     ).toBeHidden();
@@ -33,13 +35,11 @@ test("shell recomposes with reachable regions, keyboard controls and no page ove
   await expect(
     nav.getByRole("link", { name: "Home", exact: true }),
   ).toBeVisible();
-  await expect(nav.getByRole("button", { name: /coming later/ })).toHaveCount(
-    6,
-  );
+  await expect(nav.getByRole("link")).toHaveCount(17);
   await expect(
-    nav.getByRole("button", { name: "Orders — coming later" }),
-  ).toBeDisabled();
-  if (width < 700) {
+    nav.getByRole("link", { name: "Orders", exact: true }),
+  ).toHaveAttribute("href", "/orders");
+  if (width < 1200) {
     await nav.getByRole("link", { name: "Home", exact: true }).focus();
     await page.keyboard.press("Escape");
     await expect(toggle).toBeFocused();
@@ -132,7 +132,9 @@ test("unknown routes retain the shell and offer recovery", async ({ page }) => {
     page.getByRole("heading", { name: "Page not found" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("navigation", { name: "Primary navigation" }),
+    page.locator(
+      page.viewportSize()!.width < 1200 ? ".nav-toggle" : ".desktop-sidebar",
+    ),
   ).toBeVisible();
   await page.getByRole("link", { name: "Back to workspace" }).click();
   await expect(

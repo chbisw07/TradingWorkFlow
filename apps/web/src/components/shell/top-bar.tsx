@@ -1,51 +1,69 @@
 import Link from "next/link";
 import { UserMenu } from "../auth/user-session";
-import { StateBadge } from "../ui/surface-state";
 import { ThemeToggle } from "./theme-toggle";
+import { Icon } from "./icon";
+import { MarketTickerSummary } from "./market-ticker-summary";
 
-export function TopBar({ focused = false }: { focused?: boolean }) {
+export function TopBar({
+  onOpenNavigation,
+  navigationOpen,
+}: {
+  onOpenNavigation: () => void;
+  navigationOpen: boolean;
+}) {
   return (
     <header className="top-bar">
       <div className="top-bar-primary">
+        <button
+          type="button"
+          className="shell-icon-button nav-toggle"
+          aria-label="Workspace navigation"
+          aria-expanded={navigationOpen}
+          aria-controls="mobile-navigation"
+          onClick={onOpenNavigation}
+        >
+          <Icon name="menu" />
+        </button>
         <Link href="/" className="brand" aria-label="TradingWorkFlow home">
           <span className="brand-mark" aria-hidden="true">
             twf<span>.</span>
           </span>
-          <span className="brand-name">TradingWorkFlow</span>
+          <span className="brand-copy">
+            <span className="brand-name">TradingWorkFlow</span>
+            <span className="brand-tagline">
+              Scan. Discover. Trade Smarter.
+            </span>
+          </span>
         </Link>
-        <span className="workspace-name">
-          <span className="muted">Workspace</span> Default
-        </span>
+        <div
+          className="global-search"
+          role="search"
+          aria-label="Global symbol search"
+        >
+          <Icon name="search" />
+          <input
+            type="search"
+            disabled
+            aria-label="Search symbol — coming later"
+            placeholder="Search symbol (e.g. RELIANCE, NIFTY, BANKNIFTY...)"
+          />
+          <span>Coming later</span>
+        </div>
+        <MarketTickerSummary />
         <div className="top-bar-user">
+          <button
+            className="shell-icon-button notifications-button"
+            type="button"
+            disabled
+            aria-label="Notifications — coming later"
+            title="Notifications — coming later"
+          >
+            <Icon name="alerts" />
+          </button>
           <ThemeToggle />
-          {!focused && <StateBadge state="COMING_SOON" label="Development" />}
           <UserMenu />
         </div>
       </div>
-      {!focused && (
-        <dl className="session-strip" aria-label="Session context">
-          <div>
-            <dt>Broker</dt>
-            <dd>Not connected</dd>
-          </div>
-          <div>
-            <dt>Market / session</dt>
-            <dd>Not selected</dd>
-          </div>
-          <div>
-            <dt>Active LLM</dt>
-            <dd>Not configured</dd>
-          </div>
-          <div>
-            <dt>Alerts</dt>
-            <dd>Not enabled</dd>
-          </div>
-          <div className="session-services">
-            <dt>Services</dt>
-            <dd>On-demand status</dd>
-          </div>
-        </dl>
-      )}
     </header>
   );
 }

@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { expect, test, vi } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 import { AppShell } from "../src/components/shell/app-shell";
 import { SurfaceState, stateLabels } from "../src/components/ui/surface-state";
 import ErrorView from "../src/app/error";
@@ -7,10 +7,31 @@ import NotFound from "../src/app/not-found";
 import Home from "../src/app/(protected)/page";
 import Loading from "../src/app/loading";
 
+const location = vi.hoisted(() => ({ pathname: "/" }));
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/",
+  usePathname: () => location.pathname,
   useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }),
 }));
+
+beforeEach(() => {
+  location.pathname = "/";
+  window.history.replaceState(null, "", "/");
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn(() => ({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })),
+  );
+  HTMLDialogElement.prototype.showModal = function () {
+    this.setAttribute("open", "");
+  };
+  HTMLDialogElement.prototype.close = function () {
+    this.removeAttribute("open");
+    this.dispatchEvent(new Event("close"));
+  };
+});
 
 test("shell renders product, semantic regions, target, and honest service states", () => {
   render(
@@ -23,7 +44,15 @@ test("shell renders product, semantic regions, target, and honest service states
   ).toBeInTheDocument();
   expect(screen.getByRole("main")).toHaveTextContent("TWF-1.1 Frontend Shell");
   expect(screen.getByRole("banner")).toHaveTextContent("Not signed in");
-  expect(screen.getByRole("contentinfo")).toHaveTextContent("No live data");
+  expect(screen.getByRole("contentinfo")).toHaveTextContent(
+    "© 2026 TradingWorkFlow",
+  );
+  expect(screen.getByRole("search")).toBeInTheDocument();
+  expect(screen.getByLabelText("Search symbol — coming later")).toBeDisabled();
+  expect(
+    screen.getByLabelText("Market summary — live values unavailable"),
+  ).toHaveTextContent("NIFTY");
+  expect(screen.getAllByText("Unavailable")).toHaveLength(3);
   expect(
     screen.getByRole("region", { name: "System console" }),
   ).toBeInTheDocument();
@@ -36,32 +65,98 @@ test("shell renders product, semantic regions, target, and honest service states
   expect(aside).toHaveTextContent("Configured services have not been checked.");
 });
 
-test("only supported navigation is actionable and disclosure restores focus on Escape", () => {
+test("sidebar matches the approved groups and route mappings", () => {
   render(
     <AppShell>
       <Home />
     </AppShell>,
   );
   const nav = screen.getByRole("navigation", { name: "Primary navigation" });
+  expect(
+    within(nav)
+      .getAllByRole("heading")
+      .map((el) => el.textContent),
+  ).toEqual(["WORKSPACE", "TOOLS", "INSIGHTS", "SETTINGS"]);
+  expect(
+    within(nav)
+      .getAllByRole("link")
+      .map((el) => el.textContent),
+  ).toEqual([
+    "Home",
+    "Brokers",
+    "Market Overview",
+    "Scanners",
+    "Discovery",
+    "Watchlists",
+    "Positions",
+    "Orders",
+    "Alerts",
+    "Options Analytics",
+    "Strategy Builder",
+    "Risk & Greeks",
+    "Market Intelligence",
+    "News & Events",
+    "Preferences",
+    "Integrations",
+    "Advanced",
+  ]);
   expect(within(nav).getByRole("link", { name: "Home" })).toHaveAttribute(
     "aria-current",
     "page",
   );
-  for (const item of within(nav).getAllByRole("button", {
-    name: /coming later/,
-  }))
-    expect(item).toBeDisabled();
+  expect(within(nav).getByRole("link", { name: "Brokers" })).toHaveAttribute(
+    "href",
+    "/brokers",
+  );
+  expect(within(nav).getByRole("link", { name: "Discovery" })).toHaveAttribute(
+    "href",
+    "/candidates",
+  );
   expect(
-    within(nav).getAllByRole("button", { name: /coming later/ }),
-  ).toHaveLength(6);
-  const toggle = within(nav).getByRole("button", {
-    name: "Workspace navigation",
-  });
+    within(nav).getByRole("link", { name: "Integrations" }),
+  ).toHaveAttribute("href", "/settings#integrations");
+  expect(within(nav).getByRole("link", { name: "Advanced" })).toHaveAttribute(
+    "href",
+    "/settings#advanced",
+  );
+});
+
+test.each([
+  ["/brokers", "Brokers"],
+  ["/brokers/accounts/example/orders", "Brokers"],
+  ["/scanners", "Scanners"],
+  ["/candidates", "Discovery"],
+  ["/settings", "Preferences"],
+])("only the correct route is active at %s", (pathname, label) => {
+  location.pathname = pathname;
+  render(
+    <AppShell>
+      <p>Existing workspace</p>
+    </AppShell>,
+  );
+  const nav = screen.getByRole("navigation", { name: "Primary navigation" });
+  const active = within(nav)
+    .getAllByRole("link")
+    .filter((el) => el.getAttribute("aria-current") === "page");
+  expect(active).toHaveLength(1);
+  expect(active[0]).toHaveTextContent(label);
+});
+
+test("mobile navigation opens a modal and closes after navigation", () => {
+  render(
+    <AppShell>
+      <Home />
+    </AppShell>,
+  );
+  const toggle = screen.getByRole("button", { name: "Workspace navigation" });
   fireEvent.click(toggle);
   expect(toggle).toHaveAttribute("aria-expanded", "true");
-  fireEvent.keyDown(nav, { key: "Escape" });
+  const dialog = screen.getByRole("dialog", { name: "Workspace navigation" });
+  const scannerLink = within(dialog).getByRole("link", { name: "Scanners" });
+  scannerLink.addEventListener("click", (event) => event.preventDefault());
+  fireEvent.click(scannerLink);
   expect(toggle).toHaveAttribute("aria-expanded", "false");
-  expect(toggle).toHaveFocus();
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });
 
 test("console collapse and expansion preserve its content", () => {

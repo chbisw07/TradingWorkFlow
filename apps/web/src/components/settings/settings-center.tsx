@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, type FormEvent } from "react";
+import { useSettingsSectionLink } from "./settings-section-link";
 import { SurfaceState } from "../ui/surface-state";
 import { DiscoverySettingsSection } from "../discovery/discovery-settings";
 import { ProviderConnectionsSection } from "./provider-connections";
@@ -52,6 +53,7 @@ export function SettingsCenter() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  useSettingsSectionLink("preferences", !!snapshot);
   useEffect(() => {
     let active = true;
     Promise.all([api<Snapshot>("values"), api<Profile[]>("profiles")])
@@ -182,7 +184,11 @@ export function SettingsCenter() {
       )}
       {snapshot && (
         <>
-          <section aria-labelledby="preferences-heading">
+          <section
+            id="preferences"
+            tabIndex={-1}
+            aria-labelledby="preferences-heading"
+          >
             <h2 id="preferences-heading">Personal preferences</h2>
             <p>
               Owner: your signed-in user · Scope: User · Revision{" "}

@@ -7,6 +7,7 @@ import {
   type ActiveProviderChoice,
   type DiscoverySettings,
 } from "../../lib/discovery";
+import { useSettingsSectionLink } from "../settings/settings-section-link";
 import { SurfaceState } from "../ui/surface-state";
 
 export function DiscoverySettingsSection() {
@@ -15,6 +16,7 @@ export function DiscoverySettingsSection() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  useSettingsSectionLink("advanced", !!draft);
 
   async function load() {
     setError("");
@@ -261,7 +263,9 @@ export function DiscoverySettingsSection() {
           </div>
 
           <details className="settings-advanced">
-            <summary>Advanced relevance and experimental settings</summary>
+            <summary id="advanced">
+              Advanced relevance and experimental settings
+            </summary>
             <div className="settings-inline-grid">
               <label htmlFor="discovery-low-band">
                 Low band upper bound

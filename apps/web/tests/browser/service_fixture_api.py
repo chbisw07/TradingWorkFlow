@@ -38,8 +38,14 @@ def create_app() -> FastAPI:
             scenario=SyntheticScenario.EMPTY, reference_time=REFERENCE_TIME
         ),
     )
-    return application(
+    app = application(
         settings,
         broker_adapter=ZerodhaAdapter(transport=httpx.MockTransport(OrderProvider())),
         service_registry=ServiceRegistry(settings.service_clients, clients=clients),
     )
+
+    from twf.api.watchlists import catalog
+    from twf.watchlists.catalog import WatchlistCatalog
+    from test_watchlists import provider
+    app.dependency_overrides[catalog] = lambda: WatchlistCatalog(provider())
+    return app

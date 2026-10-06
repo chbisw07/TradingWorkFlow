@@ -156,9 +156,16 @@ Panel system, navigation and selected-instrument context.
 
 ### TWF-2.2 Watchlists
 
-Prioritize broker-owned-context watchlists under BW-3; create/edit/delete TWF-owned
-lists with exact broker-native references. A future canonical/global watchlist is
-separate and deferred; it never selects a broker implicitly.
+**2026-10-06: IMPLEMENTED / READY FOR USER VALIDATION; not accepted/frozen.**
+The approved product direction is persistent TWF-owned canonical Watchlists,
+independent of broker-owned lists. The workspace supports all four instrument classes,
+owner isolation, archive/restore, CSV, bulk move/copy, notes/activity, Dhan market
+overlays/charts and the existing Broker V2 preview workflow. Future inbound Scanner /
+Discovery adds and immutable universe snapshots have explicit contracts; send actions
+are not yet exposed in those workspaces. Broader Universe Management is separate.
+Live market/preview revalidation awaits renewed Dhan and broker credentials. See
+[architecture](TWF_WATCHLIST_ARCHITECTURE.md) and
+[implementation report](TWF_WATCHLIST_IMPLEMENTATION_REPORT.md).
 
 ### TWF-2.3 Candidate Workspace
 
@@ -468,7 +475,7 @@ The [focused temporal-state architecture](TWF_SND_SCAN_DRIVEN_TEMPORAL_STATE_ARC
 
 This implementation does not rename milestones, reopen Broker V2, complete U3, or freeze Sprint 2. The current program remains **IMPLEMENTED / READY FOR USER VALIDATION**. A literal overwrite ring, permanent history deletion, clock-driven lifecycle monitor, Watchlist/custom-horizon scope, Opportunity/LOB authority and background reevaluation remain outside this work.
 
-Watchlists / Universe Management, Custom Typed Time Horizon, Opportunity, Trade Construction, LOB implementation, event-driven continuous monitoring and ML calibration remain TBD/separately designed. Background candidate reevaluation is outside this S&D implementation scope. Existing real-provider/licensing hardening is not waived by design readiness.
+The current Watchlists implementation is recorded in TWF-2.2 above. Broader Universe Management, Custom Typed Time Horizon, Opportunity, Trade Construction, LOB implementation, event-driven continuous monitoring and ML calibration remain TBD/separately designed. Background candidate reevaluation is outside this S&D implementation scope. Existing real-provider/licensing hardening is not waived by design readiness.
 
 ## Scan evidence chart implementation — 2026-10-02
 

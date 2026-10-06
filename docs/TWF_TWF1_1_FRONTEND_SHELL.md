@@ -1,5 +1,7 @@
 # TWF-1.1 — Frontend Shell implementation record
 
+> The original TWF-1.1 evidence below is historical. The [2026-10-06 outer-shell update](#2026-10-06-application-shell-redesign) describes the current navigation implementation.
+
 Status: **implemented, pending independent review**. Recommendation: `GO_TWF1_1_REVIEW`.
 This is implementation evidence, not independent acceptance. Next implementation
 target after review: **TWF-1.2 Backend Shell**.
@@ -40,14 +42,14 @@ streaming, docking, or global-state library is included.
 
 ## Responsive composition and visual review
 
-| Width | Composition | Chromium | WebKit |
-|---|---|---|---|
-| 390 | Disclosure navigation; single-column workspace/context; full-width console control | 3/3 pass | Runtime blocked |
-| 768 | Compact labelled navigation rail; workspace first; two context panels below | 3/3 pass | Runtime blocked |
-| 1024 | Compact rail; stacked workspace/context row | 3/3 pass | Runtime blocked |
-| 1440 | Full navigation; workspace and right context; bottom console | 3/3 pass | Runtime blocked |
-| 1920 | Wider context allocation and bounded text; modest spacing increase | 3/3 pass | Runtime blocked |
-| 2560 | Workspace maximum 112rem; controlled panel ratios and outer breathing room | 3/3 pass | Runtime blocked |
+| Width | Composition                                                                        | Chromium | WebKit          |
+| ----- | ---------------------------------------------------------------------------------- | -------- | --------------- |
+| 390   | Disclosure navigation; single-column workspace/context; full-width console control | 3/3 pass | Runtime blocked |
+| 768   | Compact labelled navigation rail; workspace first; two context panels below        | 3/3 pass | Runtime blocked |
+| 1024  | Compact rail; stacked workspace/context row                                        | 3/3 pass | Runtime blocked |
+| 1440  | Full navigation; workspace and right context; bottom console                       | 3/3 pass | Runtime blocked |
+| 1920  | Wider context allocation and bounded text; modest spacing increase                 | 3/3 pass | Runtime blocked |
+| 2560  | Workspace maximum 112rem; controlled panel ratios and outer breathing room         | 3/3 pass | Runtime blocked |
 
 Breakpoints are below 700px, below 1200px, and at 1920px. Navigation and actionable
 controls have touch-friendly minimum sizing. Mobile permits deliberate vertical
@@ -124,22 +126,22 @@ and [Next not-found](https://nextjs.org/docs/app/api-reference/file-conventions/
 
 ## Validation evidence
 
-| Check | Result |
-|---|---|
-| Fresh `npm ci` | Pass, 450 packages installed |
-| `npm run type-check` | Pass |
-| `npm run lint` | Pass, zero warnings |
-| `npm test` | Pass, 14 tests in two files |
-| `npm run format:check` | Pass |
-| `npm run build` | Pass, static home and not-found |
-| `npm audit` | Zero vulnerabilities |
-| `npm ls --all` | Completes; existing optional Sharp/WASM extraneous entries remain |
-| Chromium responsive smoke | 18 pass across all six widths |
-| WebKit responsive smoke | Environment/runtime limitation above; not accepted |
-| Docker web rebuild | Pass, `twf-web:twf1-1-review` |
-| Docker smoke | Home HTTP 200 with shell; CSS and three JS assets HTTP 200 |
-| Repository whitespace and local documentation links | Pass |
-| Scope/secret hygiene | Frontend and documentation only; no secrets or generated artifacts added |
+| Check                                               | Result                                                                   |
+| --------------------------------------------------- | ------------------------------------------------------------------------ |
+| Fresh `npm ci`                                      | Pass, 450 packages installed                                             |
+| `npm run type-check`                                | Pass                                                                     |
+| `npm run lint`                                      | Pass, zero warnings                                                      |
+| `npm test`                                          | Pass, 14 tests in two files                                              |
+| `npm run format:check`                              | Pass                                                                     |
+| `npm run build`                                     | Pass, static home and not-found                                          |
+| `npm audit`                                         | Zero vulnerabilities                                                     |
+| `npm ls --all`                                      | Completes; existing optional Sharp/WASM extraneous entries remain        |
+| Chromium responsive smoke                           | 18 pass across all six widths                                            |
+| WebKit responsive smoke                             | Environment/runtime limitation above; not accepted                       |
+| Docker web rebuild                                  | Pass, `twf-web:twf1-1-review`                                            |
+| Docker smoke                                        | Home HTTP 200 with shell; CSS and three JS assets HTTP 200               |
+| Repository whitespace and local documentation links | Pass                                                                     |
+| Scope/secret hygiene                                | Frontend and documentation only; no secrets or generated artifacts added |
 
 Unit coverage includes shell landmarks, nav state, service placeholders, console
 toggle, all eight state variants, safe error retry, and not-found recovery.
@@ -198,3 +200,65 @@ were implemented. No UI component library was added.
 - `apps/web/tests/shell.test.tsx`
 - `docs/TWF_DOCUMENTATION_INDEX.md`
 - `docs/TWF_TWF1_1_FRONTEND_SHELL.md`
+
+## 2026-10-06 application shell redesign
+
+The approved visual reference replaces the outer header/sidebar only. Preflight:
+`main`, HEAD `2cdd1d765bd1614741c47f288c66b7e0f62b96f8`, clean worktree.
+No backend/domain/provider/scan/order logic changes are included.
+
+`AppShell` composes `TopBar`, `MarketTickerSummary`, `PrimaryNavigation` (grouped sections
+and reusable items), the existing authenticated `UserMenu`, and `WorkspaceFrame`.
+Existing Brokers and Scanners components and their state remain in the frame.
+Home/Settings retain their contextual panels and console. The old development
+status footer is replaced by the sidebar brand/version footer. Version is read
+from `apps/web/package.json` (currently 0.1.0), rather than copied from the mockup.
+
+The light shell follows the reference's approximately 64px header, 202px sidebar,
+navy typography, light blue-gray sidebar, pale-green active row, muted uppercase
+group labels, and restrained borders. Dark mode uses corresponding scoped tokens.
+The reference's red content boundary is an annotation and is not rendered.
+
+Navigation groups and route mappings are recorded in
+`apps/web/src/components/shell/navigation.ts`. Existing `/brokers`, `/scanners`,
+`/candidates`, and `/settings` stay functional. Brokers is linked immediately after Home in the workspace sidebar, from the user menu
+and Integrations. Planned destinations render honest “Coming later” pages without
+inventing feature behavior. Settings deep links open/focus existing sections after
+asynchronous loading, including the Advanced disclosure. No settings forms are
+recreated or duplicated.
+
+Search and notifications are labeled as coming later. All three market values
+are unavailable; no demo quotes are shown as live data. This is an intentional
+truthfulness difference from the reference. The current authenticated identity
+and existing logout error handling remain in the user disclosure.
+
+At 390/768/1024px the sidebar is a native modal drawer; at 1440/1920/2560px it is
+anchored below the header. Native dialog behavior supplies focus containment,
+Escape dismissal, and focus restoration; moving to desktop closes an open drawer.
+The main workspace uses document scrolling, with a separately scrollable sidebar
+when the viewport is short. Source controls are not removed to fit the shell.
+
+Baseline Brokers/Scanners/Settings screenshots and post-change screenshots use
+disposable test accounts/provider fixtures, never live account data. Stable local
+review copies are under `/tmp/twf-shell-evidence`; Playwright also emits artifacts
+under the ignored frontend `test-results` directory. This is visual and functional
+validation of the shell, not a new claim of live provider acceptance.
+
+Validation for this redesign (2026-10-06):
+
+- Frontend unit tests: 162 passed across 17 files.
+- TypeScript, ESLint, Prettier, production build, and `git diff --check`: passed.
+- Full Chromium suite: 80 passed, 4 intentionally skipped. The existing pullback
+  visual test runs only at 390 and 1440px; all other required workflows ran at
+  390, 768, 1024, 1440, 1920, and 2560px.
+- Browser checks include broker connection/disconnect and views, equity/futures/
+  options order entry, scan/history/candidate/chart workflows, Settings and
+  Dhan/TapTide controls, login/logout/replay protection, themes, Settings anchors,
+  drawer focus containment, Escape restoration, and overflow checks.
+- An initial unit run encountered a transient existing chart-focus assertion
+  under concurrent validation load. The complete rerun passed, and real-browser
+  chart open/close/focus behavior passed at all six widths.
+- No backend tests were required: backend and domain code are unchanged.
+- Updated documentation local links: no missing targets.
+
+Result: ready for user validation. No commit, tag, or push performed.

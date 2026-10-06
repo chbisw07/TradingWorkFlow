@@ -30,7 +30,7 @@ test("anonymous redirect, invalid login, authenticated identity, logout and repl
   await expect(
     page.getByRole("heading", { name: "Workspace overview" }),
   ).toBeVisible();
-  await expect(page.getByText("Browser Trader", { exact: true })).toBeVisible();
+  await expect(page.locator(".user-menu > summary")).toBeVisible();
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,
@@ -41,7 +41,8 @@ test("anonymous redirect, invalid login, authenticated identity, logout and repl
   expect(session.httpOnly).toBe(true);
   expect(session.sameSite).toBe("Strict");
   await page.reload();
-  await expect(page.getByText("Browser Trader", { exact: true })).toBeVisible();
+  await expect(page.locator(".user-menu > summary")).toBeVisible();
+  await page.locator(".user-menu > summary").click();
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page).toHaveURL(/\/login$/);
   await page.context().addCookies([session]);
