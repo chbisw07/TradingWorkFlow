@@ -34,6 +34,7 @@ from twf.watchlists.contracts import (
     UpdateWatchlist,
 )
 from twf.watchlists.market import WatchlistHistoryCache, WatchlistQuoteCache
+from twf.watchlists.reference import ReferenceSnapshot, WatchlistReferenceCache
 from twf.watchlists.service import WatchlistFailure, WatchlistService
 
 router = APIRouter(prefix="/api/v1/watchlists", tags=["Watchlists"])
@@ -301,3 +302,15 @@ async def broker_instrument(
     if len(matches) != 1:
         raise WatchlistFailure("EXACT_BROKER_CONTRACT_UNAVAILABLE_USE_BROKERS", 422)
     return matches[0]
+
+
+@router.get("/{key}/items/{instrument_id}/reference")
+async def reference(
+    key: UUID, instrument_id: UUID, service: Service, request: Request, who: Who, manager: Manager
+) -> ReferenceSnapshot:
+    snapshot = service.snapshot(key)
+    instrument = next((i for i in snapshot.instruments if i.instrument_id == instrument_id), None)
+    if instrument is None:
+        raise WatchlistFailure("INSTRUMENT_NOT_FOUND", 404)
+    cache = cast(WatchlistReferenceCache, request.app.state.watchlist_reference)
+    return await cache.read(manager, who, instrument)

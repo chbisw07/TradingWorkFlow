@@ -79,10 +79,18 @@ test("persistent Watchlists, instrument detail, CSV, notes, archive and responsi
   let historicalCalls = 0;
   await page.route("**/api/v1/watchlists/*/items/*/chart?*", (route) => {
     historicalCalls += 1;
+    const period =
+      new URL(route.request().url()).searchParams.get("period") || "1M";
+    const count = (
+      { "1D": 75, "1W": 5, "1M": 22, "3M": 66, "1Y": 252 } as Record<
+        string,
+        number
+      >
+    )[period];
     return route.fulfill({
       json: {
         provider: "dhan",
-        interval: "1d",
+        interval: period === "1D" ? "5m" : "1d",
         metrics: {
           rsi14: 64.2,
           trend: "Up",
@@ -91,7 +99,7 @@ test("persistent Watchlists, instrument detail, CSV, notes, archive and responsi
           basis: "Completed daily bars; Wilder RSI(14); close versus SMA(20)",
         },
         error: null,
-        bars: Array.from({ length: 22 }, (_, i) => ({
+        bars: Array.from({ length: count }, (_, i) => ({
           timestamp: new Date(Date.UTC(2026, 8, i + 1)).toISOString(),
           open: 1480 + i,
           high: 1486 + i,
@@ -99,6 +107,24 @@ test("persistent Watchlists, instrument detail, CSV, notes, archive and responsi
           close: 1483 + i + Math.sin(i) * 3,
           volume: 10000 + i * 10,
         })),
+      },
+    });
+  });
+  let referenceCalls = 0;
+  await page.route("**/api/v1/watchlists/*/items/*/reference", (route) => {
+    referenceCalls++;
+    return route.fulfill({
+      json: {
+        provider: "tapetide",
+        tool: "get_stock_quote",
+        state: "AVAILABLE",
+        market_cap_inr: "16482632200000",
+        pe_ratio: "22.06",
+        high_52_week: "1611.8",
+        low_52_week: "1160.8",
+        received_at: new Date().toISOString(),
+        source_time: new Date().toISOString(),
+        freshness: "CURRENT",
       },
     });
   });
@@ -186,6 +212,25 @@ test("persistent Watchlists, instrument detail, CSV, notes, archive and responsi
     path: info.outputPath("watchlists-hard-reload-unselected.png"),
     fullPage: true,
   });
+  await expect(
+    page.getByRole("columnheader", {
+      name: "1D %",
+      exact: true,
+      includeHidden: true,
+    }),
+  ).toHaveCount(1);
+  // Narrow layouts intentionally hide optional sparkline columns, not their semantics.
+  await expect(
+    page.getByRole("columnheader", {
+      name: "Quick Chart (1M)",
+      includeHidden: true,
+      exact: true,
+    }),
+  ).toHaveCount(1);
+  const rowBefore = await page
+    .locator(".wl-table tbody tr")
+    .first()
+    .textContent();
   const callsBeforeSelection = historicalCalls;
   await page.getByRole("button", { name: "RELIANCE", exact: true }).click();
   const mobile = page.viewportSize()!.width < 1200;
@@ -208,6 +253,71 @@ test("persistent Watchlists, instrument detail, CSV, notes, archive and responsi
   await panel.getByRole("button", { name: "1M", exact: true }).click();
   await expect(panel.getByRole("img", { name: /Price chart/ })).toBeVisible();
   expect(historicalCalls).toBe(callsBeforeSelection);
+  await expect(
+    panel.getByRole("region", { name: "Reference / fundamentals" }),
+  ).toContainText("22.06");
+  await expect(
+    panel.getByRole("tab", { name: "Chart", exact: true }),
+  ).toHaveCount(0);
+  await expect(panel.getByRole("tab")).toHaveText([
+    "Overview",
+    "Option Chain",
+    "News",
+  ]);
+  await expect(
+    panel.getByRole("region", { name: "Price / market data" }),
+  ).toContainText("2.30 L");
+  await expect(
+    panel.getByRole("region", { name: "Price / market data" }),
+  ).toContainText("10.10 K");
+  await expect(
+    panel.getByRole("region", { name: "Reference / fundamentals" }),
+  ).toContainText("₹16.48 L Cr");
+  const disclosure = panel.locator(".wl-data-details summary");
+  await expect(disclosure).toHaveAttribute("aria-expanded", "false");
+  await expect(panel.getByText(/Reference data · TapTide/)).not.toBeVisible();
+  await disclosure.focus();
+  await page.keyboard.press("Enter");
+  await expect(disclosure).toHaveAttribute("aria-expanded", "true");
+  await expect(panel.getByText(/Reference data · TapTide/)).toBeVisible();
+  await expect(
+    panel.getByText("Market data · Dhan · quote / OHLCV snapshot"),
+  ).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(disclosure).toHaveAttribute("aria-expanded", "false");
+  const returns = new Set<string>();
+  for (const period of ["1D", "1W", "1M", "3M", "1Y"]) {
+    await panel.getByRole("button", { name: period, exact: true }).click();
+    await expect(panel.getByRole("img", { name: /Price chart/ })).toBeVisible();
+    await expect(panel.locator(".wl-price small")).toContainText(period + " ");
+    const value = await panel.locator(".wl-price small").innerText();
+    expect(value).not.toContain("—");
+    returns.add(value);
+    await expect(panel.getByLabel("Period change basis")).toContainText(
+      period === "1D" ? "Previous trading session close" : "close to close",
+    );
+    expect(await page.locator(".wl-table tbody tr").first().textContent()).toBe(
+      rowBefore,
+    );
+  }
+  expect(returns.size).toBe(5);
+  expect(historicalCalls).toBe(callsBeforeSelection + 4);
+  await panel.getByRole("button", { name: "1M", exact: true }).click();
+  await expect(panel.getByRole("img", { name: /Price chart/ })).toBeVisible();
+  expect(historicalCalls).toBe(callsBeforeSelection + 4);
+  expect(referenceCalls).toBe(1);
+  await panel.getByRole("tab", { name: "Overview" }).focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(panel.getByRole("tab", { name: "Option Chain" })).toBeFocused();
+  await expect(panel.getByText("Option chain coming later")).toBeVisible();
+  await page.keyboard.press("ArrowRight");
+  await expect(panel.getByRole("tab", { name: "News" })).toBeFocused();
+  await expect(
+    panel.getByRole("heading", { name: "Company news" }),
+  ).toBeVisible();
+  await page.keyboard.press("Home");
+  await expect(panel.getByRole("tab", { name: "Overview" })).toBeFocused();
+  await expect(panel.getByRole("img", { name: /Price chart/ })).toBeVisible();
   await expect(
     panel.getByRole("button", { name: "Buy", exact: true }),
   ).toBeEnabled();

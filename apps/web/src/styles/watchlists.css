@@ -179,6 +179,7 @@
   min-height: 25px;
 }
 .wl-tabs button[aria-pressed="true"],
+.wl-tabs button[aria-selected="true"],
 .wl-periods button[aria-pressed="true"] {
   color: #086fd5;
   background: #e9f4ff;
@@ -405,6 +406,7 @@
   color: var(--shell-secondary);
 }
 .wl-metrics dd {
+  white-space: nowrap;
   margin: 0;
   font-weight: 600;
 }
@@ -733,4 +735,35 @@
   .wl-navigator {
     min-height: 0;
   }
+}
+
+.wl-reference {
+  margin-top: 14px;
+}
+.wl-reference h4 {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--shell-secondary);
+  margin: 10px 0 6px;
+}
+.wl-reference .wl-metrics {
+  margin: 0;
+}
+.wl-data-details {
+  margin-top: 14px;
+  font-size: 11px;
+}
+.wl-data-details summary {
+  cursor: pointer;
+  color: var(--shell-secondary);
+}
+.wl-data-details .wl-source {
+  overflow-wrap: anywhere;
+}
+.wl-data-details summary::after {
+  content: "▸";
+  float: right;
+}
+.wl-data-details[open] summary::after {
+  content: "▾";
 }

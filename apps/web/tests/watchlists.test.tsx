@@ -2,10 +2,18 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import {
   NewsPanel,
+  ReferencePanel,
   WatchlistsWorkspace,
 } from "../src/components/watchlists/watchlists-workspace";
 import { MarketChart } from "../src/components/watchlists/market-chart";
-import { change, changeText, previousClose } from "../src/lib/watchlists";
+import {
+  change,
+  changeText,
+  previousClose,
+  periodChange,
+  indianVolume,
+  indianMarketCap,
+} from "../src/lib/watchlists";
 
 beforeEach(() => {
   HTMLDialogElement.prototype.showModal = function () {
@@ -299,6 +307,14 @@ test("visible rows hydrate serially without selection and detail reuses history"
       return Response.json({ ...list, items, notes: [], activity: [] });
     if (path.endsWith("/quotes"))
       return Response.json({ quotes: [], error: null });
+    if (path.endsWith("/reference"))
+      return Response.json({
+        state: "NOT_AVAILABLE",
+        provider: "tapetide",
+        tool: "get_stock_quote",
+        received_at: list.updated_at,
+        freshness: "UNAVAILABLE",
+      });
     if (path.includes("/chart?")) {
       calls++;
       active++;
@@ -340,6 +356,28 @@ test("visible rows hydrate serially without selection and detail reuses history"
   ).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "SYMBOL0" }));
   await screen.findByRole("img", { name: /^Price chart/ });
+  expect(
+    screen.queryByRole("tab", { name: /^Chart$/ }),
+  ).not.toBeInTheDocument();
+  expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+    "Overview",
+    "Option Chain",
+    "News",
+  ]);
+  expect(screen.getByRole("tabpanel", { name: "Overview" })).toBeVisible();
+  fireEvent.keyDown(screen.getByRole("tab", { name: "Overview" }), {
+    key: "ArrowRight",
+  });
+  expect(screen.getByRole("tab", { name: "Option Chain" })).toHaveFocus();
+  expect(screen.getByText("Option chain coming later")).toBeVisible();
+  fireEvent.keyDown(screen.getByRole("tab", { name: "Option Chain" }), {
+    key: "Home",
+  });
+  expect(screen.getByRole("img", { name: /^Price chart/ })).toBeVisible();
+  expect(screen.getByText("Data details")).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
   expect(calls).toBe(10);
   fireEvent.click(screen.getByLabelText("Next page"));
   await waitFor(() =>
@@ -356,4 +394,112 @@ test("visible rows hydrate serially without selection and detail reuses history"
     ).toHaveLength(10),
   );
   expect(calls).toBe(22);
+});
+
+test.each(["1W", "1M", "3M", "1Y"])(
+  "%s return uses the actual first/last completed daily close, independent of row 1D",
+  (period) => {
+    const quote = { last_price: "150", previous_close: "100" } as Parameters<
+      typeof change
+    >[0];
+    const bars = [
+      { timestamp: "2026-09-01T00:00:00Z", close: 100 },
+      { timestamp: "2026-09-30T00:00:00Z", close: 110 },
+    ] as Parameters<typeof previousClose>[1];
+    const chart = {
+      interval: "1d",
+      provider: "dhan",
+      bars: bars!,
+      error: null,
+    };
+    const result = periodChange(period, quote, chart);
+    expect(result.value).toBeCloseTo(10);
+    expect(result.startTime).toBe(bars![0].timestamp);
+    expect(result.end).toBe(110);
+    expect(change(quote)).toBe(50);
+    expect(periodChange(period, quote, null).value).toBeNull();
+    expect(
+      periodChange(period, quote, { ...chart, bars: bars!.slice(0, 1) }).value,
+    ).toBeNull();
+  },
+);
+test("1D detail retains previous-session comparison and missing data stays unavailable", () => {
+  const quote = { last_price: "99", previous_close: "100" } as Parameters<
+    typeof change
+  >[0];
+  expect(periodChange("1D", quote, null).value).toBe(-1);
+  expect(periodChange("1D", undefined, null).value).toBeNull();
+});
+test("reference metrics retain units, provenance and individual unavailable fields", async () => {
+  vi.spyOn(global, "fetch").mockResolvedValue(
+    Response.json({
+      symbol: "RELIANCE",
+      provider: "tapetide",
+      tool: "get_stock_quote",
+      state: "PARTIAL",
+      market_cap_inr: "16482632200000",
+      pe_ratio: "22.06",
+      high_52_week: "1611.8",
+      low_52_week: null,
+      received_at: "2026-10-06T15:00:00Z",
+      source_time: "2026-10-06T10:30:00Z",
+      freshness: "CURRENT",
+    }),
+  );
+  render(<ReferencePanel listId="core" instrumentId="r" />);
+  expect(await screen.findByText("₹16.48 L Cr")).toBeInTheDocument();
+  expect(screen.getByText("22.06")).toBeInTheDocument();
+  expect(screen.getByText("1,611.8")).toBeInTheDocument();
+  expect(screen.getByText("—")).toHaveAttribute(
+    "title",
+    "Data unavailable from configured providers",
+  );
+  const disclosure = screen.getByText("Data details");
+  expect(disclosure).toHaveAttribute("aria-expanded", "false");
+  expect(screen.getByText(/Reference data · TapTide/)).not.toBeVisible();
+  fireEvent.click(disclosure);
+  await waitFor(() =>
+    expect(disclosure).toHaveAttribute("aria-expanded", "true"),
+  );
+  expect(screen.getByText(/Reference data · TapTide/)).toBeVisible();
+  expect(document.querySelector(".wl-data-details")).toHaveTextContent(
+    "get stock quote",
+  );
+  expect(document.querySelector(".wl-data-details")).toHaveTextContent(
+    "PARTIAL",
+  );
+});
+test("reference transport failure stays unavailable without raw errors", async () => {
+  vi.spyOn(global, "fetch").mockRejectedValue(new Error("raw upstream error"));
+  render(<ReferencePanel listId="core" instrumentId="r" />);
+  await waitFor(() =>
+    expect(document.querySelector(".wl-data-details")).toHaveTextContent(
+      "UNAVAILABLE",
+    ),
+  );
+  expect(screen.getAllByText("—")).toHaveLength(4);
+  expect(document.body).not.toHaveTextContent("raw upstream error");
+});
+
+test.each([
+  [999, "999"],
+  [1500, "1.50 K"],
+  [8252213, "82.52 L"],
+  [18003127, "1.80 Cr"],
+  [0, "0"],
+  [null, "—"],
+  [-1, "—"],
+  ["bad", "—"],
+])("volume %s has explicit Indian count units", (input, expected) => {
+  expect(indianVolume(input)).toBe(expected);
+});
+test.each([
+  [85400000000, "₹8,540 Cr"],
+  [1240000000000, "₹1.24 L Cr"],
+  [16482632200000, "₹16.48 L Cr"],
+  [null, "—"],
+  ["", "—"],
+  [0, "—"],
+])("normalized INR market cap %s is formatted once", (input, expected) => {
+  expect(indianMarketCap(input)).toBe(expected);
 });

@@ -105,8 +105,38 @@ open are never substituted. A normalized percentage takes priority if supplied;
 missing price/baseline yields a dash, and verified unchanged price yields 0.00%.
 This changes quote normalization, not Scanner OHLCV acquisition or indicators.
 
-Open/high/low/previous close/volume use normalized quotes. Market cap, PE and 52-week
-extremes remain unavailable because the current quote contract does not supply them.
+The table labels its session return **1D %** and its fixed 22-bar daily sparkline
+**Quick Chart (1M)**. The row basis never follows selected-detail period changes.
+Detail 1D compares the latest quote with previous session close. Other detail
+periods compare the first and last valid closes of the displayed 5/22/66/252-bar
+window; the label, actual India-session start/end dates and prices change together.
+The quote above the chart remains LTP, while the explicitly labeled longer-period
+return ends at the last completed daily close, which can precede that quote.
+Missing/invalid history gives a dash. No calendar sessions are fabricated.
+
+Open/high/low/previous close/volume remain normalized Dhan quote/history values.
+A separate **Reference / fundamentals** group uses a typed `ReferenceSnapshot`
+from the existing TapTide MCP connection's `get_stock_quote` capability. It maps
+market cap to INR, PE, and direct 52W high/low after exact NSE company-symbol
+verification. TapTide's market-cap value is INR crore, corroborated by its published
+[market-cap leaderboard](https://tapetide.com/score/leaderboard?sort=market_cap)
+and live profile share/price metadata; normalization converts units, not fundamentals.
+Missing individual values remain null. Index, derivative and BSE references are
+unsupported by this bounded company-symbol integration and remain unavailable.
+No historical 52W fallback is implemented; incomplete history is never annualized.
+
+Reference metrics retain provider, tool, source `updated_at`, received time and
+freshness (source unavailable, future, older than seven days, or current within
+that reference TTL). A quote update timestamp does not establish independent
+filing dates for PE or market cap. Raw provider payloads never enter the UI DTO.
+The cache is bounded to 128 owner/connection/generation/instrument entries per API
+process, with 15-minute successful/partial/not-available TTL and 60-second failure
+TTL. A local lock deduplicates concurrent reads and total wait/I/O is bounded to
+25 seconds; no DB transaction spans MCP I/O. Durable MCP admission and completion
+receipts remain owned by the existing connection manager. The browser caches up
+to 50 selected-symbol results for the same TTL. No distributed cache or global
+rate-coordination guarantee is claimed. Disconnect/generation changes fence new
+backend reads; already displayed snapshots keep their source/received timestamps.
 Option Chain explicitly says “Option chain coming later.” News uses only existing
 bounded TapTide market-news and selected-symbol corporate-event tools, with normalized
 claims, scope and freshness. Market-wide headlines are labeled as market-wide;
@@ -147,6 +177,7 @@ and content type, allowlists paths/methods, bounds request size, and disables ca
 | GET         | `/{id}/export`, `/{id}/universe`                | CSV / immutable universe snapshot                       |
 | GET         | `/{id}/quotes`                                  | Batched market overlay                                  |
 | GET         | `/{id}/items/{instrument_id}/chart`             | Cached Dhan history and shared row/detail metrics       |
+| GET         | `/{id}/items/{instrument_id}/reference`         | Optional normalized company reference metrics           |
 | GET         | `/{id}/items/{instrument_id}/news`              | Optional bounded normalized intelligence                |
 | GET         | `/{id}/items/{instrument_id}/broker-instrument` | Exact selected-account execution mapping                |
 
@@ -164,6 +195,33 @@ instrument identities. A future scanner caller must persist that snapshot in its
 run, never reconstruct historical universe truth from the subsequently edited list.
 No scanner send action or new scanner universe option is wired in this task.
 
+## Selected-instrument production presentation
+
+Overview is the sole embedded chart view; the redundant Chart tab is removed.
+The reusable normalized `MarketChart` remains available for a future richer chart
+workspace. Overview / Option Chain / News use an accessible tablist with arrow,
+Home/End navigation, selected-state semantics and an associated panel. News
+semantics, the Option Chain placeholder and Quick Trade behavior are unchanged.
+
+Chart/timeframes remain in Overview. LTP and period-aware return remain visible.
+Detailed return comparison dates/prices and all Overview provenance now live in a
+collapsed native **Data details** disclosure. Keyboard Enter/Space expands it and
+`aria-expanded` follows the native open state. The disclosure retains Dhan source
+and receipt times, snapshot limitations, chart interval and TapTide provider/tool,
+source/receipt times, freshness, availability and reference limitations. A quote
+snapshot is not relabeled as a continuous live feed. News retains its existing
+per-claim provenance because that view is outside this presentation refinement.
+
+Selected-panel volume/average volume format normalized counts as K/L/Cr with two
+scaled decimal places; counts below 1,000 remain ordinary integers. `market_cap_inr`
+is already normalized to INR: the presentation formatter divides by 10^7 for Cr
+or 10^12 for L Cr. No raw provider unit is accepted or converted twice. Reference
+metrics are grouped as Fundamentals (Market Cap/PE) and Price reference (52W range).
+PE stays a ratio. LTP/Open/High/Low/Prev Close/52W values share the existing Indian
+grouping price formatter, with up to two fractional digits and no currency prefix;
+Market Cap explicitly carries ₹. Missing values stay “—”. Raw numeric values and
+all provider contracts/caches remain unchanged.
+
 ## UX and validation boundary
 
 Desktop uses navigator, main table and selected-instrument panel. Below 1200px the
@@ -174,7 +232,7 @@ unavailable text. Watchlists retains the shell's light/dark tokens and visible f
 
 Validation, exact file inventory, screenshots, live restrictions and the requested
 scorecard are recorded in [the implementation report](TWF_WATCHLIST_IMPLEMENTATION_REPORT.md).
-Current live validation on October 6 at approximately 20:31 IST passed all four
-My Core Dhan rows after a hard reload. TapTide returned market news with partial
-corporate-event availability. The report's latest remediation section supersedes
+Current live validation on October 6 at approximately 21:24–21:27 IST passed all
+four My Core Dhan rows and all five detail periods. TapTide reference metrics were
+available for the three equities; NIFTY reference metrics remained unavailable. The report's latest remediation section supersedes
 its earlier expired-credential observations. No live broker order was attempted.

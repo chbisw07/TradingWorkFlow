@@ -2,7 +2,311 @@
 
 2026-10-06 · **READY_FOR_USER_VALIDATION** · not accepted/frozen.
 
-## Latest remediation — live rows, Change %, and news semantics
+## Current refinement — selected-instrument production UX
+
+2026-10-06, approximately 21:52 IST live validation. **READY_FOR_USER_VALIDATION**.
+This frontend presentation pass supersedes the always-visible Overview provenance
+and redundant Chart tab described in older sections; it preserves data semantics.
+
+### A. Preflight
+
+Branch `main`, HEAD `41667f8d096bc6e6b94f4dd186838904c77ef0fe`. The preceding
+12-file uncommitted Watchlists semantics change was present and preserved. No
+backend normalization/provider contract was changed in this pass. No commit,
+tag, push, scan or live order was made.
+
+### B–G. Panel, formatting and disclosure
+
+- Removed the Chart tab; retained the reusable chart renderer in Overview.
+  Overview / Option Chain / News have tablist/tab/tabpanel relationships and
+  ArrowLeft/ArrowRight/Home/End navigation. Existing timeframe behavior is retained.
+- Kept symbol, LTP and labeled, color-coded selected-period return prominent.
+  Chart precedes timeframe controls, then Price / market data, Reference /
+  fundamentals, Data details and unchanged Quick Trade.
+- Volume formatting: 999 → `999`, 1500 → `1.50 K`, 8252213 → `82.52 L`,
+  18003127 → `1.80 Cr`. Zero stays `0`; missing/nonfinite/negative volume stays `—`.
+  This is display rounding only; underlying counts remain unchanged.
+- Market Cap uses the existing **normalized INR** contract. 85400000000 INR →
+  `₹8,540 Cr`, 1240000000000 INR → `₹1.24 L Cr`, and 16482632200000 INR →
+  `₹16.48 L Cr`. No second provider-crore conversion occurs. The existing backend
+  provider-unit normalization test was rerun successfully; backend code was unchanged.
+- Fundamentals groups Market Cap/PE; Price reference groups 52W High/Low.
+  PE is an unsuffixed ratio. All market prices reuse `numberText`'s Indian grouping
+  and up-to-two-decimal convention without ₹; Market Cap includes ₹ explicitly.
+- Native Data details is collapsed by default, with a visible disclosure indicator,
+  keyboard support and synchronized `aria-expanded`. It preserves market/reference
+  provider, source/tool, source and receipt timestamps, freshness/limitations and
+  exact period comparison basis. Primary Overview no longer exposes tool names or
+  provider/debug blocks. Missing data remains a dash, not an invented value.
+- News contents/provenance and Option Chain placeholder are unchanged. Broker
+  selection, type controls, quantity, order type, Buy/Sell and preview/confirmation
+  remain on the existing Broker V2 path.
+
+### H. Exact files changed in this pass
+
+1. `apps/web/src/components/watchlists/watchlists-workspace.tsx`
+2. `apps/web/src/lib/watchlists.ts`
+3. `apps/web/src/styles/watchlists.css`
+4. `apps/web/tests/watchlists.test.tsx`
+5. `apps/web/tests/browser/watchlists.spec.ts`
+6. `docs/TWF_WATCHLIST_ARCHITECTURE.md`
+7. `docs/TWF_WATCHLIST_IMPLEMENTATION_REPORT.md`
+
+Other dirty files listed in the preceding remediation inventory predate this pass.
+
+### I. Validation
+
+- Focused frontend Watchlists/proxy: **36 passed** (2 files).
+- Full frontend unit suite: **200 passed** (19 files, serial workers).
+- TypeScript, ESLint, Prettier and production build: **PASS**.
+- Existing backend reference normalization test: **1 passed / 13 deselected**.
+  Ruff/strict mypy were not rerun for this frontend-only pass; no new backend
+  normalization changes require them. Prior full-mypy limitations remain recorded below.
+- Focused Chromium Watchlists: **6 passed** at 390, 768, 1024, 1440, 1920 and 2560.
+  Tests cover chart preservation/all periods, compact units, absent Chart tab,
+  hidden provenance, keyboard disclosure expansion/collapse, keyboard tab navigation,
+  unchanged News/Option Chain, and Quick Trade preview with zero dispatches.
+  These tests use isolated API/database plus mocked market overlays.
+- `git diff --check`: **PASS**.
+
+### J. Live validation
+
+Authenticated, unmocked My Core checks at 1920px passed; no JavaScript errors.
+
+| Symbol   | Volume  | Average volume (20d) | Market Cap  | PE    | 52W High / Low    | 1M return |
+| -------- | ------- | -------------------- | ----------- | ----- | ----------------- | --------- |
+| RELIANCE | 1.80 Cr | 1.26 Cr              | ₹16.48 L Cr | 22.06 | 1,611.8 / 1,160.8 | -9.65%    |
+| HDFCBANK | 2.66 Cr | 3.17 Cr              | ₹10.97 L Cr | 13.85 | 1,020.5 / 681.9   | +0.57%    |
+| NIFTY    | 0       | 30.55 Cr             | —           | —     | — / —             | -5.68%    |
+
+NIFTY zero volume and historical mean are existing provider values, not filled-in
+reference metrics. All three Overview charts rendered; Chart tab was absent.
+Disclosure began collapsed, hid provenance, and exposed retained Dhan/TapTide
+source/receipt metadata with keyboard Enter. NIFTY reference availability remained
+NOT AVAILABLE. Live requests: one quote batch, four existing row 1M history reads,
+and three selected reference endpoints; dev Strict Mode duplicated the first
+local reference GET, with the existing backend cache retaining provider deduplication.
+No market-provider capabilities or request loops were added by this UI pass.
+
+### K. Screenshots / visual acceptance
+
+Live collapsed/expanded captures:
+`/tmp/twf-panel-live-RELIANCE.png`, `/tmp/twf-panel-live-RELIANCE-details.png`,
+`/tmp/twf-panel-live-HDFCBANK.png`, `/tmp/twf-panel-live-HDFCBANK-details.png`,
+`/tmp/twf-panel-live-NIFTY.png`, `/tmp/twf-panel-live-NIFTY-details.png`.
+
+Light/dark six-width browser captures:
+`apps/web/test-results/watchlists-persistent-Watc-bff0e-rchive-and-responsive-shell-chromium-{width}/watchlists-{light|dark}-detail.png`.
+The desktop inspector and smaller scrollable modal retain the approved layout;
+compact units fit, tabs/chart align, and Quick Trade remains usable. Technical
+metadata no longer dominates Overview. Existing compact-table responsive rules
+and scanner/broker content are unchanged.
+
+### L–M. Scorecard and status
+
+```text
+WATCHLIST_CHART_TAB_REMOVED = PASS
+WATCHLIST_OVERVIEW_CHART_PRESERVED = PASS
+WATCHLIST_VOLUME_INDIAN_UNITS = PASS
+WATCHLIST_AVG_VOLUME_INDIAN_UNITS = PASS
+WATCHLIST_MARKET_CAP_INDIAN_UNITS = PASS
+WATCHLIST_PE_FORMAT_CORRECT = PASS
+WATCHLIST_52W_PRICE_FORMAT_CORRECT = PASS
+WATCHLIST_PROVIDER_DEBUG_HIDDEN = PASS
+WATCHLIST_DATA_DETAILS_DISCLOSURE = PASS
+WATCHLIST_PROVENANCE_PRESERVED = PASS
+WATCHLIST_QUICK_TRADE_REGRESSION_FREE = PASS
+WATCHLIST_NEWS_REGRESSION_FREE = PASS
+WATCHLIST_OPTION_CHAIN_REGRESSION_FREE = PASS
+RESPONSIVE_VALIDATION = PASS
+ACCESSIBILITY_VALIDATION = PASS
+WATCHLIST_PRODUCTION_UX_STATUS = READY_FOR_USER_VALIDATION
+```
+
+---
+
+## Previous remediation — explicit time bases and reference metrics
+
+2026-10-06, 21:24–21:27 IST live validation. **READY_FOR_USER_VALIDATION**.
+This section supersedes earlier missing-reference and unlabeled-detail observations.
+
+### A. Preflight
+
+Branch `main`; HEAD `41667f8d096bc6e6b94f4dd186838904c77ef0fe`; clean worktree at
+start. Existing accepted Watchlists work was preserved. No commit/tag/push, scan,
+live order or execution-policy change was made. TapTide remained generation 3,
+CONNECTED/AVAILABLE after validation; all 105 recorded operations were COMPLETE,
+with reconciliation_required false and no active operations.
+
+### B–D. Time-basis diagnosis and implementation
+
+The row calculation already used session-change semantics, but its old label was
+ambiguous. It is now **1D %**, retaining normalized-provider percentage priority,
+then previous-close comparison; valid zero stays 0.00% and missing stays “—”.
+Positive/negative values retain green/red, including the period-aware detail value.
+
+The existing row series is 22 completed Dhan daily bars, now explicitly labeled
+**Quick Chart (1M)** with a concise tooltip. Selection cannot replace the row series.
+
+Previously the detail header reused the row's one-day return for every chart range.
+It now displays `1D/1W/1M/3M/1Y` beside the return and its actual comparison dates
+and prices. 1D compares latest quote to previous session close. Longer periods use
+first/last close of the displayed 5/22/66/252 completed daily bars, approximately
+one week/month/quarter/year. Their end price may differ from current LTP; the basis
+is visible. Insufficient/invalid history returns a dash. India-session chart-axis
+dates agree with the comparison labels. No scanner indicator/threshold changed.
+
+### E–G. Provider capability, normalization, provenance and caching
+
+Live discovered schemas identify `get_stock_quote` and `get_company_profile` as
+company reference capabilities. One diagnostic RELIANCE quote, one company profile,
+and one `read_me` call inspected actual response/unit semantics through the existing
+MCP manager. A rejected profile admission made no provider dispatch; the existing
+local recovery protocol cleared a diagnostic completion receipt before the bounded
+profile call. Final durable state is clean as recorded above.
+
+Production reference reads use only `get_stock_quote`, exact NSE equity symbol,
+existing credentials and server tool policy. Typed `ReferenceSnapshot` contains
+Market Cap in INR, PE, direct 52W High/Low, provider/tool, source time, received time,
+freshness and availability. No raw response keys/payload reach the UI. `updated_at`
+was verified live and mapped explicitly; its timestamp describes the provider
+snapshot, not separately verified filing dates for each fundamental.
+
+Market cap units are corroborated by TapTide's published
+[Marketcap (₹Cr) leaderboard](https://tapetide.com/score/leaderboard?sort=market_cap)
+and the live profile's share/price metadata. The raw quote has no explicit unit
+field: this is an evidence-backed adapter interpretation. Only unit conversion is
+performed; capitalization/PE are not inferred from incomplete fundamentals.
+
+Reference cache: owner + connection + generation + instrument; max 128 entries per
+API process, 15-minute successful/partial/not-available TTL, 60-second failed-result
+TTL, concurrent deduplication and 25-second total budget. Browser cache: 50 entries,
+same TTLs. Existing daily/intraday history cache remains five minutes, 256 API/100
+browser entries, and the existing one-at-a-time provider pacing remains unchanged.
+No new HTTP client or distributed cache was introduced.
+
+NIFTY/index, derivative and BSE reference values stay unavailable in this bounded
+NSE company-reference integration. No extra annual-history derivation was added.
+Prices/volume remain Dhan-backed and reference metrics are visibly separate.
+
+### H. Exact changed files
+
+- `apps/api/src/twf/api/watchlists.py`
+- `apps/api/src/twf/main.py`
+- `apps/api/src/twf/watchlists/reference.py` (new)
+- `apps/api/tests/test_watchlists.py`
+- `apps/web/src/app/api/v1/watchlists/[[...path]]/route.ts`
+- `apps/web/src/components/watchlists/market-chart.tsx`
+- `apps/web/src/components/watchlists/watchlists-workspace.tsx`
+- `apps/web/src/lib/watchlists.ts`
+- `apps/web/tests/browser/watchlists.spec.ts`
+- `apps/web/tests/watchlists.test.tsx`
+- `docs/TWF_WATCHLIST_ARCHITECTURE.md`
+- `docs/TWF_WATCHLIST_IMPLEMENTATION_REPORT.md`
+
+### I. Validation
+
+- Backend focused Watchlists + market data: **32 passed**.
+- Frontend full suite, serial execution: **186 passed / 19 files**. Two earlier
+  concurrent runs hit an unchanged Discovery test's immediate assertion while its
+  asynchronous drawer was still loading (185 passed/1 failed). Baseline extracted
+  at HEAD also passed in isolation and full-suite checks; no Discovery source/test
+  was changed. Final serial suite passed, but the concurrency-sensitive test remains
+  a suite limitation, not a claimed Watchlists fix.
+- TypeScript, ESLint, Prettier and production build: **PASS**.
+- Chromium Watchlists: **6 passed**, widths 390/768/1024/1440/1920/2560. Market
+  overlays are mocked here; collection CRUD, CSV, notes, routing, archive/restore,
+  broker ticket preview and persistence use the isolated real test API/database.
+  The new assertions verify all periods, unchanged row values, cached 1M reuse,
+  reference display and one reference API request. No order confirmation occurs.
+- Ruff lint + format: **PASS**, 146 Python files formatted.
+- Strict mypy on all source + focused tests: **PASS**, 87 files. Full strict mypy
+  retains two unchanged errors: `tests/test_discovery_product.py:1321` fake provider
+  protocol mismatch and `tests/test_dhan_credentials.py:126` Any return. These are
+  outside this bounded change; the full check is **not** claimed clean.
+- `git diff --check`: **PASS**.
+
+### J. Live validation
+
+Authenticated My Core, no response mocks, four canonical instruments. Dhan supplied
+75 completed 5-minute bars for each 1D chart and 5/22/66/252 daily bars for the other
+periods. All 20 chart responses succeeded. The table's four daily percentages and
+22-bar sparklines remained unchanged throughout all detail switches.
+
+| Symbol   |      LTP | Table / detail 1D | Detail 1W | Detail 1M | Detail 3M | Detail 1Y |
+| -------- | -------: | ----------------: | --------: | --------: | --------: | --------: |
+| RELIANCE |    1,218 |            +2.66% |    -0.94% |    -9.65% |    -8.98% |   -13.88% |
+| INFY     | 1,013.85 |            -0.65% |    +1.72% |   -10.48% |    -1.96% |   -29.57% |
+| HDFCBANK |   711.45 |            +0.94% |    -1.98% |    +0.57% |   -11.45% |   -25.42% |
+| NIFTY    | 22,776.1 |            +0.98% |    -0.99% |    -5.68% |    -6.70% |    -8.51% |
+
+These are observed provider snapshots, not claims of continuously current prices.
+For example RELIANCE 1M used Sep 2 close 1,313.1 to Oct 5 close 1,186.4; its 1D
+used Oct 5 close 1,186.4 versus Oct 6 quote 1,218.
+
+| Symbol   | Market Cap (₹Cr) |    PE | 52W High | 52W Low |
+| -------- | ---------------: | ----: | -------: | ------: |
+| RELIANCE |     16,48,263.22 | 22.06 |  1,611.8 | 1,160.8 |
+| INFY     |      4,11,443.90 | 13.65 |    1,728 |   980.4 |
+| HDFCBANK |     10,96,821.13 | 13.85 |  1,020.5 |   681.9 |
+| NIFTY    |                — |     — |        — |       — |
+
+All three equity reference snapshots retained TapTide / get_stock_quote provenance,
+source Oct 6 15:59 IST, received approximately 21:27 IST, CURRENT within the reference
+freshness policy. NIFTY is explicitly NOT_AVAILABLE. No browser JavaScript errors.
+
+### K–L. Screenshots and request observations
+
+Local live captures (not Git artifacts):
+`/tmp/twf-semantics-live-reference-RELIANCE.png`,
+`/tmp/twf-semantics-live-reference-INFY.png`,
+`/tmp/twf-semantics-live-reference-HDFCBANK.png`,
+`/tmp/twf-semantics-live-reference-NIFTY.png`.
+
+Six-width light/dark browser captures are under
+`apps/web/test-results/watchlists-persistent-Watc-bff0e-rchive-and-responsive-shell-chromium-{width}/`
+(`watchlists-light-detail.png`, `watchlists-dark-detail.png`, list/reload captures).
+The existing 390px compact table hides optional columns, including daily percent
+and sparkline; semantics remain explicit in the column controls/footer and selected
+detail. No horizontal page overflow; detail is a scrollable modal below 1200px.
+
+Cold live traversal: one quote batch, four row 1M API reads, then four additional
+period API reads per symbol (20 total historical ranges). Each period requested
+once; cached 1M selection/reselection did not fetch again. Three TapTide reference
+calls served the three equities; NIFTY made no provider reference call. React dev
+mode sent two concurrent first-reference API reads, deduplicated to one provider
+operation. Reselecting RELIANCE added **zero** requests. The source-timestamp mapping
+correction reset the API cache; a separate confirmation pass made three additional
+reference calls, then retained all source timestamps. No aggressive retries.
+
+### M–N. Scorecard and status
+
+```text
+WATCHLIST_TABLE_1D_PERCENT_LABEL = PASS
+WATCHLIST_TABLE_1D_PERCENT_CORRECT = PASS
+WATCHLIST_TABLE_MISSING_CHANGE_IS_DASH = PASS
+WATCHLIST_QUICK_CHART_1M_LABEL = PASS
+WATCHLIST_QUICK_CHART_1M_DATA = PASS
+WATCHLIST_DETAIL_PERIOD_CHANGE = PASS
+WATCHLIST_DETAIL_PERIOD_LABEL = PASS
+WATCHLIST_DETAIL_PERIOD_SYNC = PASS
+WATCHLIST_MARKET_CAP = PASS
+WATCHLIST_PE = PASS
+WATCHLIST_52W_HIGH = PASS
+WATCHLIST_52W_LOW = PASS
+WATCHLIST_REFERENCE_PROVENANCE = PASS
+NO_PROVIDER_CALL_EXPLOSION = PASS
+WATCHLIST_CORE_REGRESSION_FREE = PASS
+RESPONSIVE_VALIDATION = PASS
+WATCHLIST_DATA_SEMANTICS_STATUS = READY_FOR_USER_VALIDATION
+```
+
+Reference-metric PASS means supported equities; NIFTY remains truthfully unavailable.
+No acceptance/freeze or repository publication is claimed.
+
+---
+
+## Previous remediation — live rows, Change %, and news semantics
 
 2026-10-06, approximately 20:31 IST. This section supersedes the earlier live-data
 limitations and selection-dependent row behavior recorded below. Branch/HEAD

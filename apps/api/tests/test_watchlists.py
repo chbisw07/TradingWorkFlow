@@ -450,3 +450,101 @@ def test_history_cache_rate_limit_stops_other_cold_rows() -> None:
         assert p.get_ohlcv.await_count == 1
 
     asyncio.run(run())
+
+
+def test_reference_normalization_units_missing_values_and_identity() -> None:
+    from decimal import Decimal
+
+    from twf.watchlists.reference import normalize_reference
+
+    at = datetime.now(UTC)
+    raw: dict[str, Any] = {
+        "data": {
+            "found": True,
+            "symbol": "RELIANCE",
+            "market_cap": 1648263.22,
+            "pe_ttm": 22.06,
+            "high_52w": 1611.8,
+            "low_52w": 1160.8,
+            "updated_at": at.isoformat(),
+            "raw_secret_field": "must-not-escape",
+        }
+    }
+    result = normalize_reference("RELIANCE", raw, at)
+    assert result.state == "AVAILABLE" and result.market_cap_inr == Decimal("16482632200000")
+    assert result.pe_ratio == Decimal("22.06") and result.high_52_week == Decimal("1611.8")
+    assert result.source_time == at and result.freshness == "CURRENT"
+    assert result.provider == "tapetide" and result.tool == "get_stock_quote"
+    assert "must-not-escape" not in result.model_dump_json()
+    raw["data"]["pe_ttm"] = None
+    assert normalize_reference("RELIANCE", raw, at).pe_ratio is None
+    assert normalize_reference("INFY", raw, at).state == "UNAVAILABLE"
+    raw["data"]["low_52w"] = 2000
+    result = normalize_reference("RELIANCE", raw, at)
+    assert result.high_52_week is None and result.low_52_week is None
+    assert normalize_reference("RELIANCE", {}, at).state == "UNAVAILABLE"
+
+
+def test_reference_endpoint_owner_checks_before_provider(client: TestClient) -> None:
+    key = create(client)
+    add(client, key)
+    item = instruments()[0]
+    path = f"{BASE}/{key}/items/{item.instrument_id}/reference"
+    assert client.get(path).json()["state"] == "UNAVAILABLE"
+    login(client, "bob")
+    assert client.get(path).status_code == 404
+
+
+def test_reference_cache_deduplicates_and_fences_owner_generation() -> None:
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock, patch
+    from uuid import uuid4
+
+    from twf.integrations.mcp.contracts import Context
+    from twf.watchlists.reference import WatchlistReferenceCache
+
+    async def run() -> None:
+        cache = WatchlistReferenceCache()
+        item = (await WatchlistCatalog(provider()).instruments())[0]
+        who = Context(owner_id=uuid4(), session_hash="a" * 64)
+        connection = uuid4()
+        manager: Any = SimpleNamespace(
+            tools=AsyncMock(
+                return_value=(
+                    None,
+                    {
+                        "structuredContent": {
+                            "data": {
+                                "found": True,
+                                "symbol": item.symbol,
+                                "pe_ttm": 22.06,
+                            }
+                        }
+                    },
+                )
+            ),
+            operations=SimpleNamespace(wait_receipts=AsyncMock()),
+        )
+        with patch("twf.watchlists.reference.TapTideMarketIntelligence.connection") as connected:
+            connected.return_value = (connection, 1, frozenset({"get_stock_quote"}))
+            a, b = await asyncio.gather(
+                cache.read(manager, who, item), cache.read(manager, who, item)
+            )
+            assert a == b and a.state == "PARTIAL" and manager.tools.await_count == 1
+            assert manager.tools.call_args.kwargs["arguments"] == {"symbol": item.symbol}
+            assert manager.tools.call_args.kwargs["policy"].allowed == frozenset(
+                {"get_stock_quote"}
+            )
+            await cache.read(manager, who, item)
+            assert manager.tools.await_count == 1
+            connected.return_value = (connection, 2, frozenset({"get_stock_quote"}))
+            await cache.read(manager, who, item)
+            await cache.read(manager, who.model_copy(update={"owner_id": uuid4()}), item)
+            assert manager.tools.await_count == 3
+            await cache.read(manager, who, item.model_copy(update={"instrument_type": "INDEX"}))
+            assert manager.tools.await_count == 3
+            connected.return_value = (connection, 2, frozenset())
+            assert (await cache.read(manager, who, item)).state == "UNAVAILABLE"
+            assert manager.operations.wait_receipts.await_count == 3
+
+    asyncio.run(run())

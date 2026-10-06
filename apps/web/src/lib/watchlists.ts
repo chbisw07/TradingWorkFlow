@@ -149,3 +149,103 @@ export function changeText(value: number | null) {
   const sign = value > 0 ? "+" : "";
   return `${sign}${value.toFixed(digits)}%`;
 }
+
+export function periodChange(
+  period: string,
+  quote: WatchQuote | undefined,
+  chart: WatchChart | null,
+  daily: WatchBar[] = [],
+) {
+  // 1D is a quote/session comparison. Other windows compare the first and last
+  // supplied completed daily closes (5/22/66/252 bars), not invented calendar dates.
+  if (period === "1D")
+    return {
+      value: change(quote, daily),
+      start: previousClose(quote, daily),
+      end: quote?.last_price == null ? null : Number(quote.last_price),
+      startTime: null,
+      endTime: quote?.provider_source_time || null,
+      basis: "Previous trading session close → latest quote",
+    };
+  const bars = chart?.interval === "1d" && !chart.error ? chart.bars : [];
+  if (
+    bars.length < 2 ||
+    bars.some((b) => !Number.isFinite(Number(b.close)) || Number(b.close) <= 0)
+  )
+    return {
+      value: null,
+      start: null,
+      end: null,
+      startTime: null,
+      endTime: null,
+      basis: "Selected-period history unavailable",
+    };
+  const first = bars[0],
+    last = bars.at(-1)!;
+  return {
+    value: (Number(last.close) / Number(first.close) - 1) * 100,
+    start: Number(first.close),
+    end: Number(last.close),
+    startTime: first.timestamp,
+    endTime: last.timestamp,
+    basis: `${bars.length} completed daily bars · close to close`,
+  };
+}
+export const sessionDate = (value: string) =>
+  new Date(value).toLocaleDateString("en-GB", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+export type WatchReference = {
+  symbol: string;
+  provider: string;
+  tool: string;
+  state: string;
+  market_cap_inr: string | null;
+  pe_ratio: string | null;
+  high_52_week: string | null;
+  low_52_week: string | null;
+  received_at: string;
+  source_time: string | null;
+  freshness: string;
+};
+
+// Presentation only: all callers retain the original normalized numeric values.
+export function indianVolume(value: string | number | null | undefined) {
+  if (
+    value == null ||
+    value === "" ||
+    !Number.isFinite(Number(value)) ||
+    Number(value) < 0
+  )
+    return "—";
+  const n = Number(value);
+  const unit =
+    n >= 1e7
+      ? ([1e7, "Cr"] as const)
+      : n >= 1e5
+        ? ([1e5, "L"] as const)
+        : n >= 1e3
+          ? ([1e3, "K"] as const)
+          : null;
+  return unit
+    ? `${(n / unit[0]).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${unit[1]}`
+    : n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
+}
+
+// Input contract is market_cap_inr, already normalized to rupees by the API.
+// One crore = 10^7 INR; one lakh crore = 10^12 INR. Never pass raw provider crores.
+export function indianMarketCap(inr: string | number | null | undefined) {
+  if (
+    inr == null ||
+    inr === "" ||
+    !Number.isFinite(Number(inr)) ||
+    Number(inr) <= 0
+  )
+    return "—";
+  const n = Number(inr);
+  if (n < 1e7) return `₹${numberText(n)}`;
+  return `₹${(n / (n >= 1e12 ? 1e12 : 1e7)).toLocaleString("en-IN", { maximumFractionDigits: 2 })} ${n >= 1e12 ? "L Cr" : "Cr"}`;
+}

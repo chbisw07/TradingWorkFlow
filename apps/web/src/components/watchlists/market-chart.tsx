@@ -74,7 +74,9 @@ export function MarketChart({
       {!compact && (
         <>
           <text x={p} y={h - 4} fill="var(--shell-secondary)" fontSize="11">
-            {bars[0].timestamp.slice(0, 10)}
+            {new Date(bars[0].timestamp).toLocaleDateString("en-GB", {
+              timeZone: "Asia/Kolkata",
+            })}
           </text>
           <text
             x={w - p}
@@ -83,7 +85,9 @@ export function MarketChart({
             fill="var(--shell-secondary)"
             fontSize="11"
           >
-            {bars.at(-1)!.timestamp.slice(0, 10)}
+            {new Date(bars.at(-1)!.timestamp).toLocaleDateString("en-GB", {
+              timeZone: "Asia/Kolkata",
+            })}
           </text>
         </>
       )}

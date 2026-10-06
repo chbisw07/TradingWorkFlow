@@ -14,7 +14,7 @@ async function forward(
       ? route === "" ||
         route === "instruments" ||
         new RegExp(
-          `^${id}(/(export|universe|quotes)|/items/${id}/(chart|news|broker-instrument))?$`,
+          `^${id}(/(export|universe|quotes)|/items/${id}/(chart|news|reference|broker-instrument))?$`,
         ).test(route)
       : request.method === "PATCH"
         ? new RegExp(`^${id}$`).test(route)
@@ -72,7 +72,11 @@ async function forward(
         body,
         cache: "no-store",
         redirect: "error",
-        signal: AbortSignal.timeout(route.endsWith("/news") ? 30_000 : 15_000),
+        signal: AbortSignal.timeout(
+          route.endsWith("/news") || route.endsWith("/reference")
+            ? 30_000
+            : 15_000,
+        ),
       },
     );
     const responseHeaders = { ...output } as Record<string, string>;

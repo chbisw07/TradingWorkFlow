@@ -45,6 +45,7 @@ from twf.observability import create_logger
 from twf.preferences import SettingsFailure
 from twf.schemas import ErrorResponse
 from twf.watchlists.market import WatchlistHistoryCache, WatchlistQuoteCache
+from twf.watchlists.reference import WatchlistReferenceCache
 from twf.watchlists.service import WatchlistFailure
 
 
@@ -75,6 +76,7 @@ def create_app(
         app.state.market_intelligence_cache = TapTideSnapshotCache()
         app.state.watchlist_quotes = WatchlistQuoteCache()
         app.state.watchlist_history = WatchlistHistoryCache()
+        app.state.watchlist_reference = WatchlistReferenceCache()
         app.state.auth_dummy_hash = PasswordHasher().hash(secrets.token_urlsafe(32))
         app.state.initialized = True
         logger.info("application_started")

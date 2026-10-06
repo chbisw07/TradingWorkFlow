@@ -1,6 +1,13 @@
 "use client";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useId,
+  type ReactNode,
+} from "react";
 import { brokerApi, type Account, type Instrument } from "../../lib/brokers";
 import { canOrder, type Capability, type Side } from "../../lib/broker-orders";
 import {
@@ -9,7 +16,12 @@ import {
   changeText,
   label,
   numberText,
+  indianVolume,
+  indianMarketCap,
   previousClose,
+  periodChange,
+  sessionDate,
+  type WatchReference,
   watchApi,
   type Kind,
   type WatchBar,
@@ -27,11 +39,11 @@ import { MarketChart } from "./market-chart";
 const kinds: Kind[] = ["EQUITY", "OPTION", "FUTURE", "INDEX"];
 const columns = [
   "LTP",
-  "Change %",
+  "1D %",
   "Volume",
   "RSI (14)",
   "Trend",
-  "Quick Chart",
+  "Quick Chart (1M)",
 ];
 const time = (v: string) =>
   new Date(v).toLocaleString(undefined, {
@@ -40,6 +52,7 @@ const time = (v: string) =>
   });
 
 export function WatchlistsWorkspace() {
+  const panelId = useId();
   const [lists, setLists] = useState<Watchlist[]>([]),
     [selected, setSelected] = useState("");
   const [detail, setDetail] = useState<WatchDetail | null>(null),
@@ -441,6 +454,12 @@ export function WatchlistsWorkspace() {
     };
   }, [selected, visibleRowIds, loadChart]);
   const tableColSpan = 4 + visible.length;
+  const periodResult = periodChange(
+    period,
+    quote,
+    chart,
+    history[instrumentId],
+  );
   const panel = item ? (
     <>
       <header className="wl-instrument-heading">
@@ -452,100 +471,162 @@ export function WatchlistsWorkspace() {
         </div>
         <span className="wl-badge">{badge[item.kind]}</span>
       </header>
-      <div className="wl-price">
+      <div className="wl-price" title="Change across selected chart period">
         {numberText(quote?.last_price)}{" "}
         <small
           className={
-            change(quote, history[instrumentId]) == null
+            periodResult.value == null
               ? "neutral"
-              : change(quote, history[instrumentId])! > 0
+              : periodResult.value! > 0
                 ? "up"
-                : change(quote, history[instrumentId])! < 0
+                : periodResult.value! < 0
                   ? "down"
                   : "neutral"
           }
         >
-          {changeText(change(quote, history[instrumentId]))}
+          {period} {changeText(periodResult.value)}
         </small>
       </div>
-      <div className="wl-tabs">
-        {["Overview", "Chart", "Option Chain", "News"].map((t) => (
-          <button key={t} aria-pressed={tab === t} onClick={() => setTab(t)}>
+      <div className="wl-tabs" role="tablist" aria-label="Instrument views">
+        {["Overview", "Option Chain", "News"].map((t, index, tabs) => (
+          <button
+            key={t}
+            role="tab"
+            id={`${panelId}-${index}`}
+            aria-controls={`${panelId}-content`}
+            aria-selected={tab === t}
+            tabIndex={tab === t ? 0 : -1}
+            onClick={() => setTab(t)}
+            onKeyDown={(event) => {
+              const next =
+                event.key === "ArrowRight"
+                  ? (index + 1) % tabs.length
+                  : event.key === "ArrowLeft"
+                    ? (index + tabs.length - 1) % tabs.length
+                    : event.key === "Home"
+                      ? 0
+                      : event.key === "End"
+                        ? tabs.length - 1
+                        : null;
+              if (next == null) return;
+              event.preventDefault();
+              setTab(tabs[next]);
+              document.getElementById(`${panelId}-${next}`)?.focus();
+            }}
+          >
             {t}
           </button>
         ))}
       </div>
-      {tab === "Option Chain" ? (
-        <p className="wl-empty">Option chain coming later</p>
-      ) : tab === "News" ? (
-        <NewsPanel
-          listId={selected}
-          instrumentId={instrumentId}
-          symbol={item.instrument.symbol}
-        />
-      ) : (
-        <>
-          <div className="wl-periods">
-            {["1D", "1W", "1M", "3M", "1Y"].map((p) => (
-              <button
-                key={p}
-                aria-pressed={period === p}
-                onClick={() => {
-                  if (p === period) return;
-                  setChart(null);
-                  setPeriod(p);
-                }}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
-          {chart ? (
-            <>
+      <div
+        role="tabpanel"
+        id={`${panelId}-content`}
+        aria-labelledby={`${panelId}-${["Overview", "Option Chain", "News"].indexOf(tab)}`}
+        tabIndex={0}
+      >
+        {tab === "Option Chain" ? (
+          <p className="wl-empty">Option chain coming later</p>
+        ) : tab === "News" ? (
+          <NewsPanel
+            listId={selected}
+            instrumentId={instrumentId}
+            symbol={item.instrument.symbol}
+          />
+        ) : (
+          <>
+            {chart ? (
               <MarketChart bars={chart.bars} />
-              <small className="wl-source">
-                Dhan ·{" "}
-                {chart.error
-                  ? "Chart unavailable"
-                  : `${chart.interval} completed bars`}
-              </small>
-            </>
-          ) : (
-            <p role="status" className="wl-empty">
-              Loading Dhan chart…
-            </p>
-          )}
-          {tab === "Overview" && (
-            <dl className="wl-metrics">
-              {[
-                ["Open", quote?.open],
-                ["Prev Close", previousClose(quote, history[instrumentId])],
-                ["High", quote?.high],
-                ["Low", quote?.low],
-                ["Volume", quote?.volume],
-                ["Avg. volume (20d)", metrics[instrumentId]?.average_volume20],
-                ["Market cap", null],
-                ["PE", null],
-                ["52W High", null],
-                ["52W Low", null],
-              ].map(([k, v]) => (
-                <div key={k}>
-                  <dt>{k}</dt>
-                  <dd>{numberText(v)}</dd>
-                </div>
+            ) : (
+              <p role="status" className="wl-empty">
+                Loading chart…
+              </p>
+            )}
+            <div className="wl-periods">
+              {["1D", "1W", "1M", "3M", "1Y"].map((p) => (
+                <button
+                  key={p}
+                  aria-pressed={period === p}
+                  onClick={() => {
+                    if (p === period) return;
+                    setChart(null);
+                    setPeriod(p);
+                  }}
+                >
+                  {p}
+                </button>
               ))}
-            </dl>
-          )}
-          {quote && (
-            <small className="wl-source">
-              Dhan snapshot · received {time(quote.received_at)} · source time{" "}
-              {quote.provider_source_time
-                ? time(quote.provider_source_time)
-                : "unavailable"}
-            </small>
-          )}
-        </>
-      )}
+            </div>
+            {tab === "Overview" && (
+              <section aria-label="Price / market data">
+                <h3>Price / market data</h3>
+                <dl className="wl-metrics">
+                  {[
+                    ["Open", quote?.open],
+                    ["Prev Close", previousClose(quote, history[instrumentId])],
+                    ["High", quote?.high],
+                    ["Low", quote?.low],
+                    ["Volume", quote?.volume],
+                    [
+                      "Avg. volume (20d)",
+                      metrics[instrumentId]?.average_volume20,
+                    ],
+                  ].map(([k, v]) => (
+                    <div key={k}>
+                      <dt>{k}</dt>
+                      <dd>
+                        {k === "Volume" || k === "Avg. volume (20d)"
+                          ? indianVolume(v)
+                          : numberText(v)}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+            )}
+            <ReferencePanel
+              listId={selected}
+              instrumentId={instrumentId}
+              marketDetails={
+                <>
+                  <p>Market data · Dhan · quote / OHLCV snapshot</p>
+                  <p>
+                    Source time ·{" "}
+                    {quote?.provider_source_time
+                      ? time(quote.provider_source_time)
+                      : "Unavailable"}
+                    <br />
+                    Received · {quote ? time(quote.received_at) : "Unavailable"}
+                    <br />
+                    Freshness · Snapshot; not continuously streaming
+                  </p>
+                  <p>
+                    Chart ·{" "}
+                    {chart?.error
+                      ? "Unavailable"
+                      : chart
+                        ? `${chart.interval} completed bars`
+                        : "Loading"}
+                  </p>
+                  <small className="wl-source" aria-label="Period change basis">
+                    {periodResult.basis}
+                    <br />
+                    {periodResult.startTime
+                      ? sessionDate(periodResult.startTime)
+                      : period === "1D"
+                        ? "Previous session"
+                        : "Unavailable"}{" "}
+                    {numberText(periodResult.start)} →{" "}
+                    {periodResult.endTime
+                      ? sessionDate(periodResult.endTime)
+                      : "Unavailable"}{" "}
+                    {numberText(periodResult.end)}
+                  </small>
+                </>
+              }
+            />
+          </>
+        )}
+      </div>
       <section className="wl-quick">
         <h3>Quick Trade {account ? `(${account.name})` : ""}</h3>
         <label>
@@ -980,7 +1061,18 @@ export function WatchlistsWorkspace() {
                       {columns
                         .filter((c) => visible.includes(c))
                         .map((c) => (
-                          <th key={c}>{c}</th>
+                          <th
+                            key={c}
+                            title={
+                              c === "1D %"
+                                ? "Change from previous trading session close"
+                                : c === "Quick Chart (1M)"
+                                  ? "Last ~1 month of completed daily closes"
+                                  : undefined
+                            }
+                          >
+                            {c}
+                          </th>
                         ))}
                       <th>Actions</th>
                     </tr>
@@ -1035,7 +1127,7 @@ export function WatchlistsWorkspace() {
                           {visible.includes("LTP") && (
                             <td>{numberText(q?.last_price)}</td>
                           )}
-                          {visible.includes("Change %") && (
+                          {visible.includes("1D %") && (
                             <td
                               className={
                                 delta == null || delta === 0
@@ -1076,7 +1168,7 @@ export function WatchlistsWorkspace() {
                                 "—"}
                             </td>
                           )}
-                          {visible.includes("Quick Chart") && (
+                          {visible.includes("Quick Chart (1M)") && (
                             <td>
                               <MarketChart bars={history[id] || []} compact />
                             </td>
@@ -1196,7 +1288,7 @@ export function WatchlistsWorkspace() {
                 ＋ Add Symbols
               </button>
               <small className="wl-source">
-                Quick charts reuse normalized daily history where available · —
+                Quick Chart (1M): last ~1 month of completed daily closes · —
                 means unavailable
               </small>
             </>
@@ -1622,5 +1714,152 @@ export function NewsPanel({
       )}
       {!result && <p role="status">Loading TapTide news…</p>}
     </section>
+  );
+}
+
+export function ReferencePanel({
+  listId,
+  instrumentId,
+  marketDetails,
+}: {
+  listId: string;
+  instrumentId: string;
+  marketDetails?: ReactNode;
+}) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const key = `${listId}:${instrumentId}`;
+  const cache = useRef(
+    new Map<string, { at: number; value: WatchReference }>(),
+  );
+  const [loaded, setLoaded] = useState<{
+    key: string;
+    value: WatchReference;
+  } | null>(null);
+  const value = loaded?.key === key ? loaded.value : null;
+  useEffect(() => {
+    let active = true;
+    const cached = cache.current.get(key);
+    const request =
+      cached &&
+      Date.now() - cached.at <
+        (cached.value.state === "UNAVAILABLE" ? 60000 : 900000)
+        ? Promise.resolve(cached.value)
+        : watchApi<WatchReference>(
+            `/${listId}/items/${instrumentId}/reference`,
+          );
+    void request
+      .then((result) => {
+        if (!active) return;
+        cache.current.set(key, { at: Date.now(), value: result });
+        if (cache.current.size > 50)
+          cache.current.delete(cache.current.keys().next().value!);
+        setLoaded({ key, value: result });
+      })
+      .catch(() => {
+        if (active)
+          setLoaded({
+            key,
+            value: {
+              symbol: "",
+              provider: "tapetide",
+              tool: "get_stock_quote",
+              state: "UNAVAILABLE",
+              market_cap_inr: null,
+              pe_ratio: null,
+              high_52_week: null,
+              low_52_week: null,
+              received_at: new Date().toISOString(),
+              source_time: null,
+              freshness: "UNAVAILABLE",
+            },
+          });
+      });
+    return () => {
+      active = false;
+    };
+  }, [key, listId, instrumentId]);
+  return (
+    <>
+      <section aria-label="Reference / fundamentals" className="wl-reference">
+        <h3>Reference / fundamentals</h3>
+        {[
+          {
+            title: "Fundamentals",
+            values: [
+              ["Market Cap", indianMarketCap(value?.market_cap_inr)],
+              ["PE", numberText(value?.pe_ratio)],
+            ],
+          },
+          {
+            title: "Price reference",
+            values: [
+              ["52W High", numberText(value?.high_52_week)],
+              ["52W Low", numberText(value?.low_52_week)],
+            ],
+          },
+        ].map((group) => (
+          <div key={group.title}>
+            <h4>{group.title}</h4>
+            <dl className="wl-metrics">
+              {group.values.map(([name, display]) => (
+                <div key={name}>
+                  <dt>{name}</dt>
+                  <dd
+                    title={
+                      display === "—"
+                        ? "Data unavailable from configured providers"
+                        : undefined
+                    }
+                  >
+                    {display}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        ))}
+      </section>
+      <details
+        className="wl-data-details"
+        open={detailsOpen}
+        onToggle={(event) => setDetailsOpen(event.currentTarget.open)}
+      >
+        <summary aria-expanded={detailsOpen}>Data details</summary>
+        <div className="wl-source">
+          {marketDetails}
+          {value ? (
+            <>
+              <p>
+                Reference data ·{" "}
+                {value.provider === "tapetide" ? "TapTide" : value.provider}
+                <br />
+                Source / tool · {value.tool.replaceAll("_", " ")}
+                <br />
+                Source time ·{" "}
+                {value.source_time ? time(value.source_time) : "Unavailable"}
+                <br />
+                Received · {time(value.received_at)}
+                <br />
+                Freshness · {value.freshness.replaceAll("_", " ")}
+                <br />
+                Availability · {value.state.replaceAll("_", " ")}
+              </p>
+              {value.state !== "AVAILABLE" && (
+                <p>
+                  Some reference values are unavailable from the configured
+                  provider.
+                </p>
+              )}
+              <p>
+                Reference timestamps describe the provider snapshot, not
+                individual filing dates.
+              </p>
+            </>
+          ) : (
+            <p>Loading reference data…</p>
+          )}
+        </div>
+      </details>
+    </>
   );
 }
