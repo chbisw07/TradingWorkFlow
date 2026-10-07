@@ -1,5 +1,14 @@
 # TradingWorkFlow (TWF) — Documentation Index
 
+## Scanner V2 — 2026-10-07 implementation
+
+[Scanner V2 architecture and validation](TWF_SCANNER_V2_ARCHITECTURE.md) records
+the fresh `/scanners` workspace, Dhan daily filter engine, immutable Watchlist
+universes, saved configurations/runs, optional TapTide screens and Watchlist
+handoff. Historical Discovery and accepted Broker V1/V2 remain intact.
+Implemented / pending user validation, **not accepted or frozen**. Verified
+constituent/sector/market universes and full derivatives remain capability gaps.
+
 > **2026-10-02 active provider map:** Dhan is the first authoritative `MarketDataProvider`; TapTide is the first optional `MarketIntelligenceProvider`; TradingView is historical/decommissioned from active S&D. Generic MCP and historical provenance remain. The Dhan/TapTide migration is implemented and pending user validation; no commit/tag/freeze is claimed.
 
 ## Current Watchlists implementation

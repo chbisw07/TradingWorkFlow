@@ -893,7 +893,7 @@ test("keeps previous synthetic provenance explicit after a real scan failure and
     name: "Scan evidence chart",
   });
   expect(
-    within(failedDrawer).getByText("Evidence chart unavailable"),
+    await within(failedDrawer).findByText("Evidence chart unavailable"),
   ).toBeInTheDocument();
   fireEvent.click(
     within(failedDrawer).getByRole("button", { name: "Retry evidence chart" }),

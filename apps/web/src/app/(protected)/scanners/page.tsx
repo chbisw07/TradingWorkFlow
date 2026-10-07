@@ -1,5 +1,5 @@
-import { DiscoveryWorkspace } from "../../../components/discovery/discovery-workspace";
+import { ScannerWorkspace } from "../../../components/scanner/scanner-workspace";
 
 export default function ScannersPage() {
-  return <DiscoveryWorkspace initialView="scan" />;
+  return <ScannerWorkspace />;
 }

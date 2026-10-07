@@ -96,6 +96,8 @@ def test_database_boundary() -> None:
             "watchlist_items",
             "watchlist_notes",
             "watchlist_activity",
+            "scanner_v2_runs",
+            "scanner_v2_saved",
         }
         assert not inspect(engine).get_table_names()
     finally:

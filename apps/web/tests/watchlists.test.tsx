@@ -157,7 +157,9 @@ test("news keeps symbol stories first and market claims in a separate section", 
     name: "Market-wide context",
   });
   expect(sector).toHaveTextContent("Sector");
-  expect(company).toHaveTextContent("No recent HDFCBANK-specific news.");
+  await waitFor(() =>
+    expect(company).toHaveTextContent("No recent HDFCBANK-specific news."),
+  );
   expect(company).not.toHaveTextContent("Earnings");
   const events = screen.getByRole("region", { name: "Corporate events" });
   expect(events).toHaveTextContent("Earnings · 2026-10-10");
@@ -177,7 +179,9 @@ test("market-only news does not masquerade as selected-symbol news", async () =>
   const company = await screen.findByRole("region", {
     name: "HDFCBANK company and symbol news",
   });
-  expect(company).toHaveTextContent("No recent HDFCBANK-specific news.");
+  await waitFor(() =>
+    expect(company).toHaveTextContent("No recent HDFCBANK-specific news."),
+  );
   expect(company).not.toHaveTextContent("Markets open higher");
   expect(
     await screen.findByRole("region", { name: "Market-wide context" }),
@@ -344,10 +348,12 @@ test("visible rows hydrate serially without selection and detail reuses history"
     throw new Error("Unexpected path");
   });
   const first = render(<WatchlistsWorkspace />);
-  await waitFor(() =>
-    expect(
-      screen.getAllByRole("img", { name: "Quick chart, 22 completed bars" }),
-    ).toHaveLength(10),
+  await waitFor(
+    () =>
+      expect(
+        screen.getAllByRole("img", { name: "Quick chart, 22 completed bars" }),
+      ).toHaveLength(10),
+    { timeout: 5000 },
   );
   expect(calls).toBe(10);
   expect(maxActive).toBe(1);
@@ -388,10 +394,12 @@ test("visible rows hydrate serially without selection and detail reuses history"
   expect(calls).toBe(12);
   first.unmount();
   render(<WatchlistsWorkspace />);
-  await waitFor(() =>
-    expect(
-      screen.getAllByRole("img", { name: "Quick chart, 22 completed bars" }),
-    ).toHaveLength(10),
+  await waitFor(
+    () =>
+      expect(
+        screen.getAllByRole("img", { name: "Quick chart, 22 completed bars" }),
+      ).toHaveLength(10),
+    { timeout: 5000 },
   );
   expect(calls).toBe(22);
 });

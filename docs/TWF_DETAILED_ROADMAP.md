@@ -1,5 +1,14 @@
 # TradingWorkFlow (TWF) — Detailed Roadmap
 
+## Scanner V2 — 2026-10-07 implementation
+
+[Scanner V2 architecture and validation](TWF_SCANNER_V2_ARCHITECTURE.md) records
+the fresh `/scanners` workspace, Dhan daily filter engine, immutable Watchlist
+universes, saved configurations/runs, optional TapTide screens and Watchlist
+handoff. Historical Discovery and accepted Broker V1/V2 remain intact.
+Implemented / pending user validation, **not accepted or frozen**. Verified
+constituent/sector/market universes and full derivatives remain capability gaps.
+
 > **2026-10-02 provider decision:** the accepted historical TradingView S2-3 record remains intact, but TradingView is decommissioned from active runtime. Dhan is the first authoritative `MarketDataProvider`; TapTide is the first optional `MarketIntelligenceProvider`. The migration is implemented and pending user validation; it does not create a new Git freeze.
 
 > **2026-09-29 S&D architecture acceptance:** The dated S&D extension below is **ACCEPTED / IMPLEMENTATION AUTHORIZED** within the [Sprint-2 delivery plan](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md). The [independent acceptance record](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) supersedes its 2026-09-28 proposal status. Sprint 2 is **IMPLEMENTED / READY FOR USER VALIDATION**. S2-1 is **ACCEPTED / FROZEN**; S2-2 Internal Scanner V0 is **ACCEPTED / FROZEN**; S2-3A is DURABILITY REMEDIATED / INTEGRATED INTO S2-3; S2-3 is **ACCEPTED / FROZEN WITH DEFERRED HARDENING**. S2-4 through S2-7 are **IMPLEMENTED** and S2-8 is **IMPLEMENTED / INTERNAL VALIDATION COMPLETE**. Final acceptance/freeze remains pending user validation, adversarial review, consolidated hardening, and verification. Earlier acceptance history and separate TI/TM/provider/security gates remain unchanged; proposal wording in the dated extension records its origin, not the current review status.

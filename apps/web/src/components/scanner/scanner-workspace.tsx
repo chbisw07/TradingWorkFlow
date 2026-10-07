@@ -1,0 +1,1568 @@
+"use client";
+import {
+  useEffect,
+  useState,
+  cloneElement,
+  type KeyboardEvent,
+  type ReactElement,
+} from "react";
+import Link from "next/link";
+import {
+  scannerApi,
+  initialConfig,
+  type Config,
+  type Filter,
+  type Catalog,
+  type Run,
+  type Saved,
+  type ScanRow,
+  type ProviderResults,
+} from "../../lib/scanner";
+import {
+  watchApi,
+  numberText,
+  indianVolume,
+  changeText,
+  type Watchlist,
+  type WatchDetail,
+  type WatchReference,
+} from "../../lib/watchlists";
+import { brokerApi, type Account, type Instrument } from "../../lib/brokers";
+import { OrderTicket } from "../brokers/order-ticket";
+import { MarketChart } from "../watchlists/market-chart";
+import { WatchDialog } from "../watchlists/dialog";
+import { Icon } from "../shell/icon";
+
+export function ScannerWorkspace() {
+  const [filterOpen, setFilterOpen] = useState(true);
+  const [allHistory, setAllHistory] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
+  useEffect(() => {
+    if (window.innerWidth <= 800) setFilterOpen(false);
+  }, []);
+  function tabKeys(e: KeyboardEvent<HTMLDivElement>) {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+    const tabs = Array.from(
+      e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]'),
+    );
+    const index = tabs.indexOf(document.activeElement as HTMLButtonElement);
+    const next =
+      e.key === "Home"
+        ? 0
+        : e.key === "End"
+          ? tabs.length - 1
+          : (index + (e.key === "ArrowRight" ? 1 : -1) + tabs.length) %
+            tabs.length;
+    e.preventDefault();
+    tabs[next]?.focus();
+    tabs[next]?.click();
+  }
+  const [catalog, setCatalog] = useState<Catalog | null>(null),
+    [config, setConfig] = useState<Config>(initialConfig);
+  const [lists, setLists] = useState<Watchlist[]>([]),
+    [members, setMembers] = useState<WatchDetail | null>(null);
+  const [saved, setSaved] = useState<Saved[]>([]),
+    [history, setHistory] = useState<Run[]>([]),
+    [savedId, setSavedId] = useState("");
+  const [run, setRun] = useState<Run | null>(null),
+    [selected, setSelected] = useState<ScanRow | null>(null);
+  const [checked, setChecked] = useState<string[]>([]),
+    [target, setTarget] = useState(""),
+    [addIds, setAddIds] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false),
+    [error, setError] = useState(""),
+    [notice, setNotice] = useState("");
+  const [derivatives, setDerivatives] = useState(false),
+    [modal, setModal] = useState<"save" | "add" | "help" | "detail" | null>(
+      null,
+    );
+  const [name, setName] = useState(""),
+    [custom, setCustom] = useState(""),
+    [search, setSearch] = useState("");
+  const [view, setView] = useState("table"),
+    [columns, setColumns] = useState(["volume", "rsi", "trend", "chart"]);
+  const [sort, setSort] = useState("symbol"),
+    [detailTab, setDetailTab] = useState("Overview"),
+    [period, setPeriod] = useState("1M");
+  const [reference, setReference] = useState<WatchReference | null>(null),
+    [news, setNews] = useState<string[]>([]);
+  const [movers, setMovers] = useState<ProviderResults | null>(null),
+    [moverTab, setMoverTab] = useState("Top Gainers");
+  const [accounts, setAccounts] = useState<Account[]>([]),
+    [accountId, setAccountId] = useState("");
+  const [ticket, setTicket] = useState<{
+    account: Account;
+    instrument: Instrument;
+    side: "BUY" | "SELL";
+  } | null>(null);
+  const [field, setField] = useState("rsi"),
+    [operator, setOperator] = useState("<"),
+    [value, setValue] = useState("30");
+  async function refresh() {
+    const [c, l, s, h] = await Promise.all([
+      scannerApi<Catalog>("catalog"),
+      watchApi<Watchlist[]>(""),
+      scannerApi<Saved[]>("saved"),
+      scannerApi<Run[]>("runs"),
+    ]);
+    setCatalog(c);
+    setLists(l.filter((x) => !x.archived));
+    setSaved(s);
+    setHistory(h);
+  }
+  useEffect(() => {
+    void refresh().catch((e) => setError(String(e.message)));
+    void brokerApi<Account[]>("accounts")
+      .then(setAccounts)
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
+    let active = true;
+    if (config.universe.source !== "WATCHLIST" || !config.universe.watchlist_id)
+      return;
+    void watchApi<WatchDetail>("/" + config.universe.watchlist_id)
+      .then((x) => {
+        if (active) setMembers(x);
+      })
+      .catch((e) => {
+        if (active) setError(e.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [config.universe.source, config.universe.watchlist_id]);
+  useEffect(() => {
+    let active = true;
+    if (!run || !selected?.instrument) return;
+    const path = `runs/${run.id}/items/${selected.instrument.instrument_id}`;
+    if (detailTab === "Fundamentals")
+      void scannerApi<WatchReference>(path + "/reference")
+        .then((x) => {
+          if (active) setReference(x);
+        })
+        .catch(() => {
+          if (active) setReference(null);
+        });
+    if (detailTab === "News")
+      void scannerApi<{
+        claims: {
+          subject: string;
+          provider: string;
+          values: { headlines?: string[]; summary?: string };
+        }[];
+      }>(path + "/news")
+        .then((x) => {
+          if (active)
+            setNews(
+              x.claims.flatMap(
+                (c) =>
+                  c.values.headlines?.map((h) => c.provider + " · " + h) || [
+                    c.provider +
+                      " · " +
+                      c.subject +
+                      ": " +
+                      (c.values.summary || "No normalized headline available."),
+                  ],
+              ),
+            );
+        })
+        .catch(() => {
+          if (active) setNews([]);
+        });
+    return () => {
+      active = false;
+    };
+  }, [detailTab, selected, run]);
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(""), 5000);
+    return () => clearTimeout(t);
+  }, [notice]);
+  async function action(fn: () => Promise<void>) {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      await fn();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Request unavailable");
+    } finally {
+      setBusy(false);
+    }
+  }
+  function loadTemplate(template: string) {
+    const t = catalog?.templates.find((x) => x.name === template);
+    if (t) {
+      const nextSort =
+        template === "Top Gainers" || template === "Top Losers"
+          ? "change"
+          : config.sort;
+      setSort(nextSort);
+      setConfig({
+        ...config,
+        name: t.name,
+        filters: t.filters,
+        sort: nextSort,
+      });
+    }
+  }
+  function loadConfig(c: Config, id = "") {
+    setSort(c.sort);
+    setConfig(c);
+    setCustom(c.universe.symbols.join(", "));
+    setSavedId(id);
+    setNotice("Scan setup loaded. Review filters before running.");
+  }
+  function source(source: string) {
+    setConfig({
+      ...config,
+      universe: { source, symbols: [], instrument_ids: [] },
+    });
+    setMembers(null);
+  }
+  function addFilter(f = field) {
+    let v: Filter["value"] = value;
+    if (operator === "between") {
+      const numbers = value.split(",").map(Number);
+      if (numbers.length !== 2 || numbers.some((x) => !Number.isFinite(x))) {
+        setError("Between needs two numeric values, separated by a comma.");
+        return;
+      }
+      v = [numbers[0], numbers[1]];
+    } else if (value.trim() !== "" && !Number.isNaN(Number(value)))
+      v = Number(value);
+    setConfig({
+      ...config,
+      filters: [
+        ...config.filters,
+        {
+          field: f,
+          operator,
+          value: v,
+          timeframe: "1d",
+          version: "1",
+          source: ["market_cap_inr", "pe_ratio"].includes(f)
+            ? "tapetide"
+            : "internal",
+        },
+      ],
+    });
+    setEditorOpen(false);
+  }
+  async function execute() {
+    await action(async () => {
+      const c = {
+        ...config,
+        universe: {
+          ...config.universe,
+          symbols:
+            config.universe.source === "CUSTOM"
+              ? custom
+                  .toUpperCase()
+                  .split(/[\s,]+/)
+                  .filter(Boolean)
+              : [],
+        },
+      };
+      const result = await scannerApi<Run>("runs", "POST", c);
+      setRun(result);
+      if (window.innerWidth <= 800) setFilterOpen(false);
+      setSelected(null);
+      setChecked([]);
+      setSort(c.sort);
+      await refresh();
+      setNotice(
+        `Scan completed: ${result.counts.matches} matches; ${result.counts.not_evaluated} not evaluated.`,
+      );
+    });
+  }
+  function inspect(row: ScanRow) {
+    setSelected(row);
+    setDetailTab("Overview");
+    setReference(null);
+    setNews([]);
+    if (window.innerWidth < 1200) setModal("detail");
+  }
+  const matches = (run?.rows || []).filter((r) => r.outcome === "MATCH");
+  const rows = [...matches].sort((a, b) =>
+    sort === "symbol" || sort === "relevance"
+      ? a.symbol.localeCompare(b.symbol)
+      : Number(b.metrics?.[sort] || 0) - Number(a.metrics?.[sort] || 0),
+  );
+  const identity = (r: ScanRow) => r.instrument?.instrument_id || r.symbol;
+  function addTo(ids: string[]) {
+    setAddIds(ids);
+    setTarget(lists[0]?.id || "new");
+    setName("");
+    setModal("add");
+  }
+  async function trade(row: ScanRow, side: "BUY" | "SELL") {
+    await action(async () => {
+      const account = accounts.find((a) => a.id === accountId);
+      if (!account || !run) throw new Error("Select a connected broker.");
+      const instrument = await scannerApi<Instrument>(
+        `runs/${run.id}/items/${identity(row)}/broker-instrument?account_id=${account.id}`,
+      );
+      setModal(null);
+      setTicket({ account, instrument, side });
+    });
+  }
+  function csv() {
+    if (!run) return;
+    const text = [
+      "Symbol,Provider,Completed close,1D %,Reason",
+      ...matches.map((r) =>
+        [
+          r.symbol,
+          "dhan",
+          r.metrics?.price,
+          r.metrics?.change,
+          r.diagnostics?.map((d) => d.reason).join("; "),
+        ]
+          .map((v) => '"' + String(v ?? "").replaceAll('"', '""') + '"')
+          .join(","),
+      ),
+    ].join("\n");
+    const url = URL.createObjectURL(new Blob([text], { type: "text/csv" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "scanner-results.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+  const input = (
+    label: string,
+    content: ReactElement<{ "aria-label"?: string }>,
+  ) => (
+    <label className="sc-label">
+      {label}
+      {cloneElement(content, { "aria-label": label })}
+    </label>
+  );
+  const detail = selected ? (
+    <div className="sc-detail">
+      <header>
+        <strong>{selected.symbol}</strong>
+        <button disabled={busy} onClick={() => addTo([identity(selected)])}>
+          ☆ Add to Watchlist
+        </button>
+      </header>
+      <small>
+        {selected.instrument?.exchange} · {selected.instrument?.segment} · Dhan
+      </small>
+      <small>
+        LTP · Quote snapshot; change below uses completed daily bars
+      </small>
+      <p className="sc-price">
+        {numberText(selected.quote ? Number(selected.quote.last_price) : null)}{" "}
+        <span
+          className={
+            Number(selected.metrics?.change) > 0
+              ? "up"
+              : Number(selected.metrics?.change) < 0
+                ? "down"
+                : ""
+          }
+        >
+          {changeText(selected.metrics?.change as number)}
+        </span>
+      </p>
+      <small>
+        {selected.quote
+          ? `Quote received ${new Date(selected.quote.received_at).toLocaleString()}`
+          : "Quote unavailable"}
+      </small>
+      <div
+        role="tablist"
+        onKeyDown={tabKeys}
+        aria-label="Result analysis"
+        className="sc-tabs"
+      >
+        {["Overview", "Fundamentals", "News"].map((t) => (
+          <button
+            role="tab"
+            aria-selected={detailTab === t}
+            key={t}
+            onClick={() => setDetailTab(t)}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+      <div role="tabpanel" aria-label={detailTab}>
+        {detailTab === "Overview" ? (
+          <>
+            <div className="sc-periods">
+              {["1W", "1M", "3M", "1Y"].map((p) => (
+                <button
+                  key={p}
+                  aria-pressed={period === p}
+                  onClick={() => setPeriod(p)}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+            <MarketChart
+              bars={(selected.bars || []).slice(
+                -({ "1W": 5, "1M": 22, "3M": 66, "1Y": 252 }[period] || 22),
+              )}
+            />
+            <small>As scanned · completed daily bars</small>
+            <h3>Key data & technicals</h3>
+            <dl className="sc-metrics">
+              {[
+                "price",
+                "change",
+                "volume",
+                "rsi",
+                "trend",
+                "sma20",
+                "sma50",
+                "adx",
+                "supertrend",
+              ].map((k) => (
+                <div key={k}>
+                  <dt>
+                    {catalog?.fields.find((f) => f.field === k)?.label || k}
+                  </dt>
+                  <dd>
+                    {k === "volume"
+                      ? indianVolume(selected.metrics?.[k] as number)
+                      : typeof selected.metrics?.[k] === "number"
+                        ? numberText(selected.metrics[k] as number)
+                        : (selected.metrics?.[k] ?? "—")}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+            <h3>Why matched</h3>
+            <ul>
+              {selected.diagnostics?.map((d, i) => (
+                <li key={i}>
+                  {d.reason} · observed{" "}
+                  {typeof d.observed === "number"
+                    ? numberText(d.observed)
+                    : String(d.observed)}
+                </li>
+              ))}
+            </ul>
+            <details>
+              <summary>Data details</summary>
+              <p>{selected.basis}</p>
+              <p>Source: {selected.source_time || "Unavailable"}</p>
+              <p>Received: {selected.received_at || "Unavailable"}</p>
+              <p>Run: {run?.id} · Provider: Dhan · REAL</p>
+            </details>
+          </>
+        ) : detailTab === "Fundamentals" ? (
+          <>
+            <h3>TapTide reference data</h3>
+            {reference ? (
+              <dl className="sc-metrics">
+                <div>
+                  <dt>Market cap (INR)</dt>
+                  <dd>{numberText(reference.market_cap_inr)}</dd>
+                </div>
+                <div>
+                  <dt>PE</dt>
+                  <dd>{numberText(reference.pe_ratio)}</dd>
+                </div>
+              </dl>
+            ) : (
+              <p>Reference data unavailable or loading.</p>
+            )}
+            <p>Optional reference; does not alter technical scan results.</p>
+          </>
+        ) : (
+          <>
+            <h3>News & context</h3>
+            {news.length ? (
+              news.map((n, i) => <p key={i}>{n}</p>)
+            ) : (
+              <p>
+                No normalized news available. Technical evidence remains
+                Dhan-backed.
+              </p>
+            )}
+          </>
+        )}
+      </div>
+      <h3>Quick actions</h3>
+      {input(
+        "Broker",
+        <select
+          value={accountId}
+          onChange={(e) => setAccountId(e.target.value)}
+        >
+          <option value="">Select broker</option>
+          {accounts.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.name}
+            </option>
+          ))}
+        </select>,
+      )}
+      <div className="sc-trade">
+        <button
+          className="wl-buy"
+          disabled={
+            busy || !accountId || selected.instrument?.segment === "INDEX"
+          }
+          onClick={() => void trade(selected, "BUY")}
+        >
+          Buy
+        </button>
+        <button
+          className="wl-sell"
+          disabled={
+            busy || !accountId || selected.instrument?.segment === "INDEX"
+          }
+          onClick={() => void trade(selected, "SELL")}
+        >
+          Sell
+        </button>
+      </div>
+      <small>Opens Broker V2 preview. Confirmation is required.</small>
+    </div>
+  ) : (
+    <div className="sc-empty">
+      <Icon name="scanners" />
+      <h3>Instrument analysis</h3>
+      <p>
+        Select a result to review its chart, exact metrics and match reasons.
+      </p>
+    </div>
+  );
+  return (
+    <section className="watchlists-workspace scanner-v2">
+      <header className="sc-page-head">
+        <div>
+          <h1>Scanners</h1>
+          <p>
+            Find opportunities using explicit filters, your watchlists, and
+            market evidence.
+          </p>
+        </div>
+        <Link href="/settings#integrations">Provider connections</Link>
+      </header>
+      {error && (
+        <div role="alert" className="wl-error">
+          {error}
+          <button aria-label="Dismiss error" onClick={() => setError("")}>
+            ×
+          </button>
+        </div>
+      )}
+      {notice && (
+        <div role="status" className="wl-toast">
+          {notice}
+        </div>
+      )}
+      <div className="sc-top wl-card">
+        <div
+          className="sc-type-tabs"
+          role="tablist"
+          onKeyDown={tabKeys}
+          aria-label="Scanner type"
+        >
+          <button
+            role="tab"
+            aria-selected={!derivatives}
+            onClick={() => setDerivatives(false)}
+          >
+            <strong>Equity / Index Scanner</strong>
+            <small>Stocks, indices, price & technical scans</small>
+          </button>
+          <button
+            role="tab"
+            aria-selected={derivatives}
+            onClick={() => setDerivatives(true)}
+          >
+            <strong>Derivatives Scanner</strong>
+            <small>Futures, options · planned</small>
+          </button>
+        </div>
+        <div className="sc-top-actions">
+          <select
+            aria-label="Scan Templates"
+            value=""
+            onChange={(e) => loadTemplate(e.target.value)}
+          >
+            <option value="">Scan Templates</option>
+            {catalog?.templates.map((t) => (
+              <option key={t.name}>{t.name}</option>
+            ))}
+          </select>
+          <a href="#sc-saved">My Scans</a>
+          <a href="#sc-history" onClick={() => setAllHistory(true)}>
+            Scan History
+          </a>
+          <button onClick={() => setModal("help")}>Help</button>
+          <button
+            className="wl-primary"
+            onClick={() => {
+              setName(config.name);
+              setModal("save");
+            }}
+          >
+            ＋ Save Scan
+          </button>
+        </div>
+      </div>
+      {derivatives ? (
+        <div className="wl-card sc-empty">
+          <h2>Derivatives Scanner</h2>
+          <p>
+            Expiry, liquidity, OI, IV and Greeks need a separate verified scan
+            contract. Derivative analytics are not available in this version.
+          </p>
+          <button onClick={() => setDerivatives(false)}>
+            Return to Equity / Index Scanner
+          </button>
+        </div>
+      ) : (
+        <div className="sc-grid">
+          <aside className="wl-card sc-builder">
+            <details
+              open={filterOpen}
+              onToggle={(e) => setFilterOpen(e.currentTarget.open)}
+            >
+              <summary>Universe & filters</summary>
+              <h2>Universe</h2>
+              <div className="sc-universe-tabs">
+                {["WATCHLIST", "INDEX", "SECTOR", "MARKET", "CUSTOM"].map(
+                  (s) => (
+                    <button
+                      key={s}
+                      aria-pressed={config.universe.source === s}
+                      onClick={() => source(s)}
+                    >
+                      {s[0] + s.slice(1).toLowerCase()}
+                    </button>
+                  ),
+                )}
+              </div>
+              {config.universe.source === "WATCHLIST" ? (
+                <>
+                  {input(
+                    "Watchlist",
+                    <select
+                      value={config.universe.watchlist_id || ""}
+                      onChange={(e) => {
+                        setConfig({
+                          ...config,
+                          universe: {
+                            source: "WATCHLIST",
+                            watchlist_id: e.target.value,
+                            symbols: [],
+                            instrument_ids: [],
+                          },
+                        });
+                        setMembers(null);
+                      }}
+                    >
+                      <option value="">Choose watchlist</option>
+                      {lists.map((l) => (
+                        <option value={l.id} key={l.id}>
+                          {l.name} ({l.count} symbols)
+                        </option>
+                      ))}
+                    </select>,
+                  )}
+                  <input
+                    aria-label="Search universe"
+                    placeholder="Search watchlist…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                  <div className="sc-members">
+                    {members?.items
+                      .filter((i) =>
+                        i.instrument.symbol.includes(search.toUpperCase()),
+                      )
+                      .map((i) => (
+                        <label key={i.instrument.instrument_id}>
+                          <input
+                            type="checkbox"
+                            checked={
+                              !config.universe.instrument_ids.length ||
+                              config.universe.instrument_ids.includes(
+                                i.instrument.instrument_id,
+                              )
+                            }
+                            onChange={(e) => {
+                              const all = members.items.map(
+                                (m) => m.instrument.instrument_id,
+                              );
+                              const ids = config.universe.instrument_ids.length
+                                ? config.universe.instrument_ids
+                                : all;
+                              if (!e.target.checked && ids.length === 1) {
+                                setError(
+                                  "Keep at least one instrument selected.",
+                                );
+                                return;
+                              }
+                              setConfig({
+                                ...config,
+                                universe: {
+                                  ...config.universe,
+                                  instrument_ids: e.target.checked
+                                    ? [...ids, i.instrument.instrument_id]
+                                    : ids.filter(
+                                        (x) => x !== i.instrument.instrument_id,
+                                      ),
+                                },
+                              });
+                            }}
+                          />
+                          {i.instrument.symbol}
+                          <small>{i.kind}</small>
+                        </label>
+                      ))}
+                  </div>
+                  <small>
+                    Snapshot captured when you run. Maximum 20 instruments.
+                  </small>
+                </>
+              ) : config.universe.source === "CUSTOM" ? (
+                input(
+                  "NSE symbols",
+                  <textarea
+                    rows={4}
+                    placeholder="RELIANCE, INFY, M&M"
+                    value={custom}
+                    onChange={(e) => setCustom(e.target.value)}
+                  />,
+                )
+              ) : (
+                <p>{catalog?.universe_limitation}</p>
+              )}
+              <h2>Scan Filters</h2>
+              {Array.from(new Set(catalog?.fields.map((f) => f.category))).map(
+                (category) => (
+                  <details className="sc-category" key={category}>
+                    <summary>{category}</summary>
+                    {catalog?.fields
+                      .filter((f) => f.category === category)
+                      .map((f) => (
+                        <button
+                          key={f.field}
+                          disabled={f.enabled === false}
+                          onClick={() => {
+                            setEditorOpen(true);
+                            setField(f.field);
+                            setOperator(
+                              ["trend", "supertrend"].includes(f.field)
+                                ? "equals"
+                                : ">",
+                            );
+                            setValue(
+                              ["trend", "supertrend"].includes(f.field)
+                                ? "Up"
+                                : "0",
+                            );
+                            document
+                              .getElementById("sc-filter-editor")
+                              ?.focus();
+                          }}
+                        >
+                          {f.label}
+                        </button>
+                      ))}
+                  </details>
+                ),
+              )}
+              <details className="sc-category">
+                <summary>Market Context</summary>
+                <p>
+                  Context and news enrich result review. They never gate the
+                  internal technical scanner.
+                </p>
+              </details>
+              <details
+                open={editorOpen}
+                onToggle={(e) => setEditorOpen(e.currentTarget.open)}
+                className="sc-editor"
+              >
+                <summary>＋ Add / edit filter</summary>
+                <fieldset id="sc-filter-editor" tabIndex={-1}>
+                  <legend>Add filter</legend>
+                  {input(
+                    "Field",
+                    <select
+                      value={field}
+                      onChange={(e) => setField(e.target.value)}
+                    >
+                      {catalog?.fields.map((f) => (
+                        <option
+                          disabled={f.enabled === false}
+                          value={f.field}
+                          key={f.field}
+                        >
+                          {f.label}
+                        </option>
+                      ))}
+                    </select>,
+                  )}
+                  {input(
+                    "Operator",
+                    <select
+                      value={operator}
+                      onChange={(e) => setOperator(e.target.value)}
+                    >
+                      {[
+                        ">",
+                        ">=",
+                        "<",
+                        "<=",
+                        "equals",
+                        "between",
+                        "crosses_above",
+                        "crosses_below",
+                      ].map((o) => (
+                        <option key={o}>{o}</option>
+                      ))}
+                    </select>,
+                  )}
+                  {input(
+                    "Value or comparison field",
+                    <input
+                      value={value}
+                      onChange={(e) => setValue(e.target.value)}
+                      list="sc-fields"
+                    />,
+                  )}
+                  <datalist id="sc-fields">
+                    {catalog?.fields.map((f) => (
+                      <option key={f.field} value={f.field} />
+                    ))}
+                  </datalist>
+                  <button
+                    disabled={config.filters.length >= 12}
+                    onClick={() => addFilter()}
+                  >
+                    ＋ Add Filter
+                  </button>
+                </fieldset>
+              </details>
+            </details>
+            <div className="sc-run">
+              <button
+                className="wl-primary"
+                disabled={
+                  busy ||
+                  !config.filters.length ||
+                  !["CUSTOM", "WATCHLIST"].includes(config.universe.source)
+                }
+                onClick={() => void execute()}
+              >
+                {busy ? "Working…" : "Run Scan"}
+              </button>
+              <button
+                disabled={busy}
+                onClick={() => {
+                  setConfig(initialConfig);
+                  setCustom("");
+                  setSavedId("");
+                }}
+              >
+                Reset
+              </button>
+            </div>
+            <small>
+              Dhan · real completed daily bars · no synthetic fallback
+            </small>
+          </aside>
+          <main className="sc-center">
+            <div className="wl-card sc-chips">
+              <span>
+                Universe:{" "}
+                {config.universe.source === "WATCHLIST"
+                  ? lists.find((l) => l.id === config.universe.watchlist_id)
+                      ?.name || "Choose watchlist"
+                  : config.universe.source}
+              </span>
+              {config.filters.map((f, i) => (
+                <button
+                  title="Remove filter"
+                  aria-label={`Remove filter ${i + 1}`}
+                  key={i}
+                  onClick={() =>
+                    setConfig({
+                      ...config,
+                      filters: config.filters.filter((_, j) => j !== i),
+                    })
+                  }
+                >
+                  {catalog?.fields.find((x) => x.field === f.field)?.label ||
+                    f.field}{" "}
+                  {f.operator}{" "}
+                  {Array.isArray(f.value)
+                    ? f.value.join(" – ")
+                    : String(f.value)}{" "}
+                  ×
+                </button>
+              ))}
+              <button onClick={() => setConfig({ ...config, filters: [] })}>
+                Clear All
+              </button>
+            </div>
+            <section className="wl-card sc-results">
+              <header>
+                <h2>
+                  Scan Results <small>{matches.length} results</small>
+                </h2>
+                <details>
+                  <summary>Columns</summary>
+                  {["volume", "rsi", "trend", "chart"].map((c) => (
+                    <label key={c}>
+                      <input
+                        type="checkbox"
+                        checked={columns.includes(c)}
+                        onChange={(e) =>
+                          setColumns(
+                            e.target.checked
+                              ? [...columns, c]
+                              : columns.filter((x) => x !== c),
+                          )
+                        }
+                      />
+                      {c}
+                    </label>
+                  ))}
+                </details>
+                <select
+                  aria-label="Sort results"
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value)}
+                >
+                  {["symbol", "relevance", "change", "volume", "rsi"].map(
+                    (s) => (
+                      <option key={s} value={s}>
+                        Sort: {s}
+                      </option>
+                    ),
+                  )}
+                </select>
+                <button
+                  aria-pressed={view === "table"}
+                  onClick={() => setView("table")}
+                >
+                  Table
+                </button>
+                <button
+                  aria-pressed={view === "charts"}
+                  onClick={() => setView("charts")}
+                >
+                  Charts
+                </button>
+              </header>
+              {run && (
+                <>
+                  <div className="sc-counts">
+                    {Object.entries(run.counts).map(([k, v]) => (
+                      <span key={k}>
+                        {k.replaceAll("_", " ")} <strong>{v}</strong>
+                      </span>
+                    ))}
+                  </div>
+                  <p className="sc-basis">
+                    Dhan · Real · {new Date(run.created_at).toLocaleString()} ·{" "}
+                    {run.config.name} · Indicators / 1D change: completed daily
+                    bars · LTP: separate Dhan quote snapshot
+                  </p>
+                  {(JSON.stringify(run.config.filters) !==
+                    JSON.stringify(config.filters) ||
+                    run.config.universe.source !== config.universe.source ||
+                    (run.config.universe.watchlist_id || "") !==
+                      (config.universe.watchlist_id || "") ||
+                    JSON.stringify(
+                      [...run.config.universe.instrument_ids].sort(),
+                    ) !==
+                      JSON.stringify(
+                        [...config.universe.instrument_ids].sort(),
+                      ) ||
+                    (config.universe.source === "CUSTOM" &&
+                      run.config.universe.symbols.join(",") !==
+                        custom
+                          .toUpperCase()
+                          .split(/[\s,]+/)
+                          .filter(Boolean)
+                          .join(","))) && (
+                    <p role="status">
+                      Showing the previous scan. Current setup has not been run.
+                    </p>
+                  )}
+                </>
+              )}
+              {!run ? (
+                <div className="sc-empty">
+                  <Icon name="scanners" />
+                  <h2>Build your next scan</h2>
+                  <p>
+                    Choose a universe, load a template or add explicit filters,
+                    then Run Scan.
+                  </p>
+                </div>
+              ) : !matches.length ? (
+                <div className="sc-empty">
+                  <h3>No matches recorded</h3>
+                  <p>
+                    {run.counts.not_evaluated
+                      ? "Some instruments could not be evaluated. Review diagnostics below."
+                      : "All evaluated instruments failed at least one condition."}
+                  </p>
+                </div>
+              ) : view === "charts" ? (
+                <div className="sc-chart-grid">
+                  {rows.map((r) => (
+                    <button key={identity(r)} onClick={() => inspect(r)}>
+                      <strong>{r.symbol}</strong>
+                      <MarketChart bars={(r.bars || []).slice(-22)} />
+                      <small>
+                        {r.diagnostics?.map((d) => d.reason).join(" · ")}
+                      </small>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="sc-table-wrap">
+                  <table className="sc-table">
+                    <thead>
+                      <tr>
+                        <th>
+                          <input
+                            aria-label="Select all results"
+                            type="checkbox"
+                            checked={
+                              !!matches.length &&
+                              checked.length === matches.length
+                            }
+                            onChange={(e) =>
+                              setChecked(
+                                e.target.checked ? matches.map(identity) : [],
+                              )
+                            }
+                          />
+                        </th>
+                        <th>Symbol</th>
+                        <th>LTP</th>
+                        <th>1D %</th>
+                        {columns.includes("volume") && <th>Volume</th>}
+                        {columns.includes("rsi") && <th>RSI (14)</th>}
+                        {columns.includes("trend") && <th>Trend</th>}
+                        {columns.includes("chart") && <th>Quick Chart (1M)</th>}
+                        <th>Reason (Why Matched)</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((r) => (
+                        <tr key={identity(r)}>
+                          <td>
+                            <input
+                              aria-label={`Select ${r.symbol}`}
+                              type="checkbox"
+                              checked={checked.includes(identity(r))}
+                              onChange={(e) =>
+                                setChecked(
+                                  e.target.checked
+                                    ? [...checked, identity(r)]
+                                    : checked.filter((x) => x !== identity(r)),
+                                )
+                              }
+                            />
+                          </td>
+                          <td>
+                            <button
+                              className="sc-symbol"
+                              onClick={() => inspect(r)}
+                            >
+                              {r.symbol}
+                            </button>
+                            <small>{r.instrument?.exchange}</small>
+                          </td>
+                          <td data-label="LTP">
+                            {numberText(
+                              r.quote ? Number(r.quote.last_price) : null,
+                            )}
+                          </td>
+                          <td
+                            data-label="1D %"
+                            className={
+                              Number(r.metrics?.change) > 0
+                                ? "up"
+                                : Number(r.metrics?.change) < 0
+                                  ? "down"
+                                  : ""
+                            }
+                          >
+                            {changeText(r.metrics?.change as number)}
+                          </td>
+                          {columns.includes("volume") && (
+                            <td data-label="Volume">
+                              {indianVolume(r.metrics?.volume as number)}
+                            </td>
+                          )}
+                          {columns.includes("rsi") && (
+                            <td data-label="RSI (14)">
+                              {numberText(r.metrics?.rsi as number)}
+                            </td>
+                          )}
+                          {columns.includes("trend") && (
+                            <td data-label="Trend">
+                              <span className="sc-trend">
+                                {r.metrics?.trend ?? "—"}
+                              </span>
+                            </td>
+                          )}
+                          {columns.includes("chart") && (
+                            <td data-label="1M chart">
+                              <MarketChart
+                                compact
+                                bars={(r.bars || []).slice(-22)}
+                              />
+                            </td>
+                          )}
+                          <td>
+                            <ul>
+                              {r.diagnostics?.map((d, i) => (
+                                <li key={i}>{d.reason}</li>
+                              ))}
+                            </ul>
+                          </td>
+                          <td>
+                            <div className="sc-row-actions">
+                              <button
+                                title="Add to Watchlist"
+                                aria-label={`Add ${r.symbol} to Watchlist`}
+                                onClick={() => addTo([identity(r)])}
+                              >
+                                ＋
+                              </button>
+                              <button
+                                aria-label={`Review ${r.symbol}`}
+                                onClick={() => inspect(r)}
+                              >
+                                ↗
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {run && (
+                <details className="sc-diagnostics">
+                  <summary>
+                    Per-symbol diagnostics · {run.rows.length} records
+                  </summary>
+                  {run.rows.map((r) => (
+                    <div key={r.symbol}>
+                      <strong>
+                        {r.symbol} · {r.outcome.replaceAll("_", " ")}
+                      </strong>
+                      {r.failure && <p>{r.failure.replaceAll("_", " ")}</p>}
+                      {r.diagnostics?.map((d, i) => (
+                        <p key={i}>
+                          {d.reason} · observed{" "}
+                          {String(d.observed ?? "unavailable")} ·{" "}
+                          {d.passed === null
+                            ? "Not evaluated"
+                            : d.passed
+                              ? "Pass"
+                              : "Fail"}
+                        </p>
+                      ))}
+                    </div>
+                  ))}
+                </details>
+              )}
+            </section>
+            <div className="wl-card sc-bulk">
+              <span>{checked.length} selected</span>
+              <button
+                disabled={!checked.length || busy}
+                onClick={() => addTo(checked)}
+              >
+                ＋ Add Selected to Watchlist
+              </button>
+              <button
+                disabled={!matches.length || busy}
+                onClick={() => addTo(matches.map(identity))}
+              >
+                Add All
+              </button>
+              <button disabled={!matches.length} onClick={csv}>
+                Export CSV
+              </button>
+              <button
+                disabled={!checked.length}
+                onClick={() =>
+                  inspect(matches.find((r) => identity(r) === checked[0])!)
+                }
+              >
+                Open in Chart
+              </button>
+              <button disabled title="Comparison is planned">
+                Compare
+              </button>
+            </div>
+            <div className="sc-bottom">
+              <section className="wl-card" id="sc-saved">
+                <h2>Saved Scans</h2>
+                {!saved.filter((s) => !s.archived).length && (
+                  <p>No saved scans yet.</p>
+                )}
+                {saved
+                  .filter((s) => !s.archived)
+                  .map((s) => (
+                    <article key={s.id}>
+                      <button onClick={() => loadConfig(s.config, s.id)}>
+                        <strong>{s.config.name}</strong>
+                      </button>
+                      <small>
+                        {s.config.filters.length} filters ·{" "}
+                        {s.config.universe.source}
+                      </small>
+                      <button
+                        disabled={busy}
+                        onClick={() => {
+                          setSavedId(s.id);
+                          setName(s.config.name);
+                          loadConfig(s.config, s.id);
+                          setModal("save");
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        disabled={busy}
+                        onClick={() =>
+                          void action(async () => {
+                            await scannerApi("saved/" + s.id, "PATCH", {
+                              config: s.config,
+                              archived: true,
+                            });
+                            await refresh();
+                          })
+                        }
+                      >
+                        Archive
+                      </button>
+                    </article>
+                  ))}
+              </section>
+              <section className="wl-card" id="sc-history">
+                <h2>{allHistory ? "Scan History" : "Recent Scans"}</h2>
+                {history.length > 5 && (
+                  <button onClick={() => setAllHistory(!allHistory)}>
+                    {allHistory
+                      ? "Show recent"
+                      : `View all (${history.length})`}
+                  </button>
+                )}
+                {!history.length && (
+                  <p>
+                    No Scanner V2 runs yet. Historical S&D remains in Discovery.
+                  </p>
+                )}
+                {history.slice(0, allHistory ? 50 : 5).map((h) => (
+                  <article key={h.id}>
+                    <strong>{h.config.name}</strong>
+                    <small>
+                      {h.counts.matches} results ·{" "}
+                      {new Date(h.created_at).toLocaleString()}
+                    </small>
+                    <button
+                      onClick={() =>
+                        void action(async () => {
+                          setRun(await scannerApi<Run>("runs/" + h.id));
+                          setSelected(null);
+                          setChecked([]);
+                        })
+                      }
+                    >
+                      View
+                    </button>
+                    <button onClick={() => loadConfig(h.config)}>
+                      Use setup
+                    </button>
+                  </article>
+                ))}
+              </section>
+              <section className="wl-card sc-movers">
+                <h2>
+                  Market Movers <small>TapTide</small>
+                </h2>
+                <button
+                  disabled={busy}
+                  onClick={() =>
+                    void action(async () =>
+                      setMovers(await scannerApi<ProviderResults>("movers")),
+                    )
+                  }
+                >
+                  Load movers
+                </button>
+                <button
+                  disabled={busy}
+                  onClick={() =>
+                    void action(async () =>
+                      setMovers(
+                        await scannerApi<ProviderResults>(
+                          "provider-screen",
+                          "POST",
+                          {
+                            ...config,
+                            universe: {
+                              source: "CUSTOM",
+                              symbols: ["NIFTY"],
+                              instrument_ids: [],
+                            },
+                          },
+                        ),
+                      ),
+                    )
+                  }
+                >
+                  TapTide technical screen
+                </button>
+                <div className="sc-periods">
+                  {[
+                    "Top Gainers",
+                    "Top Losers",
+                    "High Volume",
+                    "52W High",
+                    "52W Low",
+                  ].map((t) => (
+                    <button
+                      aria-pressed={moverTab === t}
+                      key={t}
+                      onClick={() => setMoverTab(t)}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+                {!movers ? (
+                  <p>Optional provider-wide evidence. Load on demand.</p>
+                ) : (
+                  <>
+                    <small>
+                      {movers.tool === "screen_stocks_technical"
+                        ? "Technical screen results · "
+                        : ""}
+                      {movers.state} · {movers.coverage} · {movers.freshness}
+                    </small>
+                    {[...movers.rows]
+                      .filter((r) =>
+                        movers.tool === "screen_stocks_technical"
+                          ? true
+                          : moverTab === "52W High"
+                            ? (r.buckets || [r.bucket]).includes(
+                                "near_52w_high",
+                              )
+                            : moverTab === "52W Low"
+                              ? (r.buckets || [r.bucket]).includes(
+                                  "near_52w_low",
+                                )
+                              : moverTab === "Top Gainers"
+                                ? Number(r.metrics.change) > 0
+                                : moverTab === "Top Losers"
+                                  ? Number(r.metrics.change) < 0
+                                  : true,
+                      )
+                      .sort((a, b) =>
+                        moverTab === "High Volume"
+                          ? Number(b.metrics.volume) - Number(a.metrics.volume)
+                          : moverTab === "Top Losers"
+                            ? Number(a.metrics.change) -
+                              Number(b.metrics.change)
+                            : Number(b.metrics.change) -
+                              Number(a.metrics.change),
+                      )
+                      .slice(0, 5)
+                      .map((r) => (
+                        <article key={r.symbol}>
+                          <button
+                            onClick={() => {
+                              source("CUSTOM");
+                              setCustom(r.symbol);
+                              setNotice(
+                                "Symbol loaded. Run the Dhan scan to evaluate your exact filters.",
+                              );
+                            }}
+                          >
+                            {r.symbol}
+                          </button>
+                          <span
+                            className={
+                              Number(r.metrics.change) > 0 ? "up" : "down"
+                            }
+                          >
+                            {changeText(r.metrics.change)}
+                          </span>
+                        </article>
+                      ))}
+                  </>
+                )}
+              </section>
+            </div>
+          </main>
+          <aside className="wl-card sc-inspector">{detail}</aside>
+        </div>
+      )}
+      {modal && (
+        <WatchDialog
+          title={
+            modal === "save"
+              ? "Save Scan"
+              : modal === "add"
+                ? "Add results to Watchlist"
+                : modal === "help"
+                  ? "Scanner help"
+                  : "Result analysis"
+          }
+          close={() => setModal(null)}
+        >
+          {modal === "detail" ? (
+            detail
+          ) : modal === "help" ? (
+            <>
+              <p>
+                All filters use AND logic and completed daily Dhan OHLCV. Field
+                comparisons use field keys such as sma20. Between takes two
+                comma-separated numbers.
+              </p>
+              <p>
+                Failed acquisition is NOT_EVALUATED, never a non-match.
+                Templates populate editable filters. Scanner results do not
+                authorize a trade.
+              </p>
+              <p>
+                TapTide screens are separate provider-wide samples. Discovery
+                retains temporal interpretation and previous history.
+              </p>
+            </>
+          ) : modal === "save" ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void action(async () => {
+                  const c = {
+                    ...config,
+                    name,
+                    sort,
+                    universe: {
+                      ...config.universe,
+                      symbols:
+                        config.universe.source === "CUSTOM"
+                          ? custom
+                              .toUpperCase()
+                              .split(/[\s,]+/)
+                              .filter(Boolean)
+                          : [],
+                    },
+                  };
+                  await scannerApi(
+                    savedId ? "saved/" + savedId : "saved",
+                    savedId ? "PATCH" : "POST",
+                    { config: c },
+                  );
+                  setConfig(c);
+                  setModal(null);
+                  await refresh();
+                });
+              }}
+            >
+              {input(
+                "Scan name",
+                <input
+                  required
+                  maxLength={80}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />,
+              )}
+              <button className="wl-primary" disabled={busy}>
+                Save configuration
+              </button>
+              {savedId && (
+                <button type="button" onClick={() => setSavedId("")}>
+                  Save as new instead
+                </button>
+              )}
+            </form>
+          ) : (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void action(async () => {
+                  const destination =
+                    target === "new"
+                      ? (await watchApi<Watchlist>("", "POST", { name })).id
+                      : target;
+                  await scannerApi(
+                    `runs/${run!.id}/watchlists/${destination}`,
+                    "POST",
+                    { instrument_ids: addIds },
+                  );
+                  setModal(null);
+                  setNotice(
+                    "Results added. Existing membership was preserved without duplicates.",
+                  );
+                  await refresh();
+                });
+              }}
+            >
+              {input(
+                "Destination watchlist",
+                <select
+                  required
+                  value={target}
+                  onChange={(e) => setTarget(e.target.value)}
+                >
+                  <option value="">Choose watchlist</option>
+                  <option value="new">Create new watchlist</option>
+                  {lists.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name}
+                    </option>
+                  ))}
+                </select>,
+              )}
+              {target === "new" &&
+                input(
+                  "New watchlist name",
+                  <input
+                    required
+                    maxLength={80}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />,
+                )}
+              <p>
+                {addIds.length} canonical instruments · Scanner provenance
+                retained
+              </p>
+              <button disabled={busy || !target}>Add results</button>
+              <Link href="/watchlists">Manage / create Watchlists</Link>
+            </form>
+          )}
+        </WatchDialog>
+      )}
+      {ticket && (
+        <OrderTicket
+          account={ticket.account}
+          initial={{ instrument: ticket.instrument, side: ticket.side }}
+          close={() => setTicket(null)}
+        />
+      )}
+    </section>
+  );
+}

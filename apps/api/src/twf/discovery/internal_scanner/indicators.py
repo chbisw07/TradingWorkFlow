@@ -107,3 +107,59 @@ def cross_above(previous_lhs: float, previous_rhs: float, lhs: float, rhs: float
 def cross_below(previous_lhs: float, previous_rhs: float, lhs: float, rhs: float) -> bool:
     require_finite((previous_lhs, previous_rhs, lhs, rhs))
     return previous_lhs >= previous_rhs and lhs < rhs
+
+
+def macd(values: Sequence[float]) -> tuple[float, float]:
+    """SMA-seeded EMA(12)-EMA(26); signal is SMA-seeded EMA(9) of that line."""
+    require(values, 34)
+    line = [ema(values[:n], 12) - ema(values[:n], 26) for n in range(26, len(values) + 1)]
+    return line[-1], ema(line, 9)
+
+
+def bollinger(values: Sequence[float], period: int = 20) -> tuple[float, float]:
+    require(values, period)
+    middle = sma(values, period)
+    deviation = (fsum((v - middle) ** 2 for v in values[-period:]) / period) ** 0.5
+    return middle + 2 * deviation, middle - 2 * deviation
+
+
+def adx(bars: Sequence[Bar], period: int = 14) -> float:
+    require([b.close for b in bars], period * 2)
+    tr, plus, minus = [], [], []
+    for a, b in zip(bars, bars[1:], strict=False):
+        up, down = b.high - a.high, a.low - b.low
+        tr.append(max(b.high - b.low, abs(b.high - a.close), abs(b.low - a.close)))
+        plus.append(up if up > down and up > 0 else 0.0)
+        minus.append(down if down > up and down > 0 else 0.0)
+    smooth = [fsum(v[:period]) for v in (tr, plus, minus)]
+    dx = []
+    for i in range(period - 1, len(tr)):
+        if i >= period:
+            smooth = [s - s / period + v[i] for s, v in zip(smooth, (tr, plus, minus), strict=True)]
+        total = smooth[1] + smooth[2]
+        dx.append(100 * abs(smooth[1] - smooth[2]) / total if total else 0.0)
+    result = fsum(dx[:period]) / period
+    for value in dx[period:]:
+        result = (result * (period - 1) + value) / period
+    return result
+
+
+def supertrend(bars: Sequence[Bar], period: int = 10, multiplier: float = 3) -> str:
+    require([b.close for b in bars], period, 1)
+    upper = lower = 0.0
+    bullish = True
+    for i in range(period, len(bars)):
+        b = bars[i]
+        spread = atr(bars[: i + 1], period) * multiplier
+        basic_upper, basic_lower = (b.high + b.low) / 2 + spread, (b.high + b.low) / 2 - spread
+        if i == period:
+            upper, lower = basic_upper, basic_lower
+            continue
+        previous_upper, previous_lower = upper, lower
+        upper = basic_upper if basic_upper < upper or bars[i - 1].close > upper else upper
+        lower = basic_lower if basic_lower > lower or bars[i - 1].close < lower else lower
+        if bullish and b.close < previous_lower:
+            bullish = False
+        elif not bullish and b.close > previous_upper:
+            bullish = True
+    return "Up" if bullish else "Down"

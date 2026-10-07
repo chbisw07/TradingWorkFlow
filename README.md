@@ -49,6 +49,23 @@ Historical milestone identities remain unchanged. In particular, the original
 Broker Workspace BW gates remain planning history; the later Broker V1 and Broker
 V2 acceptance records are the current implementation status.
 
+## Scanner V2 — current workspace
+
+`/scanners` now uses the fresh Scanner V2 product layout. Watchlist/Custom
+universes, explicit daily technical filters, editable templates, saved scans,
+immutable history, archived Dhan result analysis, and canonical Watchlist handoff
+are implemented. TapTide provides optional technical screens, bounded movers and
+reference metrics independently of internal Dhan scanning. Discovery remains a
+separate downstream workspace with historical records intact.
+
+Index-constituent, sector and broad-market universe feeds are not configured;
+those controls explain the limitation. Derivatives is an explicit future shell.
+Apply additive API migration `0018_scanner_v2` before using the new routes.
+**Implemented / pending user validation; not accepted or frozen.** See the
+[Scanner V2 architecture and validation record](docs/TWF_SCANNER_V2_ARCHITECTURE.md)
+for exact scope, time bases, live evidence and limitations. The diagram below
+continues to describe the preserved Discovery pipeline.
+
 ## Current Runtime Architecture
 
 ```text

@@ -256,6 +256,8 @@ def test_migration_history_and_metadata() -> None:
         "watchlist_items",
         "watchlist_notes",
         "watchlist_activity",
+        "scanner_v2_runs",
+        "scanner_v2_saved",
     }
     assert set(Base.metadata.naming_convention) == {"pk", "fk", "ix", "uq", "ck"}
     command.upgrade(config, "head")
@@ -265,7 +267,7 @@ def test_migration_history_and_metadata() -> None:
     try:
         with db.connect() as connection:
             assert (
-                MigrationContext.configure(connection).get_current_revision() == "0017_watchlists"
+                MigrationContext.configure(connection).get_current_revision() == "0018_scanner_v2"
             )
             assert inspect(connection).get_table_names() == [
                 "alembic_version",
@@ -297,6 +299,8 @@ def test_migration_history_and_metadata() -> None:
                 "mcp_secrets",
                 "preference_changes",
                 "preference_profiles",
+                "scanner_v2_runs",
+                "scanner_v2_saved",
                 "user_preferences",
                 "users",
                 "watchlist_activity",
@@ -310,7 +314,7 @@ def test_migration_history_and_metadata() -> None:
         command.upgrade(config, "head")
         with db.connect() as connection:
             assert (
-                MigrationContext.configure(connection).get_current_revision() == "0017_watchlists"
+                MigrationContext.configure(connection).get_current_revision() == "0018_scanner_v2"
             )
     finally:
         db.dispose()
