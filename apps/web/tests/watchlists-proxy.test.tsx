@@ -34,6 +34,23 @@ test("watchlists proxy preserves owner session, strips unrelated credentials and
   ]);
   expect(options.headers.get("cookie")).toBe("twf_session=valid-session");
   expect(response.headers.get("Cache-Control")).toBe("no-store");
+  for (const action of ["restore", "permanent-delete"]) {
+    const trashAction = await POST(
+      new Request(`https://web.example/api/v1/watchlists/trash/${action}`, {
+        method: "POST",
+        headers: {
+          Origin: "https://web.example",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ watchlist_ids: [id] }),
+      }),
+      { params: Promise.resolve({ path: ["trash", action] }) },
+    );
+    expect(trashAction.status).toBe(200);
+    expect(fetcher.mock.calls.at(-1)![0]).toBe(
+      `http://api.example/api/v1/watchlists/trash/${action}`,
+    );
+  }
   for (const action of ["submit", "confirm", "dispatch", "delete"]) {
     const blocked = await POST(
       new Request(`https://web.example/api/v1/watchlists/${id}/${action}`, {
@@ -43,7 +60,7 @@ test("watchlists proxy preserves owner session, strips unrelated credentials and
     );
     expect(blocked.status).toBe(404);
   }
-  expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(fetcher).toHaveBeenCalledTimes(3);
 });
 test("watchlist export preserves CSV content and input stays bounded", async () => {
   const fetcher = vi

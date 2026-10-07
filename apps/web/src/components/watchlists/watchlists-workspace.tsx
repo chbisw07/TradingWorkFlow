@@ -62,7 +62,9 @@ export function WatchlistsWorkspace() {
     [loaded, setLoaded] = useState(false),
     [notice, setNotice] = useState("");
   const [listSearch, setListSearch] = useState(""),
-    [trash, setTrash] = useState(false);
+    [trash, setTrash] = useState(false),
+    [trashChecked, setTrashChecked] = useState<string[]>([]),
+    [deleteIds, setDeleteIds] = useState<string[]>([]);
   const [query, setQuery] = useState(""),
     [type, setType] = useState<Kind | "ALL">("ALL");
   const [visible, setVisible] = useState(columns),
@@ -130,14 +132,16 @@ export function WatchlistsWorkspace() {
     orderType: string;
   } | null>(null);
   const [modal, setModal] = useState<
-    "create" | "edit" | "add" | "import" | "archive" | null
+    "create" | "edit" | "add" | "import" | "archive" | "delete" | null
   >(null);
   const [name, setName] = useState(""),
     [description, setDescription] = useState(""),
     [note, setNote] = useState("");
   const [search, setSearch] = useState(""),
     [searchKind, setSearchKind] = useState<Kind>("EQUITY"),
-    [results, setResults] = useState<WatchItem[]>([]);
+    [results, setResults] = useState<WatchItem[]>([]),
+    [addFeedback, setAddFeedback] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
   const [csv, setCsv] = useState(""),
     [importResult, setImportResult] = useState<{
       added: number;
@@ -305,8 +309,8 @@ export function WatchlistsWorkspace() {
       setBusy(false);
     }
   }
-  function selectList(id: string) {
-    if (id === selected) return;
+  function transitionSelection(id: string) {
+    scope.current = id;
     setSelected(id);
     setDetail(null);
     setChecked([]);
@@ -318,6 +322,10 @@ export function WatchlistsWorkspace() {
     setType("ALL");
     setError("");
     setImportResult(null);
+  }
+  function selectList(id: string) {
+    if (id === selected) return;
+    transitionSelection(id);
   }
   function inspect(i: WatchItem) {
     if (i.instrument.instrument_id !== instrumentId) setChart(null);
@@ -351,6 +359,98 @@ export function WatchlistsWorkspace() {
       await reload();
       setModal(null);
     });
+  }
+  async function archiveCurrent() {
+    if (!current) return;
+    const archivedId = current.id;
+    const archivedName = current.name;
+    await act(async () => {
+      await watchApi(`/${archivedId}`, "PATCH", { archived: true });
+      await refreshLists();
+      setModal(null);
+      setNotice(`${archivedName} moved to Trash.`);
+      setTrashChecked([]);
+      setTrash(true);
+      transitionSelection("");
+    });
+  }
+  async function toggleTrash() {
+    setTrashChecked([]);
+    if (trash) {
+      setTrash(false);
+      selectList(lists.find((list) => !list.archived)?.id || "");
+      return;
+    }
+    await act(async () => {
+      await refreshLists();
+      setTrash(true);
+      selectList("");
+    });
+  }
+  async function restoreTrashed(ids: string[]) {
+    await act(async () => {
+      const result = await watchApi<{ restored: number }>(
+        "/trash/restore",
+        "POST",
+        {
+          watchlist_ids: ids,
+        },
+      );
+      await refreshLists();
+      setTrashChecked((checked) => checked.filter((id) => !ids.includes(id)));
+      setNotice(
+        `${result.restored} watchlist${result.restored === 1 ? "" : "s"} restored.`,
+      );
+    });
+  }
+  function requestPermanentDelete(ids: string[]) {
+    setDeleteIds(ids);
+    setModal("delete");
+  }
+  async function permanentlyDelete() {
+    await act(async () => {
+      const result = await watchApi<{ deleted: number }>(
+        "/trash/permanent-delete",
+        "POST",
+        { watchlist_ids: deleteIds },
+      );
+      await refreshLists();
+      setTrashChecked([]);
+      setDeleteIds([]);
+      setModal(null);
+      setNotice(
+        `${result.deleted} watchlist${result.deleted === 1 ? "" : "s"} permanently deleted.`,
+      );
+    });
+  }
+  async function addInstrument(instrument: WatchItem) {
+    const symbol = instrument.instrument.symbol;
+    if (
+      current?.items.some(
+        (item) =>
+          item.instrument.instrument_id === instrument.instrument.instrument_id,
+      )
+    ) {
+      setAddFeedback(`${symbol} is already added.`);
+      searchRef.current?.focus();
+      return;
+    }
+    await act(async () => {
+      const result = await watchApi<{ added: number; duplicates: number }>(
+        `/${selected}/items`,
+        "POST",
+        { instrument_ids: [instrument.instrument.instrument_id] },
+      );
+      await reload();
+      if (result.added) {
+        setAddFeedback(`Added ${symbol} to ${current?.name || "watchlist"}.`);
+        setSearch("");
+        setResults([]);
+      } else {
+        setAddFeedback(`${symbol} is already added.`);
+      }
+    });
+    requestAnimationFrame(() => searchRef.current?.focus());
   }
   async function remove(ids: string[]) {
     await act(async () => {
@@ -454,6 +554,14 @@ export function WatchlistsWorkspace() {
       active = false;
     };
   }, [selected, visibleRowIds, loadChart]);
+  const trashRows = lists.filter(
+    (list) =>
+      list.archived &&
+      list.name.toLowerCase().includes(listSearch.toLowerCase()),
+  );
+  const allTrashChecked =
+    trashRows.length > 0 &&
+    trashRows.every((list) => trashChecked.includes(list.id));
   const tableColSpan = 4 + visible.length;
   const periodResult = periodChange(
     period,
@@ -761,7 +869,7 @@ export function WatchlistsWorkspace() {
           {notice}
         </div>
       )}
-      <div className="wl-layout">
+      <div className={`wl-layout${trash ? " wl-trash-layout" : ""}`}>
         <aside className="wl-navigator wl-card">
           <h2>My Watchlists</h2>
           <input
@@ -774,7 +882,7 @@ export function WatchlistsWorkspace() {
             {lists
               .filter(
                 (l) =>
-                  l.archived === trash &&
+                  !l.archived &&
                   l.name.toLowerCase().includes(listSearch.toLowerCase()),
               )
               .map((l) => (
@@ -782,7 +890,10 @@ export function WatchlistsWorkspace() {
                   key={l.id}
                   className={l.id === selected ? "selected" : ""}
                   aria-current={l.id === selected ? "true" : undefined}
-                  onClick={() => selectList(l.id)}
+                  onClick={() => {
+                    if (trash) setTrash(false);
+                    selectList(l.id);
+                  }}
                 >
                   <span>
                     <strong>
@@ -802,7 +913,7 @@ export function WatchlistsWorkspace() {
             title={
               trash ? "Show active watchlists" : "View archived watchlists"
             }
-            onClick={() => setTrash(!trash)}
+            onClick={() => void toggleTrash()}
           >
             <Icon name="trash" />
             {trash ? "Active watchlists" : "Trash"}
@@ -810,7 +921,120 @@ export function WatchlistsWorkspace() {
           {!loaded && <p role="status">Loading watchlists…</p>}
         </aside>
         <div className="wl-main wl-card">
-          {!current ? (
+          {trash ? (
+            <section className="wl-trash-view" aria-labelledby="trash-title">
+              <header className="wl-trash-head">
+                <div>
+                  <h2 id="trash-title">Trash</h2>
+                  <p>Restore archived watchlists or permanently delete them.</p>
+                </div>
+                <small>{trashRows.length} archived</small>
+              </header>
+              {trashRows.length ? (
+                <>
+                  <div
+                    className="wl-trash-actions"
+                    role="toolbar"
+                    aria-label="Trash actions"
+                  >
+                    <label>
+                      <input
+                        type="checkbox"
+                        aria-label="Select all visible trashed watchlists"
+                        checked={allTrashChecked}
+                        onChange={(event) =>
+                          setTrashChecked(
+                            event.target.checked
+                              ? trashRows.map((list) => list.id)
+                              : [],
+                          )
+                        }
+                      />
+                      Select all visible
+                    </label>
+                    <span>{trashChecked.length} selected</span>
+                    <button
+                      disabled={!trashChecked.length || busy}
+                      onClick={() => void restoreTrashed(trashChecked)}
+                    >
+                      Restore selected
+                    </button>
+                    <button
+                      className="wl-danger"
+                      disabled={!trashChecked.length || busy}
+                      onClick={() => requestPermanentDelete(trashChecked)}
+                    >
+                      Delete selected permanently
+                    </button>
+                  </div>
+                  <div className="wl-trash-table-wrap">
+                    <table className="wl-trash-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">Select</th>
+                          <th scope="col">Watchlist</th>
+                          <th scope="col">Items</th>
+                          <th scope="col">Archived</th>
+                          <th scope="col">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {trashRows.map((list) => (
+                          <tr key={list.id}>
+                            <td>
+                              <input
+                                type="checkbox"
+                                aria-label={`Select ${list.name}`}
+                                checked={trashChecked.includes(list.id)}
+                                onChange={(event) =>
+                                  setTrashChecked((checked) =>
+                                    event.target.checked
+                                      ? [...new Set([...checked, list.id])]
+                                      : checked.filter((id) => id !== list.id),
+                                  )
+                                }
+                              />
+                            </td>
+                            <th scope="row">{list.name}</th>
+                            <td>{list.count}</td>
+                            <td>
+                              <time dateTime={list.updated_at}>
+                                {time(list.updated_at)}
+                              </time>
+                            </td>
+                            <td className="wl-trash-row-actions">
+                              <button
+                                disabled={busy}
+                                onClick={() => void restoreTrashed([list.id])}
+                              >
+                                Restore {list.name}
+                              </button>
+                              <button
+                                className="wl-danger"
+                                disabled={busy}
+                                onClick={() =>
+                                  requestPermanentDelete([list.id])
+                                }
+                              >
+                                Permanently delete {list.name}
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              ) : (
+                <div className="wl-empty">
+                  <h2>Trash is empty.</h2>
+                  <button onClick={() => void toggleTrash()}>
+                    Back to Watchlists
+                  </button>
+                </div>
+              )}
+            </section>
+          ) : !current ? (
             <div className="wl-empty">
               <h2>
                 {selected ? "Loading watchlist…" : "Your market, organized"}
@@ -882,18 +1106,16 @@ export function WatchlistsWorkspace() {
                 >
                   ↻
                 </button>
-                <details key={String(current.archived)}>
-                  <summary aria-label="Watchlist actions">•••</summary>
-                  <button
-                    onClick={() =>
-                      current.archived
-                        ? void patch({ archived: false })
-                        : setModal("archive")
-                    }
-                  >
-                    {current.archived ? "Restore watchlist" : "Move to Trash"}
-                  </button>
-                </details>
+                <button
+                  className="wl-archive-action"
+                  aria-label={`Move ${current.name} to Trash`}
+                  title={`Move ${current.name} to Trash`}
+                  disabled={busy}
+                  onClick={() => setModal("archive")}
+                >
+                  <Icon name="trash" />
+                  <span>Move to Trash</span>
+                </button>
               </header>
               <div className="wl-tabs wl-types">
                 {kinds.map((k) => (
@@ -1292,6 +1514,8 @@ export function WatchlistsWorkspace() {
                 onClick={() => {
                   setSearch("");
                   setResults([]);
+                  setAddFeedback("");
+                  setError("");
                   setModal("add");
                 }}
               >
@@ -1304,14 +1528,16 @@ export function WatchlistsWorkspace() {
             </>
           )}
         </div>
-        <aside
-          className="wl-inspector wl-card"
-          aria-label="Selected instrument"
-        >
-          {!mobilePanel && panel}
-        </aside>
+        {!trash && (
+          <aside
+            className="wl-inspector wl-card"
+            aria-label="Selected instrument"
+          >
+            {!mobilePanel && panel}
+          </aside>
+        )}
       </div>
-      {current && (
+      {current && !trash && (
         <div className="wl-bottom">
           <section className="wl-card">
             <h2>Recent Activity</h2>
@@ -1404,16 +1630,19 @@ export function WatchlistsWorkspace() {
             Your symbols and notes will be retained. You can restore this
             watchlist from Trash.
           </p>
-          <button
-            disabled={busy}
-            onClick={() => void patch({ archived: true })}
-          >
+          <button disabled={busy} onClick={() => void archiveCurrent()}>
             Move to Trash
           </button>
         </WatchDialog>
       )}
       {modal === "add" && (
-        <WatchDialog title="Add Symbols" close={() => setModal(null)}>
+        <WatchDialog
+          title="Add Symbols"
+          close={() => {
+            setError("");
+            setModal(null);
+          }}
+        >
           <label>
             Instrument type
             <select
@@ -1433,6 +1662,7 @@ export function WatchlistsWorkspace() {
           <label>
             Search instruments
             <input
+              ref={searchRef}
               autoFocus
               value={search}
               maxLength={80}
@@ -1440,50 +1670,99 @@ export function WatchlistsWorkspace() {
               onChange={(e) => {
                 setSearch(e.target.value);
                 setResults([]);
+                setAddFeedback("");
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" || busy) return;
+                const exact = results.filter(
+                  (result) =>
+                    result.instrument.symbol.toUpperCase() ===
+                    search.trim().toUpperCase(),
+                );
+                const candidate =
+                  exact.length === 1
+                    ? exact[0]
+                    : results.length === 1
+                      ? results[0]
+                      : undefined;
+                if (candidate) {
+                  event.preventDefault();
+                  void addInstrument(candidate);
+                }
               }}
             />
           </label>
           <div className="wl-search-results">
-            {results.map((i) => (
-              <div key={i.instrument.instrument_id}>
-                <span>
-                  <strong>{i.instrument.symbol}</strong>
-                  <small>
-                    {i.instrument.exchange} · {badge[i.kind]} ·{" "}
-                    {i.instrument.native.native_id}
-                    {i.instrument.expiry
-                      ? ` · ${i.instrument.expiry.slice(0, 10)}`
-                      : ""}
-                  </small>
-                </span>
-                <button
-                  disabled={busy}
-                  onClick={() =>
-                    void act(async () => {
-                      const r = await watchApi<{
-                        added: number;
-                        duplicates: number;
-                      }>(`/${selected}/items`, "POST", {
-                        instrument_ids: [i.instrument.instrument_id],
-                      });
-                      await reload();
-                      setNotice(
-                        r.added
-                          ? `${i.instrument.symbol} added.`
-                          : "Already in this watchlist.",
-                      );
-                    })
-                  }
-                >
-                  Add {i.instrument.symbol}
-                </button>
-              </div>
-            ))}
+            {results.map((i) => {
+              const alreadyAdded = current?.items.some(
+                (item) =>
+                  item.instrument.instrument_id === i.instrument.instrument_id,
+              );
+              return (
+                <div key={i.instrument.instrument_id}>
+                  <span>
+                    <strong>{i.instrument.symbol}</strong>
+                    <small>
+                      {i.instrument.exchange} · {badge[i.kind]} ·{" "}
+                      {i.instrument.native.native_id}
+                      {i.instrument.expiry
+                        ? ` · ${i.instrument.expiry.slice(0, 10)}`
+                        : ""}
+                    </small>
+                  </span>
+                  <button
+                    disabled={busy || alreadyAdded}
+                    aria-label={
+                      alreadyAdded
+                        ? `${i.instrument.symbol} already added`
+                        : `Add ${i.instrument.symbol}`
+                    }
+                    onClick={() => void addInstrument(i)}
+                  >
+                    {alreadyAdded ? "Added ✓" : `Add ${i.instrument.symbol}`}
+                  </button>
+                </div>
+              );
+            })}
             {search && !results.length && (
               <p>No results yet. Search an exact symbol or contract.</p>
             )}
           </div>
+          {addFeedback && (
+            <p className="wl-add-feedback" role="status">
+              {addFeedback}
+            </p>
+          )}
           {error && <p role="alert">{error}</p>}
+          <button
+            type="button"
+            onClick={() => {
+              setError("");
+              setModal(null);
+            }}
+          >
+            Done
+          </button>
+        </WatchDialog>
+      )}
+      {modal === "delete" && (
+        <WatchDialog
+          title={`Permanently delete ${deleteIds.length} watchlist${deleteIds.length === 1 ? "" : "s"}?`}
+          close={() => {
+            setDeleteIds([]);
+            setModal(null);
+          }}
+        >
+          <p>
+            This cannot be undone. Symbols, notes, and activity will be deleted.
+          </p>
+          <button
+            className="wl-danger"
+            disabled={busy}
+            onClick={() => void permanentlyDelete()}
+          >
+            Delete permanently
+          </button>
         </WatchDialog>
       )}
       {modal === "import" && (

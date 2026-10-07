@@ -150,12 +150,68 @@ test("persistent Watchlists, instrument detail, CSV, notes, archive and responsi
   await expect(page.getByRole("heading", { name: "My Core" })).toBeVisible();
   await page.getByRole("button", { name: "Add Symbols" }).click();
   const add = page.getByRole("dialog", { name: "Add Symbols" });
-  await add.getByLabel("Search instruments").fill("RELIANCE");
-  await add.getByRole("button", { name: "Add RELIANCE", exact: true }).click();
+  const instrumentSearch = add.getByLabel("Search instruments");
+  const instrumentType = add.getByLabel("Instrument type");
+  for (const [symbol, kind] of [
+    ["RELIANCE", "EQUITY"],
+    ["INFY", "EQUITY"],
+    ["NIFTY", "INDEX"],
+  ] as const) {
+    await instrumentType.selectOption(kind);
+    await instrumentSearch.fill(symbol);
+    const addButton = add.getByRole("button", {
+      name: `Add ${symbol}`,
+      exact: true,
+    });
+    await expect(addButton).toBeVisible();
+    if (symbol === "NIFTY") await instrumentSearch.press("Enter");
+    else await addButton.click();
+    await expect(add).toBeVisible();
+    await expect(add.getByRole("status")).toContainText(`Added ${symbol}`);
+    await expect(instrumentSearch).toHaveValue("");
+    await expect(instrumentSearch).toBeFocused();
+    await expect(instrumentType).toHaveValue(kind);
+  }
+  await instrumentType.selectOption("EQUITY");
+  await instrumentSearch.fill("RELIANCE");
   await expect(
-    page.getByRole("status").filter({ hasText: "RELIANCE added" }),
-  ).toBeVisible();
-  await add.getByRole("button", { name: "Close dialog" }).click();
+    add.getByRole("button", { name: "RELIANCE already added" }),
+  ).toBeDisabled();
+  if (info.project.name.match(/390|1440|2560/)) {
+    await page.screenshot({
+      path: info.outputPath("watchlists-rapid-entry.png"),
+      fullPage: true,
+    });
+  }
+  await instrumentType.selectOption("FUTURE");
+  await instrumentSearch.fill("NIFTY99DECFUT");
+  await page.route("**/api/v1/watchlists/*/items", async (route) => {
+    if (route.request().method() === "POST") {
+      await route.fulfill({
+        status: 503,
+        json: {
+          error: { message: "Instrument service temporarily unavailable." },
+        },
+      });
+    } else {
+      await route.continue();
+    }
+  });
+  await add
+    .getByRole("button", { name: "Add NIFTY99DECFUT", exact: true })
+    .click();
+  await expect(add).toBeVisible();
+  await expect(add.getByRole("alert")).toContainText(
+    "Instrument service temporarily unavailable.",
+  );
+  await expect(instrumentSearch).toHaveValue("NIFTY99DECFUT");
+  await page.unroute("**/api/v1/watchlists/*/items");
+  await page.keyboard.press("Escape");
+  await expect(add).not.toBeVisible();
+  await page.getByRole("button", { name: "Add Symbols" }).click();
+  await expect(add).toBeVisible();
+  await add.getByRole("button", { name: "Done" }).click();
+  await expect(add).not.toBeVisible();
   await page
     .getByRole("button", { name: "Import", exact: false })
     .first()
@@ -168,7 +224,7 @@ test("persistent Watchlists, instrument detail, CSV, notes, archive and responsi
     );
   await imp.getByRole("button", { name: "Import symbols" }).click();
   await expect(
-    imp.getByText("Added 4 · Duplicates 1 · Unresolved 1"),
+    imp.getByText("Added 2 · Duplicates 3 · Unresolved 1"),
   ).toBeVisible();
   await imp.getByRole("button", { name: "Close dialog" }).click();
   await expect(
@@ -410,31 +466,93 @@ test("persistent Watchlists, instrument detail, CSV, notes, archive and responsi
       Math.abs(navBox!.y + navBox!.height - mainBox!.y - mainBox!.height),
     ).toBeLessThan(2);
   }
-  await page.locator(".wl-detail-head summary").click();
   await page
-    .getByRole("button", { name: "Move to Trash", exact: true })
+    .getByRole("button", {
+      name: "Move My Core Updated to Trash",
+      exact: true,
+    })
     .click();
   await page
     .getByRole("dialog")
     .getByRole("button", { name: "Move to Trash" })
     .click();
-  await page
-    .getByRole("button", { name: "Trash", exact: false })
-    .last()
-    .click();
-  await page
-    .getByRole("navigation", { name: "My watchlists" })
-    .getByRole("button", { name: /My Core Updated/ })
-    .click();
-  await page.locator(".wl-detail-head summary").click();
-  await page.getByRole("button", { name: "Restore watchlist" }).click();
+  await expect(
+    navigator.getByRole("button", { name: /My Core Updated/ }),
+  ).not.toBeVisible();
+  await expect(page.getByRole("status")).toContainText(
+    "My Core Updated moved to Trash.",
+  );
+  await expect(page.getByRole("heading", { name: "Trash" })).toBeVisible();
+  await expect(page.getByLabel("Select My Core Updated")).toBeVisible();
+  const restoreMe = await (
+    await page.request.post("/api/v1/watchlists", {
+      headers,
+      data: { name: "Restore Me" },
+    })
+  ).json();
+  const deleteMe = await (
+    await page.request.post("/api/v1/watchlists", {
+      headers,
+      data: { name: "Delete Me" },
+    })
+  ).json();
+  for (const id of [restoreMe.id, deleteMe.id]) {
+    expect(
+      (
+        await page.request.patch(`/api/v1/watchlists/${id}`, {
+          headers,
+          data: { archived: true },
+        })
+      ).ok(),
+    ).toBe(true);
+  }
   await page
     .getByRole("button", { name: "Active watchlists", exact: false })
     .click();
+  await page.getByRole("button", { name: "Trash", exact: false }).click();
+  await expect(page.getByRole("heading", { name: "Trash" })).toBeVisible();
+  await page.getByLabel("Select My Core Updated").check();
+  await page.getByLabel("Select Restore Me").check();
+  await expect(page.getByText("2 selected", { exact: true })).toBeVisible();
+  if (info.project.name.match(/390|1440|2560/)) {
+    await page.screenshot({
+      path: info.outputPath("watchlists-trash-selection.png"),
+      fullPage: true,
+    });
+  }
+  await page.getByRole("button", { name: "Restore selected" }).click();
+  await expect(page.getByLabel("Select My Core Updated")).not.toBeVisible();
+  await expect(page.getByLabel("Select Restore Me")).not.toBeVisible();
+
+  await page.getByLabel("Select Delete Me").check();
+  await page
+    .getByRole("button", { name: "Delete selected permanently" })
+    .click();
+  const permanent = page.getByRole("dialog", {
+    name: "Permanently delete 1 watchlist?",
+  });
+  await expect(permanent.getByText("This cannot be undone.")).toBeVisible();
+  await permanent.getByRole("button", { name: "Close dialog" }).click();
+  await expect(page.getByLabel("Select Delete Me")).toBeVisible();
+  await page
+    .getByRole("button", { name: "Delete selected permanently" })
+    .click();
+  await permanent.getByRole("button", { name: "Delete permanently" }).click();
+  await expect(page.getByLabel("Select Delete Me")).not.toBeVisible();
+  await page
+    .getByRole("button", { name: "Active watchlists", exact: false })
+    .click();
+  const activeNavigator = page.getByRole("navigation", {
+    name: "My watchlists",
+  });
   await expect(
-    page
-      .getByRole("navigation", { name: "My watchlists" })
-      .getByRole("button", { name: /My Core Updated/ }),
+    activeNavigator.getByRole("button", { name: /My Core Updated/ }),
+  ).toBeVisible();
+  await expect(
+    activeNavigator.getByRole("button", { name: /Restore Me/ }),
+  ).toBeVisible();
+  await expect(
+    activeNavigator.getByRole("button", { name: /Momentum/ }),
   ).toBeVisible();
   expect(
     await page.evaluate(

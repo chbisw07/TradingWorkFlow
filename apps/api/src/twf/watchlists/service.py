@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from twf.discovery.domain import InstrumentIdentity
@@ -142,6 +142,29 @@ class WatchlistService:
                 setattr(row, field, value)
             self._activity(db, key, "UPDATED")
             return self._summary(db, row)
+
+    def restore_many(self, keys: tuple[UUID, ...]) -> dict[str, int]:
+        with self.factory.begin() as db:
+            rows = [self._get(db, key, write=True) for key in sorted(set(keys), key=str)]
+            restored = 0
+            for row in rows:
+                if row.archived:
+                    row.archived = False
+                    self._activity(db, row.id, "RESTORED")
+                    restored += 1
+            return {"restored": restored}
+
+    def delete_many(self, keys: tuple[UUID, ...]) -> dict[str, int]:
+        with self.factory.begin() as db:
+            rows = [self._get(db, key, write=True) for key in sorted(set(keys), key=str)]
+            if any(not row.archived for row in rows):
+                raise WatchlistFailure("WATCHLIST_NOT_ARCHIVED")
+            ids = [row.id for row in rows]
+            for model in (WatchlistActivityRow, WatchlistNoteRow, WatchlistItemRow):
+                db.execute(delete(model).where(model.watchlist_id.in_(ids)))
+            for row in rows:
+                db.delete(row)
+            return {"deleted": len(rows)}
 
     def detail(self, key: UUID) -> dict[str, Any]:
         with self.factory() as db:

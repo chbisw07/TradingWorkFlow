@@ -1,6 +1,5 @@
 .scanner-v2 {
-  max-width: 2400px;
-  margin: 0 auto;
+  width: 100%;
 }
 .sc-page-head {
   display: flex;

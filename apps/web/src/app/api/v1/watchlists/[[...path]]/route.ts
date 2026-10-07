@@ -22,6 +22,8 @@ async function forward(
           ? new RegExp(`^${id}/items/${id}$`).test(route)
           : request.method === "POST" &&
             (route === "" ||
+              route === "trash/restore" ||
+              route === "trash/permanent-delete" ||
               new RegExp(`^${id}/(items|remove|transfer|notes|import)$`).test(
                 route,
               ));

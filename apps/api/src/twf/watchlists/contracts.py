@@ -36,6 +36,10 @@ class AddItems(Contract):
     source_metadata: SourceMetadata = SourceMetadata()
 
 
+class WatchlistSelection(Contract):
+    watchlist_ids: tuple[UUID, ...] = Field(min_length=1, max_length=100)
+
+
 class TransferItems(Contract):
     target_id: UUID
     instrument_ids: tuple[UUID, ...] = Field(min_length=1, max_length=100)

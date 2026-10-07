@@ -148,6 +148,13 @@ def test_owner_isolation_and_origin(client: TestClient) -> None:
     assert (
         client.patch(f"{BASE}/{key}", headers=HEADERS, json={"archived": True}).status_code == 404
     )
+    for action in ("restore", "permanent-delete"):
+        assert (
+            client.post(
+                f"{BASE}/trash/{action}", headers=HEADERS, json={"watchlist_ids": [key]}
+            ).status_code
+            == 404
+        )
     assert (
         client.post(f"{BASE}/{key}/notes", headers=HEADERS, json={"text": "Attack"}).status_code
         == 404
@@ -161,6 +168,41 @@ def test_owner_isolation_and_origin(client: TestClient) -> None:
         ).status_code
         == 404
     )
+
+
+def test_trash_bulk_restore_and_permanent_delete(client: TestClient) -> None:
+    first = create(client, "First")
+    second = create(client, "Second")
+    active = create(client, "Active")
+    add(client, first)
+    for key in (first, second):
+        assert (
+            client.patch(f"{BASE}/{key}", headers=HEADERS, json={"archived": True}).status_code
+            == 200
+        )
+
+    restored = client.post(
+        f"{BASE}/trash/restore", headers=HEADERS, json={"watchlist_ids": [first]}
+    )
+    assert restored.status_code == 200 and restored.json() == {"restored": 1}
+    detail = client.get(f"{BASE}/{first}").json()
+    assert detail["archived"] is False and detail["count"] == 5
+    assert any(row["action"] == "RESTORED" for row in detail["activity"])
+
+    rejected = client.post(
+        f"{BASE}/trash/permanent-delete",
+        headers=HEADERS,
+        json={"watchlist_ids": [first, second]},
+    )
+    assert rejected.status_code == 409
+    assert client.get(f"{BASE}/{second}").status_code == 200
+
+    deleted = client.post(
+        f"{BASE}/trash/permanent-delete", headers=HEADERS, json={"watchlist_ids": [second]}
+    )
+    assert deleted.status_code == 200 and deleted.json() == {"deleted": 1}
+    assert client.get(f"{BASE}/{second}").status_code == 404
+    assert client.get(f"{BASE}/{active}").status_code == 200
 
 
 def test_import_export_transfer_and_provider_unavailable(client: TestClient) -> None:

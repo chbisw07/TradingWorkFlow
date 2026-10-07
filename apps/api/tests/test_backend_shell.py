@@ -113,6 +113,8 @@ def test_lifecycle_and_contracts(settings: Settings) -> None:
             "/api/v1/scanner/runs/{key}/items/{identity}/broker-instrument",
             "/api/v1/watchlists",
             "/api/v1/watchlists/instruments",
+            "/api/v1/watchlists/trash/permanent-delete",
+            "/api/v1/watchlists/trash/restore",
             "/api/v1/watchlists/{key}",
             "/api/v1/watchlists/{key}/items",
             "/api/v1/watchlists/{key}/items/{instrument_id}",

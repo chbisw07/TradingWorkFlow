@@ -32,6 +32,7 @@ from twf.watchlists.contracts import (
     TransferItems,
     UniverseSnapshot,
     UpdateWatchlist,
+    WatchlistSelection,
 )
 from twf.watchlists.market import WatchlistHistoryCache, WatchlistQuoteCache
 from twf.watchlists.reference import ReferenceSnapshot, WatchlistReferenceCache
@@ -78,6 +79,16 @@ def lists(service: Service) -> list[dict[str, Any]]:
 @router.post("", dependencies=[Depends(require_origin)], status_code=201)
 def create(payload: CreateWatchlist, service: Service) -> dict[str, Any]:
     return service.create(payload)
+
+
+@router.post("/trash/restore", dependencies=[Depends(require_origin)])
+def restore_many(payload: WatchlistSelection, service: Service) -> dict[str, int]:
+    return service.restore_many(payload.watchlist_ids)
+
+
+@router.post("/trash/permanent-delete", dependencies=[Depends(require_origin)])
+def delete_many(payload: WatchlistSelection, service: Service) -> dict[str, int]:
+    return service.delete_many(payload.watchlist_ids)
 
 
 @router.get("/instruments")

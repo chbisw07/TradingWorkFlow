@@ -49,6 +49,71 @@ test("empty collections, create dialog and unavailable broker remain truthful", 
   });
   expect(screen.getByRole("button", { name: "Save watchlist" })).toBeEnabled();
 });
+test("moving the selected watchlist opens Trash without stale active detail", async () => {
+  let archived = false;
+  const updatedAt = "2026-10-07T09:00:00Z";
+  const core = {
+    id: "core",
+    name: "My Core",
+    description: "",
+    favorite: false,
+    archived: false,
+    ordering: 0,
+    revision: 1,
+    created_at: updatedAt,
+    updated_at: updatedAt,
+    count: 0,
+  };
+  const momentum = {
+    ...core,
+    id: "momentum",
+    name: "Momentum",
+    ordering: 1,
+  };
+  vi.spyOn(global, "fetch").mockImplementation(async (input, init) => {
+    const path = String(input);
+    if (path.endsWith("/brokers/accounts")) return Response.json([]);
+    if (
+      path.endsWith("/watchlists") &&
+      (!init?.method || init.method === "GET")
+    )
+      return Response.json(
+        archived ? [{ ...core, archived: true }, momentum] : [core, momentum],
+      );
+    if (path.endsWith("/watchlists/core") && init?.method === "PATCH") {
+      archived = true;
+      return Response.json({ ...core, archived: true });
+    }
+    if (path.endsWith("/watchlists/core"))
+      return Response.json({ ...core, items: [], notes: [], activity: [] });
+    if (path.endsWith("/watchlists/momentum"))
+      return Response.json({ ...momentum, items: [], notes: [], activity: [] });
+    if (path.endsWith("/quotes"))
+      return Response.json({ quotes: [], error: null });
+    throw new Error(`Unexpected path: ${path}`);
+  });
+
+  render(<WatchlistsWorkspace />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Move My Core to Trash" }),
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: "Move to Trash" }),
+  );
+
+  await screen.findByRole("heading", { name: "Trash" });
+  expect(screen.getByLabelText("Select My Core")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /Momentum/ })).not.toHaveAttribute(
+    "aria-current",
+  );
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "My Core moved to Trash.",
+  );
+  expect(
+    screen.queryByRole("button", { name: "Move My Core to Trash" }),
+  ).not.toBeInTheDocument();
+});
+
 test("quick-chart fallback is compact and missing market values stay unavailable", () => {
   render(<MarketChart bars={[]} compact />);
   expect(screen.getByLabelText("Quick chart unavailable")).toHaveTextContent(
