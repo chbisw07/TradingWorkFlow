@@ -28,19 +28,23 @@ test("approved shell wraps real workspaces in light and dark at every width", as
       await expect(
         page.getByLabel("Search symbol — coming later"),
       ).toBeDisabled();
+      await expect(page.getByLabel("Market summary")).toBeVisible();
       await expect(
-        page.getByLabel("Market summary — live values unavailable"),
+        page.getByLabel("NIFTY value 24,998.75", { exact: true }),
       ).toBeVisible();
-      await expect(page.getByText("Unavailable", { exact: true })).toHaveCount(
-        3,
-      );
+      await expect(
+        page.getByLabel("BANKNIFTY value 52,316.20", { exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByLabel("INDIA VIX value 13.25", { exact: true }),
+      ).toBeVisible();
       await expect(page.locator(".user-menu > summary")).toHaveAttribute(
         "aria-label",
         "User menu: Browser Trader",
       );
       if (route === "scanners")
         await expect(
-          page.getByRole("button", { name: "Run scan", exact: true }),
+          page.getByRole("button", { name: /^Run scan$/i }),
         ).toBeVisible();
       if (route === "brokers")
         await expect(
@@ -220,9 +224,7 @@ test("Brokers supports direct entry, refresh and a Scanners round trip", async (
   let nav = await navigation();
   await nav.getByRole("link", { name: "Scanners", exact: true }).click();
   await expect(page).toHaveURL(/\/scanners$/);
-  await expect(
-    page.getByRole("button", { name: "Run scan", exact: true }),
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Run scan$/i })).toBeVisible();
   expect(await activeStyle("Scanners")).toEqual(brokerStyle);
   nav = page.locator(
     mobile ? ".navigation-drawer nav" : ".desktop-sidebar nav",

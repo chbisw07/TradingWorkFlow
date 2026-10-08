@@ -331,6 +331,15 @@
   background: var(--surface-raised);
   color: var(--text-secondary);
 }
+.broker-table-scroll tfoot {
+  background: var(--surface-raised);
+  font-weight: 700;
+}
+.broker-table-scroll tfoot th,
+.broker-table-scroll tfoot td {
+  border-top: 2px solid var(--border);
+  border-bottom: 0;
+}
 .broker-table-scroll th:first-child,
 .broker-table-scroll td:first-child {
   text-align: left;

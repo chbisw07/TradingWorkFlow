@@ -49,10 +49,10 @@ test("shell renders product, semantic regions, target, and honest service states
   );
   expect(screen.getByRole("search")).toBeInTheDocument();
   expect(screen.getByLabelText("Search symbol — coming later")).toBeDisabled();
-  expect(
-    screen.getByLabelText("Market summary — live values unavailable"),
-  ).toHaveTextContent("NIFTY");
-  expect(screen.getAllByText("Unavailable")).toHaveLength(3);
+  expect(screen.getByLabelText("Market summary")).toHaveTextContent("NIFTY");
+  expect(screen.getByLabelText("NIFTY value —")).toBeVisible();
+  expect(screen.getByLabelText("BANKNIFTY value —")).toBeVisible();
+  expect(screen.getByLabelText("INDIA VIX value —")).toBeVisible();
   expect(
     screen.getByRole("region", { name: "System console" }),
   ).toBeInTheDocument();

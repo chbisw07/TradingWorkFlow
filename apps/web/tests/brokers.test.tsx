@@ -233,6 +233,96 @@ test.each([
   },
 );
 
+test("Positions totals aggregate realized, unrealized, and total P&L", async () => {
+  vi.spyOn(global, "fetch").mockImplementation(async (input) =>
+    Response.json(
+      String(input).endsWith("/accounts")
+        ? [account]
+        : {
+            ...snapshot,
+            fetched_at: new Date().toISOString(),
+            data: [
+              {
+                instrument: {
+                  symbol: "NIFTY26OCT22000CE",
+                  reference: "ZERODHA:NFO:NIFTY26OCT22000CE",
+                },
+                product: "NRML",
+                quantity: "0",
+                average: "0",
+                last_price: "293.05",
+                realized: "2314",
+                unrealized: "0",
+                pnl: "2314",
+              },
+              {
+                instrument: {
+                  symbol: "NIFTY26OCT22250PE",
+                  reference: "ZERODHA:NFO:NIFTY26OCT22250PE",
+                },
+                product: "NRML",
+                quantity: "0",
+                average: "0",
+                last_price: "151.5",
+                realized: "-7562.75",
+                unrealized: "125",
+                pnl: "-7437.75",
+              },
+            ],
+          },
+    ),
+  );
+
+  render(<BrokerWorkspace path={["accounts", account.id, "positions"]} />);
+
+  const totals = await screen.findByRole("row", { name: /Totals/ });
+  expect(
+    within(totals)
+      .getAllByRole("cell")
+      .map((cell) => cell.textContent),
+  ).toEqual(["-5,248.75", "125", "-5,123.75"]);
+  expect(within(totals).getByText("-5,248.75")).toHaveClass("broker-negative");
+  expect(within(totals).getByText("125")).toHaveClass("broker-positive");
+  expect(within(totals).getByText("-5,123.75")).toHaveClass("broker-negative");
+});
+
+test("Positions totals do not treat unavailable P&L components as zero", async () => {
+  vi.spyOn(global, "fetch").mockImplementation(async (input) =>
+    Response.json(
+      String(input).endsWith("/accounts")
+        ? [account]
+        : {
+            ...snapshot,
+            fetched_at: new Date().toISOString(),
+            data: [
+              {
+                instrument: {
+                  symbol: "HDFCBANK26OCT730PE",
+                  reference: "ZERODHA:NFO:HDFCBANK26OCT730PE",
+                },
+                product: "NRML",
+                quantity: "5",
+                average: "0",
+                last_price: "20.15",
+                realized: null,
+                unrealized: null,
+                pnl: "40",
+              },
+            ],
+          },
+    ),
+  );
+
+  render(<BrokerWorkspace path={["accounts", account.id, "positions"]} />);
+
+  const totals = await screen.findByRole("row", { name: /Totals/ });
+  expect(
+    within(totals)
+      .getAllByRole("cell")
+      .map((cell) => cell.textContent),
+  ).toEqual(["—", "—", "40"]);
+});
+
 test.each([
   [
     "closed loss",

@@ -134,6 +134,19 @@
   font-size: 10px;
   color: var(--shell-muted);
 }
+.market-ticker-summary .market-change.positive {
+  color: #19a15f;
+}
+.market-ticker-summary .market-change.negative {
+  color: #e14e55;
+}
+.market-ticker-summary .market-change.neutral {
+  color: var(--shell-muted);
+}
+.market-ticker-summary small {
+  font-size: 8px;
+  color: #d69a28;
+}
 .redesigned-shell .top-bar-user {
   gap: 8px;
   margin: 0;
@@ -462,6 +475,12 @@ body:has(.navigation-drawer[open]) {
   }
   .market-ticker-summary dd {
     gap: 6px;
+  }
+  .market-ticker-summary strong {
+    font-size: 12px;
+  }
+  .market-ticker-summary small {
+    display: none;
   }
   .redesigned-shell .workspace-frame {
     padding: 12px;

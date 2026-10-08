@@ -980,6 +980,25 @@ function display(value: unknown): string {
     return Number(value).toLocaleString("en-IN", { maximumFractionDigits: 2 });
   return String(value);
 }
+function total(rows: Row[], key: string): number | null {
+  let result = 0;
+  for (const row of rows) {
+    const value = row[key];
+    if (
+      value === null ||
+      value === undefined ||
+      value === "" ||
+      !Number.isFinite(Number(value))
+    )
+      return null;
+    result += Number(value);
+  }
+  return result;
+}
+function pnlClass(value: number | null): string | undefined {
+  if (value === null) return undefined;
+  return value < 0 ? "broker-negative" : "broker-positive";
+}
 const columns: Record<string, [string, string][]> = {
   holdings: [
     ["quantity", "Qty"],
@@ -1035,6 +1054,14 @@ function ReadTable({
 }) {
   if (!rows.length)
     return <p className="broker-empty-row">No {view} to show.</p>;
+  const positionTotals =
+    view === "positions"
+      ? {
+          realized: total(rows, "realized"),
+          unrealized: total(rows, "unrealized"),
+          pnl: total(rows, "pnl"),
+        }
+      : null;
   return (
     <div
       className="broker-table-scroll"
@@ -1117,6 +1144,24 @@ function ReadTable({
             );
           })}
         </tbody>
+        {positionTotals && (
+          <tfoot>
+            <tr>
+              <th scope="row" colSpan={5}>
+                Totals
+              </th>
+              <td className={pnlClass(positionTotals.realized)}>
+                {display(positionTotals.realized)}
+              </td>
+              <td className={pnlClass(positionTotals.unrealized)}>
+                {display(positionTotals.unrealized)}
+              </td>
+              <td className={pnlClass(positionTotals.pnl)}>
+                {display(positionTotals.pnl)}
+              </td>
+            </tr>
+          </tfoot>
+        )}
       </table>
     </div>
   );

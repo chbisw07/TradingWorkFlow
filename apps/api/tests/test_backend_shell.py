@@ -100,6 +100,7 @@ def test_lifecycle_and_contracts(settings: Settings) -> None:
         }
         schema = client.get("/openapi.json").json()
         assert set(schema["paths"]) == {
+            "/api/v1/market/summary",
             "/api/v1/scanner/catalog",
             "/api/v1/scanner/saved",
             "/api/v1/scanner/saved/{key}",

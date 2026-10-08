@@ -120,6 +120,9 @@ test("complete broker journey, both themes, responsive tables and disconnect", a
         await expect(open.getByRole("cell").nth(4)).toHaveText("10");
         await expect(open.getByRole("cell").nth(5)).toHaveText("30");
         await expect(open.getByRole("cell").nth(6)).toHaveText("40");
+        await expect(
+          page.getByRole("row", { name: /Totals/ }).getByRole("cell"),
+        ).toHaveText(["-997.5", "30", "-967.5"]);
       }
       await expect
         .poll(() =>

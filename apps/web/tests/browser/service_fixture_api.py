@@ -59,6 +59,20 @@ def create_app() -> FastAPI:
     from internal_scanner_support import series
 
     scanner_provider = provider()
+    scanner_provider._master += tuple(
+        {
+            "SEM_EXM_EXCH_ID": "NSE",
+            "SEM_SEGMENT": "I",
+            "SEM_SMST_SECURITY_ID": security_id,
+            "SEM_INSTRUMENT_NAME": "INDEX",
+            "SEM_TRADING_SYMBOL": symbol,
+            "SEM_CUSTOM_SYMBOL": symbol,
+            "SEM_EXCH_INSTRUMENT_TYPE": "INDEX",
+            "SEM_SERIES": "X",
+            "SM_SYMBOL_NAME": symbol,
+        }
+        for security_id, symbol in (("25", "BANKNIFTY"), ("21", "INDIA VIX"))
+    )
 
     async def scanner_history(instrument, interval, **kwargs):
         values = [100.0 + (n * 0.3) + (n % 7) * 0.8 for n in range(300)]
@@ -81,10 +95,17 @@ def create_app() -> FastAPI:
     from decimal import Decimal
 
     async def scanner_quotes(instruments):
+        values = {
+            "NIFTY": (Decimal("24998.75"), Decimal("24894.35")),
+            "BANKNIFTY": (Decimal("52316.20"), Decimal("52015.00")),
+            "INDIA VIX": (Decimal("13.25"), Decimal("13.52")),
+        }
         return tuple(
             QuoteSnapshot(
                 instrument=i,
-                last_price=Decimal("193.7"),
+                last_price=values.get(i.symbol, (Decimal("193.7"), None))[0],
+                previous_close=values.get(i.symbol, (Decimal("193.7"), None))[1],
+                provider_source_time=datetime.now(UTC),
                 received_at=datetime.now(UTC),
                 provider="dhan",
             )

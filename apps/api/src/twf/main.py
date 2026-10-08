@@ -19,6 +19,7 @@ from twf.api.dhan_market_data import router as dhan_market_data_router
 from twf.api.discovery import product_error
 from twf.api.discovery import router as discovery_router
 from twf.api.errors import http_error, unexpected_error, validation_error
+from twf.api.market_summary import router as market_summary_router
 from twf.api.mcp import mcp_error
 from twf.api.mcp import router as mcp_router
 from twf.api.preferences import router as preferences_router
@@ -35,6 +36,7 @@ from twf.config.settings import Settings
 from twf.discovery.dhan_credentials import DhanCredentialFailure, DhanCredentialManager
 from twf.discovery.market_data import DhanMarketDataProvider
 from twf.discovery.market_intelligence import TapTideSnapshotCache
+from twf.discovery.market_summary import MarketSummaryCache
 from twf.discovery.product_service import ProductFailure
 from twf.infrastructure.database import create_database_engine, create_session_factory
 from twf.integrations.mcp.connection import ConnectionManager
@@ -77,6 +79,7 @@ def create_app(
         app.state.market_data_provider = DhanMarketDataProvider(settings.dhan_market_data)
         app.state.dhan_credentials = DhanCredentialManager(app.state.session_factory, settings)
         app.state.market_intelligence_cache = TapTideSnapshotCache()
+        app.state.market_summary_cache = MarketSummaryCache()
         app.state.scanner_history = ScannerHistory()
         app.state.watchlist_quotes = WatchlistQuoteCache()
         app.state.watchlist_history = WatchlistHistoryCache()
@@ -139,6 +142,7 @@ def create_app(
     app.include_router(services_router)
     app.include_router(mcp_router)
     app.include_router(dhan_market_data_router)
+    app.include_router(market_summary_router)
     app.include_router(discovery_router)
     app.include_router(watchlists_router)
     app.include_router(scanner_v2_router)
