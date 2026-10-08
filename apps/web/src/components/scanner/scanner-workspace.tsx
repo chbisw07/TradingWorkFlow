@@ -17,6 +17,10 @@ import {
   type Saved,
   type ScanRow,
   type ProviderResults,
+  type FilterField,
+  fieldSpec,
+  filterCompatible,
+  filterExpression,
 } from "../../lib/scanner";
 import {
   watchApi,
@@ -97,7 +101,11 @@ export function ScannerWorkspace() {
   } | null>(null);
   const [field, setField] = useState("rsi"),
     [operator, setOperator] = useState("<"),
-    [value, setValue] = useState("30");
+    [value, setValue] = useState("30"),
+    [rhsMode, setRhsMode] = useState<"value" | "field">("value"),
+    [comparisonField, setComparisonField] = useState(""),
+    [lowerValue, setLowerValue] = useState("0"),
+    [upperValue, setUpperValue] = useState("100");
   async function refresh() {
     const [c, l, s, h] = await Promise.all([
       scannerApi<Catalog>("catalog"),
@@ -231,7 +239,11 @@ export function ScannerWorkspace() {
     setConfig(c);
     setCustom(c.universe.symbols.join(", "));
     setSavedId(id);
-    setNotice("Scan setup loaded. Review filters before running.");
+    setNotice(
+      catalog && c.filters.every((item) => filterCompatible(item, catalog))
+        ? "Scan setup loaded. Review filters before running."
+        : "Legacy scan setup loaded. Correct incompatible filters before running.",
+    );
   }
   function source(source: string) {
     setConfig({
@@ -240,32 +252,90 @@ export function ScannerWorkspace() {
     });
     setMembers(null);
   }
+  function resetEditor(nextField: string) {
+    const spec = fieldSpec(catalog, nextField);
+    setField(nextField);
+    setOperator(spec?.default_operator || ">");
+    setValue(String(spec?.default_value ?? 0));
+    setRhsMode("value");
+    setComparisonField(spec?.comparison_fields[0] || "");
+    const defaultNumber =
+      typeof spec?.default_value === "number" ? spec.default_value : 0;
+    const lower =
+      spec?.minimum === undefined || spec.minimum === null
+        ? defaultNumber
+        : spec.minimum + (spec.minimum_exclusive ? 1 : 0);
+    setLowerValue(String(lower));
+    setUpperValue(
+      String(spec?.maximum ?? Math.max(defaultNumber + 1, lower + 1)),
+    );
+  }
+  function changeOperator(nextOperator: string) {
+    const spec = fieldSpec(catalog, field);
+    setOperator(nextOperator);
+    setRhsMode("value");
+    setComparisonField(spec?.comparison_fields[0] || "");
+    setValue(String(spec?.default_value ?? 0));
+    const defaultNumber =
+      typeof spec?.default_value === "number" ? spec.default_value : 0;
+    const lower =
+      spec?.minimum === undefined || spec.minimum === null
+        ? defaultNumber
+        : spec.minimum + (spec.minimum_exclusive ? 1 : 0);
+    setLowerValue(String(lower));
+    setUpperValue(
+      String(spec?.maximum ?? Math.max(defaultNumber + 1, lower + 1)),
+    );
+  }
   function addFilter(f = field) {
-    let v: Filter["value"] = value;
+    const spec = fieldSpec(catalog, f);
+    if (!spec) {
+      setError("Choose a supported filter field.");
+      return;
+    }
+    let nextValue: Filter["value"];
     if (operator === "between") {
-      const numbers = value.split(",").map(Number);
-      if (numbers.length !== 2 || numbers.some((x) => !Number.isFinite(x))) {
-        setError("Between needs two numeric values, separated by a comma.");
+      const lower = Number(lowerValue);
+      const upper = Number(upperValue);
+      if (!Number.isFinite(lower) || !Number.isFinite(upper)) {
+        setError("Between needs two numeric values.");
         return;
       }
-      v = [numbers[0], numbers[1]];
-    } else if (value.trim() !== "" && !Number.isNaN(Number(value)))
-      v = Number(value);
+      nextValue = [lower, upper];
+    } else if (rhsMode === "field") {
+      if (!spec.comparison_fields.includes(comparisonField)) {
+        setError("Choose a compatible comparison field.");
+        return;
+      }
+      nextValue = comparisonField;
+    } else if (spec.enum_values.length) {
+      nextValue = value;
+    } else {
+      const numericValue = Number(value);
+      if (!Number.isFinite(numericValue)) {
+        setError("Enter a numeric value.");
+        return;
+      }
+      nextValue = numericValue;
+    }
+    const nextFilter: Filter = {
+      field: f,
+      operator,
+      value: nextValue,
+      timeframe: "1d",
+      version: "1",
+      source: ["market_cap_inr", "pe_ratio"].includes(f)
+        ? "tapetide"
+        : "internal",
+    };
+    if (!filterCompatible(nextFilter, catalog)) {
+      setError("Choose a value or comparison field allowed for this filter.");
+      return;
+    }
+    setError("");
     setConfig({
       ...config,
-      filters: [
-        ...config.filters,
-        {
-          field: f,
-          operator,
-          value: v,
-          timeframe: "1d",
-          version: "1",
-          source: ["market_cap_inr", "pe_ratio"].includes(f)
-            ? "tapetide"
-            : "internal",
-        },
-      ],
+      filters: [...config.filters, nextFilter],
     });
     setEditorOpen(false);
   }
@@ -303,6 +373,12 @@ export function ScannerWorkspace() {
     setNews([]);
     if (window.innerWidth < 1200) setModal("detail");
   }
+  const activeField = fieldSpec(catalog, field);
+  const comparisonOptions = (activeField?.comparison_fields || [])
+    .map((key) => fieldSpec(catalog, key))
+    .filter((item): item is FilterField => Boolean(item && item.enabled));
+  const filtersValid =
+    !catalog || config.filters.every((item) => filterCompatible(item, catalog));
   const matches = (run?.rows || []).filter((r) => r.outcome === "MATCH");
   const rows = [...matches].sort((a, b) =>
     sort === "symbol" || sort === "relevance"
@@ -798,20 +874,12 @@ export function ScannerWorkspace() {
                           disabled={f.enabled === false}
                           onClick={() => {
                             setEditorOpen(true);
-                            setField(f.field);
-                            setOperator(
-                              ["trend", "supertrend"].includes(f.field)
-                                ? "equals"
-                                : ">",
+                            resetEditor(f.field);
+                            requestAnimationFrame(() =>
+                              document
+                                .getElementById("sc-filter-editor")
+                                ?.focus(),
                             );
-                            setValue(
-                              ["trend", "supertrend"].includes(f.field)
-                                ? "Up"
-                                : "0",
-                            );
-                            document
-                              .getElementById("sc-filter-editor")
-                              ?.focus();
                           }}
                         >
                           {f.label}
@@ -839,7 +907,7 @@ export function ScannerWorkspace() {
                     "Field",
                     <select
                       value={field}
-                      onChange={(e) => setField(e.target.value)}
+                      onChange={(e) => resetEditor(e.target.value)}
                     >
                       {catalog?.fields.map((f) => (
                         <option
@@ -856,35 +924,114 @@ export function ScannerWorkspace() {
                     "Operator",
                     <select
                       value={operator}
-                      onChange={(e) => setOperator(e.target.value)}
+                      onChange={(e) => changeOperator(e.target.value)}
                     >
-                      {[
-                        ">",
-                        ">=",
-                        "<",
-                        "<=",
-                        "equals",
-                        "between",
-                        "crosses_above",
-                        "crosses_below",
-                      ].map((o) => (
-                        <option key={o}>{o}</option>
+                      {(activeField?.operators || []).map((item) => (
+                        <option value={item} key={item}>
+                          {item === "equals"
+                            ? "="
+                            : item === "not_equals"
+                              ? "≠"
+                              : item.replaceAll("_", " ")}
+                        </option>
                       ))}
                     </select>,
                   )}
                   {input(
-                    "Value or comparison field",
-                    <input
-                      value={value}
-                      onChange={(e) => setValue(e.target.value)}
-                      list="sc-fields"
-                    />,
+                    "Compare to",
+                    <select
+                      value={rhsMode}
+                      onChange={(e) => {
+                        const mode = e.target.value as "value" | "field";
+                        setRhsMode(mode);
+                        setValue(String(activeField?.default_value ?? 0));
+                        setComparisonField(
+                          activeField?.comparison_fields[0] || "",
+                        );
+                      }}
+                    >
+                      <option value="value">Value</option>
+                      {operator !== "between" &&
+                        !activeField?.enum_values.length &&
+                        comparisonOptions.length > 0 && (
+                          <option value="field">Field</option>
+                        )}
+                    </select>,
                   )}
-                  <datalist id="sc-fields">
-                    {catalog?.fields.map((f) => (
-                      <option key={f.field} value={f.field} />
-                    ))}
-                  </datalist>
+                  {operator === "between" ? (
+                    <div className="sc-range-values">
+                      {input(
+                        "Lower value",
+                        <input
+                          type="number"
+                          step="any"
+                          min={activeField?.minimum ?? undefined}
+                          max={activeField?.maximum ?? undefined}
+                          value={lowerValue}
+                          onChange={(e) => setLowerValue(e.target.value)}
+                        />,
+                      )}
+                      {input(
+                        "Upper value",
+                        <input
+                          type="number"
+                          step="any"
+                          min={activeField?.minimum ?? undefined}
+                          max={activeField?.maximum ?? undefined}
+                          value={upperValue}
+                          onChange={(e) => setUpperValue(e.target.value)}
+                        />,
+                      )}
+                    </div>
+                  ) : rhsMode === "field" ? (
+                    input(
+                      "Comparison field",
+                      <select
+                        value={comparisonField}
+                        onChange={(e) => setComparisonField(e.target.value)}
+                      >
+                        {comparisonOptions.map((item) => (
+                          <option value={item.field} key={item.field}>
+                            {item.label}
+                          </option>
+                        ))}
+                      </select>,
+                    )
+                  ) : activeField?.enum_values.length ? (
+                    input(
+                      "Value",
+                      <select
+                        value={value}
+                        onChange={(e) => setValue(e.target.value)}
+                      >
+                        {activeField.enum_values.map((item) => (
+                          <option value={item} key={item}>
+                            {item}
+                          </option>
+                        ))}
+                      </select>,
+                    )
+                  ) : (
+                    input(
+                      "Value",
+                      <input
+                        type="number"
+                        step="any"
+                        min={activeField?.minimum ?? undefined}
+                        max={activeField?.maximum ?? undefined}
+                        value={value}
+                        onChange={(e) => setValue(e.target.value)}
+                      />,
+                    )
+                  )}
+                  <small>
+                    {activeField?.field_type}
+                    {activeField?.unit ? ` · ${activeField.unit}` : ""}
+                    {activeField?.minimum_exclusive &&
+                    activeField.minimum !== null
+                      ? ` · greater than ${activeField.minimum}`
+                      : ""}
+                  </small>
                   <button
                     disabled={config.filters.length >= 12}
                     onClick={() => addFilter()}
@@ -900,6 +1047,7 @@ export function ScannerWorkspace() {
                 disabled={
                   busy ||
                   !config.filters.length ||
+                  !filtersValid ||
                   !["CUSTOM", "WATCHLIST"].includes(config.universe.source)
                 }
                 onClick={() => void execute()}
@@ -942,18 +1090,18 @@ export function ScannerWorkspace() {
                     })
                   }
                 >
-                  {catalog?.fields.find((x) => x.field === f.field)?.label ||
-                    f.field}{" "}
-                  {f.operator}{" "}
-                  {Array.isArray(f.value)
-                    ? f.value.join(" – ")
-                    : String(f.value)}{" "}
-                  ×
+                  {filterExpression(f, catalog)} ×
                 </button>
               ))}
               <button onClick={() => setConfig({ ...config, filters: [] })}>
                 Clear All
               </button>
+              {!filtersValid && (
+                <p role="alert">
+                  This legacy setup contains incompatible filters. Remove or
+                  replace them before running.
+                </p>
+              )}
             </div>
             <section className="wl-card sc-results">
               <header>
@@ -1481,9 +1629,10 @@ export function ScannerWorkspace() {
           ) : modal === "help" ? (
             <>
               <p>
-                All filters use AND logic and completed daily Dhan OHLCV. Field
-                comparisons use field keys such as sma20. Between takes two
-                comma-separated numbers.
+                All filters use AND logic and completed daily Dhan OHLCV. The
+                selected field controls valid operators and whether the filter
+                compares with a typed value or a compatible field. Between uses
+                explicit lower and upper values.
               </p>
               <p>
                 Failed acquisition is NOT_EVALUATED, never a non-match.

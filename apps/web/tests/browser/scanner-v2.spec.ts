@@ -59,8 +59,43 @@ test("Scanner V2 editable filters, durable runs, Watchlist handoff and responsiv
   await page.getByRole("button", { name: "Clear All", exact: true }).click();
   await page.locator(".sc-editor > summary").click();
   await page.getByLabel("Field", { exact: true }).selectOption("rsi");
+  await expect(page.getByLabel("Compare to", { exact: true })).toHaveValue(
+    "value",
+  );
+  await expect(
+    page
+      .getByLabel("Compare to", { exact: true })
+      .locator('option[value="field"]'),
+  ).toHaveCount(0);
+  await expect(page.getByLabel("Value", { exact: true })).toHaveAttribute(
+    "type",
+    "number",
+  );
+
+  await page.getByLabel("Field", { exact: true }).selectOption("high20");
+  await page.getByLabel("Compare to", { exact: true }).selectOption("field");
+  const comparison = page.getByLabel("Comparison field", { exact: true });
+  await expect(comparison.locator('option[value="sma20"]')).toHaveCount(1);
+  await expect(comparison.locator('option[value="sma50"]')).toHaveCount(1);
+  await expect(comparison.locator('option[value="rsi"]')).toHaveCount(0);
+  await page.screenshot({
+    path: info.outputPath("scanner-typed-field-comparison.png"),
+    fullPage: true,
+  });
+
+  await page.getByLabel("Field", { exact: true }).selectOption("supertrend");
+  await expect(page.getByLabel("Operator", { exact: true })).toHaveValue(
+    "equals",
+  );
+  await expect(page.getByLabel("Value", { exact: true })).toHaveValue("Up");
+  await expect(page.getByLabel("Value", { exact: true })).toHaveAttribute(
+    "aria-label",
+    "Value",
+  );
+
+  await page.getByLabel("Field", { exact: true }).selectOption("rsi");
   await page.getByLabel("Operator", { exact: true }).selectOption(">");
-  await page.getByLabel("Value or comparison field", { exact: true }).fill("0");
+  await page.getByLabel("Value", { exact: true }).fill("0");
   await page.getByRole("button", { name: "Add Filter", exact: false }).click();
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({

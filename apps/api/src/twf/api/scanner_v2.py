@@ -14,7 +14,12 @@ from twf.brokers.service import Principal
 from twf.discovery.dhan_credentials import DhanCredentialCapture, DhanCredentialManager
 from twf.discovery.domain import InstrumentIdentity
 from twf.discovery.market_intelligence import MarketIntelligenceBatch, TapTideMarketIntelligence
-from twf.scanner_v2.contracts import FIELDS, SavedInput, ScanConfig
+from twf.scanner_v2.contracts import (
+    FIELD_SPECS,
+    SavedInput,
+    ScanConfig,
+    compatible_comparison_fields,
+)
 from twf.scanner_v2.service import ScannerService
 from twf.scanner_v2.tapetide import TapTideScanner
 from twf.scanner_v2.templates import templates
@@ -39,12 +44,22 @@ def catalog(who: Who, manager: Manager) -> dict[str, Any]:
     return {
         "fields": [
             {
-                "field": f,
-                "category": c,
-                "label": title,
-                "enabled": ready if c == "Fundamentals (TapTide)" else True,
+                "field": field,
+                "category": spec.category,
+                "label": spec.label,
+                "enabled": ready if spec.category == "Fundamentals (TapTide)" else True,
+                "field_type": spec.field_type.value,
+                "operators": list(spec.operators),
+                "default_operator": spec.default_operator,
+                "default_value": spec.default_value,
+                "comparison_fields": list(compatible_comparison_fields(field)),
+                "enum_values": list(spec.enum_values),
+                "minimum": spec.minimum,
+                "maximum": spec.maximum,
+                "minimum_exclusive": spec.minimum_exclusive,
+                "unit": spec.unit,
             }
-            for f, (c, title) in FIELDS.items()
+            for field, spec in FIELD_SPECS.items()
         ],
         "templates": templates(),
         "max_universe": 20,

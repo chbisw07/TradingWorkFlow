@@ -79,8 +79,8 @@ def evaluate(
         rhs = current.get(f.value) if isinstance(f.value, str) and f.value in FIELDS else f.value
         passed: bool | None = None
         if lhs is not None and rhs is not None:
-            if f.operator == "equals":
-                passed = lhs == rhs
+            if f.operator in {"equals", "not_equals"}:
+                passed = lhs == rhs if f.operator == "equals" else lhs != rhs
             elif isinstance(lhs, (float, int)):
                 if f.operator == "between" and isinstance(rhs, tuple):
                     passed = rhs[0] <= lhs <= rhs[1]

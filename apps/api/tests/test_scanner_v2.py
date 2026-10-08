@@ -15,9 +15,15 @@ from test_watchlists import client as client  # noqa: F401
 from twf.discovery.domain import SourceMode
 from twf.discovery.internal_scanner.indicators import adx, bollinger, macd, supertrend
 from twf.discovery.market_data import MarketDataErrorCode, MarketDataFailure
-from twf.scanner_v2.contracts import Filter, ScanConfig
+from twf.scanner_v2.contracts import (
+    FIELD_SPECS,
+    Filter,
+    FilterFieldType,
+    ScanConfig,
+    compatible_comparison_fields,
+)
 from twf.scanner_v2.engine import evaluate, metrics
-from twf.scanner_v2.service import ScannerHistory
+from twf.scanner_v2.service import ScannerHistory, ScannerService
 from twf.scanner_v2.tapetide import normalize
 from twf.scanner_v2.templates import templates
 
@@ -40,6 +46,7 @@ def config(**updates: Any) -> dict[str, Any]:
         ("made_up", ">", 2),
         ("trend", ">", "Up"),
         ("price", "between", 3),
+        ("price", "between", "sma20"),
         ("price", "between", [3, 1]),
         ("rsi", ">", float("nan")),
     ],
@@ -47,6 +54,98 @@ def config(**updates: Any) -> dict[str, Any]:
 def test_filter_validation(field: str, operator: str, value: Any) -> None:
     with pytest.raises(ValidationError):
         Filter.model_validate({"field": field, "operator": operator, "value": value})
+
+
+@pytest.mark.parametrize(
+    "field,value,source",
+    [
+        ("market_cap_inr", "sma20", "tapetide"),
+        ("rsi", "sma20", "internal"),
+        ("volume", "supertrend", "internal"),
+        ("pe_ratio", "high20", "tapetide"),
+        ("supertrend", 50, "internal"),
+        ("volume", "Up", "internal"),
+    ],
+)
+def test_semantically_invalid_typed_filters_are_rejected(
+    field: str, value: Any, source: str
+) -> None:
+    with pytest.raises(ValidationError):
+        Filter.model_validate({"field": field, "operator": ">", "value": value, "source": source})
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"field": "rsi", "operator": ">", "value": 50},
+        {"field": "price", "operator": ">", "value": "sma20"},
+        {"field": "sma20", "operator": ">", "value": "sma50"},
+        {
+            "field": "market_cap_inr",
+            "operator": ">",
+            "value": 10000,
+            "source": "tapetide",
+        },
+        {"field": "supertrend", "operator": "equals", "value": "Up"},
+        {"field": "high20", "operator": ">", "value": "sma20"},
+    ],
+)
+def test_semantically_valid_typed_filters_are_accepted(payload: dict[str, Any]) -> None:
+    assert Filter.model_validate(payload)
+
+
+def test_field_registry_drives_operator_and_rhs_compatibility() -> None:
+    assert FIELD_SPECS["rsi"].field_type == FilterFieldType.NUMBER
+    assert FIELD_SPECS["high20"].field_type == FilterFieldType.PRICE
+    assert FIELD_SPECS["volume"].field_type == FilterFieldType.VOLUME
+    assert FIELD_SPECS["rvol"].field_type == FilterFieldType.RATIO
+    assert FIELD_SPECS["supertrend"].field_type == FilterFieldType.ENUM
+    assert FIELD_SPECS["trend"].field_type == FilterFieldType.DIRECTION
+    assert "sma20" in compatible_comparison_fields("high20")
+    assert "sma50" in compatible_comparison_fields("sma20")
+    assert "price" in compatible_comparison_fields("sma20")
+    assert not compatible_comparison_fields("rsi")
+    assert not compatible_comparison_fields("market_cap_inr")
+    assert FIELD_SPECS["supertrend"].operators == ("equals", "not_equals")
+
+
+def test_catalog_exposes_central_typed_filter_metadata(client: TestClient) -> None:
+    response = client.get(BASE + "/catalog")
+    assert response.status_code == 200
+    fields = {item["field"]: item for item in response.json()["fields"]}
+    assert fields["rsi"]["field_type"] == "NUMBER"
+    assert fields["rsi"]["comparison_fields"] == []
+    assert fields["rsi"]["minimum"] == 0
+    assert fields["rsi"]["maximum"] == 100
+    assert "sma20" in fields["high20"]["comparison_fields"]
+    assert "rsi" not in fields["high20"]["comparison_fields"]
+    assert fields["supertrend"]["operators"] == ["equals", "not_equals"]
+    assert fields["supertrend"]["enum_values"] == ["Up", "Down"]
+
+
+def test_legacy_saved_view_preserves_original_filter_json() -> None:
+    legacy = {
+        "filters": [
+            {
+                "field": "rsi",
+                "operator": ">",
+                "value": "sma20",
+                "timeframe": "1d",
+                "version": "1",
+                "source": "internal",
+            }
+        ]
+    }
+    row = SimpleNamespace(
+        id=UUID(int=7),
+        config=legacy,
+        archived=False,
+        created_at=SimpleNamespace(isoformat=lambda: "created"),
+        updated_at=SimpleNamespace(isoformat=lambda: "updated"),
+    )
+    view = ScannerService.saved_view(row)
+    assert view["config"] == legacy
+    assert view["config"] is legacy
 
 
 def test_templates_parameters_and_numeric_metrics() -> None:

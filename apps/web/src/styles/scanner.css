@@ -485,6 +485,11 @@
 .sc-editor {
   margin-top: 12px;
 }
+.sc-range-values {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
 
 @media (max-width: 600px) {
   .sc-table td:nth-child(1) {
