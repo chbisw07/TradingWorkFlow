@@ -97,9 +97,7 @@ test("moving the selected watchlist opens Trash without stale active detail", as
   fireEvent.click(
     await screen.findByRole("button", { name: "Move My Core to Trash" }),
   );
-  fireEvent.click(
-    screen.getByRole("button", { name: "Move to Trash" }),
-  );
+  fireEvent.click(screen.getByRole("button", { name: "Move to Trash" }));
 
   await screen.findByRole("heading", { name: "Trash" });
   expect(screen.getByLabelText("Select My Core")).toBeInTheDocument();
@@ -575,4 +573,144 @@ test.each([
   [0, "—"],
 ])("normalized INR market cap %s is formatted once", (input, expected) => {
   expect(indianMarketCap(input)).toBe(expected);
+});
+
+test("built-in watchlists are grouped, read-only and copy into custom lists", async () => {
+  const at = "2026-10-07T09:00:00Z";
+  const custom = {
+    id: "00000000-0000-0000-0000-000000000001",
+    name: "My Core",
+    description: "",
+    favorite: false,
+    archived: false,
+    count: 0,
+    updated_at: at,
+    revision: 1,
+    ownership_kind: "USER",
+    read_only: false,
+    system_code: null,
+    enabled: true,
+    availability: "READY",
+    pending_reason: null,
+    expected_count: null,
+    instrument_type_summary: [],
+    source_reference: null,
+    source_received_at: null,
+    freshness: "CURRENT",
+  };
+  const system = {
+    ...custom,
+    id: "00000000-0000-0000-0000-000000000002",
+    name: "Nifty Bank",
+    description: "Official bank index constituents.",
+    count: 1,
+    updated_at: null,
+    revision: 2,
+    ownership_kind: "SYSTEM",
+    read_only: true,
+    system_code: "NIFTY_BANK",
+    expected_count: 14,
+    instrument_type_summary: [],
+    source_reference:
+      "https://www.niftyindices.com/indices/equity/sectoral-indices/nifty-bank",
+    source_received_at: at,
+    freshness: "CURRENT",
+  };
+  const pending = {
+    ...system,
+    id: "00000000-0000-0000-0000-000000000003",
+    name: "F&O 50",
+    system_code: "FNO_50",
+    enabled: false,
+    availability: "DEFINITION_PENDING",
+    pending_reason: "Definition pending",
+    count: 50,
+  };
+  const reliance = {
+    instrument: {
+      instrument_id: "00000000-0000-0000-0000-000000000010",
+      symbol: "RELIANCE",
+      exchange: "NSE",
+      segment: "EQ",
+      instrument_type: "EQUITY",
+      native: { namespace: "dhan", native_id: "1" },
+      expiry: null,
+      strike: null,
+      right: null,
+    },
+    kind: "EQUITY",
+    ordering: 0,
+    added_at: at,
+  };
+  const calls: { path: string; method: string; body?: unknown }[] = [];
+  vi.spyOn(global, "fetch").mockImplementation(async (input, init) => {
+    const path = String(input);
+    const method = init?.method || "GET";
+    calls.push({
+      path,
+      method,
+      body: init?.body ? JSON.parse(String(init.body)) : undefined,
+    });
+    if (path.endsWith("/brokers/accounts")) return Response.json([]);
+    if (path.endsWith("/watchlists"))
+      return Response.json([custom, system, pending]);
+    if (path.endsWith("/watchlists/" + custom.id))
+      return Response.json({ ...custom, items: [], notes: [], activity: [] });
+    if (path.endsWith("/watchlists/" + system.id))
+      return Response.json({
+        ...system,
+        instrument_type_summary: ["EQUITY"],
+        items: [reliance],
+        notes: [],
+        activity: [],
+      });
+    if (path.endsWith("/quotes"))
+      return Response.json({ quotes: [], error: null });
+    if (path.endsWith("/copy") && method === "POST")
+      return Response.json({ added: 1, duplicates: 0 });
+    if (path.includes("/chart"))
+      return Response.json({ provider: "dhan", bars: [], error: null });
+    throw new Error("Unexpected path: " + path);
+  });
+
+  render(<WatchlistsWorkspace />);
+  expect(
+    await screen.findByRole("heading", { name: "Built-in Watchlists" }),
+  ).toBeInTheDocument();
+  expect(await screen.findByRole("button", { name: /F&O 50/ })).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: /Nifty Bank/ }));
+  expect(
+    await screen.findByRole("heading", { name: /Nifty Bank/ }),
+  ).toBeInTheDocument();
+  expect(screen.getAllByText("Built-in").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("EQ").length).toBeGreaterThan(0);
+  expect(screen.getByRole("button", { name: /Import/ })).toBeDisabled();
+  expect(
+    screen.queryByRole("button", { name: /Move Nifty Bank to Trash/ }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Add Symbols" }),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("Watchlist note")).not.toBeInTheDocument();
+
+  fireEvent.click(
+    await screen.findByRole("checkbox", { name: "Select RELIANCE" }),
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: "Add Selected to Watchlist" }),
+  );
+  fireEvent.change(screen.getByLabelText("Copy destination"), {
+    target: { value: custom.id },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Add selected" }));
+  await waitFor(() =>
+    expect(
+      calls.some(
+        (call) =>
+          call.path.endsWith("/" + system.id + "/copy") &&
+          call.method === "POST" &&
+          JSON.stringify(call.body).includes(custom.id),
+      ),
+    ).toBe(true),
+  );
 });

@@ -49,6 +49,7 @@ from twf.schemas import ErrorResponse
 from twf.watchlists.market import WatchlistHistoryCache, WatchlistQuoteCache
 from twf.watchlists.reference import WatchlistReferenceCache
 from twf.watchlists.service import WatchlistFailure
+from twf.watchlists.system import SystemUniverseCatalog
 
 
 def create_app(
@@ -80,6 +81,8 @@ def create_app(
         app.state.watchlist_quotes = WatchlistQuoteCache()
         app.state.watchlist_history = WatchlistHistoryCache()
         app.state.watchlist_reference = WatchlistReferenceCache()
+        if getattr(app.state, "system_universes", None) is None:
+            app.state.system_universes = SystemUniverseCatalog()
         app.state.auth_dummy_hash = PasswordHasher().hash(secrets.token_urlsafe(32))
         app.state.initialized = True
         logger.info("application_started")

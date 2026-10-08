@@ -24,9 +24,9 @@ async function forward(
             (route === "" ||
               route === "trash/restore" ||
               route === "trash/permanent-delete" ||
-              new RegExp(`^${id}/(items|remove|transfer|notes|import)$`).test(
-                route,
-              ));
+              new RegExp(
+                `^${id}/(items|remove|transfer|copy|notes|import)$`,
+              ).test(route));
   const output = {
     "Content-Type": "application/json",
     "Cache-Control": "no-store",

@@ -159,11 +159,15 @@ revalidation and hardening gate, together with remote cleanup/recovery obligatio
 ## What Works Today
 
 - **Watchlists — implemented / ready for user validation, not accepted or frozen:**
-  persistent owner-scoped equity/index/futures/options lists, archive/restore, search,
-  CSV import/export, bulk move/copy, notes/activity, batched Dhan overlays, lazy
-  charts and existing Broker V2 preview handoff. Optional TapTide news remains
-  independent. Live quote/chart validation currently needs renewed Dhan credentials;
-  live preview needs broker reauthorization. See the
+  persistent owner-scoped editable equity/index/futures/options lists plus centrally
+  resolved read-only built-ins for eight official Nifty universes. Built-ins use
+  bounded, provenance-bearing NSE Indices constituent CSV caches, support inspect,
+  export, Broker V2 preview, copy-selected/all into custom lists, and Scanner V2
+  immutable universe snapshots. F&O 50/100 remain disabled as Definition pending.
+  Custom archive/restore, search, CSV import/export, bulk move/copy, notes/activity,
+  Dhan overlays and lazy charts remain intact. Optional TapTide news remains
+  independent. Live built-in constituent and quote/chart validation requires current
+  Dhan credentials; live preview needs broker reauthorization. See the
   [Watchlists architecture](docs/TWF_WATCHLIST_ARCHITECTURE.md) and
   [implementation evidence](docs/TWF_WATCHLIST_IMPLEMENTATION_REPORT.md).
 
@@ -206,7 +210,7 @@ revalidation and hardening gate, together with remote cleanup/recovery obligatio
   complete final Sprint-2 acceptance and freeze. Sprint 2 is not accepted/frozen now.
 - Validate the temporal-state implementation independently; its architecture and
   implementation are complete, while user validation and acceptance remain pending.
-- Complete Watchlists live user validation after refreshing Dhan credentials and reconnecting the trading broker; collection persistence and automated UI validation are implemented. Broader Universe Management remains separate.
+- Complete Watchlists live user validation after refreshing Dhan credentials and reconnecting the trading broker, including official Nifty 500/Bank/Pharma/Metal constituent resolution and built-in-to-custom copy. System/custom persistence and automated validation are implemented; F&O 50/100 definitions remain pending an accepted eligibility source. Broader Universe Management remains separate.
 - Keep Custom Typed Time Horizon as a separate TBD design.
 - Defer richer scanner/profile parameterization, saved overrides/presets, and user
   tuning to a later refinement. Any future design must record the exact parameter

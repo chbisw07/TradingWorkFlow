@@ -482,7 +482,9 @@ test("persistent Watchlists, instrument detail, CSV, notes, archive and responsi
   await expect(page.getByRole("status")).toContainText(
     "My Core Updated moved to Trash.",
   );
-  await expect(page.getByRole("heading", { name: "Trash" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Trash", exact: true }),
+  ).toBeVisible();
   await expect(page.getByLabel("Select My Core Updated")).toBeVisible();
   const restoreMe = await (
     await page.request.post("/api/v1/watchlists", {
@@ -509,8 +511,10 @@ test("persistent Watchlists, instrument detail, CSV, notes, archive and responsi
   await page
     .getByRole("button", { name: "Active watchlists", exact: false })
     .click();
-  await page.getByRole("button", { name: "Trash", exact: false }).click();
-  await expect(page.getByRole("heading", { name: "Trash" })).toBeVisible();
+  await page.getByRole("button", { name: "Trash", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Trash", exact: true }),
+  ).toBeVisible();
   await page.getByLabel("Select My Core Updated").check();
   await page.getByLabel("Select Restore Me").check();
   await expect(page.getByText("2 selected", { exact: true })).toBeVisible();

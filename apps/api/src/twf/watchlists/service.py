@@ -25,6 +25,8 @@ from twf.watchlists.contracts import (
     UpdateWatchlist,
 )
 
+_MAX_WATCHLIST_ITEMS = 600
+
 
 class WatchlistFailure(Exception):
     def __init__(self, code: str, status: int = 409) -> None:
@@ -76,22 +78,37 @@ class WatchlistService:
 
     @staticmethod
     def _summary(db: Session, row: WatchlistRow) -> dict[str, Any]:
-        count = db.scalar(
-            select(func.count())
-            .select_from(WatchlistItemRow)
-            .where(WatchlistItemRow.watchlist_id == row.id)
+        item_rows = list(
+            db.scalars(select(WatchlistItemRow).where(WatchlistItemRow.watchlist_id == row.id))
+        )
+        type_order = {"EQUITY": 0, "INDEX": 1, "FUTURE": 2, "OPTION": 3}
+        type_summary = sorted(
+            {kind(InstrumentIdentity.model_validate(item.instrument)) for item in item_rows},
+            key=type_order.__getitem__,
         )
         return dict(
             id=str(row.id),
             name=row.name,
             description=row.description,
             favorite=row.favorite,
+            pinned=row.favorite,
             archived=row.archived,
             ordering=row.ordering,
             revision=row.revision,
             created_at=stamp(row.created_at),
             updated_at=stamp(row.updated_at),
-            count=count,
+            count=len(item_rows),
+            ownership_kind="USER",
+            read_only=False,
+            system_code=None,
+            enabled=True,
+            availability="READY",
+            pending_reason=None,
+            expected_count=None,
+            instrument_type_summary=type_summary,
+            source_reference=None,
+            source_received_at=None,
+            freshness="CURRENT",
         )
 
     def list(self) -> list[dict[str, Any]]:
@@ -226,8 +243,10 @@ class WatchlistService:
             raise WatchlistFailure("WATCHLIST_ARCHIVED")
         return UniverseSnapshot(
             watchlist_id=key,
+            name=detail["name"],
             revision=detail["revision"],
             captured_at=now(),
+            ownership_kind="USER",
             instruments=tuple(
                 InstrumentIdentity.model_validate(i["instrument"]) for i in detail["items"]
             ),
@@ -258,7 +277,7 @@ class WatchlistService:
             if item.instrument_id in known:
                 duplicates += 1
                 continue
-            if len(known) >= 500:
+            if len(known) >= _MAX_WATCHLIST_ITEMS:
                 raise WatchlistFailure("WATCHLIST_FULL")
             db.add(
                 WatchlistItemRow(

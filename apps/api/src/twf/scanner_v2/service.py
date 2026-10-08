@@ -12,12 +12,17 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from twf.discovery.domain import InstrumentIdentity, SourceMode
 from twf.discovery.internal_scanner.market_series import DataUnavailable, MarketSeries
-from twf.discovery.market_data import MarketDataFailure, MarketDataProvider
+from twf.discovery.market_data import (
+    DhanMarketDataProvider,
+    MarketDataFailure,
+    MarketDataProvider,
+)
 from twf.infrastructure.scanner_v2 import SavedScannerRow, ScannerRunRow
 from twf.scanner_v2.contracts import SavedInput, ScanConfig
 from twf.scanner_v2.engine import evaluate
 from twf.watchlists.catalog import kind
 from twf.watchlists.service import WatchlistFailure, WatchlistService
+from twf.watchlists.system import SystemUniverseCatalog
 
 
 class ScannerHistory:
@@ -57,8 +62,14 @@ class ScannerHistory:
 
 
 class ScannerService:
-    def __init__(self, factory: sessionmaker[Session], owner: UUID) -> None:
+    def __init__(
+        self,
+        factory: sessionmaker[Session],
+        owner: UUID,
+        system_universes: SystemUniverseCatalog | None = None,
+    ) -> None:
         self.factory, self.owner = factory, owner
+        self.system_universes = system_universes
 
     def saved(self) -> list[dict[str, Any]]:
         with self.factory() as db:
@@ -142,7 +153,15 @@ class ScannerService:
         snapshot: dict[str, Any] = {}
         if source.source == "WATCHLIST":
             assert source.watchlist_id
-            snap = WatchlistService(self.factory, self.owner).snapshot(source.watchlist_id)
+            if (
+                self.system_universes is not None
+                and self.system_universes.definition(source.watchlist_id) is not None
+            ):
+                if not isinstance(provider, DhanMarketDataProvider):
+                    raise WatchlistFailure("DHAN_AUTH_REQUIRED", 503)
+                snap = await self.system_universes.snapshot(source.watchlist_id, provider)
+            else:
+                snap = WatchlistService(self.factory, self.owner).snapshot(source.watchlist_id)
             snapshot = snap.model_dump(mode="json")
             eligible = tuple(
                 i

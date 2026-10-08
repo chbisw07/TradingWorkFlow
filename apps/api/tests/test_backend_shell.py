@@ -129,6 +129,7 @@ def test_lifecycle_and_contracts(settings: Settings) -> None:
             "/api/v1/watchlists/{key}/export",
             "/api/v1/watchlists/{key}/import",
             "/api/v1/watchlists/{key}/quotes",
+            "/api/v1/watchlists/{key}/copy",
             "/api/v1/brokers/providers",
             "/api/v1/brokers/setup",
             "/api/v1/brokers/accounts",

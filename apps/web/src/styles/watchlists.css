@@ -884,3 +884,74 @@
     grid-template-columns: repeat(2, minmax(24px, 1fr));
   }
 }
+
+.wl-built-in-title {
+  border-top: 1px solid var(--shell-border);
+  margin-top: 14px !important;
+  padding-top: 14px;
+}
+.wl-navigator nav button:disabled {
+  opacity: 0.68;
+}
+.wl-built-in-lock {
+  align-items: center;
+  color: var(--shell-secondary);
+  display: inline-flex;
+  flex-direction: column;
+  font-size: 9px;
+  gap: 2px;
+  margin-left: 5px;
+  white-space: nowrap;
+}
+.wl-list-types {
+  display: flex;
+  gap: 3px;
+  margin-top: 3px;
+}
+.wl-list-types .wl-badge {
+  display: inline-block;
+  font-size: 8px;
+  line-height: 1;
+  padding: 3px 4px;
+}
+.wl-system-badge {
+  background: var(--shell-background);
+  border: 1px solid var(--shell-border);
+  border-radius: 999px;
+  color: var(--shell-secondary);
+  display: inline-flex;
+  font-size: 9px;
+  font-weight: 600;
+  gap: 3px;
+  padding: 3px 7px;
+  vertical-align: middle;
+}
+.wl-system-source {
+  font-size: 10px !important;
+  margin-bottom: 8px !important;
+}
+.wl-system-source a {
+  color: var(--shell-accent);
+}
+.wl-dialog-separator {
+  border-top: 1px solid var(--shell-border);
+  margin-top: 18px;
+  padding-top: 14px;
+}
+.wl-badge.index {
+  background: #e7f6ff;
+  color: #0874b9;
+}
+.wl-badge.future,
+.wl-badge.option {
+  background: #f2eaff;
+  color: #7947ba;
+}
+@media (max-width: 600px) {
+  .wl-built-in-title {
+    width: 100%;
+  }
+  .wl-navigator nav[aria-label="Built-in watchlists"] {
+    max-height: 170px;
+  }
+}

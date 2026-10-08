@@ -167,12 +167,16 @@ Panel system, navigation and selected-instrument context.
 
 **2026-10-06: IMPLEMENTED / READY FOR USER VALIDATION; not accepted/frozen.**
 The approved product direction is persistent TWF-owned canonical Watchlists,
-independent of broker-owned lists. The workspace supports all four instrument classes,
-owner isolation, archive/restore, CSV, bulk move/copy, notes/activity, Dhan market
-overlays/charts and the existing Broker V2 preview workflow. Future inbound Scanner /
-Discovery adds and immutable universe snapshots have explicit contracts; send actions
-are not yet exposed in those workspaces. Broader Universe Management is separate.
-Live market/preview revalidation awaits renewed Dhan and broker credentials. See
+independent of broker-owned lists. Owner-scoped custom lists support all four
+instrument classes, archive/restore, CSV, bulk move/copy, notes/activity, Dhan market
+overlays/charts and the existing Broker V2 preview workflow. Eight read-only built-in
+Nifty universes now resolve centrally from bounded official NSE Indices constituent
+CSV caches; they can be inspected, exported, copied into custom lists and used by
+Scanner V2 through the same `WATCHLIST` source. Scanner runs persist the immutable
+resolved membership snapshot and selected subset. F&O 50/100 remain disabled as
+Definition pending until an accepted eligibility source exists. Discovery inbound
+provenance remains explicit. Broader Universe Management is separate. Live official
+constituent, market and preview revalidation awaits current Dhan and broker credentials. See
 [architecture](TWF_WATCHLIST_ARCHITECTURE.md) and
 [implementation report](TWF_WATCHLIST_IMPLEMENTATION_REPORT.md).
 

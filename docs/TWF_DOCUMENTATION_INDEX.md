@@ -13,9 +13,11 @@ constituent/sector/market universes and full derivatives remain capability gaps.
 
 ## Current Watchlists implementation
 
-- [Watchlists architecture](TWF_WATCHLIST_ARCHITECTURE.md): owner-scoped collections,
-  canonical identities, Dhan overlays, broker independence, inbound source metadata,
-  immutable universe snapshots and migration requirements.
+- [Watchlists architecture](TWF_WATCHLIST_ARCHITECTURE.md): owner-scoped editable
+  collections plus centrally cached read-only Nifty system universes, canonical
+  identities, official constituent provenance/staleness, copy semantics, Dhan
+  overlays, broker independence and immutable Scanner V2 universe snapshots. F&O
+  50/100 are explicitly Definition pending.
 - [Watchlists implementation report](TWF_WATCHLIST_IMPLEMENTATION_REPORT.md): validation,
   screenshot evidence, live authorization limitations and scorecard. Implemented / ready
   for user validation; not accepted or frozen.

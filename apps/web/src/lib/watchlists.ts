@@ -23,10 +23,22 @@ export type Watchlist = {
   favorite: boolean;
   archived: boolean;
   count: number;
-  updated_at: string;
+  updated_at: string | null;
   revision: number;
+  ownership_kind: "USER" | "SYSTEM";
+  read_only: boolean;
+  system_code: string | null;
+  enabled: boolean;
+  availability: "READY" | "PARTIAL" | "DEFINITION_PENDING";
+  pending_reason: string | null;
+  expected_count: number | null;
+  instrument_type_summary: Kind[];
+  source_reference: string | null;
+  source_received_at: string | null;
+  freshness: "CURRENT" | "STALE" | "NOT_LOADED";
 };
 export type WatchDetail = Watchlist & {
+  unresolved_count?: number;
   items: WatchItem[];
   notes: { id: string; text: string; created_at: string; author: string }[];
   activity: {

@@ -46,11 +46,13 @@ const columns = [
   "Trend",
   "Quick Chart (1M)",
 ];
-const time = (v: string) =>
-  new Date(v).toLocaleString(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
+const time = (v: string | null) =>
+  v
+    ? new Date(v).toLocaleString(undefined, {
+        dateStyle: "medium",
+        timeStyle: "short",
+      })
+    : "Not loaded";
 
 export function WatchlistsWorkspace() {
   const panelId = useId();
@@ -76,6 +78,9 @@ export function WatchlistsWorkspace() {
     [pageSize, setPageSize] = useState(10),
     [checked, setChecked] = useState<string[]>([]);
   const [target, setTarget] = useState("");
+  const [copyIds, setCopyIds] = useState<string[]>([]),
+    [copyAll, setCopyAll] = useState(false),
+    [copyName, setCopyName] = useState("");
   const [instrumentId, setInstrumentId] = useState(""),
     [mobilePanel, setMobilePanel] = useState(false);
   const [quotes, setQuotes] = useState<Record<string, WatchQuote>>({}),
@@ -132,7 +137,7 @@ export function WatchlistsWorkspace() {
     orderType: string;
   } | null>(null);
   const [modal, setModal] = useState<
-    "create" | "edit" | "add" | "import" | "archive" | "delete" | null
+    "create" | "edit" | "add" | "import" | "archive" | "delete" | "copy" | null
   >(null);
   const [name, setName] = useState(""),
     [description, setDescription] = useState(""),
@@ -160,16 +165,43 @@ export function WatchlistsWorkspace() {
     setLoaded(true);
     return next;
   }, []);
-  const refreshDetail = useCallback(async (id: string) => {
-    const next = await watchApi<WatchDetail>(`/${id}`);
-    if (scope.current === id) setDetail(next);
+  const adoptDetail = useCallback((next: WatchDetail) => {
+    setDetail(next);
+    setLists((previous) =>
+      previous.map((list) =>
+        list.id === next.id
+          ? {
+              ...list,
+              count: next.items.length,
+              instrument_type_summary: Array.from(
+                new Set(next.items.map((entry) => entry.kind)),
+              ),
+              updated_at: next.updated_at,
+              source_received_at: next.source_received_at,
+              freshness: next.freshness,
+              availability: next.availability,
+            }
+          : list,
+      ),
+    );
   }, []);
+  const refreshDetail = useCallback(
+    async (id: string) => {
+      const next = await watchApi<WatchDetail>(`/${id}`);
+      if (scope.current === id) adoptDetail(next);
+    },
+    [adoptDetail],
+  );
   useEffect(() => {
     const c = new AbortController();
     void watchApi<Watchlist[]>("", "GET", undefined, c.signal)
       .then((next) => {
         setLists(next);
-        setSelected(next.find((l) => !l.archived)?.id || "");
+        setSelected(
+          next.find((l) => l.ownership_kind !== "SYSTEM" && !l.archived)?.id ||
+            next.find((l) => l.ownership_kind === "SYSTEM" && l.enabled)?.id ||
+            "",
+        );
         setLoaded(true);
       })
       .catch((e) => {
@@ -208,12 +240,14 @@ export function WatchlistsWorkspace() {
     if (!selected) return;
     const c = new AbortController();
     void watchApi<WatchDetail>(`/${selected}`, "GET", undefined, c.signal)
-      .then(setDetail)
+      .then((next) => {
+        if (!c.signal.aborted) adoptDetail(next);
+      })
       .catch((e) => {
         if (e.name !== "AbortError") setError(e.message);
       });
     return () => c.abort();
-  }, [selected]);
+  }, [selected, adoptDetail]);
   const refreshQuotes = useCallback(async () => {
     if (!selected || quoteLock.current || document.hidden) return;
     const id = selected;
@@ -378,7 +412,10 @@ export function WatchlistsWorkspace() {
     setTrashChecked([]);
     if (trash) {
       setTrash(false);
-      selectList(lists.find((list) => !list.archived)?.id || "");
+      selectList(
+        lists.find((list) => list.ownership_kind !== "SYSTEM" && !list.archived)
+          ?.id || "",
+      );
       return;
     }
     await act(async () => {
@@ -488,6 +525,54 @@ export function WatchlistsWorkspace() {
       a.download = "watchlist.csv";
       a.click();
       URL.revokeObjectURL(url);
+    });
+  }
+  function requestSystemCopy(ids: string[], all: boolean) {
+    setCopyIds(ids);
+    setCopyAll(all);
+    setCopyName("");
+    setTarget("");
+    setModal("copy");
+  }
+  async function copySystemItems() {
+    if (!current?.read_only) return;
+    await act(async () => {
+      let destination = target;
+      if (!destination && copyName.trim()) {
+        const created = await watchApi<Watchlist>("", "POST", {
+          name: copyName.trim(),
+          description: "Copied from " + current.name,
+        });
+        destination = created.id;
+      }
+      if (!destination)
+        throw new Error("Choose a custom watchlist or create a new one.");
+      const result = await watchApi<{ added: number; duplicates: number }>(
+        "/" + current.id + "/copy",
+        "POST",
+        {
+          target_id: destination,
+          all: copyAll,
+          instrument_ids: copyAll ? [] : copyIds,
+        },
+      );
+      await refreshLists();
+      setChecked([]);
+      setModal(null);
+      setNotice(
+        "Added " +
+          result.added +
+          " symbol" +
+          (result.added === 1 ? "" : "s") +
+          " to the custom watchlist" +
+          (result.duplicates
+            ? " - " +
+              result.duplicates +
+              " duplicate" +
+              (result.duplicates === 1 ? "" : "s") +
+              " skipped."
+            : "."),
+      );
     });
   }
   const filtered = (current?.items || [])
@@ -832,7 +917,7 @@ export function WatchlistsWorkspace() {
         </div>
         <div className="wl-actions">
           <button
-            disabled={!current || current.archived}
+            disabled={!current || current.archived || current.read_only}
             onClick={() => {
               setCsv("");
               setImportResult(null);
@@ -882,6 +967,7 @@ export function WatchlistsWorkspace() {
             {lists
               .filter(
                 (l) =>
+                  l.ownership_kind !== "SYSTEM" &&
                   !l.archived &&
                   l.name.toLowerCase().includes(listSearch.toLowerCase()),
               )
@@ -901,8 +987,66 @@ export function WatchlistsWorkspace() {
                       {l.name}
                     </strong>
                     <small>{l.count} symbols</small>
+                    <span className="wl-list-types">
+                      {(l.instrument_type_summary || []).map((kind) => (
+                        <span
+                          key={kind}
+                          className={"wl-badge " + kind.toLowerCase()}
+                        >
+                          {badge[kind]}
+                        </span>
+                      ))}
+                    </span>
                   </span>
                   <span aria-hidden="true">›</span>
+                </button>
+              ))}
+          </nav>
+          <h2 className="wl-built-in-title">Built-in Watchlists</h2>
+          <nav aria-label="Built-in watchlists">
+            {lists
+              .filter(
+                (l) =>
+                  l.ownership_kind === "SYSTEM" &&
+                  l.name.toLowerCase().includes(listSearch.toLowerCase()),
+              )
+              .map((l) => (
+                <button
+                  key={l.id}
+                  className={l.id === selected ? "selected" : ""}
+                  aria-current={l.id === selected ? "true" : undefined}
+                  aria-disabled={!l.enabled}
+                  disabled={!l.enabled}
+                  title={l.pending_reason || l.description}
+                  onClick={() => {
+                    if (trash) setTrash(false);
+                    selectList(l.id);
+                  }}
+                >
+                  <span>
+                    <strong>{l.name}</strong>
+                    <small>
+                      {l.enabled
+                        ? l.count + " constituents"
+                        : "Definition pending"}
+                    </small>
+                    <span className="wl-list-types">
+                      {(l.instrument_type_summary || []).map((kind) => (
+                        <span
+                          key={kind}
+                          className={"wl-badge " + kind.toLowerCase()}
+                        >
+                          {badge[kind]}
+                        </span>
+                      ))}
+                    </span>
+                  </span>
+                  <span
+                    className="wl-built-in-lock"
+                    aria-label="Read-only built-in Watchlist"
+                  >
+                    <span aria-hidden="true">🔒</span> Built-in
+                  </span>
                 </button>
               ))}
           </nav>
@@ -998,7 +1142,7 @@ export function WatchlistsWorkspace() {
                             <th scope="row">{list.name}</th>
                             <td>{list.count}</td>
                             <td>
-                              <time dateTime={list.updated_at}>
+                              <time dateTime={list.updated_at || undefined}>
                                 {time(list.updated_at)}
                               </time>
                             </td>
@@ -1046,38 +1190,74 @@ export function WatchlistsWorkspace() {
           ) : (
             <>
               <header className="wl-detail-head">
-                <button
-                  className="wl-star"
-                  aria-label={
-                    current.favorite ? "Unpin watchlist" : "Pin watchlist"
-                  }
-                  onClick={() => void patch({ favorite: !current.favorite })}
-                >
-                  {current.favorite ? "★" : "☆"}
-                </button>
+                {!current.read_only && (
+                  <button
+                    className="wl-star"
+                    aria-label={
+                      current.favorite ? "Unpin watchlist" : "Pin watchlist"
+                    }
+                    onClick={() => void patch({ favorite: !current.favorite })}
+                  >
+                    {current.favorite ? "★" : "☆"}
+                  </button>
+                )}
                 <div>
                   <h2>
                     {current.name}{" "}
-                    <button
-                      aria-label="Edit watchlist"
-                      onClick={() => {
-                        setName(current.name);
-                        setDescription(current.description);
-                        setModal("edit");
-                      }}
-                    >
-                      ✎
-                    </button>
+                    {current.read_only ? (
+                      <span
+                        className="wl-system-badge"
+                        aria-label="Read-only built-in Watchlist"
+                      >
+                        <span aria-hidden="true">🔒</span> Built-in
+                      </span>
+                    ) : (
+                      <button
+                        aria-label="Edit watchlist"
+                        onClick={() => {
+                          setName(current.name);
+                          setDescription(current.description);
+                          setModal("edit");
+                        }}
+                      >
+                        ✎
+                      </button>
+                    )}
                   </h2>
                   <p>
                     {current.description ||
                       "Your personal instrument collection."}
                   </p>
+                  {current.read_only && (
+                    <p className="wl-system-source">
+                      {current.source_reference ? (
+                        <a
+                          href={current.source_reference}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Official constituent source
+                        </a>
+                      ) : (
+                        "Constituent source unavailable"
+                      )}
+                      {" · "}
+                      {current.availability === "PARTIAL"
+                        ? `Partial resolution · ${current.unresolved_count || 0} constituent${current.unresolved_count === 1 ? "" : "s"} unavailable`
+                        : current.freshness === "STALE"
+                          ? "Cached source"
+                          : "Authoritative source"}
+                    </p>
+                  )}
                 </div>
                 <small>
-                  Last updated
+                  {current.read_only ? "Constituents received" : "Last updated"}
                   <br />
-                  {time(current.updated_at)}
+                  {time(
+                    current.read_only
+                      ? current.source_received_at
+                      : current.updated_at,
+                  )}
                 </small>
                 <label className="wl-auto">
                   <input
@@ -1106,16 +1286,26 @@ export function WatchlistsWorkspace() {
                 >
                   ↻
                 </button>
-                <button
-                  className="wl-archive-action"
-                  aria-label={`Move ${current.name} to Trash`}
-                  title={`Move ${current.name} to Trash`}
-                  disabled={busy}
-                  onClick={() => setModal("archive")}
-                >
-                  <Icon name="trash" />
-                  <span>Move to Trash</span>
-                </button>
+                {current.read_only ? (
+                  <button
+                    className="wl-primary"
+                    disabled={busy || !current.items.length}
+                    onClick={() => requestSystemCopy([], true)}
+                  >
+                    Add all to Watchlist
+                  </button>
+                ) : (
+                  <button
+                    className="wl-archive-action"
+                    aria-label={"Move " + current.name + " to Trash"}
+                    title={"Move " + current.name + " to Trash"}
+                    disabled={busy}
+                    onClick={() => setModal("archive")}
+                  >
+                    <Icon name="trash" />
+                    <span>Move to Trash</span>
+                  </button>
+                )}
               </header>
               <div className="wl-tabs wl-types">
                 {kinds.map((k) => (
@@ -1220,45 +1410,66 @@ export function WatchlistsWorkspace() {
               {checked.length > 0 && (
                 <div className="wl-bulk">
                   <span>{checked.length} selected</span>
-                  <button
-                    disabled={busy || current.archived}
-                    onClick={() => void remove(checked)}
-                  >
-                    Remove selected
-                  </button>
-                  <select
-                    aria-label="Target watchlist"
-                    value={target}
-                    onChange={(e) => setTarget(e.target.value)}
-                  >
-                    <option value="">Choose destination</option>
-                    {lists
-                      .filter((l) => !l.archived && l.id !== selected)
-                      .map((l) => (
-                        <option key={l.id} value={l.id}>
-                          {l.name}
-                        </option>
-                      ))}
-                  </select>
-                  {["Copy", "Move"].map((action) => (
+                  {current.read_only ? (
                     <button
-                      key={action}
-                      disabled={!target || busy || current.archived}
-                      onClick={() =>
-                        void act(async () => {
-                          await watchApi(`/${selected}/transfer`, "POST", {
-                            target_id: target,
-                            instrument_ids: checked,
-                            move: action === "Move",
-                          });
-                          setChecked([]);
-                          await reload();
-                        })
-                      }
+                      className="wl-primary"
+                      disabled={busy}
+                      onClick={() => requestSystemCopy(checked, false)}
                     >
-                      {action}
+                      Add Selected to Watchlist
                     </button>
-                  ))}
+                  ) : (
+                    <>
+                      <button
+                        disabled={busy || current.archived}
+                        onClick={() => void remove(checked)}
+                      >
+                        Remove selected
+                      </button>
+                      <select
+                        aria-label="Target watchlist"
+                        value={target}
+                        onChange={(e) => setTarget(e.target.value)}
+                      >
+                        <option value="">Choose destination</option>
+                        {lists
+                          .filter(
+                            (l) =>
+                              l.ownership_kind !== "SYSTEM" &&
+                              !l.archived &&
+                              l.id !== selected,
+                          )
+                          .map((l) => (
+                            <option key={l.id} value={l.id}>
+                              {l.name}
+                            </option>
+                          ))}
+                      </select>
+                      {["Copy", "Move"].map((action) => (
+                        <button
+                          key={action}
+                          disabled={!target || busy || current.archived}
+                          onClick={() =>
+                            void act(async () => {
+                              await watchApi(
+                                "/" + selected + "/transfer",
+                                "POST",
+                                {
+                                  target_id: target,
+                                  instrument_ids: checked,
+                                  move: action === "Move",
+                                },
+                              );
+                              setChecked([]);
+                              await reload();
+                            })
+                          }
+                        >
+                          {action}
+                        </button>
+                      ))}
+                    </>
+                  )}
                 </div>
               )}
               <div className="wl-table-wrap">
@@ -1435,23 +1646,25 @@ export function WatchlistsWorkspace() {
                               >
                                 S
                               </button>
-                              <button
-                                className="wl-remove"
-                                aria-label={`Remove ${i.instrument.symbol} from ${current.name}`}
-                                title={`Remove ${i.instrument.symbol} from ${current.name}`}
-                                disabled={busy || current.archived}
-                                onClick={() => {
-                                  if (
-                                    window.confirm(
-                                      `Remove ${i.instrument.symbol} from ${current.name}? Other watchlists are not affected.`,
-                                    )
-                                  ) {
-                                    void remove([id]);
-                                  }
-                                }}
-                              >
-                                <Icon name="trash" />
-                              </button>
+                              {!current.read_only && (
+                                <button
+                                  className="wl-remove"
+                                  aria-label={`Remove ${i.instrument.symbol} from ${current.name}`}
+                                  title={`Remove ${i.instrument.symbol} from ${current.name}`}
+                                  disabled={busy || current.archived}
+                                  onClick={() => {
+                                    if (
+                                      window.confirm(
+                                        `Remove ${i.instrument.symbol} from ${current.name}? Other watchlists are not affected.`,
+                                      )
+                                    ) {
+                                      void remove([id]);
+                                    }
+                                  }}
+                                >
+                                  <Icon name="trash" />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -1508,19 +1721,21 @@ export function WatchlistsWorkspace() {
                   </select>
                 </label>
               </footer>
-              <button
-                className="wl-add"
-                disabled={current.archived}
-                onClick={() => {
-                  setSearch("");
-                  setResults([]);
-                  setAddFeedback("");
-                  setError("");
-                  setModal("add");
-                }}
-              >
-                ＋ Add Symbols
-              </button>
+              {!current.read_only && (
+                <button
+                  className="wl-add"
+                  disabled={current.archived}
+                  onClick={() => {
+                    setSearch("");
+                    setResults([]);
+                    setAddFeedback("");
+                    setError("");
+                    setModal("add");
+                  }}
+                >
+                  ＋ Add Symbols
+                </button>
+              )}
               <small className="wl-source">
                 Quick Chart (1M): last ~1 month of completed daily closes · —
                 means unavailable
@@ -1537,7 +1752,7 @@ export function WatchlistsWorkspace() {
           </aside>
         )}
       </div>
-      {current && !trash && (
+      {current && !trash && !current.read_only && (
         <div className="wl-bottom">
           <section className="wl-card">
             <h2>Recent Activity</h2>
@@ -1743,6 +1958,68 @@ export function WatchlistsWorkspace() {
           >
             Done
           </button>
+        </WatchDialog>
+      )}
+      {modal === "copy" && current?.read_only && (
+        <WatchDialog
+          title={
+            copyAll
+              ? "Add all to a custom watchlist"
+              : "Add selected to a custom watchlist"
+          }
+          close={() => setModal(null)}
+        >
+          <p>
+            {copyAll
+              ? `Add all ${current.count} constituents to the selected custom watchlist? `
+              : `Add ${copyIds.length} selected constituent${copyIds.length === 1 ? "" : "s"} to the selected custom watchlist? `}
+            Built-in constituents stay read-only. Copies become normal custom
+            watchlist items.
+          </p>
+          <label>
+            Existing custom watchlist
+            <select
+              aria-label="Copy destination"
+              value={target}
+              onChange={(event) => {
+                setTarget(event.target.value);
+                if (event.target.value) setCopyName("");
+              }}
+            >
+              <option value="">Choose destination</option>
+              {lists
+                .filter(
+                  (list) => list.ownership_kind !== "SYSTEM" && !list.archived,
+                )
+                .map((list) => (
+                  <option key={list.id} value={list.id}>
+                    {list.name}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <p className="wl-dialog-separator">
+            or create a new custom watchlist
+          </p>
+          <label>
+            New watchlist name
+            <input
+              value={copyName}
+              maxLength={80}
+              onChange={(event) => {
+                setCopyName(event.target.value);
+                if (event.target.value) setTarget("");
+              }}
+            />
+          </label>
+          <button
+            className="wl-primary"
+            disabled={busy || (!target && !copyName.trim())}
+            onClick={() => void copySystemItems()}
+          >
+            {copyAll ? "Add all" : "Add selected"}
+          </button>
+          {error && <p role="alert">{error}</p>}
         </WatchDialog>
       )}
       {modal === "delete" && (

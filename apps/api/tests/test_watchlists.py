@@ -4,8 +4,8 @@ import asyncio
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
-from uuid import UUID
+from typing import Any, cast
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 import httpx
 import pytest
@@ -13,17 +13,19 @@ from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
-from sqlalchemy import event
+from sqlalchemy import event, select
 
 from twf.api.watchlists import catalog as catalog_dependency
 from twf.auth import create_user
 from twf.config.settings import Settings
 from twf.discovery.market_data import DhanMarketDataProvider, DhanMarketDataSettings
 from twf.infrastructure.database import create_database_engine, create_session_factory
+from twf.infrastructure.identity import User
 from twf.main import create_app
 from twf.watchlists.catalog import WatchlistCatalog, kind
+from twf.watchlists.contracts import SourceMetadata
 from twf.watchlists.market import WatchlistQuoteCache
-from twf.watchlists.service import WatchlistService
+from twf.watchlists.service import WatchlistFailure, WatchlistService
 
 ORIGIN = "https://web.example"
 HEADERS = {"Origin": ORIGIN}
@@ -137,12 +139,46 @@ def test_crud_types_order_duplicates_notes_activity_snapshot(client: TestClient)
     assert client.get(BASE).json()[0]["name"] == "Renamed"
 
 
+def test_custom_watchlist_accepts_authoritative_nifty500_expansion(
+    client: TestClient,
+) -> None:
+    key = UUID(create(client, "Expanded Nifty 500 copy"))
+    base = instruments()[0]
+    expanded = tuple(
+        base.model_copy(
+            update={
+                "instrument_id": uuid5(NAMESPACE_URL, f"https://test.invalid/nifty500/{index}"),
+                "symbol": f"NIFTY500MEMBER{index:03d}",
+                "provider_symbol": f"NIFTY500MEMBER{index:03d}",
+            }
+        )
+        for index in range(501)
+    )
+    factory = cast(Any, client.app).state.session_factory
+    with factory() as db:
+        owner = db.scalar(select(User.id).where(User.username == "alice"))
+    assert owner is not None
+    result = WatchlistService(factory, owner).add(
+        key,
+        expanded,
+        SourceMetadata(
+            source="built_in_watchlist",
+            source_watchlist_code="NIFTY_500",
+            source_watchlist_name="Nifty 500",
+        ),
+    )
+    assert result == {"added": 501, "duplicates": 0}
+    assert client.get(f"{BASE}/{key}").json()["count"] == 501
+
+
 def test_owner_isolation_and_origin(client: TestClient) -> None:
     key = create(client)
     add(client, key)
     assert client.post(BASE, json={"name": "Without origin"}).status_code == 403
     login(client, "bob")
-    assert client.get(BASE).json() == []
+    bob_lists = client.get(BASE).json()
+    assert bob_lists
+    assert all(row["ownership_kind"] == "SYSTEM" for row in bob_lists)
     for suffix in ("", "/export", "/universe", "/quotes"):
         assert client.get(f"{BASE}/{key}{suffix}").status_code == 404
     assert (
@@ -590,3 +626,191 @@ def test_reference_cache_deduplicates_and_fences_owner_generation() -> None:
             assert manager.operations.wait_receipts.await_count == 3
 
     asyncio.run(run())
+
+
+def test_system_universe_definitions_and_bounded_parser() -> None:
+    from twf.watchlists.system import DEFINITIONS, SystemUniverseCatalog
+
+    enabled = [definition for definition in DEFINITIONS if definition.enabled]
+    pending = [definition for definition in DEFINITIONS if not definition.enabled]
+    assert [definition.name for definition in enabled] == [
+        "Nifty 500",
+        "Nifty Smallcap 250",
+        "Nifty Pharma",
+        "Nifty Energy",
+        "Nifty Midcap 100",
+        "Nifty Bank",
+        "Nifty Metal",
+        "Nifty Realty",
+    ]
+    assert {definition.name for definition in pending} == {"F&O 100", "F&O 50"}
+    assert all(definition.pending_reason == "Definition pending" for definition in pending)
+    assert all(
+        definition.constituent_url
+        and definition.constituent_url.startswith(
+            "https://nsearchives.nseindia.com/content/indices/"
+        )
+        for definition in enabled
+    )
+    assert SystemUniverseCatalog._parse_csv(
+        b"Company Name,Industry,Symbol,Series\nOne,IT,INFY,EQ\nTwo,Energy,RELIANCE,EQ\n"
+    ) == ("INFY", "RELIANCE")
+    with pytest.raises(WatchlistFailure, match="SYSTEM_UNIVERSE_SOURCE_INVALID"):
+        SystemUniverseCatalog._parse_csv(b"Company Name,Industry\nOne,IT\n")
+
+
+def test_system_universe_cache_stale_fallback_and_stable_identity() -> None:
+    from dataclasses import replace
+    from datetime import timedelta
+
+    from twf.watchlists.system import SystemUniverseCatalog
+
+    calls = 0
+
+    async def fetch(definition: Any) -> bytes:
+        nonlocal calls
+        calls += 1
+        if calls > 1:
+            raise RuntimeError("source unavailable")
+        return b"Company Name,Industry,Symbol,Series\nOne,IT,INFY,EQ\n"
+
+    async def run() -> None:
+        catalog = SystemUniverseCatalog(fetch)
+        definition, current = await catalog.membership("NIFTY_500")
+        assert current.symbols == ("INFY",) and current.freshness == "CURRENT"
+        assert (await catalog.membership(definition.id))[1] is current
+        catalog._cache[definition.code] = replace(
+            current, received_at=current.received_at - timedelta(days=2)
+        )
+        same, stale = await catalog.membership(str(definition.id))
+        assert same.id == definition.id
+        assert stale.symbols == ("INFY",) and stale.freshness == "STALE"
+        assert calls == 2
+
+    asyncio.run(run())
+
+
+def test_system_watchlists_are_global_read_only_and_copyable(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from types import SimpleNamespace
+    from typing import cast
+
+    from twf.watchlists.system import SystemUniverseCatalog
+
+    async def fetch(definition: Any) -> bytes:
+        return (
+            b"Company Name,Industry,Symbol,Series\n"
+            b"Reliance Industries,Energy,RELIANCE,EQ\n"
+            b"Infosys,IT,INFY,EQ\n"
+        )
+
+    app = cast(Any, client.app)
+    app.state.system_universes = SystemUniverseCatalog(fetch)
+    dhan = provider()
+    monkeypatch.setattr(
+        app.state.dhan_credentials,
+        "capture",
+        lambda *args, **kwargs: SimpleNamespace(
+            provider=dhan, status=SimpleNamespace(generation=7)
+        ),
+    )
+
+    rows = client.get(BASE).json()
+    systems = [row for row in rows if row["ownership_kind"] == "SYSTEM"]
+    assert len(systems) == 10
+    assert all(row["read_only"] and not row["archived"] for row in systems)
+    assert all(row["instrument_type_summary"] == ["EQUITY"] for row in systems if row["enabled"])
+    pending = [row for row in systems if not row["enabled"]]
+    assert {row["name"] for row in pending} == {"F&O 100", "F&O 50"}
+    assert all(row["availability"] == "DEFINITION_PENDING" for row in pending)
+
+    nifty = next(row for row in systems if row["system_code"] == "NIFTY_500")
+    detail = client.get(f"{BASE}/{nifty['id']}")
+    assert detail.status_code == 200, detail.text
+    body = detail.json()
+    assert body["ownership_kind"] == "SYSTEM" and body["read_only"] is True
+    assert body["instrument_type_summary"] == ["EQUITY"]
+    assert [item["instrument"]["symbol"] for item in body["items"]] == [
+        "RELIANCE",
+        "INFY",
+    ]
+    assert body["source_reference"].startswith("https://www.niftyindices.com/")
+    assert body["source_received_at"] and body["freshness"] == "CURRENT"
+
+    pending_detail = client.get(f"{BASE}/{pending[0]['id']}")
+    assert pending_detail.status_code == 409
+    assert pending_detail.json()["error"]["code"] == "SYSTEM_UNIVERSE_DEFINITION_PENDING"
+
+    target = create(client, "Built-in copy")
+    copied = client.post(
+        f"{BASE}/{nifty['id']}/copy",
+        headers=HEADERS,
+        json={"target_id": target, "all": True, "instrument_ids": []},
+    )
+    assert copied.status_code == 200 and copied.json() == {
+        "added": 2,
+        "duplicates": 0,
+    }
+    duplicate = client.post(
+        f"{BASE}/{nifty['id']}/copy",
+        headers=HEADERS,
+        json={
+            "target_id": target,
+            "all": False,
+            "instrument_ids": [body["items"][0]["instrument"]["instrument_id"]],
+        },
+    )
+    assert duplicate.json() == {"added": 0, "duplicates": 1}
+    copied_detail = client.get(f"{BASE}/{target}").json()
+    assert all(
+        item["source"]["source"] == "built_in_watchlist"
+        and item["source"]["source_watchlist_code"] == "NIFTY_500"
+        for item in copied_detail["items"]
+    )
+
+    identity = body["items"][0]["instrument"]["instrument_id"]
+    mutations = [
+        client.patch(f"{BASE}/{nifty['id']}", headers=HEADERS, json={"name": "Changed"}),
+        client.post(
+            f"{BASE}/{nifty['id']}/items",
+            headers=HEADERS,
+            json={"instrument_ids": [identity]},
+        ),
+        client.delete(f"{BASE}/{nifty['id']}/items/{identity}", headers=HEADERS),
+        client.post(
+            f"{BASE}/{nifty['id']}/remove",
+            headers=HEADERS,
+            json={"instrument_ids": [identity]},
+        ),
+        client.post(
+            f"{BASE}/{nifty['id']}/notes",
+            headers=HEADERS,
+            json={"text": "No mutation"},
+        ),
+        client.post(
+            f"{BASE}/{nifty['id']}/import",
+            headers=HEADERS,
+            json={"csv": "canonical_symbol\nNSE:RELIANCE\n"},
+        ),
+        client.post(
+            f"{BASE}/trash/restore",
+            headers=HEADERS,
+            json={"watchlist_ids": [nifty["id"]]},
+        ),
+        client.post(
+            f"{BASE}/trash/permanent-delete",
+            headers=HEADERS,
+            json={"watchlist_ids": [nifty["id"]]},
+        ),
+    ]
+    assert all(response.status_code == 409 for response in mutations)
+    assert all(
+        response.json()["error"]["code"] == "READ_ONLY_SYSTEM_WATCHLIST" for response in mutations
+    )
+
+    system_id = nifty["id"]
+    login(client, "bob")
+    bob_system = next(row for row in client.get(BASE).json() if row["system_code"] == "NIFTY_500")
+    assert bob_system["id"] == system_id
+    assert all(row["ownership_kind"] == "SYSTEM" for row in client.get(BASE).json())

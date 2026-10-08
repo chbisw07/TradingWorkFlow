@@ -106,7 +106,7 @@ export function ScannerWorkspace() {
       scannerApi<Run[]>("runs"),
     ]);
     setCatalog(c);
-    setLists(l.filter((x) => !x.archived));
+    setLists(l.filter((x) => !x.archived && x.enabled !== false));
     setSaved(s);
     setHistory(h);
   }
@@ -122,7 +122,27 @@ export function ScannerWorkspace() {
       return;
     void watchApi<WatchDetail>("/" + config.universe.watchlist_id)
       .then((x) => {
-        if (active) setMembers(x);
+        if (!active) return;
+        setMembers(x);
+        if (x.items.length > 20) {
+          setConfig((current) => {
+            if (
+              current.universe.source !== "WATCHLIST" ||
+              current.universe.watchlist_id !== x.id ||
+              current.universe.instrument_ids.length
+            )
+              return current;
+            return {
+              ...current,
+              universe: {
+                ...current.universe,
+                instrument_ids: x.items
+                  .slice(0, 20)
+                  .map((item) => item.instrument.instrument_id),
+              },
+            };
+          });
+        }
       })
       .catch((e) => {
         if (active) setError(e.message);
@@ -663,11 +683,24 @@ export function ScannerWorkspace() {
                       }}
                     >
                       <option value="">Choose watchlist</option>
-                      {lists.map((l) => (
-                        <option value={l.id} key={l.id}>
-                          {l.name} ({l.count} symbols)
-                        </option>
-                      ))}
+                      <optgroup label="My Watchlists">
+                        {lists
+                          .filter((l) => l.ownership_kind !== "SYSTEM")
+                          .map((l) => (
+                            <option value={l.id} key={l.id}>
+                              {l.name} ({l.count} symbols)
+                            </option>
+                          ))}
+                      </optgroup>
+                      <optgroup label="Built-in Watchlists">
+                        {lists
+                          .filter((l) => l.ownership_kind === "SYSTEM")
+                          .map((l) => (
+                            <option value={l.id} key={l.id}>
+                              {l.name} · Built-in ({l.count} constituents)
+                            </option>
+                          ))}
+                      </optgroup>
                     </select>,
                   )}
                   <input
@@ -704,12 +737,25 @@ export function ScannerWorkspace() {
                                 );
                                 return;
                               }
+                              if (
+                                e.target.checked &&
+                                !ids.includes(i.instrument.instrument_id) &&
+                                ids.length >= 20
+                              ) {
+                                setError("Select no more than 20 instruments.");
+                                return;
+                              }
                               setConfig({
                                 ...config,
                                 universe: {
                                   ...config.universe,
                                   instrument_ids: e.target.checked
-                                    ? [...ids, i.instrument.instrument_id]
+                                    ? Array.from(
+                                        new Set([
+                                          ...ids,
+                                          i.instrument.instrument_id,
+                                        ]),
+                                      )
                                     : ids.filter(
                                         (x) => x !== i.instrument.instrument_id,
                                       ),
@@ -1529,11 +1575,15 @@ export function ScannerWorkspace() {
                 >
                   <option value="">Choose watchlist</option>
                   <option value="new">Create new watchlist</option>
-                  {lists.map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {l.name}
-                    </option>
-                  ))}
+                  {lists
+                    .filter(
+                      (l) => l.ownership_kind !== "SYSTEM" && !l.read_only,
+                    )
+                    .map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.name}
+                      </option>
+                    ))}
                 </select>,
               )}
               {target === "new" &&

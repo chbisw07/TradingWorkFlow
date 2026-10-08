@@ -51,6 +51,25 @@ test("watchlists proxy preserves owner session, strips unrelated credentials and
       `http://api.example/api/v1/watchlists/trash/${action}`,
     );
   }
+  const copied = await POST(
+    new Request(`https://web.example/api/v1/watchlists/${id}/copy`, {
+      method: "POST",
+      headers: {
+        Origin: "https://web.example",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        target_id: id,
+        all: true,
+        instrument_ids: [],
+      }),
+    }),
+    { params: Promise.resolve({ path: [id, "copy"] }) },
+  );
+  expect(copied.status).toBe(200);
+  expect(fetcher.mock.calls.at(-1)![0]).toBe(
+    `http://api.example/api/v1/watchlists/${id}/copy`,
+  );
   for (const action of ["submit", "confirm", "dispatch", "delete"]) {
     const blocked = await POST(
       new Request(`https://web.example/api/v1/watchlists/${id}/${action}`, {
@@ -60,7 +79,7 @@ test("watchlists proxy preserves owner session, strips unrelated credentials and
     );
     expect(blocked.status).toBe(404);
   }
-  expect(fetcher).toHaveBeenCalledTimes(3);
+  expect(fetcher).toHaveBeenCalledTimes(4);
 });
 test("watchlist export preserves CSV content and input stays bounded", async () => {
   const fetcher = vi

@@ -72,6 +72,7 @@ with session_scope(create_session_factory(engine)) as session:
     for browser in ('chromium', 'webkit'):
         for width in (390,768,1024,1440,1920,2560):
             create_user(session, f'watchlist-{browser}-{width}', 'Watchlist Trader', 'test-only-browser-password')
+            create_user(session, f'builtin-{browser}-{width}', 'Built-in Watchlist Trader', 'test-only-browser-password')
             create_user(session, f'order-{browser}-{width}', 'Order Trader', 'test-only-browser-password')
             create_user(session, f'broker-{browser}-{width}', 'Broker Trader', 'test-only-browser-password')
             create_user(session, f'settings-{browser}-{width}', 'Settings Trader', 'test-only-browser-password')

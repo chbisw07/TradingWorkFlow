@@ -24,6 +24,7 @@ from twf.discovery.market_intelligence import (
 from twf.watchlists.catalog import WatchlistCatalog, kind
 from twf.watchlists.contracts import (
     AddItems,
+    CopySystemItems,
     CreateWatchlist,
     ImportItems,
     Kind,
@@ -37,6 +38,7 @@ from twf.watchlists.contracts import (
 from twf.watchlists.market import WatchlistHistoryCache, WatchlistQuoteCache
 from twf.watchlists.reference import ReferenceSnapshot, WatchlistReferenceCache
 from twf.watchlists.service import WatchlistFailure, WatchlistService
+from twf.watchlists.system import SystemUniverseCatalog
 
 router = APIRouter(prefix="/api/v1/watchlists", tags=["Watchlists"])
 
@@ -59,6 +61,54 @@ def catalog(request: Request, who: Who) -> WatchlistCatalog:
 Catalog = Annotated[WatchlistCatalog, Depends(catalog)]
 
 
+def systems(request: Request) -> SystemUniverseCatalog:
+    return cast(SystemUniverseCatalog, request.app.state.system_universes)
+
+
+def reject_system_write(key: UUID, request: Request) -> None:
+    if systems(request).definition(key) is not None:
+        raise WatchlistFailure("READ_ONLY_SYSTEM_WATCHLIST", 409)
+
+
+def system_provider(request: Request, who: Who) -> DhanMarketDataProvider:
+    credentials = cast(DhanCredentialManager, request.app.state.dhan_credentials)
+    capture = credentials.capture(who.owner_id, ready_only=True)
+    if not isinstance(capture.provider, DhanMarketDataProvider):
+        raise WatchlistFailure("DHAN_NOT_READY", 503)
+    return capture.provider
+
+
+async def snapshot_for(
+    key: UUID, service: WatchlistService, request: Request, who: Who
+) -> UniverseSnapshot:
+    definition = systems(request).definition(key)
+    if definition is not None:
+        if not definition.enabled:
+            raise WatchlistFailure("SYSTEM_UNIVERSE_DEFINITION_PENDING", 409)
+        return await systems(request).snapshot(key, system_provider(request, who))
+    return service.snapshot(key)
+
+
+def snapshot_csv(snapshot: UniverseSnapshot) -> str:
+    out = io.StringIO()
+    writer = csv.writer(out)
+    writer.writerow(["canonical_symbol", "exchange", "instrument_type", "trading_symbol"])
+    for item in snapshot.instruments:
+        values = [
+            f"{item.exchange}:{item.symbol}",
+            item.exchange,
+            kind(item),
+            item.symbol,
+        ]
+        writer.writerow(
+            [
+                "'" + value if value.startswith(("=", "+", "-", "@", "\t", "\r")) else value
+                for value in values
+            ]
+        )
+    return out.getvalue()
+
+
 async def watchlist_error(request: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, WatchlistFailure)
     response = error_response(
@@ -72,8 +122,8 @@ async def watchlist_error(request: Request, exc: Exception) -> JSONResponse:
 
 
 @router.get("")
-def lists(service: Service) -> list[dict[str, Any]]:
-    return service.list()
+def lists(service: Service, request: Request) -> list[dict[str, Any]]:
+    return [*service.list(), *systems(request).summaries()]
 
 
 @router.post("", dependencies=[Depends(require_origin)], status_code=201)
@@ -82,12 +132,16 @@ def create(payload: CreateWatchlist, service: Service) -> dict[str, Any]:
 
 
 @router.post("/trash/restore", dependencies=[Depends(require_origin)])
-def restore_many(payload: WatchlistSelection, service: Service) -> dict[str, int]:
+def restore_many(payload: WatchlistSelection, service: Service, request: Request) -> dict[str, int]:
+    for key in payload.watchlist_ids:
+        reject_system_write(key, request)
     return service.restore_many(payload.watchlist_ids)
 
 
 @router.post("/trash/permanent-delete", dependencies=[Depends(require_origin)])
-def delete_many(payload: WatchlistSelection, service: Service) -> dict[str, int]:
+def delete_many(payload: WatchlistSelection, service: Service, request: Request) -> dict[str, int]:
+    for key in payload.watchlist_ids:
+        reject_system_write(key, request)
     return service.delete_many(payload.watchlist_ids)
 
 
@@ -107,17 +161,35 @@ async def search(
 
 
 @router.get("/{key}")
-def detail(key: UUID, service: Service) -> dict[str, Any]:
+async def detail(key: UUID, service: Service, request: Request, who: Who) -> dict[str, Any]:
+    definition = systems(request).definition(key)
+    if definition is not None:
+        if not definition.enabled:
+            raise WatchlistFailure("SYSTEM_UNIVERSE_DEFINITION_PENDING", 409)
+        return await systems(request).detail(key, system_provider(request, who))
     return service.detail(key)
 
 
 @router.patch("/{key}", dependencies=[Depends(require_origin)])
-def update(key: UUID, payload: UpdateWatchlist, service: Service) -> dict[str, Any]:
+def update(
+    key: UUID, payload: UpdateWatchlist, service: Service, request: Request
+) -> dict[str, Any]:
+    reject_system_write(key, request)
     return service.update(key, payload)
 
 
-@router.post("/{key}/items", dependencies=[Depends(require_origin)])
-async def add(key: UUID, payload: AddItems, service: Service, catalog: Catalog) -> dict[str, Any]:
+@router.post(
+    "/{key}/items",
+    dependencies=[Depends(require_origin), Depends(reject_system_write)],
+)
+async def add(
+    key: UUID,
+    payload: AddItems,
+    service: Service,
+    catalog: Catalog,
+    request: Request,
+) -> dict[str, Any]:
+    reject_system_write(key, request)
     service.detail(key)  # Owner authorization BEFORE provider I/O; DB scope has closed.
     try:
         instruments = await catalog.resolve(payload.instrument_ids)
@@ -129,37 +201,82 @@ async def add(key: UUID, payload: AddItems, service: Service, catalog: Catalog) 
 
 
 @router.delete("/{key}/items/{instrument_id}", dependencies=[Depends(require_origin)])
-def remove(key: UUID, instrument_id: UUID, service: Service) -> dict[str, bool]:
+def remove(key: UUID, instrument_id: UUID, service: Service, request: Request) -> dict[str, bool]:
+    reject_system_write(key, request)
     service.remove(key, (instrument_id,))
     return {"removed": True}
 
 
 @router.post("/{key}/remove", dependencies=[Depends(require_origin)])
-def remove_many(key: UUID, payload: AddItems, service: Service) -> dict[str, bool]:
+def remove_many(
+    key: UUID, payload: AddItems, service: Service, request: Request
+) -> dict[str, bool]:
+    reject_system_write(key, request)
     service.remove(key, payload.instrument_ids)
     return {"removed": True}
 
 
 @router.post("/{key}/transfer", dependencies=[Depends(require_origin)])
-def transfer(key: UUID, payload: TransferItems, service: Service) -> dict[str, Any]:
+def transfer(
+    key: UUID, payload: TransferItems, service: Service, request: Request
+) -> dict[str, Any]:
+    reject_system_write(key, request)
+    reject_system_write(payload.target_id, request)
     return service.transfer(key, payload.target_id, payload.instrument_ids, payload.move)
 
 
+@router.post("/{key}/copy", dependencies=[Depends(require_origin)])
+async def copy_system_items(
+    key: UUID,
+    payload: CopySystemItems,
+    service: Service,
+    request: Request,
+    who: Who,
+) -> dict[str, Any]:
+    definition = systems(request).definition(key)
+    if definition is None:
+        raise WatchlistFailure("SYSTEM_WATCHLIST_REQUIRED", 422)
+    if not definition.enabled:
+        raise WatchlistFailure("SYSTEM_UNIVERSE_DEFINITION_PENDING", 409)
+    reject_system_write(payload.target_id, request)
+    service.detail(payload.target_id)  # Target owner authorization before provider I/O.
+    snapshot = await systems(request).snapshot(key, system_provider(request, who))
+    if payload.all:
+        instruments = snapshot.instruments
+    else:
+        wanted = set(payload.instrument_ids)
+        instruments = tuple(item for item in snapshot.instruments if item.instrument_id in wanted)
+        if len(instruments) != len(wanted):
+            raise WatchlistFailure("UNRESOLVED_INSTRUMENT", 422)
+    return service.add(
+        payload.target_id,
+        instruments,
+        SourceMetadata(
+            source="built_in_watchlist",
+            source_watchlist_id=definition.id,
+            source_watchlist_code=definition.code,
+            source_watchlist_name=definition.name,
+        ),
+    )
+
+
 @router.post("/{key}/notes", dependencies=[Depends(require_origin)], status_code=201)
-def note(key: UUID, payload: NoteInput, service: Service) -> dict[str, bool]:
+def note(key: UUID, payload: NoteInput, service: Service, request: Request) -> dict[str, bool]:
+    reject_system_write(key, request)
     service.note(key, payload.text)
     return {"saved": True}
 
 
 @router.get("/{key}/universe")
-def universe(key: UUID, service: Service) -> UniverseSnapshot:
-    return service.snapshot(key)
+async def universe(key: UUID, service: Service, request: Request, who: Who) -> UniverseSnapshot:
+    return await snapshot_for(key, service, request, who)
 
 
 @router.get("/{key}/export")
-def export(key: UUID, service: Service) -> Response:
+async def export(key: UUID, service: Service, request: Request, who: Who) -> Response:
+    snapshot = await snapshot_for(key, service, request, who)
     return Response(
-        service.export(key),
+        snapshot_csv(snapshot),
         media_type="text/csv",
         headers={
             "Content-Disposition": 'attachment; filename="watchlist.csv"',
@@ -168,10 +285,18 @@ def export(key: UUID, service: Service) -> Response:
     )
 
 
-@router.post("/{key}/import", dependencies=[Depends(require_origin)])
+@router.post(
+    "/{key}/import",
+    dependencies=[Depends(require_origin), Depends(reject_system_write)],
+)
 async def import_csv(
-    key: UUID, payload: ImportItems, service: Service, catalog: Catalog
+    key: UUID,
+    payload: ImportItems,
+    service: Service,
+    catalog: Catalog,
+    request: Request,
 ) -> dict[str, Any]:
+    reject_system_write(key, request)
     service.detail(key)
     try:
         rows = list(csv.DictReader(io.StringIO(payload.csv)))
@@ -202,7 +327,7 @@ async def import_csv(
 
 @router.get("/{key}/quotes")
 async def quotes(key: UUID, service: Service, request: Request, who: Who) -> dict[str, Any]:
-    snapshot = service.snapshot(key)
+    snapshot = await snapshot_for(key, service, request, who)
     credentials = cast(DhanCredentialManager, request.app.state.dhan_credentials)
     capture = credentials.capture(who.owner_id, ready_only=True)
     cache = cast(WatchlistQuoteCache, request.app.state.watchlist_quotes)
@@ -220,7 +345,7 @@ async def chart(
     who: Who,
     period: str = Query(default="1M", pattern="^(1D|1W|1M|3M|1Y)$"),
 ) -> dict[str, Any]:
-    snapshot = service.snapshot(key)
+    snapshot = await snapshot_for(key, service, request, who)
     instrument = next((i for i in snapshot.instruments if i.instrument_id == instrument_id), None)
     if instrument is None:
         raise WatchlistFailure("INSTRUMENT_NOT_FOUND", 404)
@@ -252,7 +377,7 @@ class WatchlistNews(TapTideMarketIntelligence):
 async def news(
     key: UUID, instrument_id: UUID, service: Service, request: Request, who: Who, manager: Manager
 ) -> MarketIntelligenceBatch:
-    snapshot = service.snapshot(key)
+    snapshot = await snapshot_for(key, service, request, who)
     instrument = next((i for i in snapshot.instruments if i.instrument_id == instrument_id), None)
     if instrument is None:
         raise WatchlistFailure("INSTRUMENT_NOT_FOUND", 404)
@@ -265,7 +390,7 @@ async def news(
 async def broker_instrument(
     key: UUID, instrument_id: UUID, account_id: UUID, service: Service, request: Request, who: Who
 ) -> Instrument:
-    snapshot = service.snapshot(key)
+    snapshot = await snapshot_for(key, service, request, who)
     selected = next((i for i in snapshot.instruments if i.instrument_id == instrument_id), None)
     if selected is None or kind(selected) == "INDEX":
         raise WatchlistFailure("NON_TRADABLE_INSTRUMENT", 422)
@@ -319,7 +444,7 @@ async def broker_instrument(
 async def reference(
     key: UUID, instrument_id: UUID, service: Service, request: Request, who: Who, manager: Manager
 ) -> ReferenceSnapshot:
-    snapshot = service.snapshot(key)
+    snapshot = await snapshot_for(key, service, request, who)
     instrument = next((i for i in snapshot.instruments if i.instrument_id == instrument_id), None)
     if instrument is None:
         raise WatchlistFailure("INSTRUMENT_NOT_FOUND", 404)

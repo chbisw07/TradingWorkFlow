@@ -305,3 +305,90 @@ def test_quote_loss_does_not_block_daily_scanning(
     ).json()
     assert quote["counts"]["not_evaluated"] == 1
     assert quote["rows"][0]["quote_failure"]
+
+
+def test_built_in_watchlist_scan_persists_immutable_resolved_snapshot(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from types import SimpleNamespace
+    from typing import cast
+
+    from twf.watchlists.system import SystemUniverseCatalog
+
+    async def fetch(definition: Any) -> bytes:
+        return (
+            b"Company Name,Industry,Symbol,Series\n"
+            b"Reliance Industries,Energy,RELIANCE,EQ\n"
+            b"Infosys,IT,INFY,EQ\n"
+        )
+
+    app = cast(Any, client.app)
+    app.state.system_universes = SystemUniverseCatalog(fetch)
+    live = provider()
+
+    async def history(instrument: Any, interval: str, **kwargs: Any) -> Any:
+        if instrument.symbol == "INFY":
+            raise MarketDataFailure(MarketDataErrorCode.RATE_LIMITED)
+        value = series(
+            [float(n) for n in range(100, 401)],
+            instrument=instrument,
+            interval="1d",
+            step=86400,
+        )
+        return value.model_copy(
+            update={
+                "provenance": value.provenance.model_copy(
+                    update={
+                        "mode": SourceMode.EOD,
+                        "producer": value.provenance.producer.model_copy(
+                            update={"provider": "dhan"}
+                        ),
+                    }
+                )
+            }
+        )
+
+    monkeypatch.setattr(live, "get_ohlcv", history)
+    monkeypatch.setattr(
+        app.state.dhan_credentials,
+        "capture",
+        lambda *args, **kwargs: SimpleNamespace(
+            provider=live, status=SimpleNamespace(generation=11)
+        ),
+    )
+    built_in = next(
+        row for row in client.get("/api/v1/watchlists").json() if row["system_code"] == "NIFTY_500"
+    )
+    requested = config(universe={"source": "WATCHLIST", "watchlist_id": built_in["id"]})
+    response = client.post(BASE + "/runs", json=requested, headers=HEADERS)
+    assert response.status_code == 200, response.text
+    run = response.json()
+    assert run["counts"] == {
+        "requested": 2,
+        "resolved": 2,
+        "evaluated": 1,
+        "not_evaluated": 1,
+        "matches": 1,
+    }
+    snapshot = run["universe_snapshot"]
+    assert snapshot["ownership_kind"] == "SYSTEM"
+    assert snapshot["system_code"] == "NIFTY_500"
+    assert snapshot["source_reference"].startswith("https://www.niftyindices.com/")
+    assert [item["symbol"] for item in snapshot["instruments"]] == [
+        "RELIANCE",
+        "INFY",
+    ]
+    persisted = client.get(BASE + "/runs/" + run["id"]).json()
+    assert persisted["universe_snapshot"] == snapshot
+
+    target_system = BASE + "/runs/" + run["id"] + "/watchlists/" + built_in["id"]
+    identity = next(
+        row["instrument"]["instrument_id"] for row in run["rows"] if row["outcome"] == "MATCH"
+    )
+    rejected = client.post(
+        target_system,
+        headers=HEADERS,
+        json={"instrument_ids": [identity]},
+    )
+    assert rejected.status_code == 409
+    assert rejected.json()["error"]["code"] == "READ_ONLY_SYSTEM_WATCHLIST"

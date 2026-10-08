@@ -6,6 +6,47 @@ The approved Watchlists reference is the visual target. This is a TWF-owned
 collection workspace at `/watchlists`, independent of broker watchlists and of
 Scan & Discover candidate lifecycle. It uses the existing application shell.
 
+## Built-in system universes and custom lists
+
+Watchlists now has two explicit ownership classes. `USER` lists are the existing
+owner-scoped, editable database collections. `SYSTEM` lists are application-owned
+`SystemUniverseDefinition` records with deterministic stable IDs, display metadata,
+source references and a read-only policy. System membership is resolved centrally;
+it is not copied into every owner's database. This extension adds no database table
+or migration.
+
+The enabled built-ins are Nifty 500, Nifty Smallcap 250, Nifty Pharma, Nifty
+Energy, Nifty Midcap 100, Nifty Bank, Nifty Metal and Nifty Realty. Their
+constituent files come from the official NSE Archives static CSV resources,
+with the corresponding NSE Indices page retained as human-readable provenance.
+Runtime fetches read the published CSV resource directly and never scrape an HTML page. Downloads are bounded to 512 KiB
+and 600 unique canonical symbols, use an eight-second timeout, reject redirects
+and invalid schemas, and are single-flight per universe. Successful membership is
+cached for 24 hours. If refresh fails, the last successful membership may be used
+for at most seven days and is labeled `STALE`; without an eligible cache the read
+fails truthfully. Source reference, receipt time, freshness and unresolved count are
+returned to the UI.
+
+Membership symbols are resolved through the current owner's Dhan security master
+to exact NSE equity identities. Missing or ambiguous identities are omitted and the
+list is marked `PARTIAL`; membership is never fabricated. F&O 100 and F&O 50 are
+visible disabled TWF system-universe definitions marked **Definition pending**. No
+accepted repository/provider eligibility source exists, so they have no invented
+constituents and are not presented as official indices.
+
+The navigator separates **My Watchlists** from **Built-in Watchlists**. Built-ins
+show a lock/Built-in badge plus chips derived from actual member types. Official
+index constituent lists contain equities and therefore show `EQ`, not `IDX`. The
+cyan/blue family identifies `EQ` and `IDX`; magenta/purple identifies `FUT` and
+`OPT`, with text retained for accessibility. Built-ins permit inspection, search,
+charts, export, existing Broker V2 preview handoff, and copying selected/all members
+to a custom list. Rename, description edits, direct add/remove/import, notes,
+archive, Trash and permanent deletion return `READ_ONLY_SYSTEM_WATCHLIST` at the
+API boundary. Copy is one bounded bulk request (maximum 500 selected identities or 600 for an all-constituent system copy), targets
+custom lists only, preserves existing contents, reports duplicates, and records
+optional source-list provenance; copied members become ordinary editable custom
+items.
+
 ## Ownership and persistence
 
 Migration `0017_watchlists` follows `0016_dhan_market_data_credentials` and adds:
@@ -24,7 +65,7 @@ transfers lock the two parents in stable ID order. A database unique constraint 
 `(watchlist_id, instrument_id)` also prevents duplicate membership. Provider calls
 run after authorization transactions have closed. No database lock spans I/O.
 
-Bounds: 100 lists per owner including Trash, 500 items per list, 100 instruments per
+Bounds: 100 lists per owner including Trash, 600 items per list, 100 instruments per
 add/import/transfer, 32 KiB CSV, 80-character names, 240-character descriptions,
 200 notes per list, 2,000 characters per note. Detail reads return the latest 50
 notes and 30 activity events. Names need not be unique. Favorites precede stable
@@ -170,10 +211,11 @@ and content type, allowlists paths/methods, bounds request size, and disables ca
 | GET / POST  | root                                            | List / create                                           |
 | GET         | `/instruments`                                  | Bounded catalog search                                  |
 | GET / PATCH | `/{id}`                                         | Detail / rename, description, favorite, archive/restore |
-| POST        | `/{id}/items`                                   | Canonical IDs and optional source metadata              |
+| POST        | `/{id}/items`                                   | Canonical IDs and optional source metadata; custom only |
 | DELETE      | `/{id}/items/{instrument_id}`                   | Remove one                                              |
 | POST        | `/{id}/remove`, `/{id}/transfer`                | Bounded bulk remove or atomic move/copy                 |
-| POST        | `/{id}/notes`, `/{id}/import`                   | Note / CSV import with summary                          |
+| POST        | `/{id}/copy`                                    | Copy selected/all system members into a custom list     |
+| POST        | `/{id}/notes`, `/{id}/import`                   | Note / CSV import with summary; custom only             |
 | GET         | `/{id}/export`, `/{id}/universe`                | CSV / immutable universe snapshot                       |
 | GET         | `/{id}/quotes`                                  | Batched market overlay                                  |
 | GET         | `/{id}/items/{instrument_id}/chart`             | Cached Dhan history and shared row/detail metrics       |
@@ -181,19 +223,23 @@ and content type, allowlists paths/methods, bounds request size, and disables ca
 | GET         | `/{id}/items/{instrument_id}/news`              | Optional bounded normalized intelligence                |
 | GET         | `/{id}/items/{instrument_id}/broker-instrument` | Exact selected-account execution mapping                |
 
-## Future Scanner and Discovery contracts
+## Scanner and Discovery contracts
 
 `POST /{id}/items` accepts `instrument_ids` and `source_metadata` with `source`
-(`manual`, `import`, `scanner`, `discovery`), optional `run_id` and `candidate_id`.
-These references are collection provenance, not imported candidate state. Copy/move
-preserves the original metadata. Watchlists contains no “Add from Scanner” or
-“Add from Discovery” controls and does not query those modules.
+(`manual`, `import`, `scanner`, `discovery`, `built_in_watchlist`), optional `run_id`,
+`candidate_id`, and source-system-list identity. These references are collection
+provenance, not imported candidate state. Custom-list copy/move preserves metadata.
 
-`WatchlistService.snapshot()` / `GET /{id}/universe` returns a frozen
-`UniverseSnapshot` containing list ID, revision, capture time and resolved immutable
-instrument identities. A future scanner caller must persist that snapshot in its
-run, never reconstruct historical universe truth from the subsequently edited list.
-No scanner send action or new scanner universe option is wired in this task.
+Scanner V2 consumes custom and system lists through the same provider-neutral
+`WATCHLIST` universe source. Disabled definitions are excluded. Because Scanner V2
+has a 20-instrument execution bound, a large built-in opens with a visible first-20
+selection that the user can refine. Execution resolves current membership and
+persists the complete `UniverseSnapshot` (name, ownership class, system code,
+revision, source reference/time and immutable canonical identities) with the run;
+the selected IDs in the scan configuration identify the exact evaluated subset.
+Future constituent refreshes cannot rewrite historical run truth. Scanner result
+handoff accepts custom destinations only, and the API independently rejects a
+system target. Discovery's existing inbound provenance remains unchanged.
 
 ## Selected-instrument production presentation
 

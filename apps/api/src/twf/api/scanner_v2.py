@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Request
 
 from twf.api.auth import require_origin
 from twf.api.mcp import Manager, Who
-from twf.api.watchlists import WatchlistNews
+from twf.api.watchlists import WatchlistNews, reject_system_write
 from twf.brokers.contracts import Instrument
 from twf.brokers.order_service import OrderService, executable
 from twf.brokers.service import Principal
@@ -26,7 +26,11 @@ router = APIRouter(prefix="/api/v1/scanner", tags=["Scanner V2"])
 
 
 def service(request: Request, who: Who) -> ScannerService:
-    return ScannerService(request.app.state.session_factory, who.owner_id)
+    return ScannerService(
+        request.app.state.session_factory,
+        who.owner_id,
+        request.app.state.system_universes,
+    )
 
 
 @router.get("/catalog")
@@ -130,6 +134,7 @@ def instrument(request: Request, who: Who, key: UUID, identity: UUID) -> Instrum
 def add(
     key: UUID, watchlist_id: UUID, payload: AddItems, request: Request, who: Who
 ) -> dict[str, Any]:
+    reject_system_write(watchlist_id, request)
     record = service(request, who).run(key)
     matches = {
         UUID(r["instrument"]["instrument_id"]): InstrumentIdentity.model_validate(r["instrument"])
