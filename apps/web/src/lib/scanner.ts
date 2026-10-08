@@ -7,6 +7,14 @@ export type Filter = {
   version: "1";
   source: "internal" | "tapetide";
 };
+export type ContextMode = "OFF" | "RANKING" | "HARD_FILTER";
+export type ContextFilter = {
+  field: string;
+  operator: "equals" | "not_equals";
+  value: string;
+  source: "market_context";
+  version: "1";
+};
 export type Config = {
   name: string;
   scanner_type: "EQUITY_INDEX";
@@ -19,13 +27,73 @@ export type Config = {
     instrument_ids: string[];
   };
   filters: Filter[];
+  context_mode: ContextMode;
+  context_filters: ContextFilter[];
   sort: string;
   version: "1";
+};
+export type ContextEvidence = {
+  dimension: string;
+  state: string;
+  detail: string;
+  provider: string | null;
+  provider_tool: string | null;
+  source_time: string | null;
+  received_at: string | null;
+  freshness: string;
+};
+export type AnalysisPacket = {
+  run_id: string;
+  candidate_instrument_id: string | null;
+  candidate_symbol: string;
+  analyzed_at: string;
+  setup_direction: string;
+  matched: boolean;
+  technical_match: boolean;
+  technical_evidence: {
+    passed: number;
+    total: number;
+    diagnostics: ScanRow["diagnostics"];
+  };
+  technical_score: number;
+  context_mode: ContextMode;
+  context_status: string;
+  context_coverage: string;
+  context_contributions: {
+    factor: string;
+    observed_state: string;
+    interpretation: string;
+    contribution: number;
+    explanation: string;
+    source: string | null;
+    freshness: string;
+  }[];
+  supporting_factors: string[];
+  contradicting_factors: string[];
+  neutral_factors: string[];
+  missing_evidence: string[];
+  context_adjustment: number;
+  final_relevance: number;
+  context_classification: string;
+  short_reason: string;
+  provenance: ContextEvidence[];
+  warnings: string[];
+  context_filter_diagnostics: {
+    filter: ContextFilter;
+    observed: string;
+    threshold: string;
+    passed: boolean;
+    reason: string;
+  }[];
 };
 export type ScanRow = {
   symbol: string;
   instrument?: WatchInstrument;
   outcome: "MATCH" | "NON_MATCH" | "NOT_EVALUATED";
+  matched?: boolean;
+  technical_match?: boolean;
+  context_rejected?: boolean;
+  analysis?: AnalysisPacket;
   failure?: string;
   metrics?: Record<string, number | string | null>;
   bars?: WatchBar[];
@@ -54,6 +122,18 @@ export type Run = {
   market_data_provider: string;
   counts: Record<string, number>;
   rows: ScanRow[];
+  context_snapshot?: {
+    as_of: string;
+    provider: string | null;
+    status: string;
+    source_health: string;
+    coverage_count: number;
+    dimension_count: number;
+    missing_dimensions: string[];
+    warnings: string[];
+    evidence: ContextEvidence[];
+  } | null;
+  analysis_contract?: string;
 };
 export type Saved = {
   id: string;
@@ -88,6 +168,7 @@ export type FilterField = {
 };
 export type Catalog = {
   fields: FilterField[];
+  context_fields?: FilterField[];
   templates: { name: string; filters: Filter[] }[];
   universes: Record<string, boolean>;
   universe_limitation: string;
@@ -198,6 +279,8 @@ export const initialConfig: Config = {
       source: "internal",
     },
   ],
-  sort: "symbol",
+  context_mode: "RANKING",
+  context_filters: [],
+  sort: "relevance",
   version: "1",
 };

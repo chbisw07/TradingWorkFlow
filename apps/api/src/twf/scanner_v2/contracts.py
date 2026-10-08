@@ -33,6 +33,12 @@ class FilterFieldType(StrEnum):
     DIRECTION = "DIRECTION"
 
 
+class ContextMode(StrEnum):
+    OFF = "OFF"
+    RANKING = "RANKING"
+    HARD_FILTER = "HARD_FILTER"
+
+
 NUMERIC_OPERATORS: tuple[Operator, ...] = (
     ">",
     ">=",
@@ -266,6 +272,90 @@ FIELD_SPECS: dict[str, FilterFieldSpec] = {
 
 FIELDS = {key: (spec.category, spec.label) for key, spec in FIELD_SPECS.items()}
 
+CONTEXT_FIELD_SPECS: dict[str, FilterFieldSpec] = {
+    "broad_regime": FilterFieldSpec(
+        "Market Context",
+        "Broad market regime",
+        FilterFieldType.ENUM,
+        ENUM_OPERATORS,
+        "equals",
+        "BULLISH",
+        enum_values=("STRONGLY_BULLISH", "BULLISH", "NEUTRAL", "BEARISH", "STRONGLY_BEARISH"),
+    ),
+    "sector_strength": FilterFieldSpec(
+        "Market Context",
+        "Sector strength",
+        FilterFieldType.ENUM,
+        ENUM_OPERATORS,
+        "equals",
+        "STRONG",
+        enum_values=("STRONG", "SUPPORTIVE", "NEUTRAL", "WEAK"),
+    ),
+    "sector_rotation": FilterFieldSpec(
+        "Market Context",
+        "Sector rotation",
+        FilterFieldType.ENUM,
+        ENUM_OPERATORS,
+        "equals",
+        "IMPROVING",
+        enum_values=("IMPROVING", "STABLE", "DETERIORATING"),
+    ),
+    "vix_state": FilterFieldSpec(
+        "Market Context",
+        "India VIX state",
+        FilterFieldType.ENUM,
+        ENUM_OPERATORS,
+        "not_equals",
+        "HIGH",
+        enum_values=("LOW", "NORMAL", "ELEVATED", "HIGH"),
+    ),
+    "fii_state": FilterFieldSpec(
+        "Market Context",
+        "FII flow",
+        FilterFieldType.ENUM,
+        ENUM_OPERATORS,
+        "equals",
+        "POSITIVE",
+        enum_values=("STRONGLY_POSITIVE", "POSITIVE", "MIXED", "NEGATIVE", "STRONGLY_NEGATIVE"),
+    ),
+    "dii_state": FilterFieldSpec(
+        "Market Context",
+        "DII flow",
+        FilterFieldType.ENUM,
+        ENUM_OPERATORS,
+        "equals",
+        "POSITIVE",
+        enum_values=("STRONGLY_POSITIVE", "POSITIVE", "MIXED", "NEGATIVE", "STRONGLY_NEGATIVE"),
+    ),
+    "net_institutional_state": FilterFieldSpec(
+        "Market Context",
+        "Net institutional flow",
+        FilterFieldType.ENUM,
+        ENUM_OPERATORS,
+        "equals",
+        "POSITIVE",
+        enum_values=("STRONGLY_POSITIVE", "POSITIVE", "MIXED", "NEGATIVE", "STRONGLY_NEGATIVE"),
+    ),
+    "breadth": FilterFieldSpec(
+        "Market Context",
+        "Market breadth",
+        FilterFieldType.ENUM,
+        ENUM_OPERATORS,
+        "not_equals",
+        "WEAK",
+        enum_values=("STRONG", "POSITIVE", "MIXED", "WEAK"),
+    ),
+    "event_news_risk": FilterFieldSpec(
+        "Market Context",
+        "Event / news risk",
+        FilterFieldType.ENUM,
+        ENUM_OPERATORS,
+        "not_equals",
+        "HIGH_RISK",
+        enum_values=("POSITIVE_CATALYST", "SUPPORTIVE", "NEUTRAL", "CAUTION", "HIGH_RISK"),
+    ),
+}
+
 
 def compatible_comparison_fields(field: str) -> tuple[str, ...]:
     spec = FIELD_SPECS[field]
@@ -362,6 +452,25 @@ class UniverseSource(Contract):
         return self
 
 
+class ContextFilter(Contract):
+    field: str
+    operator: Literal["equals", "not_equals"] = "equals"
+    value: str
+    source: Literal["market_context"] = "market_context"
+    version: Literal["1"] = "1"
+
+    @model_validator(mode="after")
+    def valid(self) -> Self:
+        spec = CONTEXT_FIELD_SPECS.get(self.field)
+        if (
+            spec is None
+            or self.operator not in spec.operators
+            or self.value not in spec.enum_values
+        ):
+            raise ValueError("Unsupported Market Context predicate")
+        return self
+
+
 class ScanConfig(Contract):
     name: str = Field(default="Untitled scan", min_length=1, max_length=80)
     scanner_type: Literal["EQUITY_INDEX"] = "EQUITY_INDEX"
@@ -369,13 +478,19 @@ class ScanConfig(Contract):
     provider: Literal["dhan"] = "dhan"
     universe: UniverseSource
     filters: tuple[Filter, ...] = Field(min_length=1, max_length=12)
-    sort: Literal["symbol", "change", "volume", "rsi", "relevance"] = "symbol"
+    context_mode: ContextMode = ContextMode.RANKING
+    context_filters: tuple[ContextFilter, ...] = Field(default=(), max_length=9)
+    sort: Literal["symbol", "change", "volume", "rsi", "relevance"] = "relevance"
     version: Literal["1"] = "1"
 
     @model_validator(mode="after")
     def unique(self) -> Self:
         if len({f.model_dump_json() for f in self.filters}) != len(self.filters):
             raise ValueError("Duplicate filters")
+        if len({f.model_dump_json() for f in self.context_filters}) != len(self.context_filters):
+            raise ValueError("Duplicate Market Context filters")
+        if self.context_mode != ContextMode.HARD_FILTER and self.context_filters:
+            raise ValueError("Market Context predicates require Hard filter mode")
         return self
 
 

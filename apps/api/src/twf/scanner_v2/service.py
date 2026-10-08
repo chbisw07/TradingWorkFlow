@@ -18,6 +18,7 @@ from twf.discovery.market_data import (
     MarketDataProvider,
 )
 from twf.infrastructure.scanner_v2 import SavedScannerRow, ScannerRunRow
+from twf.scanner_v2.context import MarketContextSnapshot, analyze_candidate, infer_direction
 from twf.scanner_v2.contracts import SavedInput, ScanConfig
 from twf.scanner_v2.engine import evaluate
 from twf.watchlists.catalog import kind
@@ -142,6 +143,7 @@ class ScannerService:
         generation: int,
         cache: ScannerHistory,
         reference: Callable[[InstrumentIdentity], Awaitable[dict[str, Any]]] | None = None,
+        context: Callable[[], Awaitable[MarketContextSnapshot]] | None = None,
     ) -> dict[str, Any]:
         source = config.universe
         if source.source not in {"CUSTOM", "WATCHLIST"}:
@@ -293,6 +295,38 @@ class ScannerService:
                     row.update(outcome="NOT_EVALUATED", failure="TIMEOUT")
                 rows.append(row)
         key = uuid4()
+        context_snapshot = await context() if context is not None else None
+        if context_snapshot is not None:
+            direction = infer_direction(config.filters)
+            for row in rows:
+                if row.get("outcome") == "NOT_EVALUATED":
+                    row["matched"] = False
+                    row["technical_match"] = False
+                    continue
+                analysis = analyze_candidate(
+                    row["symbol"],
+                    row,
+                    context_snapshot,
+                    config.context_mode,
+                    config.context_filters,
+                    direction,
+                    now,
+                    str(key),
+                    str(row["instrument"]["instrument_id"]) if row.get("instrument") else None,
+                )
+                row["analysis"] = analysis.model_dump(mode="json")
+                row["matched"] = analysis.matched
+                row["technical_match"] = analysis.technical_match
+                if analysis.technical_match and not analysis.matched:
+                    row["outcome"] = "NON_MATCH"
+                    row["context_rejected"] = True
+            if config.sort == "relevance":
+                rows.sort(
+                    key=lambda row: (
+                        -int(row.get("analysis", {}).get("final_relevance", 0)),
+                        str(row["symbol"]),
+                    )
+                )
         result = {
             "id": str(key),
             "created_at": now.isoformat(),
@@ -303,6 +337,10 @@ class ScannerService:
             "generation": generation,
             "universe_snapshot": snapshot
             or {"instruments": [i.model_dump(mode="json") for i in instruments]},
+            "context_snapshot": context_snapshot.model_dump(mode="json")
+            if context_snapshot is not None
+            else None,
+            "analysis_contract": "scanner.context.v1",
             "counts": {
                 "requested": requested,
                 "resolved": sum(bool(r["resolved"]) for r in rows),

@@ -179,6 +179,12 @@
 .sc-basis {
   font-size: 10px;
 }
+.sc-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 .sc-table {
   width: 100%;
   border-collapse: collapse;
@@ -288,14 +294,19 @@
   margin-top: 20px;
 }
 .sc-tabs {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 5px;
   border-bottom: 1px solid var(--shell-border);
   margin: 15px 0;
 }
 .sc-tabs button {
+  min-width: 0;
+  padding-inline: 5px;
   border: 0;
   border-radius: 0;
+  font-size: 10px;
+  overflow-wrap: anywhere;
 }
 .sc-tabs [aria-selected="true"] {
   color: #0878ef;
@@ -514,5 +525,77 @@
     font-size: 10px;
     color: var(--shell-muted);
     margin-bottom: 4px;
+  }
+}
+.sc-context-modes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  margin: 8px 0;
+}
+.sc-context-modes button {
+  width: auto;
+  margin: 0;
+  padding: 7px 3px;
+  text-align: center;
+}
+.sc-context-modes button[aria-pressed="true"] {
+  background: #e7f2ff;
+  color: #0862c1;
+  border-color: #72aef0;
+}
+.sc-context-builder fieldset {
+  margin: 10px 0 0;
+}
+.sc-context-chip {
+  border-color: #72aef0 !important;
+  background: #eef6ff !important;
+}
+.sc-context-summary {
+  margin: 8px 0;
+  padding: 8px;
+  border-left: 3px solid #2477f2;
+  background: var(--shell-bg);
+  font-size: 11px;
+}
+.sc-reason {
+  display: grid;
+  gap: 5px;
+  max-width: 250px;
+  line-height: 1.45;
+}
+.sc-reason button {
+  width: max-content;
+  padding: 3px 6px;
+  color: #0878ef;
+  border: 0;
+  background: transparent;
+  text-decoration: underline;
+}
+.sc-analysis section {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--shell-border);
+}
+.sc-context-list article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 3px 8px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--shell-border);
+}
+.sc-context-list article > p,
+.sc-context-list article > small {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.sc-context-list article > strong {
+  text-transform: capitalize;
+}
+@media (max-width: 800px) {
+  .sc-context-modes {
+    grid-template-columns: 1fr;
+  }
+  .sc-reason {
+    max-width: none;
   }
 }

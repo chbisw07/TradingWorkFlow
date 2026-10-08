@@ -254,3 +254,47 @@ Open `/scanners`, select **Watchlist → My Core**, load a template, inspect/edi
 Two validation collections were intentionally added by the authorized live handoff: **Scanner V2 validation** (2 instruments) and **Scanner V2 all results validation** (4 instruments). They may be retained or moved to Trash through the existing Watchlists UI.
 
 Implementation is ready for user validation of the documented scope. It is not accepted or frozen. No commit, tag or push was performed.
+
+## X. Market Context ranking and explainable analysis
+
+Scanner matching and relevance are separate contracts. Instrument predicates over Dhan data determine `technical_match`. A matched row receives the current V1 technical baseline of 80; this is a deterministic ordering basis, not a probability, confidence score, or mature technical-quality model. Market Context contributes a signed adjustment and final relevance is `clamp(technical_score + context_adjustment, 0, 100)`. In **Ranking** mode an adverse context never changes a technical match into a non-match. **Hard filter** can reject a technical match only when an explicit user-selected context predicate fails. **Off** performs no Market Intelligence acquisition and contributes zero. Ranking is the default for new and legacy configurations.
+
+The backend acquires one bounded, scan-level provider-neutral `MarketContextSnapshot` after Dhan technical evaluation. TapTide is the current optional implementation and its operation has a 30-second total bound. The existing owner/connection/generation-fenced normalized snapshot cache may reuse an available or stale batch for at most 300 seconds. That interval only bounds request reuse; it is not a shared freshness policy for every dimension. Every claim still retains its independent provider source time and freshness. There are no candidate-level context calls or retries. TapTide failure produces `PARTIAL` or `UNAVAILABLE`; it does not fail or reinterpret Dhan evaluation. The snapshot and every `CandidateAnalysisPacket` are stored inside the immutable Scanner run JSON, so opening history uses the evidence and scores captured at execution time. No current-context refresh rewrites a historical result. Raw MCP/provider envelopes and credentials are not persisted in Scanner domain records.
+
+### V1 dimensions and truthful source boundaries
+
+| Dimension                  | V1 normalized contract                                                 | Current reliable source / limitation                                                                                                                                                                   |
+| -------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Broad market regime        | Strongly bullish through strongly bearish, or unknown                  | **Not available:** current accepted TapTide index evidence is sectoral and cannot establish an authoritative NIFTY/BANKNIFTY regime. Remains `UNKNOWN`.                                                |
+| Sector strength / rotation | Strength, relative strength and rotation state, or unknown             | **Not available:** no accepted candidate-to-sector map plus comparable sector series. No sector is guessed.                                                                                            |
+| India VIX                  | Low, normal, elevated, high, or unknown                                | TapTide normalized volatility/pulse claim. Thresholds: low below 12, normal 12 to below 18, elevated 18 to below 25, high 25 or above.                                                                 |
+| Institutional flows        | FII, DII and net state, or unknown                                     | TapTide normalized market-flow/pulse claim. V1 uses the supplied current values. Rolling velocity and streak remain explicit `UNKNOWN` because the provider contract does not supply accepted history. |
+| Market breadth             | Strong, positive, mixed, weak, or unknown                              | **Not available:** no authoritative advance/decline or complete-constituent participation source. Remains `UNKNOWN`.                                                                                   |
+| Event/news risk            | Positive catalyst, supportive, neutral, caution, high risk, or unknown | Only an explicit provider-supplied normalized sentiment is used. Headline text is never classified with string heuristics. Current coverage can therefore be partial or unknown.                       |
+
+Missing dimensions contribute exactly zero and remain listed in `missing_evidence`. They are never treated as neutral, positive, or negative observations. The typed Hard-filter editor exposes only enum operators (`equals`, `not_equals`). Fields without a reliable current source are shown disabled rather than presented as functioning controls.
+
+### Direction, weights and classification
+
+Direction is inferred only from unambiguous deterministic filters: Up/Down trend or Supertrend equality and directional price/moving-average comparisons. Conflicting or absent direction signals produce `UNKNOWN` and all direction-dependent dimensions contribute zero.
+
+The centralized V1 maximum absolute contribution is 20:
+
+| Factor              | Maximum absolute contribution | Direction-aware |
+| ------------------- | ----------------------------: | --------------- |
+| Broad regime        |                             5 | Yes             |
+| Sector              |                             5 | Yes             |
+| India VIX           |                             2 | No in V1        |
+| Institutional flows |                             4 | Yes             |
+| Breadth             |                             3 | Yes             |
+| Event/news          |                             1 | No in V1        |
+
+For VIX, Low/Normal contributes +1, Elevated -1 and High -2. For event/news, Positive Catalyst/Supportive contributes +1 and Caution/High Risk -1. Each factor records observed state, directional interpretation, contribution, explanation, source and freshness. Context classifications are centralized: at least +12 strongly supportive, +4 supportive, -4 adverse, -12 strongly adverse, and values between those bounds mixed. No available evidence, or Off mode, yields unavailable classification.
+
+### Single analysis source and presentation
+
+`CandidateAnalysisPacket` is the only reasoning source for the compact Reason cell, detailed Evidence view, CSV reason, chart-card reason and historical replay. It includes the immutable run identifier and canonical candidate instrument identifier, technical diagnostics, setup direction, match state, scores, context status/coverage, all factor contributions, supporting factors, contradictions, neutral factors, missing evidence, explicit Hard-filter diagnostics, provenance, freshness and warnings. The Reason cell is bounded to 180 characters and links to the existing result inspector through a keyboard-accessible **Why?** button.
+
+The no-LLM Evidence view is complete and immediate. It shows the V1 baseline limitation, exact technical diagnostics, each context contribution, ranking math, supporting factors, contradictions, missing evidence, Hard-filter checks and collapsible provenance/freshness. The repository currently has no active Scanner narrative adapter, so optional LLM narrative, lazy synthesis and LLM-failure fallback are not applicable in this version. If added later, synthesis must consume only the stored packet, run lazily on explicit request, remain bounded, and cannot alter any match or score.
+
+Future providers can populate currently unavailable normalized dimensions without changing Scanner matching, scoring consumers, history, or UI contracts. A future technical-quality policy may replace the documented 80-point match baseline only through a separately versioned deterministic contract.

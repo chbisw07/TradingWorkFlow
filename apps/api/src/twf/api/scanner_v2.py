@@ -1,5 +1,7 @@
 """Scanner APIs: owner-scoped, explicit real mode, no execution shortcut."""
 
+import asyncio
+from datetime import UTC, datetime
 from typing import Annotated, Any, cast
 from uuid import UUID
 
@@ -13,9 +15,16 @@ from twf.brokers.order_service import OrderService, executable
 from twf.brokers.service import Principal
 from twf.discovery.dhan_credentials import DhanCredentialCapture, DhanCredentialManager
 from twf.discovery.domain import InstrumentIdentity
-from twf.discovery.market_intelligence import MarketIntelligenceBatch, TapTideMarketIntelligence
+from twf.discovery.market_intelligence import (
+    IntelligenceState,
+    MarketIntelligenceBatch,
+    TapTideMarketIntelligence,
+)
+from twf.scanner_v2.context import MarketContextSnapshot, normalize_context
 from twf.scanner_v2.contracts import (
+    CONTEXT_FIELD_SPECS,
     FIELD_SPECS,
+    ContextMode,
     SavedInput,
     ScanConfig,
     compatible_comparison_fields,
@@ -60,6 +69,26 @@ def catalog(who: Who, manager: Manager) -> dict[str, Any]:
                 "unit": spec.unit,
             }
             for field, spec in FIELD_SPECS.items()
+        ],
+        "context_fields": [
+            {
+                "field": field,
+                "category": spec.category,
+                "label": spec.label,
+                "enabled": field
+                not in {"broad_regime", "sector_strength", "sector_rotation", "breadth"},
+                "field_type": spec.field_type.value,
+                "operators": list(spec.operators),
+                "default_operator": spec.default_operator,
+                "default_value": spec.default_value,
+                "comparison_fields": [],
+                "enum_values": list(spec.enum_values),
+                "minimum": None,
+                "maximum": None,
+                "minimum_exclusive": False,
+                "unit": None,
+            }
+            for field, spec in CONTEXT_FIELD_SPECS.items()
         ],
         "templates": templates(),
         "max_universe": 20,
@@ -118,12 +147,41 @@ async def execute(
         ref = await request.app.state.watchlist_reference.read(manager, who, selected)
         return cast(dict[str, Any], ref.model_dump(mode="json"))
 
+    async def context_snapshot() -> MarketContextSnapshot:
+        context_batch: MarketIntelligenceBatch | None = None
+        if payload.context_mode != ContextMode.OFF:
+            try:
+                async with asyncio.timeout(30):
+                    context_batch = await TapTideMarketIntelligence(
+                        manager,
+                        who,
+                        request.app.state.market_intelligence_cache,
+                    ).observe(())
+            except TimeoutError:
+                context_batch = MarketIntelligenceBatch(
+                    provider="tapetide",
+                    state=IntelligenceState.UNAVAILABLE,
+                    claims=(),
+                    received_at=datetime.now(UTC),
+                    failures=("timeout",),
+                )
+            except Exception:
+                context_batch = MarketIntelligenceBatch(
+                    provider="tapetide",
+                    state=IntelligenceState.PROVIDER_ERROR,
+                    claims=(),
+                    received_at=datetime.now(UTC),
+                    failures=("provider-error",),
+                )
+        return normalize_context(context_batch)
+
     return await service(request, who).execute(
         payload,
         capture.provider,
         capture.status.generation,
         request.app.state.scanner_history,
         reference_values,
+        context_snapshot,
     )
 
 

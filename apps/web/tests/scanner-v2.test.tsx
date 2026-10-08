@@ -138,6 +138,28 @@ const catalog = {
       enum_values: ["Up", "Down"],
     }),
   ],
+  context_fields: [
+    field({
+      field: "broad_regime",
+      label: "Broad market regime",
+      category: "Market Context",
+      field_type: "ENUM",
+      operators: ["equals", "not_equals"],
+      default_operator: "equals",
+      default_value: "BULLISH",
+      enum_values: ["BULLISH", "NEUTRAL", "BEARISH"],
+    }),
+    field({
+      field: "vix_state",
+      label: "India VIX state",
+      category: "Market Context",
+      field_type: "ENUM",
+      operators: ["equals", "not_equals"],
+      default_operator: "not_equals",
+      default_value: "HIGH",
+      enum_values: ["LOW", "NORMAL", "ELEVATED", "HIGH"],
+    }),
+  ],
   templates: [{ name: "RSI Oversold", filters: initialConfig.filters }],
   universes: { CUSTOM: true, WATCHLIST: true, INDEX: false },
   universe_limitation: "No verified constituent source",
@@ -540,4 +562,184 @@ test("legacy filters stay readable but cannot execute until corrected", () => {
   };
   expect(filterCompatible(legacy, catalog)).toBe(false);
   expect(filterExpression(legacy, catalog)).toBe("RSI (14) > SMA (20)");
+});
+
+test("Market Context defaults to ranking and hard filters use typed enum controls", async () => {
+  const fetch = mockFetch();
+  render(<ScannerWorkspace />);
+  fireEvent.click(screen.getByText("Market Context"));
+  expect(
+    await screen.findByRole("button", { name: "Ranking" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  fireEvent.click(screen.getByRole("button", { name: "Hard filter" }));
+  fireEvent.change(screen.getByLabelText("Context field"), {
+    target: { value: "vix_state" },
+  });
+  expect(screen.getByLabelText("Context operator")).toHaveValue("not_equals");
+  expect(screen.getByLabelText("Context value")).toHaveValue("HIGH");
+  fireEvent.click(
+    screen.getByRole("button", { name: "＋ Add Context Filter" }),
+  );
+  expect(
+    screen.getByRole("button", { name: "Remove context filter 1" }),
+  ).toHaveTextContent("India VIX state ≠ HIGH");
+  fireEvent.change(screen.getByLabelText("NSE symbols"), {
+    target: { value: "INFY" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Run Scan" }));
+  await screen.findByText(/Some instruments could not be evaluated/);
+  const call = fetch.mock.calls.find(
+    ([url, init]) => String(url).endsWith("/runs") && init?.method === "POST",
+  )!;
+  const body = JSON.parse(String(call[1]?.body));
+  expect(body.context_mode).toBe("HARD_FILTER");
+  expect(body.context_filters).toEqual([
+    {
+      field: "vix_state",
+      operator: "not_equals",
+      value: "HIGH",
+      source: "market_context",
+      version: "1",
+    },
+  ]);
+});
+
+test("stored deterministic Reason opens complete no-LLM Evidence analysis", async () => {
+  vi.spyOn(global, "fetch").mockImplementation(async (url, init) => {
+    const path = String(url);
+    if (path.endsWith("/catalog")) return Response.json(catalog);
+    if (path.endsWith("/runs") && init?.method === "POST") {
+      const config = JSON.parse(String(init.body));
+      return Response.json({
+        id: "context-run",
+        created_at: "2026-10-08T10:00:00Z",
+        config,
+        data_mode: "REAL",
+        market_data_provider: "dhan",
+        counts: {
+          requested: 1,
+          resolved: 1,
+          evaluated: 1,
+          not_evaluated: 0,
+          matches: 1,
+        },
+        context_snapshot: {
+          as_of: "2026-10-08T10:00:00Z",
+          provider: "tapetide",
+          status: "PARTIAL",
+          source_health: "AVAILABLE",
+          coverage_count: 2,
+          dimension_count: 6,
+          missing_dimensions: [
+            "broad_regime",
+            "sector",
+            "breadth",
+            "event_news",
+          ],
+          warnings: [],
+          evidence: [],
+        },
+        rows: [
+          {
+            symbol: "RELIANCE",
+            instrument: {
+              instrument_id: "11111111-1111-4111-8111-111111111111",
+              symbol: "RELIANCE",
+              exchange: "NSE",
+              segment: "EQ",
+            },
+            outcome: "MATCH",
+            metrics: { change: 1.2, volume: 1000, rsi: 58, trend: "Up" },
+            diagnostics: [
+              {
+                filter: config.filters[0],
+                observed: 58,
+                threshold: 30,
+                passed: true,
+                reason: "RSI (14) < 30",
+              },
+            ],
+            analysis: {
+              run_id: "context-run",
+              candidate_instrument_id: "11111111-1111-4111-8111-111111111111",
+              candidate_symbol: "RELIANCE",
+              analyzed_at: "2026-10-08T10:00:00Z",
+              setup_direction: "BULLISH",
+              matched: true,
+              technical_match: true,
+              technical_evidence: { passed: 1, total: 1, diagnostics: [] },
+              technical_score: 80,
+              context_mode: "RANKING",
+              context_status: "PARTIAL",
+              context_coverage: "2/6",
+              context_contributions: [
+                {
+                  factor: "vix",
+                  observed_state: "NORMAL",
+                  interpretation: "SUPPORTIVE",
+                  contribution: 1,
+                  explanation: "India VIX 14",
+                  source: "tapetide",
+                  freshness: "FRESH",
+                },
+                {
+                  factor: "breadth",
+                  observed_state: "UNKNOWN",
+                  interpretation: "MISSING",
+                  contribution: 0,
+                  explanation: "Authoritative breadth evidence unavailable",
+                  source: null,
+                  freshness: "UNAVAILABLE",
+                },
+              ],
+              supporting_factors: ["India VIX 14"],
+              contradicting_factors: ["FII selling pressure"],
+              neutral_factors: [],
+              missing_evidence: ["breadth"],
+              context_adjustment: 1,
+              final_relevance: 81,
+              context_classification: "MIXED",
+              short_reason: "1/1 technical · Context +1 Mixed · Final 81",
+              provenance: [
+                {
+                  dimension: "vix",
+                  state: "NORMAL",
+                  detail: "India VIX 14",
+                  provider: "tapetide",
+                  provider_tool: "get_india_vix",
+                  source_time: "2026-10-08T10:00:00Z",
+                  received_at: "2026-10-08T10:00:00Z",
+                  freshness: "FRESH",
+                },
+              ],
+              warnings: [],
+              context_filter_diagnostics: [],
+            },
+          },
+        ],
+      });
+    }
+    return Response.json([]);
+  });
+  render(<ScannerWorkspace />);
+  await screen.findByText("Context: RANKING");
+  fireEvent.change(screen.getByLabelText("NSE symbols"), {
+    target: { value: "RELIANCE" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Run Scan" }));
+  expect(
+    await screen.findByText("1/1 technical · Context +1 Mixed · Final 81"),
+  ).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Why?" }));
+  const panels = await screen.findAllByLabelText(
+    "Deterministic candidate analysis",
+  );
+  const panel = panels.at(-1)!;
+  expect(panel).toBeVisible();
+  expect(within(panel).getByText("Final relevance")).toBeVisible();
+  expect(within(panel).getByText("Supporting factors")).toBeVisible();
+  expect(within(panel).getByText("Contradictions")).toBeVisible();
+  expect(within(panel).getByText("Missing evidence")).toBeVisible();
+  fireEvent.click(within(panel).getByText("Provenance and freshness"));
+  expect(within(panel).getByText(/get_india_vix/)).toBeVisible();
 });

@@ -53,6 +53,16 @@ test("Scanner V2 editable filters, durable runs, Watchlist handoff and responsiv
   await page.getByRole("button", { name: "Watchlist", exact: true }).click();
   await page.getByLabel("Watchlist", { exact: true }).selectOption(list.id);
   await expect(page.locator(".sc-members")).toContainText("RELIANCE");
+  await page.locator(".sc-context-builder > summary").click();
+  await expect(
+    page.getByRole("button", { name: "Ranking", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    page.getByText(
+      "Only explicit predicates in Hard filter mode can reject a technical match.",
+      { exact: false },
+    ),
+  ).toBeVisible();
   await page
     .getByLabel("Scan Templates", { exact: true })
     .selectOption("Momentum");
@@ -106,7 +116,31 @@ test("Scanner V2 editable filters, durable runs, Watchlist handoff and responsiv
   await expect(page.locator(".sc-counts")).toContainText("matches 3", {
     timeout: 30000,
   });
-  await expect(page.locator(".sc-table")).toContainText("RSI (14) > 0");
+  await expect(page.locator(".sc-reason").first()).toContainText(
+    "1/1 technical · Context unavailable · Final 80",
+  );
+  await page.getByRole("button", { name: "Why?", exact: true }).first().click();
+  const analysis = page.locator(
+    '[aria-label="Deterministic candidate analysis"]:visible',
+  );
+  await expect(analysis).toBeVisible();
+  await expect(
+    analysis.getByText("Technical score", { exact: true }),
+  ).toBeVisible();
+  await expect(analysis.getByText("Missing evidence")).toBeVisible();
+  await expect(
+    analysis.getByText(
+      "Technical score is the V1 deterministic match baseline, not a probability.",
+    ),
+  ).toBeVisible();
+  await analysis.getByText("Provenance and freshness").click();
+  await expect(analysis.getByText(/unavailable/).first()).toBeVisible();
+  await page.screenshot({
+    path: info.outputPath("scanner-analysis-light.png"),
+    fullPage: page.viewportSize()!.width >= 1200,
+  });
+  if (page.viewportSize()!.width < 1200)
+    await page.getByLabel("Close dialog").click();
   await page.getByRole("button", { name: "Save Scan", exact: false }).click();
   await page.getByLabel("Scan name", { exact: true }).fill("My RSI");
   await page
@@ -150,8 +184,32 @@ test("Scanner V2 editable filters, durable runs, Watchlist handoff and responsiv
     fullPage: true,
   });
   const width = page.viewportSize()!.width;
+  const overflowDiagnostics = await page.evaluate(() =>
+    Array.from(document.querySelectorAll<HTMLElement>("body *"))
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          selector: [
+            element.tagName.toLowerCase(),
+            element.id && "#" + element.id,
+            ...Array.from(element.classList).map((name) => "." + name),
+          ]
+            .filter(Boolean)
+            .join(""),
+          left: Math.round(rect.left),
+          right: Math.round(rect.right),
+          width: Math.round(rect.width),
+          text: element.textContent?.trim().slice(0, 80),
+          ariaLabel: element.getAttribute("aria-label"),
+          parentClass: element.parentElement?.className,
+        };
+      })
+      .filter((item) => item.right > window.innerWidth + 1 || item.left < -1)
+      .slice(0, 20),
+  );
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth),
+    JSON.stringify(overflowDiagnostics),
   ).toBeLessThanOrEqual(width);
   await page.evaluate(() => {
     document.documentElement.dataset.theme = "dark";

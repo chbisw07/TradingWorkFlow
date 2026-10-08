@@ -12,6 +12,7 @@ import {
   initialConfig,
   type Config,
   type Filter,
+  type ContextFilter,
   type Catalog,
   type Run,
   type Saved,
@@ -85,7 +86,7 @@ export function ScannerWorkspace() {
     [search, setSearch] = useState("");
   const [view, setView] = useState("table"),
     [columns, setColumns] = useState(["volume", "rsi", "trend", "chart"]);
-  const [sort, setSort] = useState("symbol"),
+  const [sort, setSort] = useState("relevance"),
     [detailTab, setDetailTab] = useState("Overview"),
     [period, setPeriod] = useState("1M");
   const [reference, setReference] = useState<WatchReference | null>(null),
@@ -106,6 +107,11 @@ export function ScannerWorkspace() {
     [comparisonField, setComparisonField] = useState(""),
     [lowerValue, setLowerValue] = useState("0"),
     [upperValue, setUpperValue] = useState("100");
+  const [contextField, setContextField] = useState("vix_state"),
+    [contextOperator, setContextOperator] = useState<"equals" | "not_equals">(
+      "not_equals",
+    ),
+    [contextValue, setContextValue] = useState("HIGH");
   async function refresh() {
     const [c, l, s, h] = await Promise.all([
       scannerApi<Catalog>("catalog"),
@@ -235,9 +241,15 @@ export function ScannerWorkspace() {
     }
   }
   function loadConfig(c: Config, id = "") {
-    setSort(c.sort);
-    setConfig(c);
-    setCustom(c.universe.symbols.join(", "));
+    const normalized: Config = {
+      ...c,
+      context_mode: c.context_mode || "RANKING",
+      context_filters: c.context_filters || [],
+      sort: c.sort || "relevance",
+    };
+    setSort(normalized.sort);
+    setConfig(normalized);
+    setCustom(normalized.universe.symbols.join(", "));
     setSavedId(id);
     setNotice(
       catalog && c.filters.every((item) => filterCompatible(item, catalog))
@@ -339,6 +351,40 @@ export function ScannerWorkspace() {
     });
     setEditorOpen(false);
   }
+  function selectContextField(next: string) {
+    const spec = catalog?.context_fields?.find((item) => item.field === next);
+    setContextField(next);
+    setContextOperator(
+      (spec?.default_operator || "equals") as "equals" | "not_equals",
+    );
+    setContextValue(String(spec?.default_value || spec?.enum_values[0] || ""));
+  }
+  function addContextFilter() {
+    const spec = catalog?.context_fields?.find(
+      (item) => item.field === contextField,
+    );
+    if (
+      !spec ||
+      spec.enabled === false ||
+      !spec.enum_values.includes(contextValue)
+    ) {
+      setError("Choose a supported Market Context value.");
+      return;
+    }
+    const next: ContextFilter = {
+      field: contextField,
+      operator: contextOperator,
+      value: contextValue,
+      source: "market_context",
+      version: "1",
+    };
+    setConfig({
+      ...config,
+      context_mode: "HARD_FILTER",
+      context_filters: [...(config.context_filters || []), next],
+    });
+    setError("");
+  }
   async function execute() {
     await action(async () => {
       const c = {
@@ -366,9 +412,9 @@ export function ScannerWorkspace() {
       );
     });
   }
-  function inspect(row: ScanRow) {
+  function inspect(row: ScanRow, tab = "Overview") {
     setSelected(row);
-    setDetailTab("Overview");
+    setDetailTab(tab);
     setReference(null);
     setNews([]);
     if (window.innerWidth < 1200) setModal("detail");
@@ -381,9 +427,14 @@ export function ScannerWorkspace() {
     !catalog || config.filters.every((item) => filterCompatible(item, catalog));
   const matches = (run?.rows || []).filter((r) => r.outcome === "MATCH");
   const rows = [...matches].sort((a, b) =>
-    sort === "symbol" || sort === "relevance"
+    sort === "symbol"
       ? a.symbol.localeCompare(b.symbol)
-      : Number(b.metrics?.[sort] || 0) - Number(a.metrics?.[sort] || 0),
+      : sort === "relevance"
+        ? Number(b.analysis?.final_relevance || 0) -
+            Number(a.analysis?.final_relevance || 0) ||
+          a.symbol.localeCompare(b.symbol)
+        : Number(b.metrics?.[sort] || 0) - Number(a.metrics?.[sort] || 0) ||
+          a.symbol.localeCompare(b.symbol),
   );
   const identity = (r: ScanRow) => r.instrument?.instrument_id || r.symbol;
   function addTo(ids: string[]) {
@@ -413,7 +464,8 @@ export function ScannerWorkspace() {
           "dhan",
           r.metrics?.price,
           r.metrics?.change,
-          r.diagnostics?.map((d) => d.reason).join("; "),
+          r.analysis?.short_reason ||
+            r.diagnostics?.map((d) => d.reason).join("; "),
         ]
           .map((v) => '"' + String(v ?? "").replaceAll('"', '""') + '"')
           .join(","),
@@ -474,7 +526,7 @@ export function ScannerWorkspace() {
         aria-label="Result analysis"
         className="sc-tabs"
       >
-        {["Overview", "Fundamentals", "News"].map((t) => (
+        {["Overview", "Evidence", "Fundamentals", "News"].map((t) => (
           <button
             role="tab"
             aria-selected={detailTab === t}
@@ -551,6 +603,164 @@ export function ScannerWorkspace() {
               <p>Run: {run?.id} · Provider: Dhan · REAL</p>
             </details>
           </>
+        ) : detailTab === "Evidence" ? (
+          selected.analysis ? (
+            <div
+              className="sc-analysis"
+              aria-label="Deterministic candidate analysis"
+            >
+              <section>
+                <h3>Ranking</h3>
+                <dl className="sc-metrics">
+                  <div>
+                    <dt>Technical score</dt>
+                    <dd>{selected.analysis.technical_score}</dd>
+                  </div>
+                  <div>
+                    <dt>Context adjustment</dt>
+                    <dd>
+                      {selected.analysis.context_adjustment > 0 ? "+" : ""}
+                      {selected.analysis.context_adjustment}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Final relevance</dt>
+                    <dd>{selected.analysis.final_relevance}</dd>
+                  </div>
+                  <div>
+                    <dt>Setup direction</dt>
+                    <dd>
+                      {selected.analysis.setup_direction.replaceAll("_", " ")}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Classification</dt>
+                    <dd>
+                      {selected.analysis.context_classification.replaceAll(
+                        "_",
+                        " ",
+                      )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Context coverage</dt>
+                    <dd>{selected.analysis.context_coverage}</dd>
+                  </div>
+                </dl>
+                <small>
+                  Technical score is the V1 deterministic match baseline, not a
+                  probability.
+                </small>
+              </section>
+              <section>
+                <h3>Technical setup</h3>
+                <ul>
+                  {selected.diagnostics?.map((item, index) => (
+                    <li key={index}>
+                      {item.reason} · observed{" "}
+                      {String(item.observed ?? "unavailable")}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+              <section>
+                <h3>Market context contributions</h3>
+                <div className="sc-context-list">
+                  {selected.analysis.context_contributions.map((item) => (
+                    <article key={item.factor}>
+                      <strong>{item.factor.replaceAll("_", " ")}</strong>
+                      <span
+                        className={
+                          item.contribution > 0
+                            ? "up"
+                            : item.contribution < 0
+                              ? "down"
+                              : ""
+                        }
+                      >
+                        {item.contribution > 0 ? "+" : ""}
+                        {item.contribution}
+                      </span>
+                      <p>
+                        {item.observed_state.replaceAll("_", " ")} ·{" "}
+                        {item.explanation}
+                      </p>
+                      <small>
+                        {item.source || "Source unavailable"} · {item.freshness}
+                      </small>
+                    </article>
+                  ))}
+                </div>
+              </section>
+              <section>
+                <h3>Supporting factors</h3>
+                {selected.analysis.supporting_factors.length ? (
+                  <ul>
+                    {selected.analysis.supporting_factors.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p>None from available evidence.</p>
+                )}
+              </section>
+              <section>
+                <h3>Contradictions</h3>
+                {selected.analysis.contradicting_factors.length ? (
+                  <ul>
+                    {selected.analysis.contradicting_factors.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p>No adverse contribution recorded.</p>
+                )}
+              </section>
+              <section>
+                <h3>Missing evidence</h3>
+                {selected.analysis.missing_evidence.length ? (
+                  <ul>
+                    {selected.analysis.missing_evidence.map((item) => (
+                      <li key={item}>{item.replaceAll("_", " ")}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p>No V1 dimension is missing.</p>
+                )}
+              </section>
+              {selected.analysis.context_filter_diagnostics.length > 0 && (
+                <section>
+                  <h3>Hard filter checks</h3>
+                  <ul>
+                    {selected.analysis.context_filter_diagnostics.map(
+                      (item) => (
+                        <li key={item.reason}>
+                          {item.passed ? "Passed" : "Failed"} · {item.reason} ·
+                          observed {item.observed}
+                        </li>
+                      ),
+                    )}
+                  </ul>
+                </section>
+              )}
+              <details>
+                <summary>Provenance and freshness</summary>
+                {selected.analysis.provenance.map((item) => (
+                  <p key={item.dimension}>
+                    {item.dimension.replaceAll("_", " ")} ·{" "}
+                    {item.provider || "unavailable"}
+                    {item.provider_tool
+                      ? ` / ${item.provider_tool}`
+                      : ""} · {item.freshness}
+                  </p>
+                ))}
+              </details>
+            </div>
+          ) : (
+            <p>
+              Stored deterministic analysis is unavailable for this legacy run.
+            </p>
+          )
         ) : detailTab === "Fundamentals" ? (
           <>
             <h3>TapTide reference data</h3>
@@ -888,12 +1098,111 @@ export function ScannerWorkspace() {
                   </details>
                 ),
               )}
-              <details className="sc-category">
+              <details className="sc-category sc-context-builder">
                 <summary>Market Context</summary>
                 <p>
-                  Context and news enrich result review. They never gate the
-                  internal technical scanner.
+                  Rank technical matches with a stored, explainable market
+                  snapshot. Missing context never becomes positive evidence.
                 </p>
+                <fieldset>
+                  <legend>Context mode</legend>
+                  <div className="sc-context-modes">
+                    {(["OFF", "RANKING", "HARD_FILTER"] as const).map(
+                      (mode) => (
+                        <button
+                          type="button"
+                          aria-pressed={config.context_mode === mode}
+                          key={mode}
+                          onClick={() =>
+                            setConfig({
+                              ...config,
+                              context_mode: mode,
+                              context_filters:
+                                mode === "HARD_FILTER"
+                                  ? config.context_filters || []
+                                  : [],
+                            })
+                          }
+                        >
+                          {mode === "HARD_FILTER"
+                            ? "Hard filter"
+                            : mode[0] + mode.slice(1).toLowerCase()}
+                        </button>
+                      ),
+                    )}
+                  </div>
+                  <small>
+                    Ranking is the default. Only explicit predicates in Hard
+                    filter mode can reject a technical match.
+                  </small>
+                </fieldset>
+                {config.context_mode === "HARD_FILTER" && (
+                  <fieldset>
+                    <legend>Add context predicate</legend>
+                    {input(
+                      "Context field",
+                      <select
+                        value={contextField}
+                        onChange={(event) =>
+                          selectContextField(event.target.value)
+                        }
+                      >
+                        {(catalog?.context_fields || []).map((item) => (
+                          <option
+                            value={item.field}
+                            key={item.field}
+                            disabled={item.enabled === false}
+                          >
+                            {item.label}
+                          </option>
+                        ))}
+                      </select>,
+                    )}
+                    {input(
+                      "Context operator",
+                      <select
+                        value={contextOperator}
+                        onChange={(event) =>
+                          setContextOperator(
+                            event.target.value as "equals" | "not_equals",
+                          )
+                        }
+                      >
+                        <option value="equals">=</option>
+                        <option value="not_equals">≠</option>
+                      </select>,
+                    )}
+                    {input(
+                      "Context value",
+                      <select
+                        value={contextValue}
+                        onChange={(event) =>
+                          setContextValue(event.target.value)
+                        }
+                      >
+                        {(
+                          catalog?.context_fields?.find(
+                            (item) => item.field === contextField,
+                          )?.enum_values || []
+                        ).map((item) => (
+                          <option value={item} key={item}>
+                            {item.replaceAll("_", " ")}
+                          </option>
+                        ))}
+                      </select>,
+                    )}
+                    <button
+                      type="button"
+                      disabled={
+                        !(catalog?.context_fields || []).length ||
+                        (config.context_filters || []).length >= 9
+                      }
+                      onClick={addContextFilter}
+                    >
+                      ＋ Add Context Filter
+                    </button>
+                  </fieldset>
+                )}
               </details>
               <details
                 open={editorOpen}
@@ -1093,6 +1402,35 @@ export function ScannerWorkspace() {
                   {filterExpression(f, catalog)} ×
                 </button>
               ))}
+              <span className="sc-context-chip">
+                Context:{" "}
+                {(config.context_mode || "RANKING").replaceAll("_", " ")}
+              </span>
+              {(config.context_filters || []).map((item, index) => {
+                const spec = catalog?.context_fields?.find(
+                  (field) => field.field === item.field,
+                );
+                return (
+                  <button
+                    className="sc-context-chip"
+                    title="Remove Market Context filter"
+                    aria-label={`Remove context filter ${index + 1}`}
+                    key={`${item.field}-${index}`}
+                    onClick={() =>
+                      setConfig({
+                        ...config,
+                        context_filters: config.context_filters.filter(
+                          (_, current) => current !== index,
+                        ),
+                      })
+                    }
+                  >
+                    {spec?.label || item.field}{" "}
+                    {item.operator === "equals" ? "=" : "≠"}{" "}
+                    {item.value.replaceAll("_", " ")} ×
+                  </button>
+                );
+              })}
               <button onClick={() => setConfig({ ...config, filters: [] })}>
                 Clear All
               </button>
@@ -1167,8 +1505,21 @@ export function ScannerWorkspace() {
                     {run.config.name} · Indicators / 1D change: completed daily
                     bars · LTP: separate Dhan quote snapshot
                   </p>
+                  {run.context_snapshot && (
+                    <p className="sc-context-summary">
+                      Market Context · {run.config.context_mode || "RANKING"} ·{" "}
+                      {run.context_snapshot.status} · coverage{" "}
+                      {run.context_snapshot.coverage_count}/
+                      {run.context_snapshot.dimension_count} ·{" "}
+                      {run.context_snapshot.provider || "provider unavailable"}
+                    </p>
+                  )}
                   {(JSON.stringify(run.config.filters) !==
                     JSON.stringify(config.filters) ||
+                    (run.config.context_mode || "RANKING") !==
+                      (config.context_mode || "RANKING") ||
+                    JSON.stringify(run.config.context_filters || []) !==
+                      JSON.stringify(config.context_filters || []) ||
                     run.config.universe.source !== config.universe.source ||
                     (run.config.universe.watchlist_id || "") !==
                       (config.universe.watchlist_id || "") ||
@@ -1216,7 +1567,8 @@ export function ScannerWorkspace() {
                       <strong>{r.symbol}</strong>
                       <MarketChart bars={(r.bars || []).slice(-22)} />
                       <small>
-                        {r.diagnostics?.map((d) => d.reason).join(" · ")}
+                        {r.analysis?.short_reason ||
+                          r.diagnostics?.map((d) => d.reason).join(" · ")}
                       </small>
                     </button>
                   ))}
@@ -1321,11 +1673,20 @@ export function ScannerWorkspace() {
                             </td>
                           )}
                           <td>
-                            <ul>
-                              {r.diagnostics?.map((d, i) => (
-                                <li key={i}>{d.reason}</li>
-                              ))}
-                            </ul>
+                            <div className="sc-reason">
+                              <span>
+                                {r.analysis?.short_reason ||
+                                  r.diagnostics
+                                    ?.map((item) => item.reason)
+                                    .join(" · ")}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => inspect(r, "Evidence")}
+                              >
+                                Why?
+                              </button>
+                            </div>
                           </td>
                           <td>
                             <div className="sc-row-actions">
