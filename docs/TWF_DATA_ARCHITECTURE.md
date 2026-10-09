@@ -3,16 +3,21 @@
 > **2026-09-29 S&D architecture acceptance:** The dated S&D extension below is **ACCEPTED / IMPLEMENTATION AUTHORIZED** within the [Sprint-2 delivery plan](TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md). The [independent acceptance record](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) supersedes its 2026-09-28 proposal status. Sprint 2 is **ACTIVE / NEXT; implementation not started**. Earlier acceptance history and separate TI/TM/provider/security gates remain unchanged; proposal wording in the dated extension records its origin, not the current review status.
 
 ## Status
+
 **TWF-0 accepted data baseline, with configuration ownership clarification dated 2026-09-25**
 
 ## 1. Purpose
+
 Define TWF data ownership, persistence boundaries, repository abstractions, SQLite-to-PostgreSQL portability, auditability, and multi-user readiness.
 
 ## 2. Core Data Principle
+
 > TWF persists TWF-owned workflow state and immutable references/captures required for UX/history; it does not silently become the authoritative store for TI, TM, broker, or scanner internals.
 
 ## 3. Data Ownership Classes
+
 ### TWF-owned durable data
+
 - users/accounts;
 - workspaces;
 - preferences;
@@ -24,6 +29,7 @@ Define TWF data ownership, persistence boundaries, repository abstractions, SQLi
 - correlation/linkage records.
 
 ### External-authoritative data
+
 - TI model/scientific artifacts;
 - TM authoritative position/risk/authority state;
 - broker order/fill/position truth;
@@ -32,6 +38,7 @@ Define TWF data ownership, persistence boundaries, repository abstractions, SQLi
 TWF may cache/reference external data but must preserve ownership/source.
 
 ## 4. Persistence Architecture
+
 ```text
 Domain / Application Services
           ↓
@@ -47,7 +54,9 @@ SQLAlchemy 2.x
 Application services must not depend on database-specific behavior.
 
 ## 5. Initial Repository Interfaces
+
 Potential repositories:
+
 - UserRepository
 - WorkspaceRepository
 - WatchlistRepository
@@ -61,7 +70,9 @@ Potential repositories:
 Avoid creating repositories as ceremony where simple direct unit-of-work patterns are cleaner.
 
 ## 6. Core Entity Direction
+
 Conceptual entities:
+
 ```text
 User
 Workspace
@@ -80,9 +91,11 @@ ExternalReference
 Exact schema remains to be normalized during implementation design.
 
 ## 7. Identity Strategy
+
 Prefer application-generated UUID/ULID-style identifiers for domain entities where stable cross-service identity is needed.
 
 Separate:
+
 - TWF IDs;
 - TI IDs;
 - TM IDs;
@@ -92,12 +105,15 @@ Separate:
 Link them through explicit correlation/reference tables or value objects.
 
 ## 8. User / Workspace Ownership
+
 All user-scoped records must carry explicit ownership through `user_id`, `workspace_id`, or a clear tenant/account relation.
 
 Do not assume global singleton resources.
 
 ## 9. SQLite Development Rules
+
 SQLite is allowed initially, but:
+
 - no SQLite-specific SQL in domain/application code;
 - avoid permissive typing assumptions;
 - enforce foreign keys;
@@ -106,32 +122,38 @@ SQLite is allowed initially, but:
 - avoid concurrency patterns that will not translate to PostgreSQL.
 
 ## 10. PostgreSQL Production Direction
+
 PostgreSQL becomes the production DB when:
+
 - multi-user concurrency;
 - cloud deployment;
 - stronger locking/transactions;
 - observability/backup;
 - scaling;
 - operational robustness
-justify the migration.
+  justify the migration.
 
 Migration should primarily change configuration/infrastructure, not domain logic.
 
 ## 11. Schema Migrations
+
 Use Alembic from the first persistent schema.
 
 Every schema change should have:
+
 - forward migration;
 - downgrade policy where safe;
 - test coverage;
 - data migration note if semantics change.
 
 ## 12. Transaction Boundary
+
 TWF should use explicit application transaction boundaries.
 
 Do not attempt distributed transactions across TI/TM/broker services.
 
 Use:
+
 - local DB transaction;
 - correlation IDs;
 - idempotent remote actions;
@@ -139,7 +161,9 @@ Use:
 - reconciliation.
 
 ## 13. Event / Audit Model
+
 Audit events should capture meaningful TWF workflow transitions:
+
 ```text
 candidate_created
 ti_analysis_requested
@@ -157,7 +181,9 @@ Audit history should be append-oriented.
 Do not confuse audit log with service event replication.
 
 ## 14. External References
+
 Use typed external references:
+
 ```text
 system = TI / TM / BROKER / SCANNER
 entity_type
@@ -167,12 +193,17 @@ captured_at
 ```
 
 ## 15. Snapshot vs Reference
+
 TWF may store:
+
 ### Reference only
+
 when external service remains authoritative and current lookup is sufficient.
 
 ### Immutable snapshot/capture
+
 when:
+
 - trader saw the state and history must reproduce it;
 - workflow decision depended on it;
 - later IFL/audit needs exact evidence.
@@ -180,9 +211,11 @@ when:
 The policy should be explicit per object type.
 
 ## 16. Market Data
+
 TWF should not become a market-data warehouse initially.
 
 Persist only:
+
 - workflow-relevant references/snapshots;
 - cached display data if needed;
 - derived UI state.
@@ -190,7 +223,9 @@ Persist only:
 Dedicated market-data/history storage remains a separate concern.
 
 ## 17. Sensitive Data
+
 Classify separately:
+
 - user credentials/password hashes;
 - session secrets;
 - broker connection references/tokens;
@@ -200,7 +235,9 @@ Classify separately:
 Sensitive secrets should not live in ordinary domain tables where avoidable.
 
 ## 18. Multi-Tenant Readiness
+
 Future subscription deployment requires:
+
 - tenant/user scoping;
 - authorization on every scoped repository query;
 - unique constraints that include tenant scope where appropriate;
@@ -210,9 +247,11 @@ Future subscription deployment requires:
 The accepted TWF-1.4 foundation has persistent user identities. Personal settings may use explicit user ownership; shared tenant data requires verified account membership before exposure.
 
 ## 19. Caching
+
 Do not make cache authoritative.
 
 Possible later caches:
+
 - service health;
 - instrument metadata;
 - user session data;
@@ -222,7 +261,9 @@ Possible later caches:
 Redis is optional and deferred until justified.
 
 ## 20. Retention
+
 Define later by class:
+
 - audit history;
 - workflow history;
 - console logs;
@@ -233,7 +274,9 @@ Define later by class:
 Do not retain sensitive/debug data indefinitely by default.
 
 ## 21. Backup / Recovery
+
 Production PostgreSQL should support:
+
 - automated backups;
 - point-in-time recovery where justified;
 - migration backup discipline;
@@ -242,7 +285,9 @@ Production PostgreSQL should support:
 SQLite development DBs are disposable unless explicitly marked persistent.
 
 ## 22. Data Consistency
+
 TWF must distinguish:
+
 - current authoritative external state;
 - last known external state;
 - TWF workflow state;
@@ -251,7 +296,9 @@ TWF must distinguish:
 UI should expose staleness rather than pretending eventual consistency is immediate consistency.
 
 ## 23. Data Access Testing
+
 Tests should cover:
+
 - SQLite repository behavior;
 - migration correctness;
 - PostgreSQL compatibility before production;
@@ -262,7 +309,9 @@ Tests should cover:
 - external reference integrity.
 
 ## 24. Portability Acceptance
+
 Before PostgreSQL migration is considered easy/valid:
+
 1. no DB-specific domain logic;
 2. repository/infrastructure boundary exists;
 3. Alembic migrations are clean;
@@ -270,6 +319,7 @@ Before PostgreSQL migration is considered easy/valid:
 5. concurrency-sensitive flows are reviewed.
 
 ## 25. Data Invariants
+
 1. Ownership is explicit.
 2. External authority is not silently copied.
 3. TWF IDs and external IDs remain distinguishable.
@@ -298,7 +348,6 @@ Canonical mapping is optional for a valid native order; native identity and curr
 Before live submission, commit durable intent/confirmation/idempotency and an exclusive fenced dispatch claim before external I/O. No DB transaction spans broker network calls. Crash recovery treats possibly sent work as unknown and reconciles before considering another command; a stale worker cannot reclaim dispatch rights by itself. Reconciliation and audit survive process restart, backups and retention jobs. A bounded backend recovery loop is sufficient initially; no queue framework is mandated.
 
 Alembic remains the schema authority. Test uniqueness, optimistic concurrency, rollback, worker fencing and restart recovery on PostgreSQL before live use, with SQLite as the development/test path. BW-1 can use immutable deterministic fixtures without new broker tables; durable persistence becomes mandatory at the specific later gates in the Broker Workspace architecture.
-
 
 ## 28. Discovery data ownership and immutable history — 2026-09-28
 
@@ -336,10 +385,10 @@ boundaries remain mandatory. The data DOCX companion needs post-acceptance regen
 
 ### Revision history addition
 
-| Revision | Date | Status | Role / change |
-| --- | --- | --- | --- |
-| S&D reconciliation 1 | 2026-09-28 | PROPOSED / RECONCILED / READY FOR REVIEW | Normative design/planning extension: Discovery data ownership and immutable history; prior history and acceptance preserved |
-| S&D acceptance 1 | 2026-09-29 | ACCEPTED / IMPLEMENTATION AUTHORIZED | Independent S&D architecture acceptance; staged Sprint-2 scope only, no runtime delivery or prior milestone change; see [review](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) |
+| Revision             | Date       | Status                                   | Role / change                                                                                                                                                                         |
+| -------------------- | ---------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S&D reconciliation 1 | 2026-09-28 | PROPOSED / RECONCILED / READY FOR REVIEW | Normative design/planning extension: Discovery data ownership and immutable history; prior history and acceptance preserved                                                           |
+| S&D acceptance 1     | 2026-09-29 | ACCEPTED / IMPLEMENTATION AUTHORIZED     | Independent S&D architecture acceptance; staged Sprint-2 scope only, no runtime delivery or prior milestone change; see [review](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) |
 
 ## 29. Offline instrument metadata snapshots — 2026-10-09
 
@@ -380,3 +429,50 @@ indices do not receive invented company metadata. These display enrichments do
 not change Scanner matching, Market Context ranking, or Watchlist trading, and no
 application request invokes Yahoo, NSE, or the harvester. Dynamic Sector Context
 remains future work.
+
+## 2026-10-09 — Scanner dynamic sector evidence persistence
+
+Dynamic Sector Context V1 adds `sector_context` to the existing immutable Scanner
+candidate analysis JSON; it does not add metadata tables or change the importer.
+InstrumentMetadataService remains the sole authority for the analytical sector
+benchmark mapping. Dhan supplies completed daily candidate, benchmark and NIFTY
+bars. TapTide is optional and supplies no V1 sector strength.
+
+The stored packet captures the metadata identity/version timestamp, deterministic
+`sector.v1` metrics, aligned 5D/20D excess returns in percentage points, trend,
+rotation, state, bounded direction-aware contribution, source/receipt timestamps,
+missing evidence and warnings. Existing technical metrics and match truth are
+unchanged in ranking mode. No live quote substitutes for a daily close.
+
+The metadata bulk read closes before provider acquisition. Shared benchmark
+histories use Scanner's owner/generation cache and bounded acquisition policy.
+Only immutable snapshots are persisted, not an independently maintained sector
+market-data warehouse. History reads never recompute sector state or query live
+Dhan. Legacy packets without sector evidence remain valid.
+
+The exact numerical policy, neutral band, partial-evidence minimum and ±5 sector /
+±20 total bounds are documented in the dated Dynamic Sector Context V1 section of
+[TWF Scanner V2 architecture](TWF_SCANNER_V2_ARCHITECTURE.md).
+
+## 2026-10-09 — Dhan analytical benchmark name adaptation
+
+Instrument Metadata retains provider-neutral `context_benchmark` and
+`context_benchmark_symbol`. A centralized name-only registry inside Dhan's
+market-data layer adapts those identities to the existing current index master;
+security IDs are resolved from that master and are never written into metadata
+or candidate Sector Context. Exact and normalized matches precede registered
+provider aliases; ambiguity fails safely without fuzzy selection.
+
+The bounded internal support diagnostic distinguishes supported resolution,
+confirmed unsupported indices, unresolved aliases and invalid mappings. Master
+outages do not prove lack of provider support. All 11 current metadata benchmark
+families resolved and returned 300 completed Dhan daily bars during the bounded
+2026-10-09 validation. History remains separately verified from name resolution.
+
+Scanner shares each unique benchmark and its NIFTY reference through the existing
+owner/generation cache. Missing or insufficient benchmark history preserves
+technical results and metadata identity while producing explicit unavailable
+sector evidence. The ±5 sector / ±20 total contribution policy, exact completed
+session alignment, database schema, importer and immutable historical snapshots
+are unchanged. The observed support matrix and live scan evidence are recorded in
+[TWF Scanner V2 architecture](TWF_SCANNER_V2_ARCHITECTURE.md).

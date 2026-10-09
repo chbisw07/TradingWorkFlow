@@ -7,6 +7,7 @@ import {
   type ReactElement,
 } from "react";
 import Link from "next/link";
+import { SectorEvidence } from "./sector-evidence";
 import {
   scannerApi,
   initialConfig,
@@ -706,6 +707,9 @@ export function ScannerWorkspace() {
                   ))}
                 </div>
               </section>
+              {selected.analysis.sector_context && (
+                <SectorEvidence evidence={selected.analysis.sector_context} />
+              )}
               <section>
                 <h3>Supporting factors</h3>
                 {selected.analysis.supporting_factors.length ? (
@@ -1521,11 +1525,14 @@ export function ScannerWorkspace() {
                   </p>
                   {run.context_snapshot && (
                     <p className="sc-context-summary">
-                      Market Context · {run.config.context_mode || "RANKING"} ·{" "}
+                      Shared market intelligence ·{" "}
+                      {run.config.context_mode || "RANKING"} ·{" "}
                       {run.context_snapshot.status} · coverage{" "}
                       {run.context_snapshot.coverage_count}/
                       {run.context_snapshot.dimension_count} ·{" "}
-                      {run.context_snapshot.provider || "provider unavailable"}
+                      {run.context_snapshot.provider || "provider unavailable"}.
+                      Dhan sector context and combined coverage are shown per
+                      result in Evidence.
                     </p>
                   )}
                   {(JSON.stringify(run.config.filters) !==

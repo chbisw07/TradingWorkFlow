@@ -266,7 +266,7 @@ The backend acquires one bounded, scan-level provider-neutral `MarketContextSnap
 | Dimension                  | V1 normalized contract                                                 | Current reliable source / limitation                                                                                                                                                                   |
 | -------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Broad market regime        | Strongly bullish through strongly bearish, or unknown                  | **Not available:** current accepted TapTide index evidence is sectoral and cannot establish an authoritative NIFTY/BANKNIFTY regime. Remains `UNKNOWN`.                                                |
-| Sector strength / rotation | Strength, relative strength and rotation state, or unknown             | **Not available:** no accepted candidate-to-sector map plus comparable sector series. No sector is guessed.                                                                                            |
+| Sector strength / rotation | Strength, relative strength and rotation state, or unknown             | Instrument Metadata analytical benchmark + Dhan completed daily histories, under `sector.v1` below. Missing mapping/data remains `UNKNOWN`.                                                            |
 | India VIX                  | Low, normal, elevated, high, or unknown                                | TapTide normalized volatility/pulse claim. Thresholds: low below 12, normal 12 to below 18, elevated 18 to below 25, high 25 or above.                                                                 |
 | Institutional flows        | FII, DII and net state, or unknown                                     | TapTide normalized market-flow/pulse claim. V1 uses the supplied current values. Rolling velocity and streak remain explicit `UNKNOWN` because the provider contract does not supply accepted history. |
 | Market breadth             | Strong, positive, mixed, weak, or unknown                              | **Not available:** no authoritative advance/decline or complete-constituent participation source. Remains `UNKNOWN`.                                                                                   |
@@ -309,3 +309,263 @@ and analytical context benchmark appear in the result inspector. Missing data st
 unknown and last-known metadata is labelled stale. The enrichment makes no external
 provider request and cannot alter technical matches, context contributions, or rank.
 Dynamic Sector Context remains future work.
+
+## 2026-10-09 — Dynamic Sector Context V1
+
+Revision: `sector.v1`; implemented, pending user validation. This extends the
+existing `scanner.context.v1` analysis packet with optional `sector_context`.
+Older runs without the field remain readable and are never enriched retroactively.
+
+### Identity, acquisition and time basis
+
+A single bulk `InstrumentMetadataService` query supplies sector, industry and
+`context_benchmark` / `context_benchmark_symbol` for resolved candidate equities.
+These are analytical mappings, not index membership claims. Watchlist names,
+TapTide sector claims and runtime harvester calls never supply sector identity.
+A missing mapping is explicitly “No analytical context benchmark mapped”.
+
+After technical evaluation, each unique matched-candidate benchmark and canonical
+`NIFTY` reference is resolved by the existing Dhan master resolver. Only NSE index
+identities are accepted. Unresolvable metadata symbols remain unavailable; no
+second symbol-to-security-ID registry or fuzzy substitution is introduced.
+Candidate histories and any NIFTY already evaluated in the universe are reused.
+All benchmark calls use the existing `ScannerHistory`: owner/generation/instrument
+cache, 300-second TTL, single-flight lock, 1.1-second pacing and 256-entry bound.
+There is at most one acquisition per unique benchmark and one NIFTY acquisition
+per scan. The 20-candidate limit is unchanged. Optional benchmark acquisition has
+at most 30 seconds and remains within the technical acquisition deadline; no
+transaction spans provider I/O. OFF mode makes no benchmark calls.
+
+Only archived completed daily bars available at the scan cutoff are used. Unknown
+finality is rejected for sector calculations. Synthetic or non-Dhan provenance is
+rejected by the existing cache. Comparisons require identical Asia/Kolkata session
+dates across the entire return window. Different endpoints or missing sessions
+produce unavailable RS, never a comparison of unlike periods.
+
+### Central deterministic policy
+
+`scanner_v2/sector.py` owns calculation, assessment, evidence prose and scores:
+
+- Trend reuses Scanner SMA: close > SMA20 > SMA50 is BULLISH; close < SMA20 <
+  SMA50 is BEARISH; otherwise NEUTRAL. Fewer than 50 bars is UNKNOWN.
+- N-session return = `100 * (last_close / close_N_sessions_earlier - 1)` for
+  N = 1, 5, 20. N+1 completed closes are required.
+- Sector RS = sector return minus NIFTY return; candidate RS = candidate return
+  minus sector return. Both are percentage points, not correlation.
+- Rotation is IMPROVING when 5D RS > 0.25 pp and `5D RS - 20D RS / 4 > 0.25 pp`;
+  DETERIORATING uses both < -0.25 pp; otherwise STABLE. Missing either RS is
+  UNKNOWN. Division by four is an explicit linear momentum proxy, not a claim
+  that five-session and twenty-session returns have identical horizons.
+- A usable assessment requires trend plus aligned 5D sector/NIFTY RS. BULLISH
+  trend and RS5 > 0.25 with RS20 > 0.25 is STRONG; without that RS20 confirmation
+  it is SUPPORTIVE. BULLISH and RS5 >= -0.25 is also SUPPORTIVE. BEARISH and
+  RS5 < -0.25 is WEAK. Other usable combinations are NEUTRAL. Missing minimum
+  evidence is UNKNOWN. Rotation adds explanation rather than a second score.
+- Candidate relative state uses 5D excess return with a configurable pure-policy
+  neutral band (default ±0.25 pp): OUTPERFORMING above, UNDERPERFORMING below,
+  otherwise IN_LINE. It enriches explanation and does not change sector score.
+- Bullish sector contributions: STRONG +5, SUPPORTIVE +3, NEUTRAL 0, WEAK -5,
+  UNKNOWN 0. Existing setup direction reverses those values for bearish setups;
+  unknown direction contributes 0. Sector stays within ±5 and total context ±20.
+
+### Partial evidence and historical truth
+
+Missing NIFTY20, candidate history or an unaligned window remains independently
+unavailable. A usable trend/RS5 assessment can be PARTIAL with +3 supportive
+contribution; missing the minimum evidence contributes zero. Provider errors and
+timeouts are typed missing evidence, never scan-wide failures or synthetic
+fallbacks. Last-known metadata absent from the latest import is identified with
+a warning. Sector coverage counts only a usable dynamic state, not static identity.
+The run-level snapshot records shared optional MI; each candidate packet records
+its own combined coverage, sector evidence and provenance.
+
+`as_of`, `nifty_as_of`, `candidate_as_of` retain last completed-bar timestamps;
+`received_at` records benchmark receipt and `metadata_updated_at` records mapping
+version time. Freshness is explicitly `COMPLETED_DAILY_AS_OF`, not “live” or an
+invented exchange-calendar age classification. Source dates remain visible.
+
+Ranking preserves technical MATCH and the 80-point technical baseline. Only an
+explicit HARD_FILTER predicate can reject on dynamic sector strength/rotation;
+UNKNOWN follows existing missing-data rejection semantics. Candidate analysis,
+contribution, compact Reason, facts and Evidence share the same stored assessment.
+Evidence shows returns, excess-return units, direction-aware facts, limitations
+and collapsible source details. No provider IDs appear on the normal surface.
+Historical run reads return immutable stored JSON without fetching today's bars.
+
+Validation resides in `test_scanner_sector.py`, existing Scanner/context tests,
+`scanner-sector.test.tsx`, and the six-width Scanner Chromium review. These use
+fabricated provider responses isolated from live credentials.
+
+### Dynamic Sector V1 validation record — 2026-10-09
+
+Starting branch `main`, clean worktree, HEAD
+`168d2b13b0dc004b0c505ba3dcdd6f6195a031b1`. No commit, tag or push.
+Backend regression: 1,115 passed. Focused sector/Scanner/context/metadata consumers:
+96 passed. Frontend regression: 225 passed; focused Scanner/Evidence: 16 passed.
+Ruff lint and format (174 Python files), source-wide strict mypy (105 files),
+compilation, pip check, TypeScript, ESLint, Prettier and production build passed.
+Full strict mypy retains four pre-existing test-harness errors in
+`test_discovery_product.py:1321`, `test_dhan_credentials.py:126`,
+`test_scanner_v2.py:146` and `test_scanner_context.py:257`; the same four errors
+were independently reproduced from an archive of the untouched starting commit.
+
+One bounded live Dhan scan used the unchanged **Trend Down** template on INFY,
+HDFCBANK, RELIANCE and 20MICRONS. Run
+`2f7b1246-a026-45a5-b70c-bca4bed39bb7`: 4 requested/resolved/evaluated, 4 technical
+matches, no failures of technical evaluation. Dhan credentials were READY at
+generation 5. No TapTide call was needed to calculate sector context.
+
+INFY mapped to Technology / NIFTY IT and acquired real Dhan benchmark evidence:
+BEARISH trend; benchmark returns 1D -0.076375%, 5D +0.114782%,
+20D -7.184077%; sector/NIFTY excess returns +1.832917 pp and -1.246721 pp;
+candidate/sector excess returns +0.176940 pp and -0.671746 pp. Rotation was
+IMPROVING, candidate relative state IN_LINE, sector state NEUTRAL, contribution 0. These mixed facts were retained, not forced into a supportive score. All
+comparison endpoints were 2026-10-08 00:00 IST, the returned completed daily
+session timestamp.
+
+Live limitation: the current exact-symbol Dhan resolver accepted NIFTYIT and
+NIFTY but did not resolve imported NIFTYBANK, NIFTYOILGAS or NIFTYMETAL.
+Those candidates retained their technical matches, metadata identities and
+explicit `INSTRUMENT_NOT_FOUND` sector evidence with zero contribution. No
+fallback alias/security-ID registry was introduced. These are provider-symbol
+coverage limitations, not an assertion that Dhan has no corresponding indices.
+
+Final Chromium Evidence checks: 6 passed at 390, 768, 1024, 1440, 1920 and
+2560 px. Each run checks keyboard activation of sector details and horizontal
+overflow, and captures `scanner-sector-evidence.png` in the corresponding
+`apps/web/test-results/` project folder. Mobile and desktop captures were visually
+reviewed; these are deterministic test data, not screenshots of the live scan.
+
+## 2026-10-09 — Dhan sector benchmark resolution remediation
+
+This follow-up supersedes the exact-symbol coverage limitation in the preceding
+validation record. It changes Dhan name adaptation and missing-evidence messages;
+`sector.v1` formulas, contribution policy, metadata mapping and historical
+persistence remain unchanged. Work began on `main` at
+`168d2b13b0dc004b0c505ba3dcdd6f6195a031b1`, preserving the uncommitted Dynamic
+Sector Context V1 work. No commit, tag or push was performed.
+
+### Resolution and support diagnostics
+
+All 11 distinct populated benchmark pairs in the runtime metadata snapshot were
+checked against Dhan's current compact instrument master. The failure was a
+name-contract mismatch: for example, metadata's `NIFTYBANK` identifies the same
+analytical benchmark that Dhan lists as `BANKNIFTY`; `NIFTYOILGAS` is listed as
+`NIFTY OIL AND GAS`. These were not missing metadata or proven unsupported indices.
+
+`discovery/dhan_benchmarks.py` centralizes provider-specific names only. The
+existing Dhan resolver tries exact NSE index trading name, normalized index name
+(case/whitespace/underscore only), then the validated provider alias. An ambiguous
+match stops resolution; it cannot fall through and choose a more convenient
+index. There is no fuzzy or substring matching, alternative feed, or manually
+maintained security-ID registry. The derived name lookup is cached with the
+instrument-master snapshot and rebuilt when that snapshot changes. Ordinary
+instrument resolution and the existing header index identities are preserved.
+
+`DhanMarketDataProvider.validate_sector_benchmark_support()` is a bounded internal
+diagnostic, not an application-startup prerequisite. It classifies each mapping
+as `SUPPORTED`, `UNSUPPORTED_BY_DHAN`, `UNRESOLVED_ALIAS`, or
+`INVALID_METADATA_MAPPING`. Here `SUPPORTED` means resolution succeeded; daily
+history must be checked separately. An unavailable master is downloaded only once
+per diagnostic invocation and is not evidence of unsupported history. The
+explicit unsupported registry is empty: no current family was proven unsupported.
+Internal diagnostics may include the current master ID; normal metadata and
+candidate Sector Context never gain Dhan IDs.
+
+### Observed live support matrix
+
+One bounded validation on 2026-10-09 used the existing Dhan daily-history path.
+Every entry below resolved as NSE `INDEX`, segment `IDX_I`, and returned **300
+completed daily bars**. IDs below are an observed diagnostic record, not runtime
+configuration or an alternative master.
+
+| TWF benchmark            | Metadata symbol   | Dhan trading name | Observed ID | History / status |
+| ------------------------ | ----------------- | ----------------- | ----------- | ---------------- |
+| NIFTY IT                 | NIFTYIT           | NIFTYIT           | 29          | PASS / SUPPORTED |
+| NIFTY BANK               | NIFTYBANK         | BANKNIFTY         | 25          | PASS / SUPPORTED |
+| NIFTY METAL              | NIFTYMETAL        | NIFTY METAL       | 31          | PASS / SUPPORTED |
+| NIFTY PHARMA             | NIFTYPHARMA       | NIFTY PHARMA      | 32          | PASS / SUPPORTED |
+| NIFTY AUTO               | NIFTYAUTO         | NIFTY AUTO        | 14          | PASS / SUPPORTED |
+| NIFTY REALTY             | NIFTYREALTY       | NIFTY REALTY      | 34          | PASS / SUPPORTED |
+| NIFTY ENERGY             | NIFTYENERGY       | NIFTY ENERGY      | 42          | PASS / SUPPORTED |
+| NIFTY OIL & GAS          | NIFTYOILGAS       | NIFTY OIL AND GAS | 470         | PASS / SUPPORTED |
+| NIFTY FINANCIAL SERVICES | NIFTY_FIN_SERVICE | FINNIFTY          | 27          | PASS / SUPPORTED |
+| NIFTY HEALTHCARE INDEX   | NIFTY_HEALTHCARE  | NIFTY HEALTHCARE  | 447         | PASS / SUPPORTED |
+| NIFTY FMCG               | NIFTYFMCG         | NIFTY FMCG        | 28          | PASS / SUPPORTED |
+
+NIFTY reference (observed ID 13) also returned 300 completed bars. The latest
+returned completed-session timestamp was **2026-10-08 00:00 IST**, not an assertion
+that the data covers today's session. The provider's incomplete-bar exclusion and
+existing exact-session alignment checks are unchanged. Quotes never fill missing
+benchmark history.
+
+### Failure isolation and acquisition bounds
+
+The provider distinguishes `BENCHMARK_ALIAS_UNRESOLVED` and
+`BENCHMARK_UNSUPPORTED_BY_DHAN`. Scanner projects history failures as
+`BENCHMARK_HISTORY_UNAVAILABLE` and insufficient observations as
+`BENCHMARK_INSUFFICIENT_HISTORY`, using readable Evidence messages rather than raw
+provider payloads. Authentication, rate-limit, ambiguity, timeout and finality
+failures retain distinct explanations. For example: “NIFTY OIL & GAS could not be
+resolved in Dhan's index master.”
+
+Missing minimum evidence leaves state UNKNOWN, contribution zero and dynamic
+sector coverage unavailable; metadata identity remains visible and technical
+matching continues. No optional benchmark failure fails Scanner startup. Partial
+metrics remain truthful under the existing policy, and stored runs are never
+rewritten by this remediation.
+
+Scanner resolves each unique metadata benchmark once and shares NIFTY once. The
+existing owner/generation history cache, five-minute TTL, request pacing and
+bounded sector deadline remain intact. The live support matrix and following scan
+shared that cache: **16 history requests total** (11 distinct sector indices,
+NIFTY, and four candidate instruments), with each acquired exactly once and no
+retry. Deterministic tests additionally verify two candidates sharing NIFTY BANK.
+
+### Four-symbol live scan
+
+Run `39007379-1fec-4269-9852-aa6911a1b5c6` used the unchanged **Trend Down** template,
+CUSTOM universe COFORGE/HDFCBANK/RELIANCE/20MICRONS, context mode RANKING and READY
+Dhan generation 5. Counts: **4 requested, 4 resolved, 4 evaluated, 0 not evaluated,
+3 matches**. No match was forced and no TapTide request was needed.
+
+| Symbol    | Metadata benchmark | Technical outcome | Sector evidence                                                                                   |
+| --------- | ------------------ | ----------------- | ------------------------------------------------------------------------------------------------- |
+| COFORGE   | NIFTY IT           | NON_MATCH         | Benchmark history PASS; no candidate Sector Context packet under existing matched-only enrichment |
+| HDFCBANK  | NIFTY BANK         | MATCH             | AVAILABLE; BEARISH trend, NEUTRAL sector state, contribution 0                                    |
+| RELIANCE  | NIFTY OIL & GAS    | MATCH             | AVAILABLE; BEARISH trend, WEAK sector state, bearish-setup contribution +5                        |
+| 20MICRONS | NIFTY METAL        | MATCH             | AVAILABLE; BEARISH trend, WEAK sector state, bearish-setup contribution +5                        |
+
+All three matched packets contain calculated 1D/5D/20D benchmark returns, aligned
+5D/20D sector-versus-NIFTY and candidate-versus-sector returns, Dhan provenance,
+source/receipt times, and no missing sector evidence. COFORGE's computation path
+is covered by a deterministic matched fixture; the live non-match remains intact.
+No fixed bullish/bearish result is asserted against live data in CI.
+
+### Remediation validation record
+
+- Focused resolver / market-data / sector / Scanner / context / metadata-consumer
+  suite: **150 passed**. Includes every current benchmark family, exact and
+  normalized aliases, ambiguous/missing master entries, cache refresh, 50-bar
+  minimum, incomplete-bar exclusion, failure isolation, representative stocks and
+  shared bank/NIFTY acquisition.
+- Full backend regression: **1,151 passed** in 347.95 seconds.
+- Ruff lint and format: **PASS**, 176 Python files. Strict source mypy:
+  **PASS**, 106 files. Full strict mypy: **FAIL, four unchanged baseline test-harness
+  errors**, independently reproduced from starting HEAD (same locations as the
+  preceding validation record); no additional typing errors were introduced.
+- Python compilation and `pip check`: **PASS**.
+- Frontend: **225 passed** across 22 files; focused Scanner/Evidence:
+  **16 passed** across two files. TypeScript, ESLint, Prettier and production build:
+  **PASS**. No production frontend change was needed for the provider fix.
+- Chromium Evidence/routing/responsive checks: **6 passed**, at 390, 768, 1024,
+  1440, 1920 and 2560 px. The fixture uses Dhan's actual Oil & Gas trading name,
+  and verifies the provider-neutral NIFTY OIL & GAS Evidence panel. Captures named
+  `scanner-sector-oil-gas-evidence.png` under the ignored `apps/web/test-results/`
+  folders were visually reviewed at mobile and desktop widths. An initial
+  test-only capitalization mismatch was corrected before this successful rerun.
+- `git diff --check`: **PASS**. No commit, tag or push.
+
+Status: **READY_FOR_USER_VALIDATION**, with the pre-existing full-test mypy debt
+explicitly retained. Existing historical runs retain their original evidence;
+run a new scan with the updated API to exercise the resolved benchmark names.

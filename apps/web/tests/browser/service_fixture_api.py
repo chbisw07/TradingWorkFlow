@@ -9,8 +9,8 @@ import httpx
 from twf.brokers.zerodha import ZerodhaAdapter
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "api" / "tests"))
-from order_provider_fixture import OrderProvider
 from fastapi import FastAPI
+from order_provider_fixture import OrderProvider
 from twf.config.settings import Settings
 from twf.integrations.adapters import (
     SyntheticLLMService,
@@ -45,18 +45,18 @@ def create_app() -> FastAPI:
         service_registry=ServiceRegistry(settings.service_clients, clients=clients),
     )
 
+    from test_watchlists import provider
     from twf.api.watchlists import catalog
     from twf.watchlists.catalog import WatchlistCatalog
-    from test_watchlists import provider
 
     app.dependency_overrides[catalog] = lambda: WatchlistCatalog(provider())
+    from internal_scanner_support import series
     from twf.api.scanner_v2 import market
     from twf.discovery.dhan_credentials import (
         DhanCredentialCapture,
         DhanCredentialStatus,
     )
     from twf.discovery.domain import SourceMode
-    from internal_scanner_support import series
 
     scanner_provider = provider()
     scanner_provider._master += tuple(
@@ -71,7 +71,12 @@ def create_app() -> FastAPI:
             "SEM_SERIES": "X",
             "SM_SYMBOL_NAME": symbol,
         }
-        for security_id, symbol in (("25", "BANKNIFTY"), ("21", "INDIA VIX"))
+        for security_id, symbol in (
+            ("25", "BANKNIFTY"),
+            ("21", "INDIA VIX"),
+            ("9991", "NIFTYIT"),
+            ("470", "NIFTY OIL AND GAS"),
+        )
     )
 
     async def scanner_history(instrument, interval, **kwargs):
@@ -90,9 +95,10 @@ def create_app() -> FastAPI:
             }
         )
 
-    from twf.discovery.market_data import QuoteSnapshot
     from datetime import UTC, datetime
     from decimal import Decimal
+
+    from twf.discovery.market_data import QuoteSnapshot
 
     async def scanner_quotes(instruments):
         values = {

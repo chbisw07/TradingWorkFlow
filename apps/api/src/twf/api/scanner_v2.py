@@ -75,8 +75,7 @@ def catalog(who: Who, manager: Manager) -> dict[str, Any]:
                 "field": field,
                 "category": spec.category,
                 "label": spec.label,
-                "enabled": field
-                not in {"broad_regime", "sector_strength", "sector_rotation", "breadth"},
+                "enabled": field not in {"broad_regime", "breadth"},
                 "field_type": spec.field_type.value,
                 "operators": list(spec.operators),
                 "default_operator": spec.default_operator,

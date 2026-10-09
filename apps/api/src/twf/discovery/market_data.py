@@ -17,6 +17,14 @@ from zoneinfo import ZoneInfo
 import httpx
 from pydantic import Field, SecretStr, ValidationError, model_validator
 
+from twf.discovery.dhan_benchmarks import (
+    UNSUPPORTED_BENCHMARKS,
+    BenchmarkSupport,
+    BenchmarkSupportStatus,
+    DhanIndexLookup,
+    benchmark_alias,
+    normalized_index_name,
+)
 from twf.discovery.domain import (
     InstrumentIdentity,
     ProducerIdentity,
@@ -76,6 +84,10 @@ class MarketDataErrorCode(StrEnum):
     PROVIDER_ERROR = "PROVIDER_ERROR"
     INVALID_RESPONSE = "INVALID_RESPONSE"
     UNSUPPORTED_INTERVAL = "UNSUPPORTED_INTERVAL"
+    BENCHMARK_ALIAS_UNRESOLVED = "BENCHMARK_ALIAS_UNRESOLVED"
+    BENCHMARK_UNSUPPORTED_BY_DHAN = "BENCHMARK_UNSUPPORTED_BY_DHAN"
+    BENCHMARK_HISTORY_UNAVAILABLE = "BENCHMARK_HISTORY_UNAVAILABLE"
+    BENCHMARK_INSUFFICIENT_HISTORY = "BENCHMARK_INSUFFICIENT_HISTORY"
 
 
 class MarketDataFailure(Exception):
@@ -237,6 +249,8 @@ class DhanMarketDataProvider:
         self._master: tuple[dict[str, str], ...] = ()
         self._master_at: datetime | None = None
         self._master_lock = asyncio.Lock()
+        self._index_master: tuple[dict[str, str], ...] | None = None
+        self._index_lookup: DhanIndexLookup | None = None
 
     def _headers(self) -> dict[str, str]:
         if not self.settings.configured:
@@ -364,6 +378,71 @@ class DhanMarketDataProvider:
             detail="Credentials configured; provider calls remain on demand.",
         )
 
+    def _indexes(self, rows: tuple[dict[str, str], ...]) -> DhanIndexLookup:
+        if self._index_master is not rows or self._index_lookup is None:
+            self._index_lookup = DhanIndexLookup(rows)
+            self._index_master = rows
+        return self._index_lookup
+
+    async def validate_sector_benchmark_support(
+        self,
+        benchmarks: tuple[tuple[str, str], ...],
+    ) -> tuple[BenchmarkSupport, ...]:
+        """Bounded internal resolution diagnostic; history must be verified separately."""
+        if len(benchmarks) > 64:
+            raise MarketDataFailure(MarketDataErrorCode.INVALID_RESPONSE)
+        output: list[BenchmarkSupport] = []
+        master_failure: MarketDataFailure | None = None
+        try:
+            await self._load_master()
+        except MarketDataFailure as exc:
+            master_failure = exc
+        for name, symbol in dict.fromkeys(benchmarks):
+            alias = benchmark_alias(symbol)
+            if (
+                not name.strip()
+                or not symbol.strip()
+                or (alias and normalized_index_name(name) != normalized_index_name(alias[0]))
+            ):
+                output.append(
+                    BenchmarkSupport(name, symbol, BenchmarkSupportStatus.INVALID_METADATA_MAPPING)
+                )
+                continue
+            try:
+                if master_failure is not None:
+                    raise master_failure
+                instrument = (await self.resolve_instruments((symbol,)))[0]
+                if instrument.exchange != "NSE" or instrument.segment != "INDEX":
+                    output.append(
+                        BenchmarkSupport(
+                            name, symbol, BenchmarkSupportStatus.INVALID_METADATA_MAPPING
+                        )
+                    )
+                    continue
+                output.append(
+                    BenchmarkSupport(
+                        name,
+                        symbol,
+                        BenchmarkSupportStatus.SUPPORTED,
+                        dhan_name=instrument.provider_symbol,
+                        security_id=instrument.native.native_id.split(":", 1)[1],
+                        exchange_segment="IDX_I",
+                        instrument_type=instrument.instrument_type,
+                    )
+                )
+            except MarketDataFailure as exc:
+                output.append(
+                    BenchmarkSupport(
+                        name,
+                        symbol,
+                        BenchmarkSupportStatus.UNSUPPORTED_BY_DHAN
+                        if exc.code == MarketDataErrorCode.BENCHMARK_UNSUPPORTED_BY_DHAN
+                        else BenchmarkSupportStatus.UNRESOLVED_ALIAS,
+                        reason=exc.code.value,
+                    )
+                )
+        return tuple(output)
+
     async def resolve_instruments(self, symbols: tuple[str, ...]) -> tuple[InstrumentIdentity, ...]:
         if len(symbols) > 64 or len(set(symbols)) != len(symbols):
             raise MarketDataFailure(MarketDataErrorCode.INVALID_RESPONSE)
@@ -371,15 +450,31 @@ class DhanMarketDataProvider:
         output: list[InstrumentIdentity] = []
         for requested in symbols:
             symbol = requested.strip().upper()
-            candidates = [
-                row
-                for row in rows
-                if row["SEM_TRADING_SYMBOL"].upper() == symbol
-                and row["SEM_INSTRUMENT_NAME"].upper() in {"EQUITY", "INDEX"}
-                and row["SEM_SEGMENT"] in {"E", "I"}
-            ]
+            if any(
+                normalized_index_name(symbol) == normalized_index_name(value)
+                for value in UNSUPPORTED_BENCHMARKS
+            ):
+                raise MarketDataFailure(MarketDataErrorCode.BENCHMARK_UNSUPPORTED_BY_DHAN)
+            alias = benchmark_alias(symbol)
+            candidates = (
+                list(self._indexes(rows).candidates(symbol))
+                if alias
+                else [
+                    row
+                    for row in rows
+                    if row["SEM_TRADING_SYMBOL"].upper() == symbol
+                    and row["SEM_INSTRUMENT_NAME"].upper() in {"EQUITY", "INDEX"}
+                    and row["SEM_SEGMENT"] in {"E", "I"}
+                ]
+            )
+            if not candidates and not alias:
+                candidates = list(self._indexes(rows).candidates(symbol))
             if not candidates:
-                raise MarketDataFailure(MarketDataErrorCode.INSTRUMENT_NOT_FOUND)
+                raise MarketDataFailure(
+                    MarketDataErrorCode.BENCHMARK_ALIAS_UNRESOLVED
+                    if alias
+                    else MarketDataErrorCode.INSTRUMENT_NOT_FOUND
+                )
             ranked = sorted(
                 candidates,
                 key=lambda row: (

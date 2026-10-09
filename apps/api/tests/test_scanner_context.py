@@ -339,8 +339,8 @@ def test_catalog_exposes_only_reliably_supported_context_predicates(
     assert fields["fii_state"]["enabled"] is True
     assert fields["event_news_risk"]["enabled"] is True
     assert fields["broad_regime"]["enabled"] is False
-    assert fields["sector_strength"]["enabled"] is False
-    assert fields["sector_rotation"]["enabled"] is False
+    assert fields["sector_strength"]["enabled"] is True
+    assert fields["sector_rotation"]["enabled"] is True
     assert fields["breadth"]["enabled"] is False
 
 

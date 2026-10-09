@@ -117,7 +117,7 @@ test("Scanner V2 editable filters, durable runs, Watchlist handoff and responsiv
     timeout: 30000,
   });
   await expect(page.locator(".sc-reason").first()).toContainText(
-    "1/1 technical · Context unavailable · Final 80",
+    "1/1 technical · Context +0 Mixed · Final 80",
   );
   await expect(page.locator(".sc-table thead")).toContainText("Sector");
   await expect(page.locator(".sc-table tbody")).toContainText("Energy");
@@ -131,6 +131,24 @@ test("Scanner V2 editable filters, durable runs, Watchlist handoff and responsiv
     '[aria-label="Deterministic candidate analysis"]:visible',
   );
   await expect(analysis).toBeVisible();
+  const sector = analysis.getByRole("region", {
+    name: "Sector Context",
+    exact: true,
+  });
+  await expect(sector).toContainText("Technology");
+  await expect(sector).toContainText("NIFTY IT");
+  await expect(sector).toContainText("5D vs NIFTY");
+  await expect(sector).toContainText("Completed daily bars");
+  await sector.getByText("Sector data details", { exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await expect(
+    sector.getByText("Identity source: Instrument Metadata"),
+  ).toBeVisible();
+  await page.keyboard.press("Enter");
+  await sector.screenshot({
+    path: info.outputPath("scanner-sector-evidence.png"),
+  });
+
   await expect(
     analysis.getByText("Technical score", { exact: true }),
   ).toBeVisible();
@@ -145,6 +163,19 @@ test("Scanner V2 editable filters, durable runs, Watchlist handoff and responsiv
   await page.screenshot({
     path: info.outputPath("scanner-analysis-light.png"),
     fullPage: page.viewportSize()!.width >= 1200,
+  });
+  if (page.viewportSize()!.width < 1200)
+    await page.getByLabel("Close dialog").click();
+  await page
+    .locator(".sc-table tbody tr")
+    .filter({ hasText: "RELIANCE" })
+    .getByRole("button", { name: "Why?", exact: true })
+    .click();
+  await expect(sector).toContainText("NIFTY OIL & GAS");
+  await expect(sector).toContainText("Completed daily bars · available");
+  await expect(sector).not.toContainText("INSTRUMENT_NOT_FOUND");
+  await sector.screenshot({
+    path: info.outputPath("scanner-sector-oil-gas-evidence.png"),
   });
   if (page.viewportSize()!.width < 1200)
     await page.getByLabel("Close dialog").click();

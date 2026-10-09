@@ -11,20 +11,53 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from twf.discovery.domain import InstrumentIdentity, SourceMode
-from twf.discovery.internal_scanner.market_series import DataUnavailable, MarketSeries
+from twf.discovery.internal_scanner.market_series import Bar, DataUnavailable, MarketSeries
 from twf.discovery.market_data import (
     DhanMarketDataProvider,
+    MarketDataErrorCode,
     MarketDataFailure,
     MarketDataProvider,
 )
 from twf.infrastructure.scanner_v2 import SavedScannerRow, ScannerRunRow
+from twf.instrument_metadata.contracts import InstrumentMetadataSummary
 from twf.instrument_metadata.service import InstrumentMetadataService
-from twf.scanner_v2.context import MarketContextSnapshot, analyze_candidate, infer_direction
-from twf.scanner_v2.contracts import SavedInput, ScanConfig
+from twf.scanner_v2.context import (
+    MarketContextSnapshot,
+    analyze_candidate,
+    infer_direction,
+    normalize_context,
+)
+from twf.scanner_v2.contracts import ContextMode, SavedInput, ScanConfig
 from twf.scanner_v2.engine import evaluate
+from twf.scanner_v2.sector import assess_sector
 from twf.watchlists.catalog import kind
 from twf.watchlists.service import WatchlistFailure, WatchlistService
 from twf.watchlists.system import SystemUniverseCatalog
+
+
+def benchmark_failure_message(name: str, code: str, *, stage: str) -> str:
+    """Safe human-readable projection of typed provider failures; no raw payloads."""
+    if code == MarketDataErrorCode.BENCHMARK_UNSUPPORTED_BY_DHAN:
+        return f"Dhan does not support completed daily history for {name}."
+    if code in {
+        MarketDataErrorCode.INSTRUMENT_NOT_FOUND,
+        MarketDataErrorCode.BENCHMARK_ALIAS_UNRESOLVED,
+        "BENCHMARK_INDEX_UNRESOLVED",
+    }:
+        return f"{name} could not be resolved in Dhan's index master."
+    if code == MarketDataErrorCode.AMBIGUOUS_INSTRUMENT:
+        return f"{name} has ambiguous Dhan index identities; no index was selected."
+    if code == MarketDataErrorCode.BENCHMARK_INSUFFICIENT_HISTORY:
+        return f"{name} has fewer than 50 completed daily bars from Dhan."
+    if code == "BENCHMARK_FINALITY_UNAVAILABLE":
+        return f"Completed daily bar finality could not be verified for {name}."
+    if code == MarketDataErrorCode.RATE_LIMITED:
+        return f"Dhan rate limited {name} {stage}; sector evidence is unavailable."
+    if code in {MarketDataErrorCode.AUTH_REQUIRED, "DHAN_AUTH_REQUIRED"}:
+        return f"Dhan authorization is required to retrieve {name} sector evidence."
+    if code == MarketDataErrorCode.TIMEOUT:
+        return f"Dhan {name} {stage} timed out; sector evidence is unavailable."
+    return f"Dhan {name} {stage} is temporarily unavailable."
 
 
 class ScannerHistory:
@@ -217,6 +250,7 @@ class ScannerService:
                             "resolved": False,
                         }
                     )
+        acquired: dict[UUID, MarketSeries] = {}
         quotes: dict[UUID, dict[str, Any]] = {}
         quote_failure: str | None = None
         if provider is not None and instruments:
@@ -257,6 +291,7 @@ class ScannerService:
                         raise TimeoutError
                     async with asyncio.timeout(max(0.01, deadline - monotonic())):
                         series = await cache.read(self.owner, generation, provider, i)
+                    acquired[i.instrument_id] = series
                     bars = series.at(now)
                     snapshot_quote = quotes.get(i.instrument_id)
                     row["quote"] = snapshot_quote
@@ -295,8 +330,120 @@ class ScannerService:
                 except TimeoutError:
                     row.update(outcome="NOT_EVALUATED", failure="TIMEOUT")
                 rows.append(row)
+        with self.factory() as db:
+            targets: dict[int, tuple[str, str]] = {}
+            for index, row in enumerate(rows):
+                if not row.get("instrument"):
+                    continue
+                instrument = InstrumentIdentity.model_validate(row["instrument"])
+                if kind(instrument) == "EQUITY":
+                    targets[index] = (instrument.exchange, instrument.symbol)
+            metadata_service = InstrumentMetadataService(db)
+            metadata = metadata_service.get_many_by_exchange_symbols(tuple(targets.values()))
+            for index, row in enumerate(rows):
+                target = targets.get(index)
+                metadata_item = (
+                    metadata.get((target[0].upper(), target[1].upper()))
+                    if target is not None
+                    else None
+                )
+                row["instrument_metadata"] = (
+                    metadata_service.summary(
+                        metadata_item,
+                        applies_to_symbol=row["symbol"],
+                        resolution_basis="DIRECT",
+                    ).model_dump(mode="json")
+                    if metadata_item is not None
+                    else None
+                )
         key = uuid4()
-        context_snapshot = await context() if context is not None else None
+        context_snapshot = (
+            await context() if context is not None else normalize_context(None, at=now)
+        )
+        # One short DB read has ended above; all optional benchmark I/O is outside SQL.
+        benchmark_bars: dict[str, tuple[Bar, ...]] = {}
+        benchmark_received: dict[str, datetime | None] = {}
+        benchmark_failures: dict[str, str] = {}
+        eligible_rows = [r for r in rows if r.get("outcome") == "MATCH"]
+        symbols = sorted(
+            {
+                r["instrument_metadata"]["context_benchmark_symbol"]
+                for r in eligible_rows
+                if r.get("instrument_metadata")
+                and r["instrument_metadata"].get("context_benchmark_symbol")
+                and r["instrument_metadata"].get("context_benchmark")
+            }
+        )
+        benchmark_names = {
+            "NIFTY": "NIFTY 50",
+            **{
+                r["instrument_metadata"]["context_benchmark_symbol"]: r["instrument_metadata"][
+                    "context_benchmark"
+                ]
+                for r in eligible_rows
+                if r.get("instrument_metadata")
+                and r["instrument_metadata"].get("context_benchmark_symbol")
+                and r["instrument_metadata"].get("context_benchmark")
+            },
+        }
+        if symbols and config.context_mode != ContextMode.OFF:
+            # Reuse canonical NIFTY resolution used by the existing header/Watchlist.
+            sector_deadline = min(deadline, monotonic() + 30)
+            for symbol in dict.fromkeys(["NIFTY", *symbols]):
+                stage = "index resolution"
+                try:
+                    if provider is None:
+                        raise WatchlistFailure("DHAN_AUTH_REQUIRED", 503)
+                    if monotonic() >= sector_deadline:
+                        raise TimeoutError
+                    async with asyncio.timeout(max(0.01, sector_deadline - monotonic())):
+                        resolved = await provider.resolve_instruments((symbol,))
+                        if (
+                            len(resolved) != 1
+                            or resolved[0].exchange != "NSE"
+                            or kind(resolved[0]) != "INDEX"
+                        ):
+                            raise WatchlistFailure("BENCHMARK_INDEX_UNRESOLVED", 422)
+                        instrument = resolved[0]
+                        stage = "daily history"
+                        benchmark_series = acquired.get(instrument.instrument_id)
+                        if benchmark_series is None:
+                            benchmark_series = await cache.read(
+                                self.owner, generation, provider, instrument
+                            )
+                            acquired[instrument.instrument_id] = benchmark_series
+                        bars = benchmark_series.at(now)
+                        if any(b.finality != "COMPLETED" for b in bars):
+                            raise WatchlistFailure("BENCHMARK_FINALITY_UNAVAILABLE", 422)
+                        benchmark_bars[symbol] = bars
+                        benchmark_received[symbol] = benchmark_series.received_at
+                        if len(bars) < 50:
+                            benchmark_failures[symbol] = benchmark_failure_message(
+                                benchmark_names[symbol],
+                                MarketDataErrorCode.BENCHMARK_INSUFFICIENT_HISTORY,
+                                stage=stage,
+                            )
+                except (MarketDataFailure, WatchlistFailure, DataUnavailable, TimeoutError) as exc:
+                    code = (
+                        "TIMEOUT"
+                        if isinstance(exc, TimeoutError)
+                        else exc.reason.value
+                        if isinstance(exc, DataUnavailable)
+                        else str(exc.code)
+                    )
+                    if stage == "daily history" and code in {
+                        "PROVIDER_ERROR",
+                        "INVALID_RESPONSE",
+                        "DATA_UNAVAILABLE",
+                        "EMPTY_SERIES",
+                    }:
+                        code = MarketDataErrorCode.BENCHMARK_HISTORY_UNAVAILABLE
+                    benchmark_failures[symbol] = benchmark_failure_message(
+                        benchmark_names[symbol],
+                        code,
+                        stage=stage,
+                    )
+
         if context_snapshot is not None:
             direction = infer_direction(config.filters)
             for row in rows:
@@ -304,6 +451,31 @@ class ScannerService:
                     row["matched"] = False
                     row["technical_match"] = False
                     continue
+                sector = None
+                if row.get("outcome") == "MATCH" and config.context_mode != ContextMode.OFF:
+                    meta = (
+                        InstrumentMetadataSummary.model_validate(row["instrument_metadata"])
+                        if row.get("instrument_metadata")
+                        else None
+                    )
+                    benchmark_symbol = meta.context_benchmark_symbol if meta else None
+                    candidate_bars = tuple(Bar.model_validate(b) for b in row.get("bars", ()))
+                    if any(b.finality != "COMPLETED" for b in candidate_bars):
+                        candidate_bars = ()
+                    sector = assess_sector(
+                        meta,
+                        benchmark_bars.get(benchmark_symbol or "", ()),
+                        benchmark_bars.get("NIFTY", ()),
+                        candidate_bars,
+                        direction=direction.value,
+                        candidate_symbol=row["symbol"],
+                        received_at=benchmark_received.get(benchmark_symbol or ""),
+                        failures=tuple(
+                            benchmark_failures[x]
+                            for x in dict.fromkeys((benchmark_symbol, "NIFTY"))
+                            if x in benchmark_failures
+                        ),
+                    )
                 analysis = analyze_candidate(
                     row["symbol"],
                     row,
@@ -314,6 +486,7 @@ class ScannerService:
                     now,
                     str(key),
                     str(row["instrument"]["instrument_id"]) if row.get("instrument") else None,
+                    sector=sector,
                 )
                 row["analysis"] = analysis.model_dump(mode="json")
                 row["matched"] = analysis.matched
@@ -352,30 +525,5 @@ class ScannerService:
             "rows": rows,
         }
         with self.factory.begin() as db:
-            targets: dict[int, tuple[str, str]] = {}
-            for index, row in enumerate(rows):
-                if not row.get("instrument"):
-                    continue
-                instrument = InstrumentIdentity.model_validate(row["instrument"])
-                if kind(instrument) == "EQUITY":
-                    targets[index] = (instrument.exchange, instrument.symbol)
-            metadata_service = InstrumentMetadataService(db)
-            metadata = metadata_service.get_many_by_exchange_symbols(tuple(targets.values()))
-            for index, row in enumerate(rows):
-                target = targets.get(index)
-                metadata_item = (
-                    metadata.get((target[0].upper(), target[1].upper()))
-                    if target is not None
-                    else None
-                )
-                row["instrument_metadata"] = (
-                    metadata_service.summary(
-                        metadata_item,
-                        applies_to_symbol=row["symbol"],
-                        resolution_basis="DIRECT",
-                    ).model_dump(mode="json")
-                    if metadata_item is not None
-                    else None
-                )
             db.add(ScannerRunRow(id=key, owner_id=self.owner, payload=result, created_at=now))
         return result

@@ -17,6 +17,7 @@ from twf.discovery.market_intelligence import (
 )
 from twf.integrations.contracts import Contract
 from twf.scanner_v2.contracts import ContextFilter, ContextMode, Filter
+from twf.scanner_v2.sector import SectorContextEvidence, sector_score
 
 
 class SetupDirection(StrEnum):
@@ -190,6 +191,7 @@ class CandidateAnalysisPacket(Contract):
     provenance: tuple[ContextEvidence, ...]
     warnings: tuple[str, ...]
     context_filter_diagnostics: tuple[dict[str, Any], ...]
+    sector_context: SectorContextEvidence | None = None
 
 
 def _number(value: object) -> float | None:
@@ -294,15 +296,15 @@ def normalize_context(
     }.get(sentiment, EventRisk.UNKNOWN)
 
     # The current TapTide index output is sectoral, so it must not be promoted
-    # to a broad benchmark regime. Candidate sector mapping and breadth are also
-    # absent from accepted contracts and stay explicitly UNKNOWN.
+    # to a broad benchmark regime. Candidate sector is enriched separately from
+    # Dhan; breadth has no accepted source and remains explicitly UNKNOWN.
     broad = BroadRegime.UNKNOWN
     sector = SectorStrength.UNKNOWN
     rotation = SectorRotation.UNKNOWN
     breadth = BreadthState.UNKNOWN
     evidence = (
         _evidence("broad_regime", broad, "No authoritative broad-benchmark regime evidence", None),
-        _evidence("sector", sector, "Candidate-to-sector mapping is unavailable", None),
+        _evidence("sector", sector, "Dynamic sector assessment unavailable", None),
         _evidence(
             "vix",
             vix,
@@ -411,13 +413,7 @@ def _contributions(
             CONTEXT_WEIGHTS["broad_regime"],
             direction,
         ),
-        "sector": _directional(
-            states["sector"],
-            ("STRONG", "SUPPORTIVE"),
-            ("WEAK",),
-            CONTEXT_WEIGHTS["sector"],
-            direction,
-        ),
+        "sector": sector_score(states["sector"], direction.value),
         "vix": {"LOW": 1, "NORMAL": 1, "ELEVATED": -1, "HIGH": -2}.get(states["vix"], 0),
         "flows": _directional(
             states["flows"],
@@ -519,7 +515,45 @@ def analyze_candidate(
     at: datetime,
     run_id: str,
     candidate_instrument_id: str | None,
+    sector: SectorContextEvidence | None = None,
 ) -> CandidateAnalysisPacket:
+    if sector is not None and mode != ContextMode.OFF:
+        evidence = tuple(item for item in snapshot.evidence if item.dimension != "sector") + (
+            ContextEvidence(
+                dimension="sector",
+                state=sector.sector_state,
+                detail=(
+                    f"{sector.context_benchmark or 'Sector'}: {sector.sector_state.lower()}; "
+                    f"rotation {sector.rotation_state.lower()}"
+                ),
+                provider="dhan",
+                source_time=sector.as_of,
+                received_at=sector.received_at,
+                freshness=sector.freshness,
+            ),
+        )
+        missing = tuple(item.dimension for item in evidence if item.state == "UNKNOWN")
+        coverage_count = len(DIMENSIONS) - len(missing)
+        status = (
+            ContextStatus.UNAVAILABLE
+            if coverage_count == 0
+            else ContextStatus.PARTIAL
+            if missing or sector.status != "AVAILABLE"
+            else ContextStatus.COMPLETE
+        )
+        if snapshot.status == ContextStatus.STALE:
+            status = ContextStatus.STALE
+        snapshot = snapshot.model_copy(
+            update={
+                "sector_strength": SectorStrength(sector.sector_state),
+                "sector_rotation": SectorRotation(sector.rotation_state),
+                "evidence": evidence,
+                "missing_dimensions": missing,
+                "coverage_count": coverage_count,
+                "status": status,
+                "warnings": (*snapshot.warnings, *sector.warnings),
+            }
+        )
     technical_match = row.get("outcome") == "MATCH"
     diagnostics = tuple(row.get("diagnostics", ()))
     passed = sum(item.get("passed") is True for item in diagnostics)
@@ -565,10 +599,13 @@ def analyze_candidate(
         context_status=snapshot.status,
         context_coverage=coverage,
         context_contributions=contributions,
-        supporting_factors=supporting,
-        contradicting_factors=contradicting,
-        neutral_factors=neutral,
-        missing_evidence=snapshot.missing_dimensions,
+        supporting_factors=(*supporting, *(sector.supporting_factors if sector else ())),
+        contradicting_factors=(*contradicting, *(sector.contradicting_factors if sector else ())),
+        neutral_factors=(*neutral, *(sector.neutral_factors if sector else ())),
+        missing_evidence=(
+            *snapshot.missing_dimensions,
+            *(sector.missing_evidence if sector else ()),
+        ),
         context_adjustment=adjustment,
         final_relevance=final_relevance,
         context_classification=classification,
@@ -576,4 +613,5 @@ def analyze_candidate(
         provenance=snapshot.evidence,
         warnings=snapshot.warnings,
         context_filter_diagnostics=filter_diagnostics,
+        sector_context=sector,
     )
