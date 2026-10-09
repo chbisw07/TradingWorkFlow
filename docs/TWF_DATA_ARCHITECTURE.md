@@ -340,3 +340,28 @@ boundaries remain mandatory. The data DOCX companion needs post-acceptance regen
 | --- | --- | --- | --- |
 | S&D reconciliation 1 | 2026-09-28 | PROPOSED / RECONCILED / READY FOR REVIEW | Normative design/planning extension: Discovery data ownership and immutable history; prior history and acceptance preserved |
 | S&D acceptance 1 | 2026-09-29 | ACCEPTED / IMPLEMENTATION AUTHORIZED | Independent S&D architecture acceptance; staged Sprint-2 scope only, no runtime delivery or prior milestone change; see [review](TWF_SCAN_DISCOVER_ARCHITECTURE_ACCEPTANCE_REVIEW.md) |
+
+## 29. Offline instrument metadata snapshots — 2026-10-09
+
+TWF owns a project-local, offline NSE instrument metadata harvester under
+[`tools/market_metadata/`](../tools/market_metadata/README.md). The harvester
+uses the official NSE bulk equity list for instrument identity, an optional bulk
+NSE/NSE Indices classification file, and optional Yahoo enrichment. Yahoo is not
+a runtime Scanner or Watchlist dependency. The unreliable NSE per-symbol
+quote-equity endpoint is outside this workflow.
+
+Each validated snapshot carries one schema version, run identifier, and dataset
+generation timestamp while retaining independent source/as-of provenance for
+sector, industry, market cap, NSE classification, and TWF analytical benchmark
+mapping. Relative rank/category metadata is generated only for full-universe
+runs. Context benchmarks use exact mappings and do not assert official index
+membership. Rights entitlements retain their own instrument identity and may
+inherit company metadata from an exact resolved underlying.
+
+Operational CSV, unresolved, summary, checkpoint, partial, and temporary files
+live under ignored `var/market_metadata/`. Source code, documentation, and tiny
+deterministic fixtures are tracked. A future importer will validate an accepted
+snapshot before writing application-owned database records. Scanner and Watchlist
+consumers must use that imported, provenance-bearing dataset; they must not invoke
+Yahoo or the harvester in an application request. This increment creates no
+runtime tables, API routes, or UI behavior.
