@@ -1,234 +1,287 @@
 # TradingWorkFlow (TWF)
 
-TradingWorkFlow is a trader-facing web application that brings market scanning,
-discovery, market intelligence, broker workflows, optional LLM explanations, and
-future trade-management services into one coherent workspace.
+TradingWorkFlow is a trader-facing web application for market scanning,
+discovery, watchlists, market intelligence, and governed broker workflows. It
+keeps discovery separate from trading authority: a scan can identify and explain
+an opportunity, but it cannot silently turn that result into a trade.
 
-The product keeps discovery separate from trading authority. Scan & Discover can
-identify and explain a `DiscoveryCandidate`; it cannot place an order or silently
-promote that candidate into an executable trade.
+## Where We Are Now
 
-## Current Project Status
+TWF has moved beyond foundation-only development. The operational product now
+includes the application shell, the accepted Broker workspace, persistent
+Watchlists, Scanner V2, real Dhan market data, system-global NSE instrument
+metadata, deterministic Market Context ranking, and Dynamic Sector Context V1.
+
+The current focus is Scanner ranking quality. Broad-market regime and market
+breadth are next, followed by richer flow and event context. Recent Scanner,
+Watchlist, metadata, and Market Context work is implemented and awaiting broader
+user validation; Sprint 2 as a whole is not accepted or frozen.
+
+## Current Product Status
+
+| Area                          | Current status                        | Product truth                                                                                               |
+| ----------------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| TWF-0 / TWF-1 foundations     | **ACCEPTED / FROZEN**                 | Architecture, repository, API, database, authentication, settings, and service-client foundations           |
+| Broker V1 / V2                | **ACCEPTED / FROZEN**                 | Read-only broker data plus governed manual order preview, intent, submission, and reconciliation            |
+| Application shell             | **IMPLEMENTED**                       | Shared responsive header, grouped navigation, theme support, and preserved product routes                   |
+| Watchlists                    | **IMPLEMENTED / USER VALIDATION**     | Persistent custom lists, read-only built-ins, Dhan enrichment, metadata, charts, and broker handoff         |
+| Scanner V2                    | **IMPLEMENTED / USER VALIDATION**     | Typed daily technical scanning, saved/history workflows, evidence, ranking, metadata, and Watchlist handoff |
+| Discovery                     | **IMPLEMENTED / USER VALIDATION**     | Downstream candidate interpretation and temporal tracking, separate from Scanner execution                  |
+| Dhan market data              | **IMPLEMENTED / LIVE PATH VALIDATED** | Authoritative real quotes and bounded completed-bar OHLCV; no silent synthetic fallback                     |
+| Instrument Metadata harvester | **IMPLEMENTED**                       | Project-owned offline NSE metadata maintenance workflow                                                     |
+| Runtime Instrument Metadata   | **IMPLEMENTED**                       | System-global database, importer, service, API, and bounded Scanner/Watchlist lookup                        |
+| Deterministic Market Context  | **IMPLEMENTED / ACTIVE DEVELOPMENT**  | Explainable ranking that preserves technical match truth                                                    |
+| Dynamic Sector Context V1     | **IMPLEMENTED / USER VALIDATION**     | Metadata-led sector identity with live Dhan benchmark analysis                                              |
+| Broad-market regime           | **NEXT**                              | Planned deterministic Market Context dimension                                                              |
+| Market breadth                | **NEXT**                              | Planned deterministic Market Context dimension                                                              |
+| Institutional flows / events  | **PARTIAL**                           | Available evidence is normalized without inventing unavailable history or sentiment                         |
+| Scanner LLM narrative         | **PLANNED / OPTIONAL**                | Future natural-language synthesis only; deterministic scores remain authoritative                           |
+| Derivatives Scanner           | **PLANNED**                           | Product shell only; not an implemented scanner                                                              |
+
+The accepted Broker capability is TWF's execution substrate. It is not intended
+to recreate a complete broker terminal.
+
+## Product Surfaces
+
+### Brokers
+
+The Broker workspace provides accepted Zerodha-backed account views and Broker V2
+manual trading under explicit preview and confirmation. Durable intent,
+idempotency, reconciliation, ownership, and audit controls remain the authority
+for order submission. See the
+[Broker V2 manual-order foundation](docs/TWF_BROKER_V2_MANUAL_ORDER_ENTRY.md).
+
+### Watchlists
+
+Watchlists are a substantial, persistent workspace:
+
+- owner-scoped custom lists and centrally managed read-only system lists;
+- `EQ`, `IDX`, `FUT`, and `OPT` instrument support where exact canonical
+  metadata is available;
+- Dhan quote, daily technical, change, volume, and chart enrichment;
+- system-global Sector and instrument metadata;
+- selected-instrument analysis and governed Broker V2 preview;
+- CSV import/export, notes, activity, trash, restore, and permanent-delete
+  workflows.
+
+Built-in lists currently cover the enabled official Nifty universes. F&O 50 and
+F&O 100 remain disabled while their eligibility definition is pending. Details
+and validation boundaries are in the
+[Watchlists architecture](docs/TWF_WATCHLIST_ARCHITECTURE.md).
+
+### Scanner V2
+
+Scanner V2 is operational for Equity/Index daily technical scans. It provides:
+
+- Custom and Watchlist universes; Index, Sector, and Market universe contracts
+  are present, while their feeds are not yet configured;
+- typed filters, comparison-aware value fields, active filter chips, templates,
+  saved scans, and immutable recent-scan history;
+- compact match reasons with detailed, archived evidence;
+- deterministic Market Context ranking and explicit context coverage;
+- system-global metadata, including Sector in results and richer details;
+- selected-result handoff to Watchlists; and
+- a current validation limit of 20 instruments per scan.
+
+The Equity/Index scanner is implemented. The Derivatives Scanner remains a
+future-facing shell. See the
+[Scanner V2 architecture and validation record](docs/TWF_SCANNER_V2_ARCHITECTURE.md).
+
+### Discovery
+
+Scanner and Discovery have different responsibilities:
 
 ```text
-TWF-0  Product / Architecture Foundation                ✅ ACCEPTED / FROZEN
-TWF-1  Application Foundation                           ✅ ACCEPTED / FROZEN
-
-Broker Workspace Architecture v0.3                      ✅ ACCEPTED / TAGGED
-├── Broker V1 — real-broker read-only foundation        ✅ ACCEPTED / FROZEN
-└── Broker V2 — manual-trading foundation               ✅ ACCEPTED / FROZEN
-
-Scan & Discover architecture                            ✅ ACCEPTED
-├── S2-0  Architecture / implementation readiness       ✅ ACCEPTED
-├── S2-1  Domain contracts / synthetic providers        ✅ ACCEPTED / FROZEN
-├── S2-2  Internal Scanner V0                           ✅ ACCEPTED / FROZEN
-├── S2-3A Generic MCP connection/authentication         ✅ INTEGRATED
-├── Historical TradingView S2-3                         ✅ ACCEPTED / FROZEN WITH
-│                                                          DEFERRED HARDENING;
-│                                                          DECOMMISSIONED AT RUNTIME
-├── Current real market-data path — Dhan                ▶ IMPLEMENTED / LIVE PATH
-│                                                          VALIDATED
-├── S2-4 through S2-7                                   ✅ IMPLEMENTED
-├── S2-8 internal implementation validation             ✅ COMPLETE
-├── Scan-driven temporal-state implementation           ✅ IMPLEMENTED; ACCEPTANCE
-│                                                          STILL PENDING
-└── Sprint 2 overall                                    ▶ USER VALIDATION IN PROGRESS;
-                                                           NOT ACCEPTED / FROZEN
+Scanner    = deterministic universe evaluation, technical match, and ranking
+Discovery  = downstream candidate interpretation, evidence, and temporal tracking
 ```
 
-The corresponding repository tags are `twf-0-architecture-baseline`,
-`twf-1-application-foundation`, `twf-broker-workspace-architecture-v0.3`,
-`twf-broker-v1`, `twf-broker-v2`,
-`twf-scan-discover-architecture-v0.2`,
-`twf-s2-1-discovery-foundation`, `twf-s2-2-internal-scanner-v0`, and the
-historical `twf-s2-3-tradingview-mcp-provider`. The tag
-`twf-s2-scan-discover-user-validation-ready` marks a validation-ready checkpoint;
-it is not final Sprint-2 acceptance.
+Discovery keeps immutable observations and candidate history without gaining
+trading authority. Optional explanation boundaries exist, but unimplemented LLM
+synthesis is not presented as an operational feature.
 
-Historical milestone identities remain unchanged. In particular, the original
-Broker Workspace BW gates remain planning history; the later Broker V1 and Broker
-V2 acceptance records are the current implementation status.
+## Market Data and Instrument Metadata
 
-## Scanner V2 — current workspace
+### Dhan
 
-`/scanners` now uses the fresh Scanner V2 product layout. Watchlist/Custom
-universes, explicit daily technical filters, editable templates, saved scans,
-immutable history, archived Dhan result analysis, and canonical Watchlist handoff
-are implemented. Results use the system-global Instrument Metadata service for a
-default Sector column and a compact detail view of industry, market cap, stored
-size bands, TWF analytical tier, and analytical context benchmark. This metadata
-is display-only and is loaded in one bounded database query after evaluation; it
-does not affect matches or Market Context ranking. TapTide provides optional
-technical screens, bounded movers and reference metrics independently of internal
-Dhan scanning. Discovery remains a separate downstream workspace with historical
-records intact.
+Dhan is the authoritative real market-data provider for Scanner and Watchlist
+market evidence. The runtime resolves canonical instruments, reads bounded quotes
+or completed-bar OHLCV, normalizes provider responses, and preserves provenance.
+A real-data request that fails remains a typed failure or unavailable result; it
+does not fall back silently to deterministic fixtures.
 
-Index-constituent, sector and broad-market universe feeds are not configured;
-those controls explain the limitation. Derivatives is an explicit future shell.
-Apply additive API migration `0018_scanner_v2` before using the new routes.
-**Implemented / pending user validation; not accepted or frozen.** See the
-[Scanner V2 architecture and validation record](docs/TWF_SCANNER_V2_ARCHITECTURE.md)
-for exact scope, time bases, live evidence and limitations. The diagram below
-continues to describe the preserved Discovery pipeline.
+### Instrument Metadata
+
+The project-owned metadata harvester maintains an approximately 2,600-instrument
+NSE universe with sector, industry, market cap, relative cap category, TWF
+analytical tier, context benchmark, provenance, and observation time. The normal
+maintenance cadence is monthly:
+
+```text
+offline NSE/Yahoo-assisted harvest
+  → review generated artifacts
+  → import accepted artifact
+  → system-global runtime metadata
+  → Scanner and Watchlist bounded lookup
+```
+
+Yahoo/NSE harvesting is an offline maintenance activity, not a Scanner or
+Watchlist runtime dependency. Runtime consumers use the imported database through
+the metadata service and API. See the
+[Data Architecture](docs/TWF_DATA_ARCHITECTURE.md) and the
+[metadata utility guide](tools/market_metadata/README.md).
+
+## Current Scanner Analysis Pipeline
+
+```text
+Universe
+  ↓
+Typed technical filters
+  ↓
+Deterministic technical MATCH
+  ↓
+System-global Instrument Metadata
+  ↓
+Market Context
+  ├─ Sector Context .............. IMPLEMENTED
+  ├─ India VIX ................... IMPLEMENTED when evidence is available
+  ├─ Institutional flows ......... PARTIAL
+  ├─ Broad-market regime ......... NEXT
+  ├─ Market breadth .............. NEXT
+  └─ Events / news ............... PARTIAL
+  ↓
+Explainable relevance ranking
+  ↓
+Reason + detailed Evidence
+  ↓
+Watchlist handoff / Discovery tracking
+```
+
+**Technical match and ranking are separate.** In Ranking mode, Market Context
+cannot rewrite technical match truth. A candidate can match its technical rules
+and rank lower when the available context is adverse. Context used as a hard
+filter must be selected explicitly.
+
+### Market Context maturity
+
+| Dimension           | Status          | Current behavior                                                                            |
+| ------------------- | --------------- | ------------------------------------------------------------------------------------------- |
+| Sector Context      | **IMPLEMENTED** | Dynamic benchmark evidence and deterministic, direction-aware contribution                  |
+| India VIX           | **IMPLEMENTED** | Normalized volatility context when provider evidence is available                           |
+| Institutional flows | **PARTIAL**     | Current flow evidence may contribute; unsupported rolling velocity/streak stays unavailable |
+| Broad-market regime | **NEXT**        | Deterministic regime model is the next implementation priority                              |
+| Market breadth      | **NEXT**        | Breadth model and evidence are not yet implemented                                          |
+| Events / news       | **PARTIAL**     | Explicit provider evidence is retained; missing sentiment or scope is not inferred          |
+
+TapTide is the optional provider-neutral market-intelligence adapter. Its
+owner-scoped MCP connection, bounded allowlisted tools, normalization, and failure
+isolation are implemented, and selected live technical/reference paths have been
+exercised. TapTide context can enrich ranking but cannot own Dhan OHLCV, change
+technical matches, block Dhan scanning, or authorize a trade.
+
+### Dynamic Sector Context V1
+
+Dynamic Sector Context derives the candidate's sector and provider-neutral context
+benchmark from Instrument Metadata, then resolves that benchmark through the Dhan
+alias layer and reads Dhan OHLCV. It produces:
+
+- benchmark trend and 1-day, 5-day, and 20-day returns;
+- sector relative strength versus NIFTY;
+- candidate relative strength versus its sector benchmark;
+- a deterministic rotation state;
+- direction-aware ranking contribution; and
+- explainable evidence with provenance and freshness.
+
+All 11 currently configured benchmark families resolve through the Dhan alias
+layer. Provider security identifiers remain adapter details and are not part of
+the product contract.
+
+### Optional LLM role
+
+Deterministic scanning, evidence, and relevance ranking work without an LLM. A
+future optional LLM may synthesize stored evidence into natural language, but it
+may not change the deterministic match or score. Any configured LLM remains
+subject to TWF's one-active-LLM policy.
+
+## Current Priorities
+
+1. Implement deterministic broad-market regime.
+2. Implement market breadth.
+3. Continue Market Context quality, coverage, and validation improvements.
+4. Deepen institutional-flow and event/news context where source contracts support
+   it.
+5. Add optional evidence-bound LLM narrative synthesis.
+6. Implement the Derivatives Scanner after its contracts are approved.
+7. Evolve Discovery without collapsing its boundary with Scanner.
+
+Broader user validation remains open for recent Watchlist, Scanner V2, metadata,
+and Dynamic Sector work. Final Sprint-2 acceptance and freeze require the
+documented validation, adversarial review, and hardening gates.
 
 ## Current Runtime Architecture
 
 ```text
 Dhan
-  ↓
-MarketDataProvider
-  ↓
-canonical instrument resolution + normalized OHLCV
-  ↓
-Internal Scanner V0
-  ↓
-ScanMatch / relevance
-  ↓
-immutable temporal observation → DiscoveryCandidate
-  ↓
-Evidence Chart
+  → canonical instruments + normalized quotes/OHLCV
+  → Watchlists and Scanner V2
+
+Offline metadata harvester
+  → reviewed import artifact
+  → system-global Instrument Metadata
+  → Watchlists + Scanner + Dynamic Sector benchmark identity
 
 TapTide / future MI providers
-  ↓
-MarketIntelligenceProvider
-  ↓
-bounded, optional market-context enrichment
+  → bounded optional MarketIntelligenceProvider claims
+  → deterministic Market Context
 
-DiscoveryCandidate
-  ↓
-future Opportunity → TradeOpportunity → LOB → Broker / TM
+Scanner match + context ranking
+  → explainable evidence
+  → Watchlist handoff / Discovery candidate tracking
+
+Broker V2
+  → explicit preview and confirmation
+  → governed manual execution
 ```
 
-### Market data
+Historical TradingView S2-3 work remains preserved in its acceptance and
+hardening records, but TradingView is decommissioned from the active market-data
+runtime. Existing provenance is immutable and is never relabelled as Dhan
+evidence. The generic MCP foundation remains active for compatible
+market-intelligence and future service providers.
 
-**Dhan is the active authoritative market-data provider for real Scan & Discover.**
-The real path resolves exact Dhan instrument identities, retrieves bounded OHLCV,
-normalizes completed bars, runs the same Internal Scanner V0 profiles used by the
-deterministic path, and persists matches, temporal outcomes, and evidence.
+## Accepted Foundations and Milestone History
 
-Owner-scoped Dhan credentials are configured under **Settings → Data providers →
-Dhan market data**. Credentials are encrypted and never returned after saving. A
-bounded connection test must reach `READY` before real scans are admitted; real
-failures never fall back silently to synthetic data.
+Important accepted and frozen history remains unchanged:
 
-Bounded local validation has successfully exercised live Dhan data: a Dhan
-connection reached `READY`, at least one real Dhan-backed scan produced valid
-matches, and the Evidence Chart rendered real Dhan market data. This proves the
-path, not broad symbol, interval, session, rate-limit, or market-condition coverage.
-Broader real-data validation remains open.
+```text
+TWF-0 Product / Architecture Foundation             ACCEPTED / FROZEN
+TWF-1 Application Foundation                        ACCEPTED / FROZEN
+Broker Workspace Architecture v0.3                  ACCEPTED / TAGGED
+Broker V1 real-broker read-only foundation          ACCEPTED / FROZEN
+Broker V2 manual-trading foundation                 ACCEPTED / FROZEN
+Scan & Discover architecture                        ACCEPTED
+S2-1 domain contracts / synthetic foundation        ACCEPTED / FROZEN
+S2-2 Internal Scanner V0                            ACCEPTED / FROZEN
+S2-3 historical TradingView provider                ACCEPTED / FROZEN HISTORY
+Sprint 2 current product                            USER VALIDATION / NOT FROZEN
+```
 
-The `MarketDataProvider` contract is provider-neutral. Zerodha is structurally
-compatible and is the next intended adapter, but a production Zerodha S&D
-market-data adapter is not implemented. Zerodha's current accepted role is the
-Broker V1/V2 integration for account data and controlled manual trading.
+Relevant repository tags include:
 
-### Evidence Chart
+- `twf-0-architecture-baseline`
+- `twf-1-application-foundation`
+- `twf-broker-workspace-architecture-v0.3`
+- `twf-broker-v1`
+- `twf-broker-v2`
+- `twf-scan-discover-architecture-v0.2`
+- `twf-s2-1-discovery-foundation`
+- `twf-s2-2-internal-scanner-v0`
+- `twf-s2-3-tradingview-mcp-provider`
+- `twf-s2-scan-discover-user-validation-ready`
 
-The Evidence Chart preserves a strict invariant: **the authoritative normalized
-market series evaluated by a scan is the series archived to explain that scan.**
-**As Scanned** reconstructs immutable historical evidence. **Current Chart** makes
-a separate bounded provider read and cannot rewrite the historical result. The
-provider-neutral renderer presents numerical and visual, profile-aware evidence,
-including price/volume series, relevant indicators, thresholds, and the scan marker.
-
-### Market intelligence
-
-`MarketIntelligenceProvider` is separate from market data. Market Intelligence can
-enrich context; it does not own OHLCV, scan predicates, execution prices, broker
-state, or trading authority.
-
-TapTide is the first optional provider-neutral MI adapter. Its bounded read-only
-capabilities cover market pulse, India VIX, FII/DII activity, FPI sector activity,
-index/sector context, market news, and corporate events. TapTide is registered in the
-local API as a `MARKET_INTELLIGENCE` MCP provider and the generic Settings flow now
-supports owner-scoped personal-token connect, readiness testing, reload, and
-disconnect. **Live owner authorization and capability calls have not completed.**
-TapTide failure cannot block Dhan technical scanning.
-
-### TradingView and generic MCP
-
-The TradingView MCP ScanProvider was successfully implemented and evaluated, reaching
-its historical S2-3 acceptance decision with its limitations retained in
-the acceptance and hardening records. It was then intentionally decommissioned from
-the active market-data runtime. Existing run provenance remains immutable; the
-product does not relabel old TradingView evidence as Dhan evidence.
-
-The generic MCP foundation remains provider-neutral and active for TapTide, future
-MI providers, and other compatible services. It retains OAuth/PKCE and API-key
-modes, encrypted secret references, owner isolation, generation fencing, durable
-operation permits, draining disconnect, hard caller deadlines, bounded responses,
-and server-side tool allowlists. Focused deadline behavior is accepted in the MCP
-record; strict cleanup/deadline timing under full-suite load remains a final
-revalidation and hardening gate, together with remote cleanup/recovery obligations.
-
-## What Works Today
-
-- **Watchlists — implemented / ready for user validation, not accepted or frozen:**
-  persistent owner-scoped editable equity/index/futures/options lists plus centrally
-  resolved read-only built-ins for eight official Nifty universes. Built-ins use
-  bounded, provenance-bearing NSE Indices constituent CSV caches, support inspect,
-  export, Broker V2 preview, copy-selected/all into custom lists, and Scanner V2
-  immutable universe snapshots. F&O 50/100 remain disabled as Definition pending.
-  Custom archive/restore, search, CSV import/export, bulk move/copy, notes/activity,
-  Dhan overlays and lazy charts remain intact. Custom and built-in rows use the same
-  system-global Instrument Metadata service as Scanner for the default Sector column
-  and richer selected-instrument details. Unknown and stale values remain explicit;
-  derivative metadata is shown only for an exact canonical underlying. Optional
-  TapTide news remains independent. Live built-in constituent and quote/chart validation requires current
-  Dhan credentials; live preview needs broker reauthorization. See the
-  [Watchlists architecture](docs/TWF_WATCHLIST_ARCHITECTURE.md) and
-  [implementation evidence](docs/TWF_WATCHLIST_IMPLEMENTATION_REPORT.md).
-
-- Authenticated TWF web application with a shared header, grouped navigation,
-  responsive drawer, and theme switching. Existing Brokers and Scanners workspaces
-  remain intact inside the new frame. Brokers is available from the workspace sidebar, user menu, or
-  Settings → Integrations; Preferences, Integrations, and Advanced link into the
-  same Settings page. Global symbol search and header market values are explicitly
-  unavailable until their shared services are implemented. See the
-  [shell implementation update](docs/TWF_TWF1_1_FRONTEND_SHELL.md#2026-10-06-application-shell-redesign).
-- Personal Settings, validated profiles, service status, and owner-scoped provider
-  configuration.
-- Accepted Broker V1 read-only Zerodha workspace and Broker V2 opt-in manual order
-  entry with preview, durable intent, submission, and reconciliation safeguards.
-- Dhan authentication, readiness testing, canonical instrument resolution, quotes,
-  and bounded normalized OHLCV.
-- Real Dhan-backed and deterministic synthetic Scan & Discover paths through the
-  same scanner contract.
-- Internal Scanner V0 profiles, normalized matches, deterministic relevance,
-  evidence, lifecycle, and immutable scan history.
-- Scan-driven `PRESENT`, `ABSENT`, and `NOT_EVALUATED` observations with ordered
-  finalization, late-result quarantine, and bounded logical HOT/COLD history.
-- Evidence Chart with **As Scanned** and **Current Chart** modes.
-- Candidate Review covering relevance, coverage, temporal state, tolerance, market
-  context, observation history, and optional AI explanation. Evidence, technical
-  details, and history use progressive disclosure.
-- Optional provider-neutral MI architecture with a bounded TapTide adapter.
-
-## Current Validation / Open Gates
-
-- Complete broader product-owner validation with real Dhan data across representative
-  profiles, instruments, intervals, partial failures, and market conditions.
-- Enter an owner TapTide personal bearer token through Settings, test the seven
-  required bounded capabilities, and validate the first VIX, FII/DII, sector/index,
-  and news claims. Until then, TapTide is connection-ready but not live-validated.
-- Revalidate generic MCP strict cleanup/deadline timing under full-suite load and
-  carry forward the documented remote-cleanup, unresolved-work, diagnostic-fidelity,
-  and dependency hardening items.
-- Run the post-validation adversarial review, consolidate hardening evidence, and
-  complete final Sprint-2 acceptance and freeze. Sprint 2 is not accepted/frozen now.
-- Validate the temporal-state implementation independently; its architecture and
-  implementation are complete, while user validation and acceptance remain pending.
-- Complete Watchlists live user validation after refreshing Dhan credentials and reconnecting the trading broker, including official Nifty 500/Bank/Pharma/Metal constituent resolution and built-in-to-custom copy. System/custom persistence and automated validation are implemented; F&O 50/100 definitions remain pending an accepted eligibility source. Broader Universe Management remains separate.
-- Keep Custom Typed Time Horizon as a separate TBD design.
-- Defer richer scanner/profile parameterization, saved overrides/presets, and user
-  tuning to a later refinement. Any future design must record the exact parameter
-  set and version on each `ScanRun`.
-- Confirm provider licensing and retention terms before production, sharing, or
-  commercial use of retained market evidence.
-
-The [Sprint-2 hardening register](docs/TWF_SPRINT2_HARDENING_REGISTER.md) owns detailed
-findings; the [user validation plan](docs/TWF_SPRINT2_USER_VALIDATION_PLAN.md) owns
-the validation workflows.
+The last tag is a validation-ready checkpoint, not final Sprint-2 acceptance.
+Historical acceptance documents remain historical unless a later authority
+explicitly supersedes them.
 
 ## Local Development
 
@@ -256,163 +309,52 @@ Web: <http://localhost:3000>. API: <http://localhost:8000/health>,
 <http://localhost:8000/ready>, <http://localhost:8000/api/v1/status>,
 <http://localhost:8000/api/v1/meta>, and <http://localhost:8000/docs>.
 
-`TWF_DATABASE_URL` defaults to local SQLite. PostgreSQL uses an externally injected
-`postgresql+psycopg://` URL. Run migrations explicitly from `apps/api` with
-`.venv/bin/alembic upgrade head`; API startup does not run production migrations.
-For containers, run `docker compose up --build` from the repository root.
+`TWF_DATABASE_URL` defaults to local SQLite. PostgreSQL uses an externally
+injected `postgresql+psycopg://` URL. Run migrations explicitly from `apps/api`
+with `.venv/bin/alembic upgrade head`; API startup does not run production
+migrations. For containers, run `docker compose up --build` from the repository
+root.
 
-See the [Ubuntu/Linux local development setup guide](docs/TWF_LOCAL_DEVELOPMENT_SETUP_LINUX.md)
+See the
+[Ubuntu/Linux local development guide](docs/TWF_LOCAL_DEVELOPMENT_SETUP_LINUX.md)
 for installation, validation, shutdown, and troubleshooting.
-
-## Recommended Daily Startup
-
-After one-time setup, start the native development servers in two terminals.
-
-Terminal 1 — backend/API:
-
-```bash
-cd apps/api
-source .venv/bin/activate
-uvicorn twf.main:create_app --factory --reload --no-access-log
-```
-
-Terminal 2 — frontend/web:
-
-```bash
-cd apps/web
-npm run dev
-```
-
-Open <http://localhost:3000>. Check the API at <http://localhost:8000/health> and
-<http://localhost:8000/api/v1/status>. As a Docker alternative, run
-`docker compose up --build` and stop it with `docker compose down`.
 
 ## Start Here
 
-For a first reading:
+1. [Scanner V2 Architecture](docs/TWF_SCANNER_V2_ARCHITECTURE.md)
+2. [Watchlists Architecture](docs/TWF_WATCHLIST_ARCHITECTURE.md)
+3. [Data Architecture](docs/TWF_DATA_ARCHITECTURE.md)
+4. [Instrument Metadata Utility](tools/market_metadata/README.md)
+5. [Scan & Discover Architecture](docs/TWF_SCAN_AND_DISCOVER_ARCHITECTURE.md)
+6. [Integrated Sprint-2 Implementation](docs/TWF_SPRINT2_SCAN_DISCOVER_IMPLEMENTATION.md)
+7. [Sprint-2 User Validation Plan](docs/TWF_SPRINT2_USER_VALIDATION_PLAN.md)
+8. [Documentation Index](docs/TWF_DOCUMENTATION_INDEX.md)
 
-1. [Product Vision and System Architecture](docs/TWF_PRODUCT_VISION_AND_SYSTEM_ARCHITECTURE.md)
-2. [Documentation Index](docs/TWF_DOCUMENTATION_INDEX.md)
-3. [Detailed Roadmap](docs/TWF_DETAILED_ROADMAP.md)
-4. [Scan & Discover Architecture](docs/TWF_SCAN_AND_DISCOVER_ARCHITECTURE.md)
-5. [Integrated Sprint-2 implementation record](docs/TWF_SPRINT2_SCAN_DISCOVER_IMPLEMENTATION.md)
-6. [Sprint-2 user validation plan](docs/TWF_SPRINT2_USER_VALIDATION_PLAN.md)
-
-The [High-Level Discussion Record](docs/TWF_HIGH_LEVEL_DISCUSSION_RECORD.md) preserves
-the original product discussion. The [TWF-0 Architecture Acceptance Review](docs/TWF_TWF0_ARCHITECTURE_ACCEPTANCE_REVIEW.md)
-records the foundation acceptance decision.
-
-## Architecture Overview
-
-### Product
+Additional authority:
 
 - [Product Vision and System Architecture](docs/TWF_PRODUCT_VISION_AND_SYSTEM_ARCHITECTURE.md)
-- [Detailed Roadmap](docs/TWF_DETAILED_ROADMAP.md)
-- [Technology Decision Record](docs/TWF_TECHNOLOGY_DECISION_RECORD.md)
-- `docs/TWF_MASTER_PRODUCT_ARCHITECTURE.docx` and
-  `docs/TWF_COMPONENT_ARCHITECTURE.docx` — visual reference companions
-
-### UX
-
-- [UX Architecture](docs/TWF_UX_ARCHITECTURE.md)
-- [Responsive Trading Application Architecture](docs/TWF_RESPONSIVE_TRADING_APPLICATION_ARCHITECTURE.md)
-- [UX Bucket Roadmap](docs/TWF_UX_BUCKET_ROADMAP.md)
-
-### Configuration
-
-- [Configuration, Setup, Capability, Entitlement and Pluggability Architecture](docs/TWF_CONFIGURATION_SETUP_CAPABILITY_ENTITLEMENT_PLUGGABILITY_ARCHITECTURE.md)
-- [Configuration Architecture Review](docs/TWF_CONFIGURATION_SETUP_ARCHITECTURE_REVIEW.md)
-
-### Broker
-
-- [Broker Workspace Architecture v0.3](docs/TWF_BROKER_WORKSPACE_ARCHITECTURE.md)
-- [Broker Workspace Architecture Review](docs/TWF_BROKER_WORKSPACE_ARCHITECTURE_REVIEW.md)
-- [Broker V1 read-only foundation](docs/TWF_BROKER_V1_VERTICAL_SLICE.md)
-- [Broker V2 manual-trading foundation](docs/TWF_BROKER_V2_MANUAL_ORDER_ENTRY.md)
-
-### Scan & Discover
-
-- [Scan & Discover Architecture](docs/TWF_SCAN_AND_DISCOVER_ARCHITECTURE.md)
-- [Opportunity Domain Architecture](docs/TWF_OPPORTUNITY_DOMAIN_ARCHITECTURE.md)
-- [Sprint-2 Delivery Plan](docs/TWF_SPRINT2_SCAN_DISCOVER_DELIVERY_PLAN.md)
-- [Scan-driven Temporal State Architecture](docs/TWF_SND_SCAN_DRIVEN_TEMPORAL_STATE_ARCHITECTURE.md)
-- [Integrated Sprint-2 implementation record](docs/TWF_SPRINT2_SCAN_DISCOVER_IMPLEMENTATION.md)
-- [Sprint-2 hardening register](docs/TWF_SPRINT2_HARDENING_REGISTER.md)
-- [Sprint-2 user validation plan](docs/TWF_SPRINT2_USER_VALIDATION_PLAN.md)
-
-Historical acceptance remains visible in the
-[S2-1 initial HOLD review](docs/TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_ACCEPTANCE_REVIEW.md),
-the [S2-1 focused re-review](docs/TWF_S2_1_DOMAIN_CONTRACTS_SYNTHETIC_PROVIDER_FOUNDATION_REREVIEW.md),
-the [S2-2 focused re-review](docs/TWF_S2_2_INTERNAL_SCANNER_V0_REREVIEW.md), and the
-[historical S2-3 TradingView acceptance record](docs/TWF_S2_3_ACCEPTANCE_REVIEW.md).
-
-### Market Data
-
+- [Broker Workspace Architecture](docs/TWF_BROKER_WORKSPACE_ARCHITECTURE.md)
 - [Market Data Provider Architecture](docs/TWF_MARKET_DATA_PROVIDER_ARCHITECTURE.md)
-- [Internal Scanner V0](docs/TWF_S2_2_INTERNAL_SCANNER_V0.md)
-
-### Market Intelligence
-
 - [Market Intelligence Provider Architecture](docs/TWF_MARKET_INTELLIGENCE_PROVIDER_ARCHITECTURE.md)
 - [Generic MCP Connection and Authentication Foundation](docs/TWF_S2_3A_GENERIC_MCP_PROVIDER_CONNECTION_AUTH_FOUNDATION.md)
-- [S2-3 deferred issues and hardening record](docs/TWF_S2_3_DEFERRED_ISSUES_AND_HARDENING_REGISTER.md)
-
-### Data
-
-- [Data Architecture](docs/TWF_DATA_ARCHITECTURE.md)
-
-### Service Integration
-
-- [Service Contract Architecture](docs/TWF_SERVICE_CONTRACT_ARCHITECTURE.md)
-- [Service Integration Architecture](docs/TWF_SERVICE_INTEGRATION_ARCHITECTURE.md)
-- [TI Integration Contract](docs/TWF_TI_INTEGRATION_CONTRACT.md)
-- [TM Integration Contract](docs/TWF_TM_INTEGRATION_CONTRACT.md)
-
-### Security
-
 - [Security and Authentication Architecture](docs/TWF_SECURITY_AUTH_ARCHITECTURE.md)
-
-### Deployment and Engineering
-
-- [Deployment Architecture](docs/TWF_DEPLOYMENT_ARCHITECTURE.md)
 - [Repository and Engineering Standards](docs/TWF_REPOSITORY_AND_ENGINEERING_STANDARDS.md)
-- [Local Development Setup](docs/TWF_LOCAL_DEVELOPMENT_SETUP_LINUX.md)
+- [Sprint-2 Hardening Register](docs/TWF_SPRINT2_HARDENING_REGISTER.md)
 
-## Documentation Roles
-
-```text
-Markdown = normative repository architecture, planning, and acceptance record
-DOCX     = polished visual/reference companion unless explicitly stated otherwise
-```
-
-Historical acceptance records remain historical unless a later authority explicitly
-supersedes them. Some DOCX companions predate the accepted Scan & Discover and
-configuration updates and are therefore reference snapshots rather than synchronized
-current specifications. Use the [Documentation Index](docs/TWF_DOCUMENTATION_INDEX.md)
-for the authority and companion inventory.
-
-## Current Project Phase
-
-The accepted TWF-0, TWF-1, Broker Workspace, Broker V1, and Broker V2 foundations
-remain frozen. Scan & Discover architecture is accepted, and the current Sprint-2
-product is substantially implemented. The Dhan migration, provider Settings flow,
-temporal-state model, Evidence Chart, and Candidate Review refinement are committed
-on `main`.
-
-The current phase is **DHAN LIVE S&D VALIDATED / TAPTIDE LIVE VALIDATION PENDING /
-SPRINT 2 USER VALIDATION IN PROGRESS**. Final Sprint-2 acceptance and freeze require
-the open validation, adversarial review, and hardening gates above. No new acceptance
-tag or freeze is claimed by this README reconciliation.
-
-Documentation revision: **2026-10-02**.
+Markdown files are the normative repository architecture, planning, and
+acceptance records. DOCX files are polished reference companions unless a document
+explicitly states otherwise. The
+[Documentation Index](docs/TWF_DOCUMENTATION_INDEX.md) records authority and
+companion relationships.
 
 ## Documentation Maintenance Rule
 
-Whenever a milestone or target changes state:
+When a milestone or target changes state:
 
 1. update its governing architecture, implementation, or acceptance record;
-2. update the detailed roadmap when sequencing or status changes;
+2. update the roadmap when sequencing or status changes;
 3. update the documentation index when authority or inventory changes;
-4. update this README's high-level current-state map;
-5. preserve historical records and keep them clearly distinguishable from current
-   runtime truth.
+4. update this README's current-state map; and
+5. preserve historical records and distinguish them from current runtime truth.
+
+Documentation revision: **2026-10-09**.
