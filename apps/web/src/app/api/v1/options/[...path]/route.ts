@@ -6,18 +6,8 @@ async function forward(
 ) {
   const { path } = await context.params;
   const route = path.join("/");
-  const id = "[0-9a-fA-F-]{36}";
   const allowed =
-    request.method === "GET"
-      ? /^(providers|accounts|setup)$/.test(route) ||
-        new RegExp(
-          `^accounts/${id}/((overview|holdings|positions|orders|funds|instruments)|order-entry/(capabilities|choices|intents(?:/${id})?))$`,
-        ).test(route)
-      : request.method === "POST" &&
-        (/^(accounts|callback)$/.test(route) ||
-          new RegExp(
-            `^accounts/${id}/((connect|disconnect)|order-entry/(quotes|preview|option-preview|option-capabilities|intents/${id}/(confirm|reconcile)))$`,
-          ).test(route));
+    request.method === "GET" && /^(underlyings|expiries|chain)$/.test(route);
   const output = {
     "Content-Type": "application/json",
     "Cache-Control": "no-store",
@@ -57,7 +47,7 @@ async function forward(
     if (search.length > 1024)
       return new Response(null, { status: 414, headers: output });
     const upstream = await fetch(
-      apiOrigin() + "/api/v1/brokers/" + route + search,
+      apiOrigin() + "/api/v1/options/" + route + search,
       {
         method: request.method,
         headers,
@@ -73,10 +63,14 @@ async function forward(
     });
   } catch {
     return Response.json(
-      { error: { message: "Broker service is unavailable. Please retry." } },
+      {
+        error: {
+          message:
+            "Dhan market data unavailable. Check the connection in Settings.",
+        },
+      },
       { status: 503, headers: output },
     );
   }
 }
 export const GET = forward;
-export const POST = forward;

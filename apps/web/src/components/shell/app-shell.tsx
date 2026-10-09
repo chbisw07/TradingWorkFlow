@@ -9,6 +9,7 @@ import { Icon } from "./icon";
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const focused =
+    pathname.startsWith("/options-analytics") ||
     pathname.startsWith("/brokers") ||
     pathname.startsWith("/watchlists") ||
     pathname.startsWith("/scanners") ||

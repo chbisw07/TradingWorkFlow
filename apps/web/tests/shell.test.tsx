@@ -125,6 +125,7 @@ test.each([
   ["/brokers", "Brokers"],
   ["/brokers/accounts/example/orders", "Brokers"],
   ["/scanners", "Scanners"],
+  ["/options-analytics", "Options Analytics"],
   ["/candidates", "Discovery"],
   ["/settings", "Preferences"],
 ])("only the correct route is active at %s", (pathname, label) => {

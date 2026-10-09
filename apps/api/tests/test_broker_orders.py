@@ -714,6 +714,11 @@ def test_canonical_chain_leg_handoff_preserves_exact_o1_identity(
         k: leg.contract.model_dump(mode="json")[k]
         for k in ("exchange", "underlying_symbol", "expiry", "strike", "option_type")
     }
+    capability = client.post(base + "/option-capabilities", json=canonical, headers=HEADERS)
+    assert capability.status_code == 200
+    assert capability.json()["instrument"]["canonical_id"] == leg.contract.canonical_id
+    assert capability.json()["quantity_unit"] == "lots"
+    assert capability.json()["broker"]["supports_options"] is True
     order = {
         k: v for k, v in draft("NIFTYCE1", "5").items() if k not in {"reference", "native_token"}
     }
@@ -730,3 +735,22 @@ def test_canonical_chain_leg_handoff_preserves_exact_o1_identity(
         base + "/option-preview", json={"contract": canonical, "order": order}, headers=HEADERS
     )
     assert response.status_code == 422 and not provider.calls
+
+
+def test_chain_capability_rejects_unknown_exact_contract_and_requires_origin(
+    client: TestClient, orders: tuple[str, OrderProvider]
+) -> None:
+    base, provider = orders
+    canonical = {
+        "exchange": "NFO",
+        "underlying_symbol": "NIFTY",
+        "expiry": EXPIRIES[0],
+        "strike": "25001",
+        "option_type": "CE",
+    }
+    assert client.post(base + "/option-capabilities", json=canonical).status_code == 403
+    assert (
+        client.post(base + "/option-capabilities", json=canonical, headers=HEADERS).status_code
+        == 422
+    )
+    assert not provider.calls

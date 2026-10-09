@@ -90,6 +90,21 @@ class CanonicalOptionPreview(BaseModel):
     order: CanonicalOptionOrder
 
 
+@router.post("/option-capabilities", dependencies=[Depends(require_origin)])
+async def option_capabilities(
+    account_id: UUID, contract: OptionContractRequest, who: Who, broker: Service
+) -> Capability:
+    """Resolve a chain leg exactly before opening the existing lot-aware ticket."""
+    orders = OrderService(broker)
+    try:
+        resolved = resolver(await orders.catalog(who, account_id)).resolve(contract)
+    except OptionResolutionError as exc:
+        raise invalid(str(exc), exc.code) from exc
+    return await orders.capability(
+        who, account_id, resolved.mapping.reference, resolved.mapping.native_token
+    )
+
+
 @router.post("/option-preview", dependencies=[Depends(require_origin)])
 async def option_preview(
     account_id: UUID, payload: CanonicalOptionPreview, who: Who, broker: Service

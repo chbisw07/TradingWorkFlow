@@ -12,8 +12,9 @@ includes the application shell, the accepted Broker workspace, persistent
 Watchlists, Scanner V2, real Dhan market data, system-global NSE instrument
 metadata, deterministic Market Context ranking, and Dynamic Sector Context V1.
 Options O1 is implemented on the accepted Broker V2 execution substrate. Options O2
-canonical chain service is active development and ready for user validation;
-authenticated live chain enrichment remains to be validated.
+canonical chain service is implemented. O3 adds the Options Analytics chain workspace
+and exact Broker V2 ticket/preview handoff; user validation and authenticated live
+chain acceptance remain pending.
 
 The current focus is Scanner ranking quality. Broad-market regime and market
 breadth are next, followed by richer flow and event context. Recent Scanner,
@@ -27,7 +28,8 @@ user validation; Sprint 2 as a whole is not accepted or frozen.
 | TWF-0 / TWF-1 foundations     | **ACCEPTED / FROZEN**                 | Architecture, repository, API, database, authentication, settings, and service-client foundations           |
 | Broker V1 / V2                | **ACCEPTED / FROZEN**                 | Read-only broker data plus governed manual order preview, intent, submission, and reconciliation            |
 | Options O1                    | **IMPLEMENTED / USER VALIDATION**                | Provider-neutral option identity plus Zerodha single-leg Broker V2 preview and execution foundation         |
-| Options O2                    | **ACTIVE DEVELOPMENT**                | Shared bounded canonical chain service, Dhan adapter, and exact Broker V2 preview handoff                  |
+| Options O2                    | **IMPLEMENTED**                | Shared bounded canonical chain service, Dhan adapter, and exact Broker V2 preview handoff                  |
+| Options O3                    | **IMPLEMENTED / USER VALIDATION PENDING** | Responsive option-chain workspace, canonical contract selection and existing Broker V2 preview |
 | Application shell             | **IMPLEMENTED**                       | Shared responsive header, grouped navigation, theme support, and preserved product routes                   |
 | Watchlists                    | **IMPLEMENTED / USER VALIDATION**     | Persistent custom lists, read-only built-ins, Dhan enrichment, metadata, charts, and broker handoff         |
 | Scanner V2                    | **IMPLEMENTED / USER VALIDATION**     | Typed daily technical scanning, saved/history workflows, evidence, ranking, metadata, and Watchlist handoff |
@@ -214,7 +216,7 @@ subject to TWF's one-active-LLM policy.
 
 ## Current Priorities
 
-1. Validate Options O2 live chain enrichment and O1 canonical broker handoff without automated live orders.
+1. Validate Options O3 authenticated live chains and exact Broker V2 preview through the running application, without automated live orders.
 2. Implement deterministic broad-market regime.
 3. Implement market breadth.
 4. Continue Market Context quality, coverage, and validation improvements.
@@ -271,7 +273,8 @@ Broker Workspace Architecture v0.3                  ACCEPTED / TAGGED
 Broker V1 real-broker read-only foundation          ACCEPTED / FROZEN
 Broker V2 manual-trading foundation                 ACCEPTED / FROZEN
 Options O1 extension                                 IMPLEMENTED / USER VALIDATION
-Options O2 chain foundation                          ACTIVE DEVELOPMENT
+Options O2 chain foundation                          IMPLEMENTED
+Options O3 chain workspace                           IMPLEMENTED / USER VALIDATION PENDING
 Scan & Discover architecture                        ACCEPTED
 S2-1 domain contracts / synthetic foundation        ACCEPTED / FROZEN
 S2-2 Internal Scanner V0                            ACCEPTED / FROZEN

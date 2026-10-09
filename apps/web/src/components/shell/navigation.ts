@@ -43,7 +43,6 @@ export const navigationSections: { label: string; items: NavigationItem[] }[] =
           label: "Options Analytics",
           href: "/options-analytics",
           icon: "target",
-          planned: true,
         },
         {
           label: "Strategy Builder",

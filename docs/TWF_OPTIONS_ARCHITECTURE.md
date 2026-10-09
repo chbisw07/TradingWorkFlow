@@ -188,7 +188,7 @@ This roadmap describes intent and does not commit later implementation details:
 1. **O1 — Domain + Broker single-leg trading:** canonical contracts, exact mapping, Broker
    V2 preview/confirmation, MARKET/LIMIT options, and reconciliation.
 2. **O2 — Canonical option-chain service:** bounded chain reads and contract discovery.
-3. **O3 — Real option-data provider integration:** quotes and approved option evidence.
+3. **O3 — Option Chain workspace:** O2 market data, responsive chain view and exact Broker V2 preview handoff.
 4. **O4 — Derivatives Scanner V1:** deterministic derivative scan contracts and engine.
 5. **O5 — Explainable option ranking:** evidence-led deterministic ranking.
 6. **O6 — Option Watchlists:** deeper option-specific list workflows.
@@ -204,8 +204,8 @@ This roadmap describes intent and does not commit later implementation details:
 
 O2 adds one read-only `OptionChainService` for future Broker, Scanner, Analytics,
 Watchlist, Strategy Builder and Discovery consumers. It reuses the O1 `OptionContract`
-and structural identity; it does not create another execution path. No option-chain
-workspace or Derivatives Scanner is implemented. Shared frontend types live in
+and structural identity; it does not create another execution path. O3 supplies the
+chain workspace described below; Derivatives Scanner remains planned. Shared frontend types live in
 `apps/web/src/lib/options.ts` and reuse the O1 contract type. The existing Broker picker
 continues to discover directly executable broker contracts, so Dhan outages cannot
 prevent manual Broker V2 contract discovery.
@@ -323,3 +323,102 @@ without inventing unavailable fields. Analytics, Watchlists, Strategy Builder an
 Discovery should use this same service and canonical leg identity. Ranking, option-chain
 UI, Greeks calculations, historical snapshots, multi-leg execution and strategy authority
 remain outside O2. Existing O1 order governance remains the authority for any later trade.
+
+
+## O3 — Options Analytics chain workspace
+
+Status: **IMPLEMENTED / USER VALIDATION PENDING**. O2 is implemented; O1 remains the
+existing governed single-leg execution foundation. Authenticated live O3 acceptance
+is separate from fixture/browser verification and remains pending.
+
+### Product surface and canonical data
+
+The existing Tools → Options Analytics entry is active at `/options-analytics`.
+The page uses the full shell width, with a canonical underlying search, nearest listed
+expiry, ±5/10/15/20 strike window (default ±10), explicit Refresh, compact source/spot/
+expiry/DTE/ATM summary, symmetrical Calls/Strike/Puts table and selected-contract panel.
+O2 supplies all structural identity, ATM, moneyness, spot and derivations; the browser
+only formats fields. Strike ordering remains the O2 ascending order. Missing legs are
+absent, missing values use an em dash, and unsupported IV/Greeks are never manufactured.
+Greeks appear in expandable contract details with up to six decimal places.
+
+Same-origin read-only proxies expose O2 `underlyings`, `expiries` and `chain`, forward
+only the TWF session/allowed headers and retain no-store semantics. Requests are
+abortable and scope-checked. A late response cannot replace a different underlying,
+expiry or window. Refresh preserves the current setup and selected canonical leg,
+respects the O2 cache, and does not start an automatic polling loop. A failed refresh
+retains the previous retrieved timestamp, labels that snapshot explicitly, and disables
+trade launch until refresh succeeds. Provider/partial errors use product messages,
+not raw provider exceptions.
+
+### Exact Broker V2 handoff
+
+A selected CE/PE leg carries the O1 contract directly. Only connected, enabled brokers
+that declare options support are offered. One eligible broker is selected automatically;
+multiple eligible brokers require explicit selection. Buy/Sell support is respected per
+broker. Market data provenance remains Dhan; the execution account/provider is separate.
+
+The existing `OrderTicket` accepts an optional canonical launch. A backward-compatible
+endpoint, `POST /api/v1/brokers/accounts/{account_id}/order-entry/option-capabilities`,
+accepts O1 `OptionContractRequest`, performs exact owned-catalog resolution, and returns
+the existing lot-aware capability model. It requires authentication and allowed Origin.
+No caller-supplied native token or fuzzy symbol search is used. Invalid/missing exact
+contracts reject. The ticket retains its existing quantity/product/order-type/price
+controls and sends the same canonical identity to O2's `option-preview` endpoint.
+The existing durable preview, confirmation, submission and reconciliation remain the
+only order execution path. O3 automated validation stops at preview and blocks confirm.
+The existing equity/futures/manual option picker remains available independently.
+
+### Responsive and accessible behavior
+
+Wide desktop shows the symmetrical chain beside contract detail. Medium widths place
+detail below the table; tablets can scroll the table within its own labeled region.
+Below 768 px, a Calls/Puts toggle selects a compact Strike/LTP/OI/Volume/IV table.
+Both views retain exact contract selection. ATM has explicit text, moneyness is textual,
+leg buttons expose pressed state, headers are semantic, and loading/errors are announced.
+Keyboard users can select a leg and use the existing modal ticket/focus restoration.
+Light and dark styles follow the shell tokens and navy summary strip.
+
+### Freshness, live acceptance and capability truth
+
+The workspace is explicitly an on-demand snapshot, including outside market hours.
+It shows `Retrieved … IST`; source time is separately unavailable when O2 reports
+`SOURCE_TIME_UNAVAILABLE`. The page does not infer a market session or claim that a
+just-retrieved response is continuously live. Partial quotes retain listed contracts.
+The O2 adapter support matrix remains unchanged: public-master validation is live,
+quote/OI-change/IV/Greek normalization is fixture-verified, and authenticated provider
+field availability is not yet verified for O3. No omitted live field is called supported
+on the strength of a fixture alone.
+
+During O3 development the running local API was reachable but unauthenticated options
+reads returned HTTP 401. The computer-use inventory exposed no signed-in browser.
+No credential changes, token extraction or session fabrication were used. NIFTY,
+BANKNIFTY, HDFCBANK authenticated chain reads and live Broker preview therefore remain
+NOT_RUN unless a signed-in application session becomes available. This is an access
+limitation, not evidence that Dhan is unavailable to the user's running application.
+
+### Scope and validation
+
+Unit coverage exercises underlying/expiry/window selection, canonical CE/PE launches,
+optional fields, partial/error states, refresh retention and stale-response protection.
+Browser coverage uses deterministic normalized chain fixtures with the real isolated
+TWF Broker mapping/preview API and its test transport, across 390/768/1024/1440/1920/2560
+widths. Fixture timings measure UI/preview behavior, not authenticated Dhan latency.
+
+Add to Watchlist is explicitly deferred: the existing Watchlist identity requires a
+provider-native instrument reference that the public canonical chain intentionally does
+not expose. O3 does not invent an ID or add a second resolver. Auto-refresh, a columns
+editor, ranking, Derivatives Scanner, strategy/P&L/payoff tools, multi-leg execution,
+computed IV/Greeks and historical chain persistence remain outside this phase.
+
+O3 automated validation completed with 1,208 backend tests and 247 frontend tests
+passing. Strict mypy checked 187 files; Ruff, compile, dependency checks, TypeScript,
+ESLint, Prettier, production build and OpenAPI 3.1.0 validation (99 paths) passed.
+All six Chromium chain journeys and all six existing Broker journeys passed. Stable
+light/dark screenshots and fixture timings were saved outside Git in
+`/tmp/twf-o3-evidence`. Representative screenshots were visually inspected at mobile
+and desktop widths. Median fixture timings across the six widths: initial chain
+503 ms, expiry switch 132 ms, refresh 177 ms, Buy preview 654 ms, Sell preview 646 ms.
+These are isolated fixture timings, not live Dhan latency. The running development
+API also exposes the new capability endpoint after reload; authenticated live checks
+still require an accessible signed-in browser session. No live order was placed.

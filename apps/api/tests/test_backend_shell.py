@@ -105,6 +105,7 @@ def test_lifecycle_and_contracts(settings: Settings) -> None:
             "/api/v1/options/expiries",
             "/api/v1/options/chain",
             "/api/v1/brokers/accounts/{account_id}/order-entry/option-preview",
+            "/api/v1/brokers/accounts/{account_id}/order-entry/option-capabilities",
             "/api/v1/scanner/catalog",
             "/api/v1/scanner/saved",
             "/api/v1/scanner/saved/{key}",

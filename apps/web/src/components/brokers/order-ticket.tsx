@@ -19,6 +19,8 @@ import {
   type Side,
 } from "../../lib/broker-orders";
 
+import type { OptionContractRequest } from "../../lib/options";
+
 function instrumentLabel(instrument: Instrument): string {
   if (
     ["CE", "PE"].includes(instrument.kind || "") &&
@@ -43,6 +45,7 @@ export function OrderTicket({
   account,
   initial,
   recovery,
+  canonical,
   close,
 }: {
   account: Account;
@@ -53,6 +56,7 @@ export function OrderTicket({
     orderType?: string;
   };
   recovery?: Intent;
+  canonical?: { contract: OptionContractRequest; side: Side };
   close: () => void;
 }) {
   const base = `accounts/${account.id}/order-entry/`;
@@ -66,11 +70,13 @@ export function OrderTicket({
   const heading = useRef<HTMLHeadingElement>(null);
   const [stage, setStage] = useState<
     "select" | "ticket" | "preview" | "result"
-  >(recovery ? "result" : initial ? "ticket" : "select");
+  >(recovery ? "result" : initial || canonical ? "ticket" : "select");
   const [instrument, setInstrument] = useState<Instrument | null>(
     initial?.instrument || null,
   );
-  const [side, setSide] = useState<Side>(initial?.side || "BUY");
+  const [side, setSide] = useState<Side>(
+    initial?.side || canonical?.side || "BUY",
+  );
   const [capability, setCapability] = useState<Capability | null>(null);
   const [intent, setIntent] = useState<Intent | null>(recovery || null);
   const [busy, setBusy] = useState(false);
@@ -95,6 +101,25 @@ export function OrderTicket({
   useEffect(() => {
     heading.current?.focus();
   }, [stage]);
+  useEffect(() => {
+    if (!canonical) return;
+    const controller = new AbortController();
+    void brokerApi<Capability>(
+      base + "option-capabilities",
+      canonical.contract,
+      controller.signal,
+    )
+      .then((cap) => {
+        if (controller.signal.aborted) return;
+        if (!cap.enabled || !cap.instrument || !cap.broker.supports_options)
+          throw new Error("Options trading is unavailable for this broker.");
+        setInstrument(cap.instrument);
+      })
+      .catch((e: Error) => {
+        if (!controller.signal.aborted) setError(e.message);
+      });
+    return () => controller.abort();
+  }, [base, canonical]);
   useEffect(() => {
     if (!instrument) return;
     const controller = new AbortController();
@@ -186,7 +211,15 @@ export function OrderTicket({
       validity: form.validity,
     };
     try {
-      setIntent(await brokerApi<Intent>(base + "preview", order));
+      const { reference, native_token, ...canonicalOrder } = order;
+      setIntent(
+        await brokerApi<Intent>(
+          base + (canonical ? "option-preview" : "preview"),
+          canonical
+            ? { contract: canonical.contract, order: canonicalOrder }
+            : { ...canonicalOrder, reference, native_token },
+        ),
+      );
       setStage("preview");
     } catch (e) {
       setError((e as Error).message);
@@ -301,6 +334,11 @@ export function OrderTicket({
         {error && (
           <p role="alert" id="order-error" className="broker-notice">
             {error}
+          </p>
+        )}
+        {canonical && stage === "ticket" && !instrument && !error && (
+          <p role="status">
+            Resolving the exact option contract with your broker…
           </p>
         )}
         {stage === "select" && <InstrumentPicker base={base} select={select} />}
@@ -509,7 +547,8 @@ export function OrderTicket({
                   <button
                     type="button"
                     onClick={() => {
-                      setStage("select");
+                      if (canonical) close();
+                      else setStage("select");
                       setError("");
                     }}
                     disabled={busy}
@@ -620,6 +659,10 @@ export function OrderTicket({
               intent.status === "PREVIEWED") && (
               <button
                 onClick={() => {
+                  if (canonical) {
+                    close();
+                    return;
+                  }
                   setIntent(null);
                   setInstrument(null);
                   setCapability(null);
