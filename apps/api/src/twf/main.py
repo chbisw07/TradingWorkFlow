@@ -23,6 +23,8 @@ from twf.api.instrument_metadata import router as instrument_metadata_router
 from twf.api.market_summary import router as market_summary_router
 from twf.api.mcp import mcp_error
 from twf.api.mcp import router as mcp_router
+from twf.api.options import OptionChainRegistry, chain_error
+from twf.api.options import router as options_router
 from twf.api.preferences import router as preferences_router
 from twf.api.preferences import settings_error
 from twf.api.routes import create_router
@@ -46,6 +48,7 @@ from twf.integrations.registry import ServiceRegistry
 from twf.login_limit import LoginLimit
 from twf.middleware import ErrorBoundaryMiddleware, RequestContextMiddleware
 from twf.observability import create_logger
+from twf.options.chain_service import ChainFailure
 from twf.preferences import SettingsFailure
 from twf.scanner_v2.service import ScannerHistory
 from twf.schemas import ErrorResponse
@@ -83,6 +86,7 @@ def create_app(
         app.state.market_summary_cache = MarketSummaryCache()
         app.state.scanner_history = ScannerHistory()
         app.state.watchlist_quotes = WatchlistQuoteCache()
+        app.state.option_chains = OptionChainRegistry()
         app.state.watchlist_history = WatchlistHistoryCache()
         app.state.watchlist_reference = WatchlistReferenceCache()
         if getattr(app.state, "system_universes", None) is None:
@@ -137,6 +141,8 @@ def create_app(
     app.include_router(create_router(settings))
     app.include_router(brokers_router)
     app.include_router(broker_orders_router)
+    app.include_router(options_router)
+    app.add_exception_handler(ChainFailure, chain_error)
     app.add_exception_handler(BrokerFailure, broker_error)
     app.include_router(auth_router)
     app.include_router(preferences_router)

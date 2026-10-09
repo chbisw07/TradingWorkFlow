@@ -687,3 +687,46 @@ def test_broker_declaring_equities_only_rejects_option_preview(
     assert result.json()["error"]["code"] == "ORDER_VALIDATION_FAILED"
     assert "does not support option buys" in result.json()["error"]["message"]
     assert not provider.calls
+
+
+def test_canonical_chain_leg_handoff_preserves_exact_o1_identity(
+    client: TestClient, orders: tuple[str, OrderProvider]
+) -> None:
+    from datetime import date
+    from decimal import Decimal
+
+    from test_option_chain import Source, contract
+
+    source = Source()
+    expiry = date.fromisoformat(EXPIRIES[0])
+    source.items = (contract(25000, "CE", expiry=expiry),)
+    source.spot = Decimal(25000)
+    from twf.options.chain_contracts import OptionChainRequest
+    from twf.options.chain_service import OptionChainService
+
+    chain = asyncio.run(
+        OptionChainService(source).snapshot(OptionChainRequest(underlying="NIFTY", expiry=expiry))
+    )
+    leg = chain.rows[0].ce
+    assert leg is not None
+    base, provider = orders
+    canonical = {
+        k: leg.contract.model_dump(mode="json")[k]
+        for k in ("exchange", "underlying_symbol", "expiry", "strike", "option_type")
+    }
+    order = {
+        k: v for k, v in draft("NIFTYCE1", "5").items() if k not in {"reference", "native_token"}
+    }
+    response = client.post(
+        base + "/option-preview", json={"contract": canonical, "order": order}, headers=HEADERS
+    )
+    assert response.status_code == 200, response.text
+    intent = response.json()
+    assert intent["option_contract"]["canonical_id"] == leg.contract.canonical_id
+    assert intent["broker_option_mapping"]["native_token"] == "5"
+    assert intent["status"] == "PREVIEWED" and not provider.calls
+    canonical["strike"] = "25001"
+    response = client.post(
+        base + "/option-preview", json={"contract": canonical, "order": order}, headers=HEADERS
+    )
+    assert response.status_code == 422 and not provider.calls

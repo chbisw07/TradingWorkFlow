@@ -1,6 +1,6 @@
 # TradingWorkFlow Options Architecture
 
-Status: **O1 ACTIVE DEVELOPMENT / READY FOR USER VALIDATION AFTER VALIDATION PASSES**  
+Status: **O1 IMPLEMENTED / USER VALIDATION; O2 ACTIVE DEVELOPMENT**
 Scope: provider-neutral option identity and governed Broker V2 single-leg execution  
 Primary execution adapter: Zerodha NSE/NFO
 
@@ -198,3 +198,128 @@ This roadmap describes intent and does not commit later implementation details:
    controls designed before implementation.
 10. **O10 — Discovery / optional LLM synthesis:** evidence-bound interpretation without
     granting trading authority.
+
+
+## O2 — Canonical option chain service
+
+O2 adds one read-only `OptionChainService` for future Broker, Scanner, Analytics,
+Watchlist, Strategy Builder and Discovery consumers. It reuses the O1 `OptionContract`
+and structural identity; it does not create another execution path. No option-chain
+workspace or Derivatives Scanner is implemented. Shared frontend types live in
+`apps/web/src/lib/options.ts` and reuse the O1 contract type. The existing Broker picker
+continues to discover directly executable broker contracts, so Dhan outages cannot
+prevent manual Broker V2 contract discovery.
+
+### Public API and broker handoff
+
+Authenticated API endpoints:
+
+- `GET /api/v1/options/underlyings?query=NIF&limit=50` (maximum 100 names).
+- `GET /api/v1/options/expiries?underlying=NIFTY` (active listed expiry dates).
+- `GET /api/v1/options/chain?underlying=NIFTY&expiry=YYYY-MM-DD&around_atm=10`.
+- Optional chain filters: `strike_min`, `strike_max`, `side=CE|PE`.
+- `POST /api/v1/brokers/accounts/{account_id}/order-entry/option-preview` accepts
+  `{contract: {exchange, underlying_symbol, expiry, strike, option_type}, order:
+  {side, product, order_type, quantity, lots, price, trigger_price, validity}}`.
+
+The handoff accepts canonical identity, resolves it against the current owned broker
+catalog, and passes the exact native mapping into the existing `OrderService.preview`.
+Callers do not supply Dhan tokens, guessed broker symbols, or execution IDs. Broker V2
+still requires a separate explicit confirmation of the resulting durable preview.
+Missing or ambiguous mappings reject; there is no fuzzy search. The chain endpoint is
+read-only and does not change provider health or broker connection state.
+
+### Models and derivations
+
+`OptionChainRequest`, `OptionChainSnapshot`, `OptionChainRow`, `OptionLegSnapshot`,
+`OptionMarketSnapshot`, and `OptionChainProvenance` provide the shared API contract.
+Decimals serialize as strings. Provider response keys and native security IDs remain
+inside the adapter. Each leg contains the original O1 canonical option contract.
+
+Rows are sorted by exact numeric strike. Only listed CE/PE legs exist; absent legs are
+null. ATM is the nearest actual strike, with the lower strike winning a tie. CE below
+spot is ITM and above spot OTM; PE reverses that rule. Both sides at the selected ATM
+strike are ATM. Distance is signed `strike - spot`; percent divides by positive spot.
+DTE is integer calendar days using the Asia/Kolkata date, including zero on expiry day.
+Expired and unavailable expiry requests reject. Without spot, ATM, moneyness and distance
+are null; the first bounded ascending slice remains available with `spot_unavailable`.
+
+Spread uses positive non-crossed bid/ask: ask minus bid, divided by their midpoint for
+percentage. Zero bid, missing ask and crossed quotes produce null spread. OI remains
+provider contract quantity, never divided by lot size or inferred from volume. OI change
+uses a direct provider value if supplied, otherwise current minus previous OI. IV is in
+percentage points; no IV or Greeks are calculated by TWF. Provider zero IV is unavailable,
+and associated placeholder Greeks are omitted. Unsupported fields remain null. Missing
+required quote fields produce partial leg availability while valid fields are retained.
+
+### Dhan source boundary and capability evidence
+
+Dhan provides the authoritative market source. The public detailed master supplies
+structured underlying, expiry, strike, option type, lot and tick metadata. NSE derivatives
+map to O1 exchange `NFO` and segment `NFO-OPT`. Master tick sizes are converted from paise
+to INR. Underlying spot lookup reuses the existing Dhan resolver; derivative master
+underlying IDs are not assumed to be the spot endpoint's IDs. Quote legs are accepted
+only when both structural identity and the master security ID agree.
+
+Primary provider contracts consulted:
+[Dhan option-chain API](https://dhanhq.co/docs/v2/option-chain/) and
+[Dhan instrument master](https://dhanhq.co/docs/v2/instruments/).
+
+| Capability | Dhan O2 adapter | Zerodha existing O1 adapter |
+| --- | --- | --- |
+| Contracts | SUPPORTED; public master parsed live | SUPPORTED; existing broker master |
+| Quotes | SUPPORTED; deterministic transport verified | PARTIAL; preview LTP, no O2 chain adapter |
+| Bid/ask | SUPPORTED; deterministic transport verified | UNSUPPORTED by O2 adapter |
+| Volume | SUPPORTED; deterministic transport verified | UNSUPPORTED by O2 adapter |
+| OI | SUPPORTED; deterministic transport verified | UNSUPPORTED by O2 adapter |
+| OI change | SUPPORTED; reliable previous OI required | UNSUPPORTED by O2 adapter |
+| IV | PARTIAL; provider positive value only | UNSUPPORTED by O2 adapter |
+| Greeks | PARTIAL; provider values with available IV | UNSUPPORTED by O2 adapter |
+
+This matrix describes implemented adapter support, not proof of authenticated live quote
+availability or a statement that the upstream Zerodha API lacks these capabilities.
+On 10 October 2026 IST the Dhan public master parsed 83,657 active option contracts in
+6.651 seconds including download. Nearest listed expiries were NIFTY 13 October (239
+strikes, 478 legs, lot 65), BANKNIFTY 27 October (370 strikes, 740 legs, lot 30), and
+HDFCBANK 27 October (55 strikes, 110 legs, lot 650). All had CE/PE and INR 0.05 ticks.
+Authenticated live enrichment was NOT RUN: local owner generation 5 was stored READY,
+but the existing credential capture returned `SECRET_STORE_UNAVAILABLE`. No credentials,
+headers or secrets were logged, no connection state was modified, and no order was sent.
+
+### Bounds, caching and failure isolation
+
+The default response window is 10 listed strikes on either side of ATM plus ATM (at most
+21 rows). `around_atm` is 0–25; all responses are capped at 51 rows and 102 legs. A strike
+range and side filter further restrict output. Empty ranges reject. Unknown parameters,
+inverted ranges and oversized limits fail validation. Unknown underlyings, absent
+contracts/expiries, provider failures, unavailable spot/quotes, partial chains and
+unsupported capabilities use typed codes rather than raw provider error messages.
+
+Dhan's upstream endpoint has no strike-window parameter: it returns one whole expiry
+batch, never one request per option. That unavoidable upstream batch is capped at 8 MB
+and 5,000 strike entries; only requested bounded rows leave the domain service. The
+master download is capped at 40 MB and 250,000 rows. Contracts are parsed once per master
+refresh (default six hours, existing Dhan setting); active expiry checks run on every
+request so a cached expiry cannot remain active indefinitely. Market snapshots have a
+separate five-second cache, with up to 32 underlying/expiry keys. Concurrent requests
+share a lock and cache; uncached provider calls are spaced by at least 3.1 seconds with
+no retries. Cache entries are scoped to current owner/generation; a new generation drops
+that owner's older entries. The application registry is bounded to 64 owner/generation
+sources. No chain snapshot history or database migration is introduced.
+
+`received_at` is retained on cache hits, never refreshed to disguise stale data. Source
+time is separate; Dhan's documented chain response has no source timestamp, so freshness
+is `SOURCE_TIME_UNAVAILABLE`, including when the market is closed. The service does not
+call such data fresh/live solely because it was just received. Source timestamps, where
+available through another adapter, support fresh/stale classification. Missing quote
+legs retain their canonical contract and null market values. Full quote failure still
+returns bounded contract structure as PARTIAL. Chain failures do not write Dhan health,
+Broker connection state, Watchlist data, Scanner results, or Instrument Metadata.
+
+### O3+ consumers
+
+Future Derivatives Scanner can consume raw volume/OI/OI-change/IV/spread/DTE/moneyness
+without inventing unavailable fields. Analytics, Watchlists, Strategy Builder and
+Discovery should use this same service and canonical leg identity. Ranking, option-chain
+UI, Greeks calculations, historical snapshots, multi-leg execution and strategy authority
+remain outside O2. Existing O1 order governance remains the authority for any later trade.

@@ -1,15 +1,19 @@
 """Authenticated manual order workflow; confirm accepts only a durable preview ID."""
 
-from typing import Annotated
+from decimal import Decimal
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel, ConfigDict, Field
 
 from twf.api.auth import require_origin
 from twf.api.brokers import Service, Who
 from twf.brokers.order_contracts import Capability, Choices, IntentView, OrderDraft, OrderSelection
-from twf.brokers.order_service import OrderService
+from twf.brokers.order_service import OrderService, invalid, resolver
 from twf.brokers.quotes import QuoteBatch, QuoteRequest, read_quotes
+from twf.options.contracts import OptionContractRequest
+from twf.options.resolver import OptionResolutionError
 
 router = APIRouter(
     prefix="/api/v1/brokers/accounts/{account_id}/order-entry", tags=["Manual orders"]
@@ -62,3 +66,44 @@ async def reconcile(account_id: UUID, intent_id: UUID, who: Who, broker: Service
 @router.post("/quotes", dependencies=[Depends(require_origin)])
 async def quotes(account_id: UUID, query: QuoteRequest, who: Who, broker: Service) -> QuoteBatch:
     return await read_quotes(broker, who, account_id, query)
+
+
+class CanonicalOptionOrder(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    side: Literal["BUY", "SELL"]
+    product: str = Field(max_length=12)
+    order_type: str = Field(max_length=12)
+    quantity: int = Field(gt=0, le=1000000, strict=True)
+    lots: int | None = Field(default=None, gt=0, le=1000000, strict=True)
+    price: Decimal | None = Field(
+        default=None, gt=0, lt=1000000000, max_digits=17, decimal_places=8, allow_inf_nan=False
+    )
+    trigger_price: Decimal | None = Field(
+        default=None, gt=0, lt=1000000000, max_digits=17, decimal_places=8, allow_inf_nan=False
+    )
+    validity: str = Field(default="DAY", max_length=8)
+
+
+class CanonicalOptionPreview(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    contract: OptionContractRequest
+    order: CanonicalOptionOrder
+
+
+@router.post("/option-preview", dependencies=[Depends(require_origin)])
+async def option_preview(
+    account_id: UUID, payload: CanonicalOptionPreview, who: Who, broker: Service
+) -> IntentView:
+    orders = OrderService(broker)
+    try:
+        resolved = resolver(await orders.catalog(who, account_id)).resolve(payload.contract)
+    except OptionResolutionError as exc:
+        raise invalid(str(exc), exc.code) from exc
+    order = OrderDraft.model_validate(
+        {
+            **payload.order.model_dump(),
+            "reference": resolved.mapping.reference,
+            "native_token": resolved.mapping.native_token,
+        }
+    )
+    return await orders.preview(who, account_id, order)
