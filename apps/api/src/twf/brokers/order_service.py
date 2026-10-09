@@ -22,12 +22,22 @@ from twf.brokers.order_contracts import (
 )
 from twf.brokers.service import BrokerService, Principal, public, utc
 from twf.infrastructure.order_intent import OrderIntent
+from twf.options import OptionResolutionError, OptionResolver
 
 UNKNOWN = "Submission status uncertain. Check Orders and refresh before placing another order."
 
 
-def invalid(message: str) -> BrokerFailure:
-    return BrokerFailure("ORDER_VALIDATION_FAILED", message, 422)
+def invalid(message: str, code: str = "ORDER_VALIDATION_FAILED") -> BrokerFailure:
+    return BrokerFailure(code, message, 422)
+
+
+def resolver(items: list[Instrument], *, resolved_at: datetime | None = None) -> OptionResolver:
+    return OptionResolver(
+        items,
+        provider="zerodha",
+        today=datetime.now(ZoneInfo("Asia/Kolkata")).date(),
+        resolved_at=resolved_at,
+    )
 
 
 def normalize_equity_search(value: str) -> str:
@@ -99,12 +109,31 @@ def executable(item: Instrument) -> bool:
 
 def view(row: OrderIntent) -> IntentView:
     order = OrderDraft.model_validate_json(row.order_json)
+    item = Instrument.model_validate_json(row.instrument_json)
+    option = None
+    if item.kind in ("CE", "PE"):
+        try:
+            option = resolver([item], resolved_at=utc(row.created_at)).describe_instrument(item)
+        except OptionResolutionError:
+            option = None
+    instrument_type = (
+        "EQUITY" if item.kind == "EQ" else "FUTURE" if item.kind == "FUT" else "OPTION"
+    )
+    warnings = (
+        [
+            "Short option positions may have substantial or theoretically unbounded risk, "
+            "depending on the contract and underlying."
+        ]
+        if instrument_type == "OPTION" and order.side == "SELL"
+        else []
+    )
+    estimated_value = order.price * order.quantity if order.price is not None else None
     return IntentView.model_validate(
         dict(
             id=row.id,
             account_id=row.account_id,
             account_name=row.account_name,
-            instrument=Instrument.model_validate_json(row.instrument_json),
+            instrument=item,
             order=order,
             source=row.source,
             execution_authority=row.execution_authority,
@@ -115,7 +144,14 @@ def view(row: OrderIntent) -> IntentView:
             broker_order_id=row.broker_order_id,
             provider_status=row.provider_status,
             failure=row.failure,
-            estimated_value=order.price * order.quantity,
+            instrument_type=instrument_type,
+            option_contract=option.contract if option else None,
+            broker_option_mapping=option.mapping if option else None,
+            warnings=warnings,
+            estimated_value=estimated_value,
+            premium_outlay=(
+                estimated_value if instrument_type == "OPTION" and order.side == "BUY" else None
+            ),
         )
     )
 
@@ -177,13 +213,19 @@ class OrderService:
         # Return disabled status honestly without requiring a connected account.
         with self.broker.factory() as db:
             account = self.broker.owned(db, who, account_id)
+            adapter = self.broker.adapter
             enabled = (
                 public(account).state == "connected"
                 and account.provider == "zerodha"
                 and self.broker.settings.broker_manual_trading_enabled
-                and isinstance(self.broker.adapter, ExecutionAdapter)
+                and isinstance(adapter, ExecutionAdapter)
             )
+        broker_capabilities = (
+            adapter.execution_capabilities() if isinstance(adapter, ExecutionAdapter) else None
+        )
         if not enabled or not reference:
+            if broker_capabilities:
+                return Capability(enabled=enabled, broker=broker_capabilities)
             return Capability(enabled=enabled)
         item = self.resolve(await self.catalog(who, account_id), reference, native_token)
         return self.adapter().order_capability(item)
@@ -191,9 +233,27 @@ class OrderService:
     @staticmethod
     def resolve(catalog: list[Instrument], reference: str, token: str) -> Instrument:
         items = [x for x in catalog if x.reference == reference and x.native_token == token]
-        if len(items) != 1 or not executable(items[0]):
+        if len(items) != 1:
+            code = (
+                "BROKER_INSTRUMENT_UNAVAILABLE"
+                if ":NFO:" in reference
+                else "ORDER_VALIDATION_FAILED"
+            )
+            raise invalid(
+                "The broker has no exact execution mapping for the selected contract."
+                if code == "BROKER_INSTRUMENT_UNAVAILABLE"
+                else "Select an executable contract from the current broker catalog.",
+                code,
+            )
+        item = items[0]
+        if item.kind in ("CE", "PE"):
+            try:
+                return resolver(items).enrich(item)
+            except OptionResolutionError as exc:
+                raise invalid(str(exc), exc.code) from exc
+        if not executable(item):
             raise invalid("Select an executable contract from the current broker catalog.")
-        return items[0]
+        return item
 
     async def choices(self, who: Principal, account_id: UUID, query: OrderSelection) -> Choices:
         items = [
@@ -248,7 +308,10 @@ class OrderService:
             expiries=expiries,
             option_types=option_types,
             strikes=strikes,
-            instruments=items[start : start + 30],
+            instruments=[
+                resolver([item]).enrich(item) if item.kind in ("CE", "PE") else item
+                for item in items[start : start + 30]
+            ],
             total=len(items),
             page=query.page,
         )
@@ -260,19 +323,38 @@ class OrderService:
             raise invalid("This product or order type is not supported for the selected contract.")
         if order.validity not in rule.validities or order.quantity > capability.max_quantity:
             raise invalid("Unsupported validity or quantity.")
+        if item.kind in ("CE", "PE"):
+            if order.side == "BUY" and not capability.broker.option_buy_supported:
+                raise invalid("This broker does not support option buys.")
+            if order.side == "SELL" and not capability.broker.option_sell_supported:
+                raise invalid("This broker does not support option sells.")
+            resolved = resolver([item]).resolve_instrument(item)
+            if not resolved.contract.is_active:
+                raise invalid("The selected option has expired.", "OPTION_EXPIRED")
+            if (
+                resolved.contract.freeze_quantity
+                and order.quantity > resolved.contract.freeze_quantity
+            ):
+                raise invalid("Quantity exceeds the exchange freeze quantity.")
         if item.kind == "EQ":
             if order.lots is not None:
                 raise invalid("Enter equity quantity in shares, not lots.")
         elif order.lots is None or order.quantity != order.lots * (item.lot_size or 0):
             raise invalid("Quantity must equal lots multiplied by the current contract lot size.")
+        if rule.price_required != (order.price is not None):
+            raise invalid("Price is required only for a price-bearing order type.")
         if rule.trigger_required != (order.trigger_price is not None):
             raise invalid("Trigger price is required only for a broker stop-limit order.")
         for price in (order.price, order.trigger_price):
             if price is not None and (not item.tick_size or price % item.tick_size != 0):
                 raise invalid("Price must align with the contract tick size.")
-        if order.trigger_price is not None and (
-            (order.side == "BUY" and order.price < order.trigger_price)
-            or (order.side == "SELL" and order.price > order.trigger_price)
+        if (
+            order.trigger_price is not None
+            and order.price is not None
+            and (
+                (order.side == "BUY" and order.price < order.trigger_price)
+                or (order.side == "SELL" and order.price > order.trigger_price)
+            )
         ):
             raise invalid("Buy limit must be at or above trigger; sell limit at or below trigger.")
 
@@ -337,10 +419,24 @@ class OrderService:
                     result.estimated_margin = await adapter.estimate_margin(
                         credentials, item, order
                     )
+                    if result.estimated_margin is not None:
+                        result.margin_status = "AVAILABLE"
             except Exception:
                 pass
 
-        await asyncio.gather(cash(), margin())
+        async def quote() -> None:
+            try:
+                async with asyncio.timeout(2):
+                    result.reference_price = await adapter.reference_price(credentials, item)
+            except Exception:
+                pass
+
+        await asyncio.gather(cash(), margin(), quote())
+        effective_price = order.price or result.reference_price
+        if effective_price is not None:
+            result.estimated_value = effective_price * order.quantity
+            if result.instrument_type == "OPTION" and order.side == "BUY":
+                result.premium_outlay = result.estimated_value
         return result
 
     async def confirm(self, who: Principal, account_id: UUID, intent_id: UUID) -> IntentView:
@@ -427,7 +523,7 @@ class OrderService:
             and x.quantity == existing.order.quantity
             and x.product == existing.order.product
             and x.kind == existing.order.order_type
-            and x.price == existing.order.price
+            and (x.price or Decimal(0)) == (existing.order.price or Decimal(0))
             and x.validity == existing.order.validity
             and (x.trigger_price or Decimal(0)) == (existing.order.trigger_price or Decimal(0))
         ]

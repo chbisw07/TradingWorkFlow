@@ -54,6 +54,14 @@ class Instrument(BaseModel):
     segment: str | None = None
     lot_size: Decimal | None = None
     tick_size: Decimal | None = None
+    canonical_id: str | None = None
+    underlying_type: Literal["INDEX", "EQUITY", "UNKNOWN"] | None = None
+    option_type: Literal["CE", "PE"] | None = None
+    currency: str | None = None
+    is_active: bool | None = None
+    last_trading_date: str | None = None
+    freeze_quantity: int | None = None
+    contract_multiplier: Decimal | None = None
 
 
 class Holding(BaseModel):
@@ -68,6 +76,8 @@ class Holding(BaseModel):
 
 class Position(BaseModel):
     instrument: Instrument
+    ownership: Literal["BROKER_EXTERNAL"] = "BROKER_EXTERNAL"
+    managed: Literal[False] = False
     product: str | None
     quantity: Decimal | None
     average: Decimal | None

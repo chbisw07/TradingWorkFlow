@@ -11,6 +11,7 @@ TWF has moved beyond foundation-only development. The operational product now
 includes the application shell, the accepted Broker workspace, persistent
 Watchlists, Scanner V2, real Dhan market data, system-global NSE instrument
 metadata, deterministic Market Context ranking, and Dynamic Sector Context V1.
+Options O1 is active development on the accepted Broker V2 execution substrate.
 
 The current focus is Scanner ranking quality. Broad-market regime and market
 breadth are next, followed by richer flow and event context. Recent Scanner,
@@ -23,6 +24,7 @@ user validation; Sprint 2 as a whole is not accepted or frozen.
 | ----------------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | TWF-0 / TWF-1 foundations     | **ACCEPTED / FROZEN**                 | Architecture, repository, API, database, authentication, settings, and service-client foundations           |
 | Broker V1 / V2                | **ACCEPTED / FROZEN**                 | Read-only broker data plus governed manual order preview, intent, submission, and reconciliation            |
+| Options O1                    | **ACTIVE DEVELOPMENT**                | Provider-neutral option identity plus Zerodha single-leg Broker V2 preview and execution foundation         |
 | Application shell             | **IMPLEMENTED**                       | Shared responsive header, grouped navigation, theme support, and preserved product routes                   |
 | Watchlists                    | **IMPLEMENTED / USER VALIDATION**     | Persistent custom lists, read-only built-ins, Dhan enrichment, metadata, charts, and broker handoff         |
 | Scanner V2                    | **IMPLEMENTED / USER VALIDATION**     | Typed daily technical scanning, saved/history workflows, evidence, ranking, metadata, and Watchlist handoff |
@@ -48,8 +50,12 @@ to recreate a complete broker terminal.
 The Broker workspace provides accepted Zerodha-backed account views and Broker V2
 manual trading under explicit preview and confirmation. Durable intent,
 idempotency, reconciliation, ownership, and audit controls remain the authority
-for order submission. See the
-[Broker V2 manual-order foundation](docs/TWF_BROKER_V2_MANUAL_ORDER_ENTRY.md).
+for order submission. Options O1 extends this same path with provider-neutral
+contract identity, exact Zerodha mapping, lot validation, MARKET/LIMIT option
+preview, risk information, and explicit confirmation. It does not implement a
+Derivatives Scanner or multi-leg strategies. See the
+[Broker V2 manual-order foundation](docs/TWF_BROKER_V2_MANUAL_ORDER_ENTRY.md) and
+[Options architecture](docs/TWF_OPTIONS_ARCHITECTURE.md).
 
 ### Watchlists
 
@@ -205,14 +211,15 @@ subject to TWF's one-active-LLM policy.
 
 ## Current Priorities
 
-1. Implement deterministic broad-market regime.
-2. Implement market breadth.
-3. Continue Market Context quality, coverage, and validation improvements.
-4. Deepen institutional-flow and event/news context where source contracts support
+1. Complete Options O1 user validation without automated live order placement.
+2. Implement deterministic broad-market regime.
+3. Implement market breadth.
+4. Continue Market Context quality, coverage, and validation improvements.
+5. Deepen institutional-flow and event/news context where source contracts support
    it.
-5. Add optional evidence-bound LLM narrative synthesis.
-6. Implement the Derivatives Scanner after its contracts are approved.
-7. Evolve Discovery without collapsing its boundary with Scanner.
+6. Add optional evidence-bound LLM narrative synthesis.
+7. Implement the Derivatives Scanner after its contracts are approved.
+8. Evolve Discovery without collapsing its boundary with Scanner.
 
 Broader user validation remains open for recent Watchlist, Scanner V2, metadata,
 and Dynamic Sector work. Final Sprint-2 acceptance and freeze require the
@@ -239,8 +246,9 @@ Scanner match + context ranking
   → Watchlist handoff / Discovery candidate tracking
 
 Broker V2
+  → equity/futures plus canonical single-leg option identity
   → explicit preview and confirmation
-  → governed manual execution
+  → governed manual execution and reconciliation
 ```
 
 Historical TradingView S2-3 work remains preserved in its acceptance and
@@ -259,6 +267,7 @@ TWF-1 Application Foundation                        ACCEPTED / FROZEN
 Broker Workspace Architecture v0.3                  ACCEPTED / TAGGED
 Broker V1 real-broker read-only foundation          ACCEPTED / FROZEN
 Broker V2 manual-trading foundation                 ACCEPTED / FROZEN
+Options O1 extension                                 ACTIVE DEVELOPMENT
 Scan & Discover architecture                        ACCEPTED
 S2-1 domain contracts / synthetic foundation        ACCEPTED / FROZEN
 S2-2 Internal Scanner V0                            ACCEPTED / FROZEN
@@ -321,14 +330,15 @@ for installation, validation, shutdown, and troubleshooting.
 
 ## Start Here
 
-1. [Scanner V2 Architecture](docs/TWF_SCANNER_V2_ARCHITECTURE.md)
-2. [Watchlists Architecture](docs/TWF_WATCHLIST_ARCHITECTURE.md)
-3. [Data Architecture](docs/TWF_DATA_ARCHITECTURE.md)
-4. [Instrument Metadata Utility](tools/market_metadata/README.md)
-5. [Scan & Discover Architecture](docs/TWF_SCAN_AND_DISCOVER_ARCHITECTURE.md)
-6. [Integrated Sprint-2 Implementation](docs/TWF_SPRINT2_SCAN_DISCOVER_IMPLEMENTATION.md)
-7. [Sprint-2 User Validation Plan](docs/TWF_SPRINT2_USER_VALIDATION_PLAN.md)
-8. [Documentation Index](docs/TWF_DOCUMENTATION_INDEX.md)
+1. [Options Architecture](docs/TWF_OPTIONS_ARCHITECTURE.md)
+2. [Scanner V2 Architecture](docs/TWF_SCANNER_V2_ARCHITECTURE.md)
+3. [Watchlists Architecture](docs/TWF_WATCHLIST_ARCHITECTURE.md)
+4. [Data Architecture](docs/TWF_DATA_ARCHITECTURE.md)
+5. [Instrument Metadata Utility](tools/market_metadata/README.md)
+6. [Scan & Discover Architecture](docs/TWF_SCAN_AND_DISCOVER_ARCHITECTURE.md)
+7. [Integrated Sprint-2 Implementation](docs/TWF_SPRINT2_SCAN_DISCOVER_IMPLEMENTATION.md)
+8. [Sprint-2 User Validation Plan](docs/TWF_SPRINT2_USER_VALIDATION_PLAN.md)
+9. [Documentation Index](docs/TWF_DOCUMENTATION_INDEX.md)
 
 Additional authority:
 

@@ -13,6 +13,7 @@ from order_provider_fixture import EXPIRIES, OrderProvider
 from test_broker_v1 import HEADERS, bound, service
 from test_broker_v1 import client as client
 
+from twf.brokers.order_contracts import BrokerCapabilities
 from twf.brokers.zerodha import ZerodhaAdapter
 from twf.infrastructure.order_intent import OrderIntent
 
@@ -533,3 +534,156 @@ def test_optional_margin_failure_preserves_preview(
     result = preview(client, base)
     assert result["estimated_margin"] is None
     assert result["available_cash"] == "1000" and not provider.calls
+
+
+def test_option_capability_is_explicit_and_uses_canonical_contract_identity(
+    client: TestClient, orders: tuple[str, OrderProvider]
+) -> None:
+    base, _ = orders
+    capability = client.get(
+        base + "/capabilities",
+        params={"reference": "ZERODHA:NFO:NIFTYCE1", "native_token": "5"},
+    )
+    assert capability.status_code == 200, capability.text
+    body = capability.json()
+    assert body["broker"] == {
+        "supports_equity": True,
+        "supports_futures": True,
+        "supports_options": True,
+        "option_buy_supported": True,
+        "option_sell_supported": True,
+        "intraday_product_support": True,
+        "overnight_product_support": True,
+    }
+    assert body["products"] == ["NRML", "MIS"]
+    assert [rule["name"] for rule in body["order_types"]] == ["MARKET", "LIMIT"]
+    assert body["quantity_unit"] == "lots"
+    assert body["instrument"]["canonical_id"] == (f"NFO:NIFTY:{EXPIRIES[0]}:25000:CE")
+    assert body["instrument"]["option_type"] == "CE"
+    assert body["instrument"]["is_active"] is True
+
+
+@pytest.mark.parametrize(
+    ("symbol", "token", "side", "order_type"),
+    [
+        ("NIFTYCE1", "5", "BUY", "MARKET"),
+        ("NIFTYPE1", "6", "BUY", "LIMIT"),
+        ("NIFTYCE1", "5", "SELL", "MARKET"),
+        ("NIFTYPE1", "6", "SELL", "LIMIT"),
+    ],
+)
+def test_single_leg_option_matrix_uses_one_preview_confirm_path(
+    client: TestClient,
+    orders: tuple[str, OrderProvider],
+    symbol: str,
+    token: str,
+    side: str,
+    order_type: str,
+) -> None:
+    base, provider = orders
+    payload = draft(
+        symbol,
+        token,
+        side=side,
+        order_type=order_type,
+        price=None if order_type == "MARKET" else "100.05",
+    )
+    intent = preview(client, base, payload)
+    assert intent["instrument_type"] == "OPTION"
+    assert intent["option_contract"]["canonical_id"] == (
+        f"NFO:NIFTY:{EXPIRIES[0]}:25000:{'CE' if token == '5' else 'PE'}"
+    )
+    assert intent["option_contract"]["lot_size"] == 65
+    assert intent["broker_option_mapping"]["provider"] == "zerodha"
+    assert intent["broker_option_mapping"]["native_token"] == token
+    assert intent["broker_option_mapping"]["trading_symbol"] == symbol
+    assert intent["margin_status"] == "AVAILABLE"
+    assert intent["estimated_margin"] == "75"
+    assert intent["reference_price"] is not None
+    if side == "SELL":
+        assert len(intent["warnings"]) == 1
+        assert "risk" in intent["warnings"][0].lower()
+        assert intent["premium_outlay"] is None
+    else:
+        assert intent["warnings"] == []
+        assert intent["premium_outlay"] is not None
+    if order_type == "MARKET":
+        assert intent["order"]["price"] is None
+        assert intent["estimated_value"] is not None
+    assert not provider.calls
+
+    path = base + f"/intents/{intent['id']}"
+    submitted = client.post(path + "/confirm", json={}, headers=HEADERS)
+    assert submitted.status_code == 200, submitted.text
+    assert submitted.json()["status"] == "SUBMITTED"
+    assert provider.calls[0]["tradingsymbol"] == symbol
+    assert provider.calls[0]["transaction_type"] == side
+    assert provider.calls[0]["order_type"] == order_type
+    assert provider.calls[0]["price"] == ("0" if order_type == "MARKET" else "100.05")
+    assert len(provider.calls) == 1
+
+    with service(client).factory() as db:
+        saved = db.get(OrderIntent, UUID(intent["id"]))
+        assert saved is not None
+        assert intent["option_contract"]["canonical_id"] in saved.instrument_json
+        assert '"option_type":"' in saved.instrument_json
+
+
+def test_option_resolution_expiry_lot_and_mapping_fail_closed(
+    client: TestClient, orders: tuple[str, OrderProvider]
+) -> None:
+    base, provider = orders
+    cases = [
+        (
+            draft("EXPIRED", "8"),
+            "OPTION_EXPIRED",
+        ),
+        (
+            draft("NIFTYCE1", "6"),
+            "BROKER_INSTRUMENT_UNAVAILABLE",
+        ),
+        (
+            draft("NIFTYCE1", "5", quantity=100, lots=2),
+            "ORDER_VALIDATION_FAILED",
+        ),
+        (
+            draft("NIFTYCE1", "5", order_type="SL", trigger_price="100"),
+            "ORDER_VALIDATION_FAILED",
+        ),
+    ]
+    for payload, code in cases:
+        response = client.post(base + "/preview", json=payload, headers=HEADERS)
+        assert response.status_code == 422, response.text
+        assert response.json()["error"]["code"] == code
+    assert not provider.calls
+
+
+def test_broker_declaring_equities_only_rejects_option_preview(
+    client: TestClient,
+    orders: tuple[str, OrderProvider],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    base, provider = orders
+    adapter = cast(ZerodhaAdapter, service(client).adapter)
+    monkeypatch.setattr(
+        adapter,
+        "execution_capabilities",
+        lambda: BrokerCapabilities(
+            supports_equity=True,
+            supports_futures=False,
+            supports_options=False,
+            option_buy_supported=False,
+            option_sell_supported=False,
+            intraday_product_support=False,
+            overnight_product_support=False,
+        ),
+    )
+    result = client.post(
+        base + "/preview",
+        json=draft("NIFTYCE1", "5"),
+        headers=HEADERS,
+    )
+    assert result.status_code == 422
+    assert result.json()["error"]["code"] == "ORDER_VALIDATION_FAILED"
+    assert "does not support option buys" in result.json()["error"]["message"]
+    assert not provider.calls

@@ -1,8 +1,9 @@
 """Deterministic Market Context scoring, filtering, and immutable history."""
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from test_scanner_v2 import config, install_market
 from test_watchlists import HEADERS
@@ -254,7 +255,8 @@ def test_api_acquires_context_once_and_persists_immutable_analysis(
         calls += 1
         assert instruments == ()
         assert market_calls == ["RELIANCE"]
-        assert self.cache is client.app.state.market_intelligence_cache
+        app = cast(FastAPI, client.app)
+        assert self.cache is app.state.market_intelligence_cache
         return MarketIntelligenceBatch(
             provider="tapetide",
             state=IntelligenceState.AVAILABLE,

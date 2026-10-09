@@ -186,7 +186,18 @@ test("manual equity, futures and options with exact contracts, preview and broke
           .click();
         await dialog.getByLabel("Lots", { exact: true }).fill("2");
         await expect(dialog.getByText("500", { exact: true })).toBeVisible();
+        if (asset === "options") {
+          await dialog.getByLabel("Order type").selectOption("MARKET");
+          await dialog
+            .getByRole("button", { name: "Sell", exact: true })
+            .click();
+          await expect(
+            dialog.getByLabel("Price (₹)", { exact: true }),
+          ).toHaveCount(0);
+        }
       }
+      const optionMarket = asset === "options";
+      const action = optionMarket ? "Sell" : "Buy";
       const bounds = await dialog.boundingBox();
       expect(bounds).not.toBeNull();
       expect(bounds!.width).toBeLessThanOrEqual(480);
@@ -197,38 +208,56 @@ test("manual equity, futures and options with exact contracts, preview and broke
       const price = dialog.getByLabel("Price (₹)", { exact: true });
       const ltp = dialog.getByTestId("reference-ltp");
       await expect(ltp).toContainText("₹");
-      await expect(price).not.toHaveValue("");
-      const launchPrice = await price.inputValue();
-      const firstLtp = await ltp.textContent();
-      await expect(ltp).not.toHaveText(firstLtp!);
-      await expect(ltp).toContainText("₹");
-      await expect(price).toHaveValue(launchPrice);
-      await dialog
-        .getByRole("button", { name: "Set Price", exact: true })
-        .click();
-      await expect(price).not.toHaveValue(launchPrice);
-      await price.fill("100.05");
-      const editedAt = await ltp.textContent();
-      await expect(ltp).not.toHaveText(editedAt!);
-      await expect(price).toHaveValue("100.05");
+      if (optionMarket) {
+        await expect(price).toHaveCount(0);
+        await expect(
+          dialog.getByRole("button", { name: "Set Price", exact: true }),
+        ).toHaveCount(0);
+      } else {
+        await expect(price).not.toHaveValue("");
+        const launchPrice = await price.inputValue();
+        const firstLtp = await ltp.textContent();
+        await expect(ltp).not.toHaveText(firstLtp!);
+        await expect(ltp).toContainText("₹");
+        await expect(price).toHaveValue(launchPrice);
+        await dialog
+          .getByRole("button", { name: "Set Price", exact: true })
+          .click();
+        await expect(price).not.toHaveValue(launchPrice);
+        await price.fill("100.05");
+        const editedAt = await ltp.textContent();
+        await expect(ltp).not.toHaveText(editedAt!);
+        await expect(price).toHaveValue("100.05");
+      }
       await expect(dialog.getByLabel("Stop Loss Price")).toBeDisabled();
       await expect(dialog.getByLabel("Take Profit Percent")).toBeDisabled();
       await expect(
-        dialog.getByRole("button", { name: "Buy", exact: true }),
+        dialog.getByRole("button", { name: action, exact: true }),
       ).toHaveAttribute("aria-pressed", "true");
       await page.screenshot({
         path: info.outputPath(`${theme}-${asset}-ticket.png`),
         fullPage: false,
       });
-      await dialog.getByRole("button", { name: "Preview Buy" }).click();
+      await dialog.getByRole("button", { name: `Preview ${action}` }).click();
       await expect(
-        dialog.getByRole("button", { name: "Confirm Buy" }),
+        dialog.getByRole("button", { name: `Confirm ${action}` }),
       ).toBeVisible();
+      if (optionMarket) {
+        await expect(
+          dialog.getByText(/^RELIANCE .* 1400 CE$/).first(),
+        ).toBeVisible();
+        await expect(dialog.getByText("Price").locator("..")).toContainText(
+          "Market",
+        );
+        await expect(dialog.getByRole("note")).toContainText(
+          "Short option positions",
+        );
+      }
       await page.screenshot({
         path: info.outputPath(`${theme}-${asset}-preview.png`),
         fullPage: false,
       });
-      await dialog.getByRole("button", { name: "Confirm Buy" }).click();
+      await dialog.getByRole("button", { name: `Confirm ${action}` }).click();
       await expect(
         dialog.getByRole("heading", { name: "Order Submitted", exact: true }),
       ).toBeVisible();

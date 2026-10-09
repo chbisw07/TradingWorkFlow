@@ -8,6 +8,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from twf.brokers.contracts import Credentials, Instrument
+from twf.options.contracts import BrokerOptionMapping, OptionContract
 
 
 class OrderSelection(BaseModel):
@@ -39,13 +40,34 @@ class TypeRule(BaseModel):
     validities: list[str]
 
 
+class BrokerCapabilities(BaseModel):
+    supports_equity: bool
+    supports_futures: bool
+    supports_options: bool
+    option_buy_supported: bool
+    option_sell_supported: bool
+    intraday_product_support: bool
+    overnight_product_support: bool
+
+
 class Capability(BaseModel):
     enabled: bool
-    products: list[str] = []
-    order_types: list[TypeRule] = []
+    products: list[str] = Field(default_factory=list)
+    order_types: list[TypeRule] = Field(default_factory=list)
     instrument: Instrument | None = None
     quantity_unit: Literal["shares", "lots"] = "shares"
     max_quantity: int = 1000000
+    broker: BrokerCapabilities = Field(
+        default_factory=lambda: BrokerCapabilities(
+            supports_equity=False,
+            supports_futures=False,
+            supports_options=False,
+            option_buy_supported=False,
+            option_sell_supported=False,
+            intraday_product_support=False,
+            overnight_product_support=False,
+        )
+    )
 
 
 class OrderDraft(BaseModel):
@@ -57,8 +79,13 @@ class OrderDraft(BaseModel):
     order_type: str = Field(max_length=12)
     quantity: int = Field(gt=0, le=1000000, strict=True)
     lots: int | None = Field(default=None, gt=0, le=1000000, strict=True)
-    price: Decimal = Field(
-        gt=0, lt=1000000000, max_digits=17, decimal_places=8, allow_inf_nan=False
+    price: Decimal | None = Field(
+        default=None,
+        gt=0,
+        lt=1000000000,
+        max_digits=17,
+        decimal_places=8,
+        allow_inf_nan=False,
     )
     trigger_price: Decimal | None = Field(
         default=None, gt=0, lt=1000000000, max_digits=17, decimal_places=8, allow_inf_nan=False
@@ -81,15 +108,26 @@ class IntentView(BaseModel):
     broker_order_id: str | None
     provider_status: str | None
     failure: str | None
-    estimated_value: Decimal
+    instrument_type: Literal["EQUITY", "FUTURE", "OPTION"]
+    option_contract: OptionContract | None = None
+    broker_option_mapping: BrokerOptionMapping | None = None
+    warnings: list[str] = Field(default_factory=list)
+    reference_price: Decimal | None = None
+    estimated_value: Decimal | None = None
+    premium_outlay: Decimal | None = None
     estimated_margin: Decimal | None = None
+    margin_status: Literal["AVAILABLE", "UNAVAILABLE"] = "UNAVAILABLE"
     available_cash: Decimal | None = None
 
 
 @runtime_checkable
 class ExecutionAdapter(Protocol):
     async def execution_catalog(self, credentials: Credentials) -> list[Instrument]: ...
+    def execution_capabilities(self) -> BrokerCapabilities: ...
     def order_capability(self, instrument: Instrument) -> Capability: ...
+    async def reference_price(
+        self, credentials: Credentials, instrument: Instrument
+    ) -> Decimal | None: ...
     async def estimate_margin(
         self, credentials: Credentials, instrument: Instrument, order: OrderDraft
     ) -> Decimal | None: ...

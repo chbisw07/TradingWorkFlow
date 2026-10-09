@@ -28,6 +28,7 @@ from twf.discovery.market_data import (
     DHAN_IDENTITY,
     MarketDataErrorCode,
     MarketDataFailure,
+    MarketDataProvider,
 )
 from twf.discovery.market_intelligence import (
     IntelligenceClaim,
@@ -1318,7 +1319,7 @@ def install_market_data(product_client: TestClient, provider: FakeDhanMarketData
     app = cast(FastAPI, product_client.app)
     app.state.market_data_provider = provider
     app.state.dhan_credentials.capture = lambda owner_id, ready_only: DhanCredentialCapture(
-        provider,
+        cast(MarketDataProvider, provider),
         DhanCredentialStatus(
             state=DhanCredentialState.READY,
             configured=True,

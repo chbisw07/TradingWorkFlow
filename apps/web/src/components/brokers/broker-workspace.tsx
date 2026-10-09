@@ -769,7 +769,8 @@ function Room({
               {intents.map((i) => (
                 <div key={i.id}>
                   <span>
-                    {i.order.side} {i.order.quantity} {i.instrument.symbol} ·{" "}
+                    {i.order.side} {i.order.quantity}{" "}
+                    {brokerInstrumentLabel(i.instrument)} ·{" "}
                     {i.status.replaceAll("_", " ")}{" "}
                     {i.broker_order_id && `· ${i.broker_order_id}`}
                   </span>
@@ -980,6 +981,17 @@ function display(value: unknown): string {
     return Number(value).toLocaleString("en-IN", { maximumFractionDigits: 2 });
   return String(value);
 }
+function brokerInstrumentLabel(instrument: Instrument): string {
+  if (
+    ["CE", "PE"].includes(instrument.kind || "") &&
+    instrument.underlying &&
+    instrument.expiry &&
+    instrument.strike
+  ) {
+    return `${instrument.underlying} ${instrument.expiry} ${instrument.strike} ${instrument.kind}`;
+  }
+  return instrument.symbol;
+}
 function total(rows: Row[], key: string): number | null {
   let result = 0;
   for (const row of rows) {
@@ -1009,6 +1021,7 @@ const columns: Record<string, [string, string][]> = {
     ["pnl_percent", "P&L %"],
   ],
   positions: [
+    ["ownership", "Ownership"],
     ["product", "Product"],
     ["quantity", "Qty"],
     ["average", "Avg (₹)"],
@@ -1090,7 +1103,7 @@ function ReadTable({
               <tr key={String(row.id || i)}>
                 {instrument && (
                   <th scope="row">
-                    <strong>{instrument.symbol}</strong>
+                    <strong>{brokerInstrumentLabel(instrument)}</strong>
                     <small>{instrument.reference}</small>
                     {instrument.expiry && view !== "instruments" && (
                       <small>
@@ -1147,7 +1160,7 @@ function ReadTable({
         {positionTotals && (
           <tfoot>
             <tr>
-              <th scope="row" colSpan={5}>
+              <th scope="row" colSpan={6}>
                 Totals
               </th>
               <td className={pnlClass(positionTotals.realized)}>

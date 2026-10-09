@@ -1,6 +1,11 @@
 # Broker V2
 
 Status: **ACCEPTED / FROZEN** — manual trading foundation, 2026-09-28.
+
+The accepted Broker V2 authority, persistence, confirmation, and reconciliation baseline
+remains frozen. [Options O1](TWF_OPTIONS_ARCHITECTURE.md) is an **ACTIVE DEVELOPMENT**
+instrument-aware extension on that substrate. It adds canonical option identity and
+single-leg NFO MARKET/LIMIT support without creating another execution service.
 Final Git tag target: `twf-broker-v2` on `main`. Broker V1 remains the accepted
 real broker read-only foundation (`aae52e9`, accepted implementation `4ffff9d`).
 Final accepted milestone name: **Broker V2**. Earlier implementation/review
@@ -175,10 +180,11 @@ submission retain that frozen chosen Price. Existing approximate value and margi
 calculations continue using the chosen Price. SL Trigger Price is never initialized
 from LTP, and the managed Exit Plan remains disabled.
 
-The real supported order types remain LIMIT/SL. MARKET is not newly enabled;
-reference-only frontend capability coverage proves that a hypothetical non-price
-order type displays LTP without creating a Price field or sending an LTP-derived
-price. This does not change the existing backend acceptance contract.
+Equity and futures retain the accepted LIMIT/SL behavior. Options O1 adds MARKET
+alongside LIMIT for single-leg CE/PE orders. An option MARKET ticket displays the
+exact-contract LTP only as an optional reference and indicative-value input; it does
+not create a Price field or send the LTP as a limit price. The provider payload uses
+MARKET with price zero according to the existing Zerodha adapter convention.
 
 Manual quote smoke after review: connect Zerodha, search a contract, compare LTP
 with Kite, watch the reference refresh, open Buy/Sell, verify launch Price stays
@@ -187,23 +193,25 @@ automated quote and order tests use synthetic broker transport.
 
 ## Capability and deployment
 
-Broker V2 deliberately supports the regular **LIMIT** and **SL (stop-limit)** subset:
+Broker V2 keeps its bounded regular-order subset, with Options O1 enabling MARKET
+only for single-leg CE/PE:
 
-| Instrument             | Products  | LIMIT validity | SL validity | Quantity                |
-| ---------------------- | --------- | -------------- | ----------- | ----------------------- |
-| NSE/BSE EQ, lot size 1 | CNC, MIS  | DAY, IOC       | DAY         | Integer shares          |
-| NFO FUT                | NRML, MIS | DAY, IOC       | DAY         | Integer lots × lot size |
-| NFO CE/PE              | NRML, MIS | DAY, IOC       | DAY         | Integer lots × lot size |
+| Instrument             | Products  | MARKET validity | LIMIT validity | SL validity | Quantity                |
+| ---------------------- | --------- | --------------- | -------------- | ----------- | ----------------------- |
+| NSE/BSE EQ, lot size 1 | CNC, MIS  | —               | DAY, IOC       | DAY         | Integer shares          |
+| NFO FUT                | NRML, MIS | —               | DAY, IOC       | DAY         | Integer lots × lot size |
+| NFO CE/PE              | NRML, MIS | DAY, IOC        | DAY, IOC       | —           | Integer lots × lot size |
 
-Both types require a positive tick-aligned limit price; SL also requires a
-positive aligned trigger. Buy limit ≥ trigger; sell limit ≤ trigger. The generic
-UI consumes backend product/type/validity/quantity rules. Unsupported segments,
-expired contracts, missing tick/lot metadata and unknown identities fail closed.
-The catalog uses V1's bounded daily cache (up to 24 hours); expiry is checked in
-Asia/Kolkata on each resolution, and metadata changes invalidate a preview.
-Broker RMS, exchange state, freeze limits and account permissions remain final
-authorities. Preview does not guarantee acceptance. Market/SL-M, MTF, AMO,
-autoslice, icebergs and other varieties are outside this initial supported subset.
+LIMIT requires a positive tick-aligned price; SL also requires a positive aligned
+trigger. Buy limit ≥ trigger; sell limit ≤ trigger. Option MARKET carries no user
+price. The generic UI consumes backend product/type/validity/quantity and broker
+capability rules. Unsupported segments, expired contracts, missing tick/lot metadata,
+unknown identities, invalid products, and unsupported order types fail closed. The
+catalog uses V1's bounded daily cache (up to 24 hours); expiry is checked in
+Asia/Kolkata on each resolution, and metadata changes invalidate a preview. Broker
+RMS, exchange state, freeze limits and account permissions remain final authorities.
+Preview does not guarantee acceptance. SL-M, MTF, AMO, autoslice, icebergs and other
+varieties are outside this supported subset.
 
 Run migrations explicitly; application startup never auto-migrates:
 

@@ -3,9 +3,9 @@
 import httpx
 
 CSV = (
-    "instrument_token,tradingsymbol,name,expiry,strike,lot_size,instrument_type,segment,exchange\n"
-    "1,HAL,HINDUSTAN AERONAUTICS,,,1,EQ,NSE,NSE\n"
-    "2,NIFTY26OCT25000CE,NIFTY,2026-10-29,25000,65,CE,NFO-OPT,NFO\n"
+    "instrument_token,tradingsymbol,name,expiry,strike,lot_size,instrument_type,segment,exchange,tick_size\n"
+    "1,HAL,HINDUSTAN AERONAUTICS,,,1,EQ,NSE,NSE,0.05\n"
+    "2,NIFTY26OCT25000CE,NIFTY,2026-10-29,25000,65,CE,NFO-OPT,NFO,0.05\n"
 )
 
 # Synthetic quantities/values; no personal account or order identifiers.

@@ -28,6 +28,14 @@ export type Instrument = {
   segment?: string | null;
   lot_size?: string | null;
   tick_size?: string | null;
+  canonical_id?: string | null;
+  underlying_type?: "INDEX" | "EQUITY" | "UNKNOWN" | null;
+  option_type?: "CE" | "PE" | null;
+  currency?: string | null;
+  is_active?: boolean | null;
+  last_trading_date?: string | null;
+  freeze_quantity?: number | null;
+  contract_multiplier?: string | null;
 };
 export type Row = Record<string, string | number | boolean | null | Instrument>;
 export type Snapshot = {

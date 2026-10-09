@@ -11,6 +11,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from threading import Lock
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import httpx
 from pydantic import SecretStr
@@ -27,8 +28,14 @@ from twf.brokers.contracts import (
     Position,
     Search,
 )
-from twf.brokers.order_contracts import Capability, OrderDraft, TypeRule
+from twf.brokers.order_contracts import (
+    BrokerCapabilities,
+    Capability,
+    OrderDraft,
+    TypeRule,
+)
 from twf.brokers.quotes import Quote
+from twf.options import OptionResolutionError, OptionResolver
 
 
 def invalid() -> BrokerFailure:
@@ -283,6 +290,17 @@ class ZerodhaAdapter:
             raise invalid()
         token = str(row["instrument_token"]) if row.get("instrument_token") is not None else None
         match = self.catalog_index.get((exchange, symbol, token))
+        if match and match.kind in ("CE", "PE"):
+            try:
+                return OptionResolver(
+                    [match],
+                    provider="zerodha",
+                    today=datetime.now(ZoneInfo("Asia/Kolkata")).date(),
+                    resolved_at=self.catalog_at,
+                ).enrich(match, require_active=False)
+            except OptionResolutionError:
+                # Portfolio truth remains visible even when old master metadata is incomplete.
+                return match
         return match or Instrument(
             symbol=symbol,
             exchange=exchange,
@@ -489,24 +507,60 @@ class ZerodhaAdapter:
         await self.search_instruments(credentials, Search(limit=1))
         return self.catalog
 
+    def execution_capabilities(self) -> BrokerCapabilities:
+        return BrokerCapabilities(
+            supports_equity=True,
+            supports_futures=True,
+            supports_options=True,
+            option_buy_supported=True,
+            option_sell_supported=True,
+            intraday_product_support=True,
+            overnight_product_support=True,
+        )
+
     def order_capability(self, instrument: Instrument) -> Capability:
-        # Deliberately bounded V2.1 subset: price-protected regular LIMIT and SL.
-        # No market orders, MTF, autoslice, AMO, icebergs or managed exits.
+        # Bounded regular-order subset. No MTF, AMO, icebergs or managed exits.
+        order_types = [
+            TypeRule(
+                name="LIMIT",
+                price_required=True,
+                trigger_required=False,
+                validities=["DAY", "IOC"],
+            )
+        ]
+        if instrument.kind in ("CE", "PE"):
+            order_types.insert(
+                0,
+                TypeRule(
+                    name="MARKET",
+                    price_required=False,
+                    trigger_required=False,
+                    validities=["DAY", "IOC"],
+                ),
+            )
+        else:
+            order_types.append(
+                TypeRule(
+                    name="SL",
+                    price_required=True,
+                    trigger_required=True,
+                    validities=["DAY"],
+                )
+            )
         return Capability(
             enabled=True,
             products=["CNC", "MIS"] if instrument.kind == "EQ" else ["NRML", "MIS"],
             quantity_unit="shares" if instrument.kind == "EQ" else "lots",
             instrument=instrument,
-            order_types=[
-                TypeRule(
-                    name="LIMIT",
-                    price_required=True,
-                    trigger_required=False,
-                    validities=["DAY", "IOC"],
-                ),
-                TypeRule(name="SL", price_required=True, trigger_required=True, validities=["DAY"]),
-            ],
+            max_quantity=instrument.freeze_quantity or 1000000,
+            broker=self.execution_capabilities(),
+            order_types=order_types,
         )
+
+    async def reference_price(
+        self, credentials: Credentials, instrument: Instrument
+    ) -> Decimal | None:
+        return (await self.quote(credentials, [instrument]))[0].price
 
     async def estimate_margin(
         self, credentials: Credentials, instrument: Instrument, order: OrderDraft
@@ -524,7 +578,7 @@ class ZerodhaAdapter:
                     "product": order.product,
                     "order_type": order.order_type,
                     "quantity": order.quantity,
-                    "price": float(order.price),
+                    "price": float(order.price or 0),
                     "trigger_price": float(order.trigger_price or 0),
                 }
             ],
@@ -552,7 +606,7 @@ class ZerodhaAdapter:
             "quantity": str(order.quantity),
             "product": order.product,
             "order_type": order.order_type,
-            "price": str(order.price),
+            "price": str(order.price or 0),
             "validity": order.validity,
             "tag": tag,
         }

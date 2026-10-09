@@ -30,6 +30,12 @@ const instrument: Instrument = {
   strike: "25000",
   lot_size: "65",
   tick_size: "0.05",
+  canonical_id: "NFO:NIFTY:2026-12-31:25000:CE",
+  underlying_type: "INDEX",
+  option_type: "CE",
+  currency: "INR",
+  is_active: true,
+  last_trading_date: "2026-12-31",
 };
 const cap: Capability = {
   enabled: true,
@@ -37,7 +43,22 @@ const cap: Capability = {
   products: ["NRML", "MIS"],
   quantity_unit: "lots",
   max_quantity: 1000000,
+  broker: {
+    supports_equity: true,
+    supports_futures: true,
+    supports_options: true,
+    option_buy_supported: true,
+    option_sell_supported: true,
+    intraday_product_support: true,
+    overnight_product_support: true,
+  },
   order_types: [
+    {
+      name: "MARKET",
+      price_required: false,
+      trigger_required: false,
+      validities: ["DAY", "IOC"],
+    },
     {
       name: "LIMIT",
       price_required: true,
@@ -75,6 +96,41 @@ const intent: Intent = {
   broker_order_id: null,
   provider_status: null,
   failure: null,
+  instrument_type: "OPTION",
+  option_contract: {
+    canonical_id: "NFO:NIFTY:2026-12-31:25000:CE",
+    exchange: "NFO",
+    segment: "NFO-OPT",
+    underlying_symbol: "NIFTY",
+    underlying_type: "INDEX",
+    expiry: "2026-12-31",
+    strike: "25000",
+    option_type: "CE",
+    lot_size: 65,
+    display_symbol: "NIFTY 31-DEC-2026 25000 CE",
+    tick_size: "0.05",
+    freeze_quantity: null,
+    contract_multiplier: null,
+    currency: "INR",
+    is_active: true,
+    last_trading_date: "2026-12-31",
+  },
+  broker_option_mapping: {
+    provider: "zerodha",
+    canonical_id: "NFO:NIFTY:2026-12-31:25000:CE",
+    exchange: "NFO",
+    trading_symbol: "NIFTYCE",
+    native_token: "123",
+    reference: "ZERODHA:NFO:NIFTYCE",
+    lot_size: 65,
+    tick_size: "0.05",
+    resolved_at: "2026-10-09T12:00:00Z",
+    master_version: null,
+  },
+  warnings: [],
+  reference_price: "100",
+  premium_outlay: "13000",
+  margin_status: "UNAVAILABLE",
   estimated_value: "13000",
   estimated_margin: null,
   available_cash: null,
@@ -85,10 +141,14 @@ beforeEach(() => {
   };
 });
 afterEach(() => vi.restoreAllMocks());
-function mock(fail = false) {
+function mock(
+  fail = false,
+  previewIntent: Intent = intent,
+  capability: Capability = cap,
+) {
   return vi.spyOn(global, "fetch").mockImplementation(async (url) => {
-    if (String(url).includes("capabilities")) return Response.json(cap);
-    if (String(url).endsWith("preview")) return Response.json(intent);
+    if (String(url).includes("capabilities")) return Response.json(capability);
+    if (String(url).endsWith("preview")) return Response.json(previewIntent);
     if (String(url).endsWith("confirm")) {
       if (fail) throw new Error("network");
       return Response.json({
@@ -236,4 +296,60 @@ test("Instruments actions exclude expired, unsupported and incomplete contracts"
   expect(canOrder({ ...valid, exchange: "MCX" })).toBe(false);
   expect(canOrder({ ...valid, tick_size: null })).toBe(false);
   expect(canOrder({ ...valid, lot_size: "1.5" })).toBe(false);
+});
+
+test("option MARKET preview omits price and shows exact contract plus short-risk warning", async () => {
+  const marketIntent: Intent = {
+    ...intent,
+    order: {
+      ...intent.order,
+      side: "SELL",
+      order_type: "MARKET",
+      price: undefined,
+    },
+    warnings: [
+      "Short option positions may have substantial or theoretically unbounded risk.",
+    ],
+    reference_price: "101.25",
+    estimated_value: "13162.5",
+    premium_outlay: null,
+    estimated_margin: null,
+    margin_status: "UNAVAILABLE",
+  };
+  const fetch = mock(false, marketIntent);
+  render(
+    <OrderTicket
+      account={account}
+      initial={{ instrument, side: "SELL", orderType: "MARKET" }}
+      close={() => {}}
+    />,
+  );
+  await screen.findByLabelText("Lots");
+  expect(screen.queryByLabelText("Price (₹)")).toBeNull();
+  expect(screen.getByLabelText("Order type")).toHaveValue("MARKET");
+  fireEvent.change(screen.getByLabelText("Lots"), { target: { value: "2" } });
+  fireEvent.click(screen.getByRole("button", { name: "Preview Sell" }));
+  await screen.findByRole("button", { name: "Confirm Sell" });
+
+  const call = fetch.mock.calls.find((entry) =>
+    String(entry[0]).endsWith("preview"),
+  )!;
+  const submitted = JSON.parse(String(call[1]?.body));
+  expect(submitted).toMatchObject({
+    side: "SELL",
+    order_type: "MARKET",
+    quantity: 130,
+    lots: 2,
+  });
+  expect(submitted).not.toHaveProperty("price");
+  expect(screen.getByText("NIFTY 31 Dec 2026 25000 CE")).toBeVisible();
+  expect(screen.getByText("Underlying").nextSibling).toHaveTextContent("NIFTY");
+  expect(screen.getByText("Price").nextSibling).toHaveTextContent("Market");
+  expect(screen.getByText("Estimated margin").nextSibling).toHaveTextContent(
+    "Margin estimate unavailable",
+  );
+  expect(screen.getByRole("note")).toHaveTextContent("Short option positions");
+  expect(
+    fetch.mock.calls.filter((entry) => String(entry[0]).endsWith("confirm")),
+  ).toHaveLength(0);
 });

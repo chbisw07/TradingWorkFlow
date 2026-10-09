@@ -2,7 +2,7 @@ from collections.abc import Iterator
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 import pytest
@@ -123,7 +123,7 @@ def configure(client: TestClient, generation: int = 0, token: str = TOKEN) -> di
         },
     )
     assert response.status_code == 200, response.text
-    return response.json()
+    return cast(dict[str, Any], response.json())
 
 
 def test_credentials_are_encrypted_masked_replaceable_and_owner_scoped(

@@ -86,6 +86,15 @@ function setup(
           products: ["CNC"],
           quantity_unit: "shares",
           max_quantity: 10000,
+          broker: {
+            supports_equity: true,
+            supports_futures: true,
+            supports_options: true,
+            option_buy_supported: true,
+            option_sell_supported: true,
+            intraday_product_support: true,
+            overnight_product_support: true,
+          },
           order_types: [
             {
               name: options.market ? "MARKET" : "LIMIT",
@@ -117,6 +126,14 @@ function setup(
           instrument: item,
           order: JSON.parse(String(init?.body)),
           status: "PREVIEWED",
+          instrument_type:
+            item.kind === "CE" || item.kind === "PE" ? "OPTION" : "EQUITY",
+          option_contract: null,
+          broker_option_mapping: null,
+          warnings: [],
+          reference_price: price,
+          premium_outlay: null,
+          margin_status: "UNAVAILABLE",
           estimated_value: "100",
           estimated_margin: null,
           available_cash: null,

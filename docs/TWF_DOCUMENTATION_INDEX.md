@@ -1,5 +1,13 @@
 # TradingWorkFlow (TWF) — Documentation Index
 
+## Options O1 — active development
+
+[Options architecture](TWF_OPTIONS_ARCHITECTURE.md) defines the provider-neutral
+`OptionContract`, exact Zerodha execution mapping, capability model, lot/expiry/strike
+semantics, Broker V2 preview and confirmation path, unmanaged external positions, and the
+O1–O10 roadmap. O1 is active development and does not implement Derivatives Scanner,
+option-chain analytics, multi-leg execution, or automated live trading.
+
 ## Scanner V2 — 2026-10-07 implementation
 
 [Scanner V2 architecture and validation](TWF_SCANNER_V2_ARCHITECTURE.md) records
@@ -38,6 +46,7 @@ TWF-1 ACCEPTED / FROZEN (twf-1-application-foundation)
 Broker Workspace Architecture v0.3 REVIEWED / ACCEPTED / TAGGED (twf-broker-workspace-architecture-v0.3)
 Broker V1 real broker read-only foundation ACCEPTED / FROZEN (twf-broker-v1)
 Broker V2 manual trading foundation ACCEPTED / FROZEN (twf-broker-v2)
+Options O1 extension ACTIVE DEVELOPMENT
 BW-1–BW-6 retained as historical gate inventory; V1/V2 acceptance recorded separately
 S&D / Opportunity-domain / Sprint-2 architecture ACCEPTED / IMPLEMENTATION AUTHORIZED
 Scan-driven temporal state (2026-10-02) IMPLEMENTED / PENDING USER VALIDATION AND INDEPENDENT ACCEPTANCE
@@ -250,6 +259,8 @@ Implementation records:
   authoritative holdings and position read-model semantics, including V2 corrections.
 - [Broker V2](TWF_BROKER_V2_MANUAL_ORDER_ENTRY.md) — accepted/frozen manual trading
   foundation; final tag target `twf-broker-v2`. Earlier working name: Broker V2.1.
+- [Options Architecture](TWF_OPTIONS_ARCHITECTURE.md) — active O1 domain and Broker V2
+  single-leg option extension; not accepted/frozen and no live order validation claim.
 
 - [TWF-1.0 Repository / Project Scaffold](TWF_TWF1_0_REPOSITORY_PROJECT_SCAFFOLD.md)
   — authoritative bounded implementation record, developer commands, inventory,

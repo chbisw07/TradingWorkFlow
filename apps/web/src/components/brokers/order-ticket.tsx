@@ -19,6 +19,26 @@ import {
   type Side,
 } from "../../lib/broker-orders";
 
+function instrumentLabel(instrument: Instrument): string {
+  if (
+    ["CE", "PE"].includes(instrument.kind || "") &&
+    instrument.underlying &&
+    instrument.expiry &&
+    instrument.strike
+  ) {
+    const expiry = new Date(
+      `${instrument.expiry}T00:00:00Z`,
+    ).toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+    return `${instrument.underlying} ${expiry} ${instrument.strike} ${instrument.kind}`;
+  }
+  return instrument.symbol;
+}
+
 export function OrderTicket({
   account,
   initial,
@@ -96,6 +116,7 @@ export function OrderTicket({
         setCapability(c);
         const selectedRule =
           c.order_types.find((r) => r.name === initial?.orderType) ||
+          c.order_types.find((r) => r.name === "LIMIT") ||
           c.order_types[0];
         const launchPrice = selectedRule.price_required
           ? quotePrice(launchQuote.current, instrument.tick_size)
@@ -142,6 +163,11 @@ export function OrderTicket({
   const lots = capability?.quantity_unit === "lots";
   const quantity =
     Number(form.count) * (lots ? Number(instrument?.lot_size) : 1);
+  const indicativePrice = rule?.price_required
+    ? Number(form.price)
+    : freshQuote(liveQuote)
+      ? Number(liveQuote?.price)
+      : Number.NaN;
   async function preview() {
     if (!instrument?.native_token || !capability || lock.current) return;
     lock.current = true;
@@ -449,7 +475,9 @@ export function OrderTicket({
                   <div>
                     <dt>Approx. order value</dt>
                     <dd>
-                      {form.price ? money(Number(form.price) * quantity) : "—"}
+                      {Number.isFinite(indicativePrice) && quantity > 0
+                        ? money(indicativePrice * quantity)
+                        : "—"}
                     </dd>
                   </div>
                   <div>
@@ -504,7 +532,7 @@ export function OrderTicket({
               className={`order-preview order-${intent.order.side.toLowerCase()}`}
             >
               <strong>
-                {intent.order.side} {intent.instrument.symbol}
+                {intent.order.side} {instrumentLabel(intent.instrument)}
               </strong>
               <span>
                 {intent.instrument.exchange} · {intent.instrument.segment}
@@ -515,6 +543,11 @@ export function OrderTicket({
             </div>
             <Contract instrument={intent.instrument} compact />
             <OrderSummary intent={intent} />
+            {intent.warnings.map((warning) => (
+              <p className="order-risk-warning" role="note" key={warning}>
+                {warning}
+              </p>
+            ))}
             <p className="order-disclaimer">
               Broker acceptance depends on funds, RMS and exchange restrictions.
               This sends one live order. Preview expires in 5 minutes.
@@ -545,9 +578,10 @@ export function OrderTicket({
             <h3>{resultTitle}</h3>
             <p>
               {intent.order.side} {intent.order.quantity}{" "}
-              {intent.instrument.symbol}
+              {instrumentLabel(intent.instrument)}
               <br />
-              {intent.order.order_type} @ {money(intent.order.price)}
+              {intent.order.order_type}
+              {intent.order.price ? ` @ ${money(intent.order.price)}` : ""}
             </p>
             {intent.broker_order_id && (
               <p>
@@ -623,7 +657,7 @@ function Contract({
         </span>
       )}
       <div>
-        <strong>{i.symbol}</strong>
+        <strong>{instrumentLabel(i)}</strong>
         {i.kind === "EQ" && i.name?.trim() && <small>{i.name}</small>}
         <small>
           {i.kind === "EQ"
@@ -653,20 +687,47 @@ function OrderSummary({ intent: i }: { intent: Intent }) {
   return (
     <dl className="order-summary">
       {[
+        [
+          "Instrument type",
+          i.instrument_type === "OPTION"
+            ? "Option"
+            : i.instrument_type === "FUTURE"
+              ? "Future"
+              : "Equity",
+        ],
+        ...(i.option_contract
+          ? [
+              ["Underlying", i.option_contract.underlying_symbol],
+              ["Expiry", i.option_contract.expiry],
+              [
+                "Strike / type",
+                `${i.option_contract.strike} ${i.option_contract.option_type}`,
+              ],
+            ]
+          : []),
         ["Product", i.order.product],
         ["Order type", i.order.order_type],
         ...(i.order.lots
           ? [["Lots", `${i.order.lots} (${i.instrument.lot_size} each)`]]
           : []),
         ["Quantity", i.order.quantity],
-        ["Price", money(i.order.price)],
+        ["Price", i.order.price ? money(i.order.price) : "Market"],
+        ["Reference option LTP", money(i.reference_price)],
         ...(i.order.trigger_price
           ? [["Broker trigger", money(i.order.trigger_price)]]
           : []),
         ["Validity", i.order.validity],
         ["Estimated order value", money(i.estimated_value)],
+        ...(i.premium_outlay
+          ? [["Indicative premium outlay", money(i.premium_outlay)]]
+          : []),
         ["Available cash", money(i.available_cash)],
-        ["Estimated margin", money(i.estimated_margin)],
+        [
+          "Estimated margin",
+          i.margin_status === "AVAILABLE"
+            ? money(i.estimated_margin)
+            : "Margin estimate unavailable",
+        ],
       ].map(([label, value]) => (
         <div key={label}>
           <dt>{label}</dt>

@@ -143,7 +143,7 @@ def test_legacy_saved_view_preserves_original_filter_json() -> None:
         created_at=SimpleNamespace(isoformat=lambda: "created"),
         updated_at=SimpleNamespace(isoformat=lambda: "updated"),
     )
-    view = ScannerService.saved_view(row)
+    view = ScannerService.saved_view(cast(Any, row))
     assert view["config"] == legacy
     assert view["config"] is legacy
 

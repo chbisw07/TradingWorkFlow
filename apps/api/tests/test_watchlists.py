@@ -670,7 +670,9 @@ def test_chart_reuses_one_deep_daily_series_and_applies_live_ltp(
     assert result["metrics"]["high_52w_distance_percent"] == 25
     assert result["metrics"]["low_52w_distance_percent"] == 50
     assert read.await_count == 1
-    assert read.await_args.args[-2:] == ("1d", WATCHLIST_DAILY_HISTORY_SESSIONS)
+    awaited = read.await_args
+    assert awaited is not None
+    assert awaited.args[-2:] == ("1d", WATCHLIST_DAILY_HISTORY_SESSIONS)
 
 
 def test_reference_normalization_units_missing_values_and_identity() -> None:
