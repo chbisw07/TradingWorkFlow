@@ -79,3 +79,18 @@ class UniverseSnapshot(Contract):
     source_reference: str | None = None
     source_updated_at: datetime | None = None
     instruments: tuple[InstrumentIdentity, ...]
+
+
+class WatchlistHistoryMetrics(Contract):
+    rsi14: float
+    trend: Literal["Up", "Down", "Sideways"]
+    average_volume20: float | None
+    atr14: float | None
+    atr_percent: float | None
+    high_52w: float | None
+    low_52w: float | None
+    high_52w_distance_percent: float | None
+    low_52w_distance_percent: float | None
+    history_coverage_sessions: int = Field(ge=20, le=260)
+    as_of: datetime
+    basis: str

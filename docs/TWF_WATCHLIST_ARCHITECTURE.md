@@ -108,8 +108,9 @@ apply. Cache errors are typed, and no synthetic provider is a fallback.
 
 Auto-refresh defaults off, with 15/30/60-second intervals and hidden-tab suppression.
 The reference's illustrative 5-second default is deliberately not used. Visible rows
-hydrate serially from 22 normalized completed daily bars on load, independently
-of selection. That same bounded series supplies RSI, trend and each sparkline.
+hydrate serially from one cached 260-session normalized completed-daily history on
+load, independently of selection. That same bounded series supplies RSI, trend,
+ATR(14), 52-week metrics and the final 22 bars used by each one-month sparkline.
 No off-page row history is eagerly fetched. Missing data remains a compact dash.
 
 A shared history cache keys owner, credential generation, canonical instrument,
@@ -123,15 +124,21 @@ same TTLs. Its row loader stops scheduling obsolete pages; already started bound
 reads may finish. There is no cross-worker global history-rate coordinator.
 
 The selected-instrument chart lazily reads normalized Dhan OHLCV: 1D uses up to 75
-completed 5-minute bars; 1W/1M/3M/1Y use up to 5/22/66/252 completed daily bars.
+completed 5-minute bars; daily periods reuse the cached 260-session acquisition and
+display its final 5/22/66/252 bars for 1W/1M/3M/1Y.
 These are bounded trading-bar windows, not exact calendar-window promises. Provider
 availability and derivative history limitations remain visible. Nothing requests
 TradingView data. The `MarketChart` renderer takes only normalized bars and serves
 both the compact sparkline and detail chart; it is independent of provider schema.
 The existing scan Evidence Chart remains unchanged.
 
-Daily history of at least 20 bars also supplies RSI(14), close-versus-SMA(20)
-trend and mean volume over the last 20 completed daily bars. Existing pure indicator
+Daily history of at least 20 bars supplies RSI(14), close-versus-SMA(20) trend,
+mean volume over the last 20 completed daily bars and canonical Wilder ATR(14).
+ATR percent is `ATR(14) / latest completed close * 100`; live LTP is never its
+denominator. The completed-session 52-week range uses at most 252 bars and requires
+at least 200. Shorter histories expose dashes rather than relabelling a short window.
+Distances use the current Dhan LTP against those completed-session extremes and may
+be negative above the prior high or below the prior low. Existing pure indicator
 functions are reused; scanner thresholds/conditions are unchanged. Table tooltips
 state the basis and source bar time. Selecting 1M detail reuses the row series;
 other detail windows cannot overwrite the row's indicator/sparkline basis.
@@ -288,9 +295,18 @@ its earlier expired-credential observations. No live broker order was attempted.
 Custom and built-in Watchlists enrich rows from the same system-global
 `InstrumentMetadataService` used by Scanner V2. Each detail response performs at
 most one bounded bulk lookup after any provider I/O. Sector is visible by default;
-industry, readable INR market cap, stored NSE size band, stored TWF analytical tier,
+stored Market Cap Category and readable INR Market Cap are also default-visible
+table columns. Industry, stored TWF analytical tier,
 and analytical context benchmark appear in the selected-instrument panel. Equity
 lookups use exact exchange/symbol identity. Futures and options inherit metadata only
 from an unambiguous canonical underlying and are labelled accordingly; indices and
 unknown instruments remain unavailable. Stale last-known values are explicit. No
 Watchlist request calls Yahoo, NSE, or the metadata harvester.
+
+The Columns control also exposes ATR %, 52W High Distance and 52W Low Distance.
+Column state is component-local, as it was before this extension; no saved preference
+contract exists to migrate. At narrow widths the existing responsive table keeps
+Symbol, Type, LTP, 1D % and Actions visible while lower-priority metrics remain
+available in the selected-instrument detail. CSV export intentionally remains the
+canonical membership/identity interchange format; it does not serialize transient
+quotes, metadata snapshots or technical metrics.

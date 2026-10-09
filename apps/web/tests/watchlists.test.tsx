@@ -14,6 +14,9 @@ import {
   periodChange,
   indianVolume,
   indianMarketCap,
+  marketCapCategoryText,
+  metadataMarketCap,
+  metricPercentText,
 } from "../src/lib/watchlists";
 
 beforeEach(() => {
@@ -175,6 +178,19 @@ test("change percentage keeps sign, neutral zero and sub-cent precision", () => 
   expect(changeText(change(quote("100", "0")))).toBe("—");
   expect(changeText(change(quote(null)))).toBe("—");
   expect(changeText(change(quote("not-a-price")))).toBe("—");
+});
+test("Watchlist market metrics use canonical presentation semantics", () => {
+  expect(metricPercentText(2.135)).toBe("2.13%");
+  expect(metricPercentText(-1.4)).toBe("-1.40%");
+  expect(metricPercentText(null)).toBe("—");
+  expect(marketCapCategoryText("LARGE")).toBe("Large");
+  expect(marketCapCategoryText(undefined)).toBe("—");
+  expect(
+    metadataMarketCap({
+      market_cap: 1080000000000,
+      market_cap_currency: "INR",
+    } as never),
+  ).toBe("₹1.08 L Cr");
 });
 test("normalized bars render an accessible provider-attributed chart", () => {
   render(
@@ -403,6 +419,11 @@ test("visible rows hydrate serially without selection and detail reuses history"
     kind: "EQUITY",
     ordering: i,
     added_at: list.updated_at,
+    instrument_metadata: {
+      market_cap: 1080000000000,
+      market_cap_currency: "INR",
+      market_cap_category: "LARGE",
+    },
   }));
   let calls = 0,
     active = 0,
@@ -436,6 +457,14 @@ test("visible rows hydrate serially without selection and detail reuses history"
         metrics: {
           rsi14: 60,
           trend: "Up",
+          average_volume20: 1000,
+          atr14: 2.5,
+          atr_percent: 2.25,
+          high_52w: 150,
+          low_52w: 80,
+          high_52w_distance_percent: 5,
+          low_52w_distance_percent: 78.13,
+          history_coverage_sessions: 252,
           basis: "Daily",
           as_of: list.updated_at,
         },
@@ -461,6 +490,26 @@ test("visible rows hydrate serially without selection and detail reuses history"
   );
   expect(calls).toBe(10);
   expect(maxActive).toBe(1);
+  for (const header of [
+    "Market Cap Category",
+    "Market Cap",
+    "ATR %",
+    "52W High Distance",
+    "52W Low Distance",
+  ])
+    expect(
+      screen.getByRole("columnheader", { name: header }),
+    ).toBeInTheDocument();
+  const marketCapChoice = screen.getByLabelText("Market Cap");
+  expect(marketCapChoice).toBeChecked();
+  fireEvent.click(marketCapChoice);
+  expect(
+    screen.queryByRole("columnheader", { name: "Market Cap" }),
+  ).not.toBeInTheDocument();
+  fireEvent.click(marketCapChoice);
+  expect(screen.getAllByText("₹1.08 L Cr").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Large").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("2.25%").length).toBeGreaterThan(0);
   expect(
     screen.queryByRole("img", { name: /^Price chart/ }),
   ).not.toBeInTheDocument();

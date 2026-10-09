@@ -95,6 +95,13 @@ export type WatchMetrics = {
   rsi14: number;
   trend: string;
   average_volume20: number | null;
+  atr14: number | null;
+  atr_percent: number | null;
+  high_52w: number | null;
+  low_52w: number | null;
+  high_52w_distance_percent: number | null;
+  low_52w_distance_percent: number | null;
+  history_coverage_sessions: number;
   as_of: string;
   basis: string;
 };
@@ -182,6 +189,17 @@ export function changeText(value: number | null) {
     digits += 1;
   const sign = value > 0 ? "+" : "";
   return `${sign}${value.toFixed(digits)}%`;
+}
+
+export function metricPercentText(value: number | null | undefined) {
+  if (value == null || !Number.isFinite(Number(value))) return "—";
+  return `${Number(value).toFixed(2)}%`;
+}
+
+export function marketCapCategoryText(
+  value: InstrumentMetadataSummary["market_cap_category"] | undefined,
+) {
+  return value ? value.charAt(0) + value.slice(1).toLowerCase() : "—";
 }
 
 export function periodChange(

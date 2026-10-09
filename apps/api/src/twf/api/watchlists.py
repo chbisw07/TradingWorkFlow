@@ -35,7 +35,12 @@ from twf.watchlists.contracts import (
     UpdateWatchlist,
     WatchlistSelection,
 )
-from twf.watchlists.market import WatchlistHistoryCache, WatchlistQuoteCache
+from twf.watchlists.market import (
+    WATCHLIST_DAILY_HISTORY_SESSIONS,
+    WatchlistHistoryCache,
+    WatchlistQuoteCache,
+    metrics_for_ltp,
+)
 from twf.watchlists.reference import ReferenceSnapshot, WatchlistReferenceCache
 from twf.watchlists.service import WatchlistFailure, WatchlistService
 from twf.watchlists.system import SystemUniverseCatalog
@@ -345,6 +350,7 @@ async def chart(
     request: Request,
     who: Who,
     period: str = Query(default="1M", pattern="^(1D|1W|1M|3M|1Y)$"),
+    ltp: float | None = Query(default=None, gt=0, le=1e12),
 ) -> dict[str, Any]:
     snapshot = await snapshot_for(key, service, request, who)
     instrument = next((i for i in snapshot.instruments if i.instrument_id == instrument_id), None)
@@ -354,17 +360,34 @@ async def chart(
     capture = credentials.capture(who.owner_id, ready_only=True)
     if capture.provider is None:
         return {"provider": "dhan", "bars": [], "error": "AUTH_REQUIRED"}
-    interval, count = {
+    interval, display_count = {
         "1D": ("5m", 75),
         "1W": ("1d", 5),
         "1M": ("1d", 22),
         "3M": ("1d", 66),
         "1Y": ("1d", 252),
     }[period]
+    fetch_count = WATCHLIST_DAILY_HISTORY_SESSIONS if interval == "1d" else display_count
     cache = cast(WatchlistHistoryCache, request.app.state.watchlist_history)
-    return await cache.read(
-        who.owner_id, capture.status.generation, capture.provider, instrument, interval, count
+    result = await cache.read(
+        who.owner_id,
+        capture.status.generation,
+        capture.provider,
+        instrument,
+        interval,
+        fetch_count,
     )
+    if interval != "1d" or result.get("error"):
+        return result
+    return {
+        **result,
+        "bars": result.get("bars", [])[-display_count:],
+        "metrics": metrics_for_ltp(
+            result.get("metrics"),
+            ltp,
+            market_metrics_supported=kind(instrument) in {"EQUITY", "INDEX"},
+        ),
+    }
 
 
 class WatchlistNews(TapTideMarketIntelligence):

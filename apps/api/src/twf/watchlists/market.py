@@ -8,9 +8,15 @@ from typing import Any
 from uuid import UUID
 
 from twf.discovery.domain import InstrumentIdentity
-from twf.discovery.internal_scanner.indicators import rsi, sma
+from twf.discovery.internal_scanner.indicators import atr, rsi, sma
 from twf.discovery.internal_scanner.market_series import Bar
 from twf.discovery.market_data import MarketDataFailure, MarketDataProvider
+from twf.watchlists.contracts import WatchlistHistoryMetrics
+
+ATR_PERIOD = 14
+WEEK_52_SESSIONS = 252
+WEEK_52_MIN_SESSIONS = 200
+WATCHLIST_DAILY_HISTORY_SESSIONS = 260
 
 
 class WatchlistQuoteCache:
@@ -57,15 +63,64 @@ def history_metrics(bars: tuple[Bar, ...], interval: str) -> dict[str, Any] | No
     closes = [float(b.close) for b in bars]
     average = sma(closes, 20)
     volumes = [b.volume for b in bars[-20:]]
-    return {
-        "rsi14": rsi(closes, 14),
-        "trend": "Up" if closes[-1] > average else "Down" if closes[-1] < average else "Sideways",
-        "average_volume20": sum(float(v) for v in volumes if v is not None) / 20
-        if all(v is not None for v in volumes)
-        else None,
-        "as_of": bars[-1].timestamp.isoformat(),
-        "basis": "Completed daily bars; Wilder RSI(14); close versus SMA(20)",
-    }
+    atr14 = atr(bars, ATR_PERIOD)
+    high_52w = low_52w = None
+    if len(bars) >= WEEK_52_MIN_SESSIONS:
+        window = bars[-WEEK_52_SESSIONS:]
+        high_52w = max(float(bar.high) for bar in window)
+        low_52w = min(float(bar.low) for bar in window)
+    return WatchlistHistoryMetrics(
+        rsi14=rsi(closes, 14),
+        trend="Up" if closes[-1] > average else "Down" if closes[-1] < average else "Sideways",
+        average_volume20=(
+            sum(float(v) for v in volumes if v is not None) / 20
+            if all(v is not None for v in volumes)
+            else None
+        ),
+        atr14=atr14,
+        atr_percent=atr14 / closes[-1] * 100,
+        high_52w=high_52w,
+        low_52w=low_52w,
+        high_52w_distance_percent=None,
+        low_52w_distance_percent=None,
+        history_coverage_sessions=len(bars),
+        as_of=bars[-1].timestamp,
+        basis=(
+            "Completed daily bars; Wilder RSI(14) and ATR(14); close versus SMA(20); "
+            "52-week range requires at least 200 sessions"
+        ),
+    ).model_dump(mode="json")
+
+
+def metrics_for_ltp(
+    metrics: dict[str, Any] | None,
+    last_price: float | None,
+    *,
+    market_metrics_supported: bool = True,
+) -> dict[str, Any] | None:
+    """Attach live-LTP distances without mutating the cached completed-bar metrics."""
+    if metrics is None:
+        return None
+    result = dict(metrics)
+    if not market_metrics_supported:
+        for field in (
+            "atr14",
+            "atr_percent",
+            "high_52w",
+            "low_52w",
+            "high_52w_distance_percent",
+            "low_52w_distance_percent",
+        ):
+            result[field] = None
+        return result
+    high = result.get("high_52w")
+    low = result.get("low_52w")
+    if last_price is not None and last_price > 0:
+        if high is not None and high > 0:
+            result["high_52w_distance_percent"] = (high - last_price) / high * 100
+        if low is not None and low > 0:
+            result["low_52w_distance_percent"] = (last_price - low) / low * 100
+    return result
 
 
 class WatchlistHistoryCache:

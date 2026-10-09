@@ -95,6 +95,13 @@ test("persistent Watchlists, instrument detail, CSV, notes, archive and responsi
           rsi14: 64.2,
           trend: "Up",
           average_volume20: 10100,
+          atr14: 24.5,
+          atr_percent: 1.64,
+          high_52w: 1700,
+          low_52w: 1200,
+          high_52w_distance_percent: 11.76,
+          low_52w_distance_percent: 25,
+          history_coverage_sessions: 252,
           as_of: "2026-09-22T00:00:00Z",
           basis: "Completed daily bars; Wilder RSI(14); close versus SMA(20)",
         },
@@ -259,6 +266,27 @@ test("persistent Watchlists, instrument detail, CSV, notes, archive and responsi
   await expect(page.locator(".wl-table tbody tr").first()).toContainText(
     "64.2",
   );
+  for (const header of [
+    "Market Cap Category",
+    "Market Cap",
+    "ATR %",
+    "52W High Distance",
+    "52W Low Distance",
+  ])
+    await expect(
+      page.getByRole("columnheader", {
+        name: header,
+        exact: true,
+        includeHidden: true,
+      }),
+    ).toHaveCount(1);
+  await expect(page.locator(".wl-table tbody")).toContainText("1.64%");
+  await expect(page.locator(".wl-table tbody")).toContainText("11.76%");
+  await expect(page.locator(".wl-table tbody")).toContainText("25.00%");
+  await page.screenshot({
+    path: info.outputPath("watchlists-market-metrics.png"),
+    fullPage: true,
+  });
   await page.reload();
   await expect(page.locator('.wl-table tbody svg[role="img"]')).toHaveCount(5);
   await expect(page.locator(".wl-table tbody tr").first()).toContainText(
@@ -305,7 +333,7 @@ test("persistent Watchlists, instrument detail, CSV, notes, archive and responsi
     fullPage: !mobile,
   });
   await expect(panel.getByRole("img", { name: /Price chart/ })).toBeVisible();
-  if (page.viewportSize()!.width > 390) {
+  if (page.viewportSize()!.width > 900) {
     await expect(
       page
         .locator(".wl-table tbody tr")

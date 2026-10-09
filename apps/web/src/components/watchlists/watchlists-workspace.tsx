@@ -18,6 +18,9 @@ import {
   numberText,
   indianVolume,
   indianMarketCap,
+  marketCapCategoryText,
+  metadataMarketCap,
+  metricPercentText,
   previousClose,
   periodChange,
   sessionDate,
@@ -41,13 +44,33 @@ import { InstrumentMetadataPanel } from "../instrument-metadata-panel";
 const kinds: Kind[] = ["EQUITY", "OPTION", "FUTURE", "INDEX"];
 const columns = [
   "Sector",
+  "Market Cap Category",
+  "Market Cap",
   "LTP",
   "1D %",
   "Volume",
   "RSI (14)",
   "Trend",
+  "ATR %",
+  "52W High Distance",
+  "52W Low Distance",
   "Quick Chart (1M)",
 ];
+const columnPriority = (column: string) =>
+  ["LTP", "1D %"].includes(column)
+    ? "wl-priority-high"
+    : ["Sector", "Market Cap Category", "RSI (14)", "Trend"].includes(column)
+      ? "wl-priority-medium"
+      : "wl-priority-low";
+const columnHelp: Record<string, string> = {
+  "Market Cap Category":
+    "Instrument Metadata category: Large ranks 1–100, Mid ranks 101–250, Small ranks 251+",
+  "ATR %": "ATR(14) as a percentage of the latest completed daily close",
+  "52W High Distance":
+    "Percentage distance from current LTP to the completed-session 52-week high",
+  "52W Low Distance":
+    "Percentage distance from the completed-session 52-week low to current LTP",
+};
 const time = (v: string | null) =>
   v
     ? new Date(v).toLocaleString(undefined, {
@@ -87,6 +110,7 @@ export function WatchlistsWorkspace() {
     [mobilePanel, setMobilePanel] = useState(false);
   const [quotes, setQuotes] = useState<Record<string, WatchQuote>>({}),
     [quoteError, setQuoteError] = useState("");
+  const [quotesLoaded, setQuotesLoaded] = useState(false);
   const [metrics, setMetrics] = useState<Record<string, WatchMetrics>>({});
   const [history, setHistory] = useState<Record<string, WatchBar[]>>({});
   const [auto, setAuto] = useState(false),
@@ -104,29 +128,33 @@ export function WatchlistsWorkspace() {
     new Map<string, { at: number; value: WatchChart }>(),
   );
   const chartRequests = useRef(new Map<string, Promise<WatchChart>>());
-  const loadChart = useCallback((list: string, id: string, range: string) => {
-    const key = `${list}:${id}:${range}`;
-    const cached = chartCache.current.get(key);
-    if (
-      cached &&
-      Date.now() - cached.at < (cached.value.error ? 30000 : 300000)
-    )
-      return Promise.resolve(cached.value);
-    const pending = chartRequests.current.get(key);
-    if (pending) return pending;
-    const request = watchApi<WatchChart>(
-      `/${list}/items/${id}/chart?period=${range}`,
-    )
-      .then((value) => {
-        chartCache.current.set(key, { at: Date.now(), value });
-        while (chartCache.current.size > 100)
-          chartCache.current.delete(chartCache.current.keys().next().value!);
-        return value;
-      })
-      .finally(() => chartRequests.current.delete(key));
-    chartRequests.current.set(key, request);
-    return request;
-  }, []);
+  const loadChart = useCallback(
+    (list: string, id: string, range: string, ltp?: string | null) => {
+      const validLtp = ltp != null && Number(ltp) > 0 ? ltp : null;
+      const key = `${list}:${id}:${range}:${validLtp || "none"}`;
+      const cached = chartCache.current.get(key);
+      if (
+        cached &&
+        Date.now() - cached.at < (cached.value.error ? 30000 : 300000)
+      )
+        return Promise.resolve(cached.value);
+      const pending = chartRequests.current.get(key);
+      if (pending) return pending;
+      const request = watchApi<WatchChart>(
+        `/${list}/items/${id}/chart?period=${range}${validLtp ? `&ltp=${encodeURIComponent(validLtp)}` : ""}`,
+      )
+        .then((value) => {
+          chartCache.current.set(key, { at: Date.now(), value });
+          while (chartCache.current.size > 100)
+            chartCache.current.delete(chartCache.current.keys().next().value!);
+          return value;
+        })
+        .finally(() => chartRequests.current.delete(key));
+      chartRequests.current.set(key, request);
+      return request;
+    },
+    [],
+  );
   const [accounts, setAccounts] = useState<Account[]>([]),
     [brokerId, setBrokerId] = useState("");
   const [quantity, setQuantity] = useState(1),
@@ -272,6 +300,7 @@ export function WatchlistsWorkspace() {
         setQuotes({});
       }
     } finally {
+      if (scope.current === id) setQuotesLoaded(true);
       quoteLock.current = false;
       setRefreshing(false);
     }
@@ -292,7 +321,7 @@ export function WatchlistsWorkspace() {
   useEffect(() => {
     if (!selected || !instrumentId) return;
     let active = true;
-    void loadChart(selected, instrumentId, period)
+    void loadChart(selected, instrumentId, period, quote?.last_price)
       .then((value) => {
         if (active) setChart(value);
       })
@@ -307,7 +336,7 @@ export function WatchlistsWorkspace() {
     return () => {
       active = false;
     };
-  }, [selected, instrumentId, period, loadChart]);
+  }, [selected, instrumentId, period, quote?.last_price, loadChart]);
   useEffect(() => {
     if (modal !== "add" || !search.trim()) return;
     const c = new AbortController();
@@ -353,6 +382,7 @@ export function WatchlistsWorkspace() {
     setInstrumentId("");
     setChart(null);
     setQuotes({});
+    setQuotesLoaded(false);
     setPage(1);
     setQuery("");
     setType("ALL");
@@ -609,8 +639,14 @@ export function WatchlistsWorkspace() {
   const visibleRowIds = rows
     .map((row) => row.instrument.instrument_id)
     .join(",");
+  const visibleQuoteFingerprint = rows
+    .map((row) => {
+      const id = row.instrument.instrument_id;
+      return `${id}:${quotes[id]?.last_price || ""}`;
+    })
+    .join(",");
   useEffect(() => {
-    if (!selected || !visibleRowIds) return;
+    if (!selected || !visibleRowIds || !quotesLoaded) return;
     let active = true;
     // Visible page only, serial cold loads. Detail selection joins the same
     // in-flight request and cache rather than fetching row history a second time.
@@ -618,7 +654,12 @@ export function WatchlistsWorkspace() {
       for (const id of visibleRowIds.split(",")) {
         if (!active) break;
         try {
-          const value = await loadChart(selected, id, "1M");
+          const value = await loadChart(
+            selected,
+            id,
+            "1M",
+            quotes[id]?.last_price,
+          );
           if (!active) break;
           setHistory((previous) => ({
             ...previous,
@@ -640,7 +681,14 @@ export function WatchlistsWorkspace() {
     return () => {
       active = false;
     };
-  }, [selected, visibleRowIds, loadChart]);
+  }, [
+    selected,
+    visibleRowIds,
+    visibleQuoteFingerprint,
+    quotes,
+    quotesLoaded,
+    loadChart,
+  ]);
   const trashRows = lists.filter(
     (list) =>
       list.archived &&
@@ -777,6 +825,40 @@ export function WatchlistsWorkspace() {
                     </div>
                   ))}
                 </dl>
+                <h4>Completed-bar technical metrics</h4>
+                <dl className="wl-metrics">
+                  {[
+                    ["ATR (14)", numberText(metrics[instrumentId]?.atr14)],
+                    [
+                      "ATR %",
+                      metricPercentText(metrics[instrumentId]?.atr_percent),
+                    ],
+                    ["52W High", numberText(metrics[instrumentId]?.high_52w)],
+                    [
+                      "Distance from 52W High",
+                      metricPercentText(
+                        metrics[instrumentId]?.high_52w_distance_percent,
+                      ),
+                    ],
+                    ["52W Low", numberText(metrics[instrumentId]?.low_52w)],
+                    [
+                      "Distance from 52W Low",
+                      metricPercentText(
+                        metrics[instrumentId]?.low_52w_distance_percent,
+                      ),
+                    ],
+                  ].map(([k, v]) => (
+                    <div key={k}>
+                      <dt>{k}</dt>
+                      <dd>{v}</dd>
+                    </div>
+                  ))}
+                </dl>
+                <small className="wl-source">
+                  Dhan completed daily bars ·{" "}
+                  {metrics[instrumentId]?.history_coverage_sessions ?? "—"}{" "}
+                  sessions
+                </small>
                 <InstrumentMetadataPanel metadata={item.instrument_metadata} />
               </section>
             )}
@@ -1505,12 +1587,13 @@ export function WatchlistsWorkspace() {
                         .map((c) => (
                           <th
                             key={c}
+                            className={columnPriority(c)}
                             title={
                               c === "1D %"
                                 ? "Change from previous trading session close"
                                 : c === "Quick Chart (1M)"
                                   ? "Last ~1 month of completed daily closes"
-                                  : undefined
+                                  : columnHelp[c]
                             }
                           >
                             {c}
@@ -1568,6 +1651,7 @@ export function WatchlistsWorkspace() {
                           </td>
                           {visible.includes("Sector") && (
                             <td
+                              className="wl-priority-medium"
                               title={
                                 i.instrument_metadata?.resolution_basis ===
                                 "UNDERLYING"
@@ -1578,27 +1662,52 @@ export function WatchlistsWorkspace() {
                               {i.instrument_metadata?.sector || "—"}
                             </td>
                           )}
+                          {visible.includes("Market Cap Category") && (
+                            <td
+                              className="wl-priority-medium"
+                              title={
+                                i.instrument_metadata?.resolution_basis ===
+                                "UNDERLYING"
+                                  ? `Underlying market-cap category for ${i.instrument_metadata.metadata_symbol}`
+                                  : columnHelp["Market Cap Category"]
+                              }
+                            >
+                              {marketCapCategoryText(
+                                i.instrument_metadata?.market_cap_category,
+                              )}
+                            </td>
+                          )}
+                          {visible.includes("Market Cap") && (
+                            <td className="wl-priority-low">
+                              {metadataMarketCap(i.instrument_metadata)}
+                            </td>
+                          )}
                           {visible.includes("LTP") && (
-                            <td>{numberText(q?.last_price)}</td>
+                            <td className="wl-priority-high">
+                              {numberText(q?.last_price)}
+                            </td>
                           )}
                           {visible.includes("1D %") && (
                             <td
-                              className={
+                              className={`wl-priority-high ${
                                 delta == null || delta === 0
                                   ? "neutral"
                                   : delta > 0
                                     ? "up"
                                     : "down"
-                              }
+                              }`}
                             >
                               {changeText(delta)}
                             </td>
                           )}
                           {visible.includes("Volume") && (
-                            <td>{numberText(q?.volume)}</td>
+                            <td className="wl-priority-low">
+                              {numberText(q?.volume)}
+                            </td>
                           )}
                           {visible.includes("RSI (14)") && (
                             <td
+                              className="wl-priority-medium"
                               title={
                                 metrics[i.instrument.instrument_id]
                                   ? `${metrics[i.instrument.instrument_id].basis} · ${metrics[i.instrument.instrument_id].as_of}`
@@ -1612,6 +1721,7 @@ export function WatchlistsWorkspace() {
                           )}
                           {visible.includes("Trend") && (
                             <td
+                              className="wl-priority-medium"
                               title={
                                 metrics[i.instrument.instrument_id]
                                   ? `${metrics[i.instrument.instrument_id].basis} · ${metrics[i.instrument.instrument_id].as_of}`
@@ -1622,8 +1732,48 @@ export function WatchlistsWorkspace() {
                                 "—"}
                             </td>
                           )}
+                          {visible.includes("ATR %") && (
+                            <td
+                              className="wl-priority-low"
+                              title={
+                                metrics[id]
+                                  ? `${columnHelp["ATR %"]} · ${metrics[id].as_of}`
+                                  : "Completed daily history is loading or unavailable"
+                              }
+                            >
+                              {metricPercentText(metrics[id]?.atr_percent)}
+                            </td>
+                          )}
+                          {visible.includes("52W High Distance") && (
+                            <td
+                              className="wl-priority-low"
+                              title={
+                                metrics[id]
+                                  ? `${columnHelp["52W High Distance"]} · ${metrics[id].history_coverage_sessions} completed sessions`
+                                  : "Completed daily history is loading or unavailable"
+                              }
+                            >
+                              {metricPercentText(
+                                metrics[id]?.high_52w_distance_percent,
+                              )}
+                            </td>
+                          )}
+                          {visible.includes("52W Low Distance") && (
+                            <td
+                              className="wl-priority-low"
+                              title={
+                                metrics[id]
+                                  ? `${columnHelp["52W Low Distance"]} · ${metrics[id].history_coverage_sessions} completed sessions`
+                                  : "Completed daily history is loading or unavailable"
+                              }
+                            >
+                              {metricPercentText(
+                                metrics[id]?.low_52w_distance_percent,
+                              )}
+                            </td>
+                          )}
                           {visible.includes("Quick Chart (1M)") && (
-                            <td>
+                            <td className="wl-priority-low">
                               <MarketChart bars={history[id] || []} compact />
                             </td>
                           )}

@@ -446,8 +446,9 @@ def test_broker_mapping_exact_identity_and_fail_closed(
 def test_lazy_history_metrics_do_not_invent_missing_data() -> None:
     from datetime import timedelta
 
+    from twf.discovery.internal_scanner.indicators import atr
     from twf.discovery.internal_scanner.market_series import Bar
-    from twf.watchlists.market import history_metrics
+    from twf.watchlists.market import WEEK_52_MIN_SESSIONS, history_metrics, metrics_for_ltp
 
     at = datetime.now(UTC)
     bars = tuple(
@@ -465,10 +466,88 @@ def test_lazy_history_metrics_do_not_invent_missing_data() -> None:
     result = history_metrics(bars, "1d")
     assert result and result["rsi14"] == 100 and result["trend"] == "Up"
     assert result["average_volume20"] == 1000
+    assert result["atr14"] == atr(bars, 14)
+    assert result["atr_percent"] == result["atr14"] / bars[-1].close * 100
+    assert result["history_coverage_sessions"] == 22
+    assert result["high_52w"] is None and result["low_52w"] is None
     assert history_metrics(bars[:5], "1d") is None
     assert history_metrics(bars, "5m") is None
     missing = (*bars[:-1], bars[-1].model_copy(update={"volume": None}))
     assert history_metrics(missing, "1d")["average_volume20"] is None  # type: ignore[index]
+
+    annual = tuple(
+        bars[0].model_copy(
+            update={
+                "timestamp": at + timedelta(days=i),
+                "available_at": at + timedelta(days=i + 1),
+                "open": 100 + i / 10,
+                "close": 100 + i / 10,
+                "high": 101 + i / 10,
+                "low": 99 + i / 10,
+            }
+        )
+        for i in range(WEEK_52_MIN_SESSIONS)
+    )
+    annual_metrics = history_metrics(annual, "1d")
+    assert annual_metrics is not None
+    assert annual_metrics["high_52w"] == annual[-1].high
+    assert annual_metrics["low_52w"] == annual[0].low
+    priced = metrics_for_ltp(annual_metrics, annual[-1].high)
+    assert priced is not None
+    assert priced["high_52w_distance_percent"] == 0
+    assert priced["low_52w_distance_percent"] == pytest.approx(
+        (annual[-1].high - annual[0].low) / annual[0].low * 100
+    )
+    assert annual_metrics["high_52w_distance_percent"] is None  # cached input is immutable
+
+
+@pytest.mark.parametrize(
+    ("ltp", "high_distance", "low_distance"),
+    [
+        (200.0, 0.0, 100.0),
+        (190.0, 5.0, 90.0),
+        (210.0, -5.0, 110.0),
+        (100.0, 50.0, 0.0),
+        (90.0, 55.0, -10.0),
+    ],
+)
+def test_52_week_distances_use_live_ltp_without_clamping(
+    ltp: float, high_distance: float, low_distance: float
+) -> None:
+    from twf.watchlists.market import metrics_for_ltp
+
+    result = metrics_for_ltp({"high_52w": 200.0, "low_52w": 100.0}, ltp)
+    assert result is not None
+    assert result["high_52w_distance_percent"] == pytest.approx(high_distance)
+    assert result["low_52w_distance_percent"] == pytest.approx(low_distance)
+
+
+def test_derivative_market_metrics_fail_closed() -> None:
+    from twf.watchlists.market import metrics_for_ltp
+
+    result = metrics_for_ltp(
+        {
+            "atr14": 5.0,
+            "atr_percent": 2.5,
+            "high_52w": 200.0,
+            "low_52w": 100.0,
+            "history_coverage_sessions": 252,
+        },
+        150.0,
+        market_metrics_supported=False,
+    )
+    assert result is not None and result["history_coverage_sessions"] == 252
+    assert all(
+        result[field] is None
+        for field in (
+            "atr14",
+            "atr_percent",
+            "high_52w",
+            "low_52w",
+            "high_52w_distance_percent",
+            "low_52w_distance_percent",
+        )
+    )
 
 
 def test_history_cache_deduplicates_and_fences_owner_generation() -> None:
@@ -528,6 +607,70 @@ def test_history_cache_rate_limit_stops_other_cold_rows() -> None:
         assert p.get_ohlcv.await_count == 1
 
     asyncio.run(run())
+
+
+def test_chart_reuses_one_deep_daily_series_and_applies_live_ltp(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from twf.watchlists.market import WATCHLIST_DAILY_HISTORY_SESSIONS
+
+    key = create(client)
+    add(client, key)
+    instrument = instruments()[0]
+    bars = [
+        {
+            "timestamp": f"2026-09-{day:02d}T00:00:00Z",
+            "open": 100 + day,
+            "high": 102 + day,
+            "low": 99 + day,
+            "close": 101 + day,
+            "volume": 1000,
+        }
+        for day in range(1, 23)
+    ]
+    read = AsyncMock(
+        return_value={
+            "provider": "dhan",
+            "interval": "1d",
+            "bars": bars,
+            "metrics": {
+                "rsi14": 60.0,
+                "trend": "Up",
+                "average_volume20": 1000.0,
+                "atr14": 4.0,
+                "atr_percent": 2.0,
+                "high_52w": 200.0,
+                "low_52w": 100.0,
+                "high_52w_distance_percent": None,
+                "low_52w_distance_percent": None,
+                "history_coverage_sessions": 252,
+                "as_of": "2026-09-22T00:00:00Z",
+                "basis": "completed",
+            },
+            "error": None,
+        }
+    )
+    app = cast(Any, client.app)
+    app.state.watchlist_history = SimpleNamespace(read=read)
+    monkeypatch.setattr(
+        app.state.dhan_credentials,
+        "capture",
+        lambda *args, **kwargs: SimpleNamespace(
+            provider=object(), status=SimpleNamespace(generation=7)
+        ),
+    )
+
+    response = client.get(f"{BASE}/{key}/items/{instrument.instrument_id}/chart?period=1M&ltp=150")
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert len(result["bars"]) == 22
+    assert result["metrics"]["high_52w_distance_percent"] == 25
+    assert result["metrics"]["low_52w_distance_percent"] == 50
+    assert read.await_count == 1
+    assert read.await_args.args[-2:] == ("1d", WATCHLIST_DAILY_HISTORY_SESSIONS)
 
 
 def test_reference_normalization_units_missing_values_and_identity() -> None:
