@@ -10,6 +10,7 @@ import twf.infrastructure.broker  # noqa: F401 -- register metadata
 import twf.infrastructure.dhan  # noqa: F401 -- register metadata
 import twf.infrastructure.discovery  # noqa: F401 -- register metadata
 import twf.infrastructure.identity  # noqa: F401 -- register metadata
+import twf.infrastructure.instrument_metadata  # noqa: F401 -- register metadata
 import twf.infrastructure.mcp  # noqa: F401 -- register metadata
 import twf.infrastructure.order_intent  # noqa: F401 -- register metadata
 import twf.infrastructure.preferences  # noqa: F401 -- register metadata

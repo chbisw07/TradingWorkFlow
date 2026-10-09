@@ -190,6 +190,10 @@ def test_lifecycle_and_contracts(settings: Settings) -> None:
             "/api/v1/discovery/candidates/{candidate_id}/lifecycle",
             "/api/v1/discovery/candidates/{candidate_id}/explain",
             "/api/v1/discovery/market-context",
+            "/api/v1/instrument-metadata/status",
+            "/api/v1/instrument-metadata/by-isin/{isin}",
+            "/api/v1/instrument-metadata/lookup",
+            "/api/v1/instrument-metadata/{exchange}/{symbol}",
         }
         assert schema["info"]["version"] == "1.2.3"
         for route in schema["paths"].values():

@@ -19,6 +19,7 @@ from twf.api.dhan_market_data import router as dhan_market_data_router
 from twf.api.discovery import product_error
 from twf.api.discovery import router as discovery_router
 from twf.api.errors import http_error, unexpected_error, validation_error
+from twf.api.instrument_metadata import router as instrument_metadata_router
 from twf.api.market_summary import router as market_summary_router
 from twf.api.mcp import mcp_error
 from twf.api.mcp import router as mcp_router
@@ -143,6 +144,7 @@ def create_app(
     app.include_router(mcp_router)
     app.include_router(dhan_market_data_router)
     app.include_router(market_summary_router)
+    app.include_router(instrument_metadata_router)
     app.include_router(discovery_router)
     app.include_router(watchlists_router)
     app.include_router(scanner_v2_router)

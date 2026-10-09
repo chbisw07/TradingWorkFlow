@@ -1,0 +1,17 @@
+{
+  "metadata_schema_version": 1,
+  "dataset_run_id": "11111111-1111-4111-8111-111111111111",
+  "dataset_generated_at": "2026-10-09T09:15:00+05:30",
+  "total_rows": 5,
+  "sector_coverage_percent": 80.0,
+  "industry_coverage_percent": 80.0,
+  "market_cap_coverage_percent": 80.0,
+  "unresolved_output_rows": 1,
+  "validation": {
+    "status": "PASS",
+    "errors": [],
+    "warnings": [
+      "1 row remains unresolved"
+    ]
+  }
+}

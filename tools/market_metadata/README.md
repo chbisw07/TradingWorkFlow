@@ -228,12 +228,38 @@ source conditions:
 - **Seed migration:** V3/V3.1 `official_cap_category` fields are accepted as
   input aliases and emitted under the V3.2 `market_cap_category` names.
 
-## Future database import
+## Runtime database import
 
-This utility only generates and validates a snapshot. A separate, future TWF
-importer will validate and ingest an accepted snapshot into application-owned
-instrument metadata tables. This increment adds no database tables, API routes,
-Scanner behavior, Watchlist behavior, or sector-context execution.
+Harvesting and importing remain separate stages. After reviewing a successful
+snapshot summary and applying API migration `0019_instrument_metadata`, import
+the canonical snapshot explicitly from the repository root:
+
+```bash
+PYTHONPATH=apps/api/src apps/api/.venv/bin/python -m \
+  twf.instrument_metadata.import_snapshot \
+  var/market_metadata/nse_instrument_metadata.csv \
+  --summary var/market_metadata/nse_instrument_metadata_summary.json
+```
+
+The importer independently validates schema version, required columns, row
+identity, run identity, timestamps, market-cap values, ranks, categories, tiers,
+and summary agreement before opening the database transaction. The snapshot is
+upserted into system-global `instrument_metadata`; missing instruments are
+retained with `present_in_latest_snapshot = false`. Replaying an already imported
+`dataset_run_id` is idempotent. Every attempt is represented in
+`instrument_metadata_refreshes` when database storage is available.
+
+Authenticated bounded reads are available at:
+
+- `GET /api/v1/instrument-metadata/status`;
+- `GET /api/v1/instrument-metadata/{exchange}/{symbol}`;
+- `GET /api/v1/instrument-metadata/by-isin/{isin}`;
+- `POST /api/v1/instrument-metadata/lookup` for at most 100 unique symbols.
+
+The normal monthly workflow is: run the harvester, inspect its summary, run the
+importer, then inspect the status endpoint and representative symbol lookups.
+Scanner, Watchlists, Discovery, and Market Context may consume the read service
+in later increments; this foundation does not change those products yet.
 
 ## Version history
 

@@ -360,8 +360,17 @@ inherit company metadata from an exact resolved underlying.
 
 Operational CSV, unresolved, summary, checkpoint, partial, and temporary files
 live under ignored `var/market_metadata/`. Source code, documentation, and tiny
-deterministic fixtures are tracked. A future importer will validate an accepted
-snapshot before writing application-owned database records. Scanner and Watchlist
-consumers must use that imported, provenance-bearing dataset; they must not invoke
-Yahoo or the harvester in an application request. This increment creates no
-runtime tables, API routes, or UI behavior.
+deterministic fixtures are tracked. The runtime importer independently validates
+an accepted snapshot before transactionally upserting system-global current state
+into `instrument_metadata`; `instrument_metadata_refreshes` retains import audit
+status. No user, broker, or provider-session ownership is attached. Missing rows
+are retained and marked outside the latest snapshot, and a successful dataset run
+is idempotent.
+
+The read-only instrument metadata service supports bounded symbol/ISIN lookups,
+sector and context-benchmark resolution, and last-refresh status. Authenticated
+API routes expose those bounded reads; import remains an explicit local CLI and
+accepts no public filesystem path. Scanner and Watchlist consumers must use this
+provenance-bearing service in later increments and must not invoke Yahoo or the
+harvester in an application request. This increment creates no UI behavior and
+does not change Scanner, Watchlist, Discovery, or Market Context decisions.
