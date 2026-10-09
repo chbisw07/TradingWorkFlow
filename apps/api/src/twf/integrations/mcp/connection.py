@@ -35,6 +35,7 @@ from twf.integrations.mcp.contracts import (
     Tool,
     ToolPolicy,
 )
+from twf.integrations.mcp.health import AUTH_FAILURES, OUTAGE_THRESHOLD, PROVIDER_FAILURES, family
 from twf.integrations.mcp.http import HTTPFactory, dispatch_fence, mapped, suppress_library_logs
 from twf.integrations.mcp.lifecycle import Operation, Operations
 from twf.integrations.mcp.lifecycle import operation as active_operation
@@ -238,10 +239,23 @@ class ConnectionManager:
             or utc(p.deadline_at) <= datetime.now(UTC)
             for p in outstanding
         )
-        if recovery_required and not row.auth_invalidation_pending:
-            health, error = Health.DEGRADED, error or Code.STALE
+        # Expiry ends active work, but never proves teardown. The admission fence
+        # still uses every outstanding permit, including cleanup/receipt debt.
+        now = datetime.now(UTC)
+        active = sum(
+            p.state == "RUNNING"
+            and p.outcome is None
+            and p.generation == row.generation
+            and utc(p.deadline_at) > now
+            for p in outstanding
+        )
         return ConnectionView(
-            operations_pending=len(outstanding),
+            operations_pending=active,
+            unresolved_cleanup_count=len(outstanding) - active,
+            health_since=utc(row.health_since) if row.health_since else None,
+            last_failure_at=utc(row.last_failure_at) if row.last_failure_at else None,
+            last_failure_kind=row.last_failure_kind,
+            consecutive_failure_count=row.consecutive_failure_count,
             recovery_required=recovery_required,
             id=row.id,
             owner_id=row.owner_id,
@@ -730,6 +744,7 @@ class ConnectionManager:
                 session_hash=who.session_hash,
                 worker_id=self.worker_id,
                 state="RUNNING",
+                tool_name=scope.tool_name,
                 cleanup_state="RUNNING",
                 outcome=None,
                 created_at=scope.created_at,
@@ -769,6 +784,57 @@ class ConnectionManager:
             if reauth:
                 row.health, row.error = Health.UNAVAILABLE.value, Code.REAUTH_REQUIRED.value
 
+    def operation_health(self, row: MCPConnection, permit: MCPOperation, outcome: str) -> None:
+        """Idempotent, generation-fenced observation, separate from permit authority."""
+        if row.generation != permit.generation or permit.health_outcome == outcome:
+            return
+        permit.health_outcome = outcome
+        now = datetime.now(UTC)
+        previous = row.health
+        if outcome == "SUCCESS":
+            if row.state != State.CONNECTED or row.auth_invalidation_pending:
+                return
+            missing = set(self.config(row.provider_id).required_tools) - {
+                t.name for t in TOOLS.validate_json(row.tools_json)
+            }
+            row.health = Health.DEGRADED.value if missing else Health.AVAILABLE.value
+            row.error = Code.TOOL_NOT_FOUND.value if missing else None
+            row.consecutive_failure_count = 0
+            row.last_success_at = now
+        else:
+            row.last_failure_at, row.last_failure_kind = now, outcome
+            row.error = outcome
+            if outcome in PROVIDER_FAILURES:
+                row.consecutive_failure_count = min(
+                    OUTAGE_THRESHOLD, row.consecutive_failure_count + 1
+                )
+            elif outcome == Code.TOOL_FAILED.value:
+                row.consecutive_failure_count = 0
+            if (
+                outcome in AUTH_FAILURES
+                or row.auth_invalidation_pending
+                or row.consecutive_failure_count >= OUTAGE_THRESHOLD
+            ):
+                row.health = Health.UNAVAILABLE.value
+            else:
+                row.health = Health.DEGRADED.value
+        row.updated_at = now
+        if previous != row.health or row.health_since is None:
+            row.health_since = now
+        self.logger.info(
+            "mcp_health_observation",
+            extra={
+                "provider_id": row.provider_id,
+                "operation_id": str(permit.id),
+                "generation": permit.generation,
+                "tool_family": family(permit.tool_name),
+                "outcome": outcome,
+                "previous_health": previous,
+                "health": row.health,
+                "duration_ms": int((now - utc(permit.created_at)).total_seconds() * 1000),
+            },
+        )
+
     async def completed(self, who: Context, identity: UUID, scope: Operation) -> None:
         def locked(db: Session) -> tuple[MCPConnection | None, MCPOperation | None]:
             db.get(AuthSession, who.session_hash, with_for_update=True)
@@ -796,7 +862,7 @@ class ConnectionManager:
             row, permit = locked(db)
             if not row or not permit:
                 return  # admission never committed
-            if scope.auth_invalidation_required:
+            if scope.auth_invalidation_required and row.generation == permit.generation:
                 row.auth_invalidation_pending = True
             outcome = winner(row, permit)
             permit.provider_outcome = scope.provider_outcome or permit.provider_outcome
@@ -827,7 +893,7 @@ class ConnectionManager:
                 permit.state = "UNRESOLVED" if scope.close_failed else "COMPLETE"
                 permit.completed_at = None if scope.close_failed else datetime.now(UTC)
                 if row.generation == permit.generation and outcome != "SUCCESS":
-                    row.health, row.error = Health.UNAVAILABLE.value, outcome
+                    self.operation_health(row, permit, outcome)
                 session.flush()
                 self.finish_disconnect(session, row)
 
@@ -857,7 +923,7 @@ class ConnectionManager:
                     permit.reconciliation_required = True
                     permit.provider_outcome = scope.provider_outcome or permit.provider_outcome
                     if row and row.generation == permit.generation:
-                        row.health, row.error = Health.UNAVAILABLE.value, scope.outcome
+                        self.operation_health(row, permit, scope.outcome)
                     permit.outcome = scope.terminal or (
                         permit.outcome
                         if permit.outcome not in {None, "SUCCESS"}
@@ -894,6 +960,7 @@ class ConnectionManager:
             ):
                 raise Failure(Code.STORAGE)
             permit.reconciliation_required = False
+            self.operation_health(row, permit, "SUCCESS")
             db.flush()
             self.finish_disconnect(db, row)
 
@@ -1150,7 +1217,11 @@ class ConnectionManager:
             row = self.owned(db, who, identity)
             if row.generation != generation or row.state in DRAINING:
                 return
-            row.health, row.error = Health.UNAVAILABLE.value, code.value
+            scope = active_operation.get()
+            # Tool operation failures are observed once at durable settlement.
+            # Auth invalidation remains immediate and independently durable.
+            if reauth or not scope or not scope.is_tool_operation:
+                row.health, row.error = Health.UNAVAILABLE.value, code.value
             if reauth:
                 # Close admission while retaining authority for admitted G1 work.
                 row.enabled, row.state = False, State.REAUTH_DRAINING.value
@@ -1190,7 +1261,9 @@ class ConnectionManager:
             return await self.write(assess)
 
         timeout = min((p.timeout_seconds for p in self.providers.values()), default=0.05)
-        return await self.operations.run(timeout, work)
+        result = await self.operations.run(timeout, work)
+        await self.operations.wait_receipts()
+        return self.status(who, result.id)
 
     async def tools(
         self,
@@ -1224,6 +1297,9 @@ class ConnectionManager:
         assert scope is not None
         scope.finish = lambda item: self.completed(who, identity, item)
 
+        scope.tool_name = name
+        scope.is_tool_operation = True
+
         def capture(db: Session) -> tuple[ProviderConfig, dict[str, str]]:
             row = self.owned(db, who, identity)
             config = self.current(row, generation)
@@ -1239,6 +1315,15 @@ class ConnectionManager:
             }
 
         config, headers = await self.write(capture)
+        self.logger.info(
+            "mcp_operation_admitted",
+            extra={
+                "provider_id": config.provider_id,
+                "operation_id": str(scope.id),
+                "tool_family": family(name),
+                "generation": generation,
+            },
+        )
 
         async def fence() -> None:
             def check(db: Session) -> None:
@@ -1260,8 +1345,8 @@ class ConnectionManager:
                 self.current(row, generation)
                 scope.check()
                 row.tools_json = TOOLS.dump_json(tools).decode()
-                row.health, row.error = Health.AVAILABLE.value, None
-                row.last_success_at = row.updated_at = datetime.now(UTC)
+                # Health success is published only after caller delivery receipt.
+                row.updated_at = datetime.now(UTC)
 
             await self.write(save)
             scope.success_audit = lambda: self.audit(

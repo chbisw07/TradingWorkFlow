@@ -2363,6 +2363,28 @@ export function ReferencePanel({
     <>
       <section aria-label="Reference / fundamentals" className="wl-reference">
         <h3>Reference / fundamentals</h3>
+        {!value ? (
+          <p role="status" className="wl-reference-status">
+            Loading TapTide reference data…
+          </p>
+        ) : value.state === "UNAVAILABLE" ? (
+          <p role="status" className="wl-reference-status">
+            TapTide reference data is temporarily unavailable. Check the{" "}
+            <Link href="/settings#integrations">TapTide connection</Link> and
+            retry later. This does not affect Dhan market data or imported
+            instrument metadata.
+          </p>
+        ) : value.state === "NOT_AVAILABLE" ? (
+          <p role="status" className="wl-reference-status">
+            TapTide reference metrics are not available for this instrument
+            type.
+          </p>
+        ) : value.state === "PARTIAL" ? (
+          <p role="status" className="wl-reference-status">
+            TapTide returned only some reference values; unavailable fields
+            remain blank.
+          </p>
+        ) : null}
         {[
           {
             title: "Fundamentals",

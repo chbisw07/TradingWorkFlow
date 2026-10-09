@@ -188,7 +188,8 @@ class SDKClient:
                                 # SDK types and remote error text stop here.
                                 payload = reply.model_dump(mode="json", by_alias=True)
                                 if payload.get("isError"):
-                                    raise Failure(Code.UNAVAILABLE)
+                                    # A tool-error reply proves the transport responded.
+                                    raise Failure(Code.TOOL_FAILED)
                                 encoded = json.dumps(payload, allow_nan=False)
                                 if len(encoded.encode()) > config.max_response_bytes:
                                     raise Failure(Code.SCHEMA_MISMATCH)

@@ -580,6 +580,9 @@ test("reference metrics retain units, provenance and individual unavailable fiel
   expect(document.querySelector(".wl-data-details")).toHaveTextContent(
     "PARTIAL",
   );
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "TapTide returned only some reference values",
+  );
 });
 test("reference transport failure stays unavailable without raw errors", async () => {
   vi.spyOn(global, "fetch").mockRejectedValue(new Error("raw upstream error"));
@@ -590,6 +593,15 @@ test("reference transport failure stays unavailable without raw errors", async (
     ),
   );
   expect(screen.getAllByText("—")).toHaveLength(4);
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "TapTide reference data is temporarily unavailable",
+  );
+  expect(
+    screen.getByRole("link", { name: "TapTide connection" }),
+  ).toHaveAttribute("href", "/settings#integrations");
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "This does not affect Dhan market data or imported instrument metadata",
+  );
   expect(document.body).not.toHaveTextContent("raw upstream error");
 });
 

@@ -1,5 +1,51 @@
 # TWF Market Intelligence Provider Architecture
 
+## Runtime health and operation accounting (2026-10-09)
+
+Connection state, provider health and operation authority are independent.
+`CONNECTED` retains owner/generation-bound credentials; it does not promise that
+every tool works. An MCP `isError` reply is `TOOL_FAILED`, not a transport outage.
+One tool failure degrades health and leaves other allowlisted capabilities callable.
+Three consecutive transport, session-contract or timeout failures mark the provider
+unavailable (`OUTAGE_THRESHOLD` in `integrations/mcp/health.py`). A tool-error reply
+resets that transport streak because transport responded. Authentication failures
+still invalidate authority immediately. No automatic retries were added.
+
+Normal successful calls recover health after the caller-delivery receipt, without
+requiring Test connection. Missing registered required tools still mean degraded.
+Health provenance records transition time, last failure category/time and bounded
+transport-failure count. Durable operations record tool name and an idempotent
+health observation; logs contain IDs, family, generation, duration and category,
+never credentials or provider error text. Full per-capability health history is
+not introduced; failure isolation occurs at the tool boundary.
+
+`operations_pending` now means current-generation RUNNING work with no terminal
+outcome and an unexpired deadline. `unresolved_cleanup_count` reports other
+outstanding permits/receipts separately. Timed-out and expired foreign-worker work
+is never displayed indefinitely as active. This read-time classification works
+after restart, without pretending the old worker stopped. Explicit local recovery
+can acknowledge proven committed delivery receipts; other expired work remains
+UNRESOLVED. Admission and disconnect still fence on **all** outstanding authority.
+Test connection cannot bypass unresolved teardown or erase it. Thus an unsafe
+test is rejected until recovery, rather than returning a fictitious success.
+
+Caller timeout remains final; owned teardown may continue and late results never
+become caller success. Stale generations cannot change current health. No DB
+transaction spans provider I/O. The provider-configured 10-second TapTide budget
+(maximum 30 seconds) is unchanged and includes setup, tool work and transport
+teardown; the Watchlist reference envelope is 25 seconds including cache-lock
+waiting. Receipt handoff and shutdown drain are separately bounded to one second.
+Failed/unconfirmed teardown remains visible and fenced, even after those bounds.
+
+Watchlist reference failures produce a temporary-unavailable message, independent
+of Dhan quotes/charts and imported instrument metadata. Connected degraded or
+unavailable providers are eligible for bounded normal requests; the manager still
+checks authentication, generation and durable permits. The existing owner,
+generation and instrument-scoped cache uses 900 seconds for reference responses
+and 60 seconds for failure responses. It never substitutes expired last-known-good
+values or invents missing fundamentals. Schema migration `0020_mcp_health` is
+additive and contains no credential changes.
+
 Status: **IMPLEMENTED / READY FOR OWNER AUTHORIZATION — LIVE VALIDATION NOT RUN**
 Date: 2026-10-03
 

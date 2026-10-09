@@ -91,7 +91,9 @@ def test_worker_completion_gap_drains_across_workers(
             await asyncio.wait_for(committed.wait(), 2)
             draining = await peer.disconnect(who, row.id, row.generation)
             assert draining.state == State.DISCONNECTING
-            assert draining.operations_pending == 1 and draining.generation == row.generation
+            assert (
+                draining.operations_pending + draining.unresolved_cleanup_count
+            ) == 1 and draining.generation == row.generation
             assert not sends
             # Another worker cannot admit, reconnect or advance this generation.
             for attempt in (
@@ -176,9 +178,15 @@ def test_real_pool_shield_does_not_extend_public_deadline(
         elapsed = time.monotonic() - start
         assert result.value.code == Code.TIMEOUT and elapsed < 0.15
         assert not closed.is_set() and m.operations.tasks  # Owned, still unwinding.
+        timed_out = m.status(who, row.id)
+        assert timed_out.operations_pending == 0
+        assert timed_out.unresolved_cleanup_count == 1
         try:
             draining = await m.disconnect(who, row.id, row.generation)
-            assert draining.state == State.DISCONNECTING and draining.operations_pending == 1
+            assert (
+                draining.state == State.DISCONNECTING
+                and (draining.operations_pending + draining.unresolved_cleanup_count) == 1
+            )
             assert draining.generation == row.generation
         finally:
             finish_close.set()
@@ -190,10 +198,14 @@ def test_real_pool_shield_does_not_extend_public_deadline(
             assert permit and permit.outcome == Code.TIMEOUT
             assert permit.cleanup_state == ("FAILED_RETRYABLE" if close_error else "COMPLETE")
         current = m.status(who, row.id)
+        assert current.operations_pending == 0
         assert current.state == (State.DISCONNECTING if close_error else State.DISCONNECTED)
         assert not current.tools  # A late completed list never promotes to success.
         if close_error:
-            assert current.recovery_required and current.operations_pending == 1
+            assert (
+                current.recovery_required
+                and (current.operations_pending + current.unresolved_cleanup_count) == 1
+            )
         assert result.value.code == Code.TIMEOUT
 
     try:
@@ -316,7 +328,9 @@ def test_timeout_owns_delayed_admission_worker_until_it_stops(tmp_path: Path) ->
             assert time.monotonic() - started < 0.15
             assert not server.calls and m.operations.tasks
             pending = m.status(who, row.id)
-            assert pending.operations_pending == 1 and pending.recovery_required
+            assert (
+                pending.operations_pending + pending.unresolved_cleanup_count
+            ) == 1 and pending.recovery_required
             draining = await m.disconnect(who, row.id, row.generation)
             assert draining.state == State.DISCONNECTING
         finally:

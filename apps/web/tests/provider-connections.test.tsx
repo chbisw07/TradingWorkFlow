@@ -1,5 +1,5 @@
 import { StrictMode } from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { ProviderConnectionsSection } from "../src/components/settings/provider-connections";
 import { McpOAuthCallback } from "../src/components/settings/mcp-oauth-callback";
@@ -105,7 +105,63 @@ function fetchByPath(options: {
   });
 }
 
+test("separates active work from cleanup debt and degraded health", async () => {
+  vi.stubGlobal(
+    "fetch",
+    fetchByPath({
+      registrations: [registration()],
+      connections: [
+        connection({
+          health: "DEGRADED",
+          error: "TOOL_FAILED",
+          operations_pending: 0,
+          unresolved_cleanup_count: 1,
+          last_failure_at: "2026-10-09T12:00:00Z",
+          last_failure_kind: "TOOL_FAILED",
+        }),
+      ],
+    }),
+  );
+  render(<ProviderConnectionsSection />);
+  await screen.findByText(/Active operations: 0/);
+  expect(screen.getByText("Unresolved cleanup: 1")).toBeVisible();
+  expect(screen.getByText(/Last failure: Tool failed/)).toBeVisible();
+  expect(screen.getAllByText("Degraded").length).toBeGreaterThan(0);
+  expect(screen.queryByText("Error")).not.toBeInTheDocument();
+});
+
+test("refreshes active operations to zero without another Test connection", async () => {
+  vi.useFakeTimers();
+  let reads = 0;
+  const fallback = fetchByPath({ registrations: [registration()] });
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((path: string, init?: RequestInit) => {
+      if (path.endsWith("/connections")) {
+        reads += 1;
+        return Promise.resolve(
+          response([connection({ operations_pending: reads === 1 ? 1 : 0 })]),
+        );
+      }
+      return fallback(path, init);
+    }),
+  );
+  await act(async () => {
+    render(<ProviderConnectionsSection />);
+  });
+  expect(screen.getByText(/Active operations: 1/)).toBeVisible();
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(2000);
+  });
+  expect(screen.getByText(/Active operations: 0/)).toBeVisible();
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(10000);
+  });
+  expect(reads).toBe(2);
+});
+
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   sessionStorage.clear();
   window.history.replaceState(null, "", "/");

@@ -39,6 +39,7 @@ class Code(StrEnum):
     AUTH_FAILED = "AUTHENTICATION_FAILED"
     DENIED = "AUTHORIZATION_FAILED"
     UNAVAILABLE = "SERVICE_UNAVAILABLE"
+    TOOL_FAILED = "TOOL_FAILED"
     TIMEOUT = "TIMEOUT"
     CANCELLED = "CANCELLED"
     RATE_LIMITED = "RATE_LIMITED"
@@ -178,6 +179,11 @@ class ConnectionView(Contract):
     error: Code | None = None
     cleanup_pending: bool = False
     operations_pending: int = 0
+    unresolved_cleanup_count: int = 0
+    health_since: AwareDatetime | None = None
+    last_failure_at: AwareDatetime | None = None
+    last_failure_kind: str | None = None
+    consecutive_failure_count: int = 0
     recovery_required: bool = False
     created_at: AwareDatetime
     updated_at: AwareDatetime

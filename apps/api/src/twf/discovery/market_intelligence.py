@@ -311,7 +311,7 @@ class TapTideMarketIntelligence:
         eligible = [
             item
             for item in self.manager.connections(self.who, TAPTIDE_PROVIDER_ID)
-            if item.enabled and item.state == State.CONNECTED and item.health == Health.AVAILABLE
+            if item.enabled and item.state == State.CONNECTED
         ]
         if not eligible:
             raise Failure(Code.AUTH_REQUIRED)
@@ -324,6 +324,8 @@ class TapTideMarketIntelligence:
             if not TAPTIDE_TOOLS.issubset(discovered):
                 return False, IntelligenceState.PARTIAL, None
             view = self.manager.status(self.who, identity)
+            if view.health != Health.AVAILABLE or view.recovery_required:
+                return False, IntelligenceState.PARTIAL, view.last_success_at
             return True, IntelligenceState.AVAILABLE, view.last_success_at
         except Failure as error:
             return False, _failure_state(error), None

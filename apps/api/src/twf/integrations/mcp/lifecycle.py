@@ -35,6 +35,8 @@ class Operation:
         self.confirm: Callable[[Operation], Awaitable[None]] | None = None
         self.delivered = False
         self.auth_invalidation_required = False
+        self.tool_name: str | None = None
+        self.is_tool_operation = False
 
     def bound(self, timeout: float) -> None:
         self.deadline = min(self.deadline, self.started + timeout)

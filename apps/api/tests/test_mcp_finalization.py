@@ -98,7 +98,7 @@ def test_auth_failure_drains_admitted_generation(
             current = peer.status(who, row.id)
             assert current.state == State.REAUTH_DRAINING
             assert current.generation == row.generation and current.secret_ref == row.secret_ref
-            assert current.operations_pending == 1
+            assert (current.operations_pending + current.unresolved_cleanup_count) == 1
             before = len(dispatches)
             for attempt in (
                 m.tools(who, row.id, row.generation),
@@ -258,7 +258,10 @@ def test_failed_completion_is_typed_and_recoverable(
             m.factory, m.settings, tuple(m.providers.values()), http=m.http
         )
         state = await restarted.disconnect(who, row.id, row.generation)
-        assert state.state == State.DISCONNECTING and state.operations_pending == 1
+        assert (
+            state.state == State.DISCONNECTING
+            and (state.operations_pending + state.unresolved_cleanup_count) == 1
+        )
         assert state.secret_ref == row.secret_ref and state.generation == row.generation
         with pytest.raises(Failure):
             await restarted.tools(who, row.id, row.generation)
@@ -343,7 +346,7 @@ def test_multi_operation_auth_drain_and_lost_worker(fixture: Fixture) -> None:
                 await tasks[i]
             current = m.status(who, row.id)
             assert current.state == State.REAUTH_DRAINING
-            assert current.operations_pending == 2 - i
+            assert (current.operations_pending + current.unresolved_cleanup_count) == 2 - i
             assert current.secret_ref == row.secret_ref and current.generation == row.generation
         assert current.recovery_required
         restarted = ConnectionManager(

@@ -8,6 +8,8 @@ from types import SimpleNamespace
 from typing import Any, cast
 from uuid import UUID
 
+import pytest
+
 from twf.discovery.market_intelligence import (
     TAPTIDE_TOOLS,
     IntelligenceKind,
@@ -68,7 +70,11 @@ class FakeManager:
 
     def status(self, who: Context, identity_: UUID) -> Any:
         assert who == WHO and identity_ == CONNECTION_ID
-        return SimpleNamespace(last_success_at=datetime(2026, 10, 2, 10, tzinfo=UTC))
+        return SimpleNamespace(
+            health=Health.AVAILABLE,
+            recovery_required=False,
+            last_success_at=datetime(2026, 10, 2, 10, tzinfo=UTC),
+        )
 
     async def tools(
         self,
@@ -252,6 +258,18 @@ def test_tapetide_invalid_response_is_provider_error_without_raw_payload() -> No
     assert result.state == IntelligenceState.PROVIDER_ERROR
     assert result.claims == ()
     assert "SECRET" not in result.model_dump_json()
+
+
+@pytest.mark.parametrize("health", [Health.DEGRADED, Health.UNAVAILABLE])
+def test_unhealthy_connected_provider_remains_callable(health: Health) -> None:
+    class Unhealthy(FakeManager):
+        def connections(self, who: Context, provider_id: str) -> tuple[Any, ...]:
+            rows = super().connections(who, provider_id)
+            rows[0].health = health
+            return rows
+
+    provider = adapter(Unhealthy(tuple(TAPTIDE_TOOLS)))
+    assert provider.connection()[0] == CONNECTION_ID
 
 
 def test_tapetide_readiness_is_generic_connection_health() -> None:

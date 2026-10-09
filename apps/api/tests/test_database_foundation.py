@@ -269,8 +269,7 @@ def test_migration_history_and_metadata() -> None:
     try:
         with db.connect() as connection:
             assert (
-                MigrationContext.configure(connection).get_current_revision()
-                == "0019_instrument_metadata"
+                MigrationContext.configure(connection).get_current_revision() == "0020_mcp_health"
             )
             assert inspect(connection).get_table_names() == [
                 "alembic_version",
@@ -319,8 +318,7 @@ def test_migration_history_and_metadata() -> None:
         command.upgrade(config, "head")
         with db.connect() as connection:
             assert (
-                MigrationContext.configure(connection).get_current_revision()
-                == "0019_instrument_metadata"
+                MigrationContext.configure(connection).get_current_revision() == "0020_mcp_health"
             )
     finally:
         db.dispose()

@@ -850,6 +850,16 @@
 .wl-reference {
   margin-top: 14px;
 }
+.wl-reference-status {
+  margin: 8px 0;
+  color: var(--shell-secondary);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.wl-reference-status a {
+  color: var(--shell-accent);
+  font-weight: 600;
+}
 .wl-reference h4 {
   font-size: 10px;
   font-weight: 500;

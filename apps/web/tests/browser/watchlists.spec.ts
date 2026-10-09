@@ -373,6 +373,54 @@ test("persistent Watchlists, instrument detail, CSV, notes, archive and responsi
   await expect(panel.getByRole("img", { name: /Price chart/ })).toBeVisible();
   expect(historicalCalls).toBe(callsBeforeSelection + 4);
   expect(referenceCalls).toBe(1);
+  await panel
+    .getByRole("region", { name: "Reference / fundamentals" })
+    .screenshot({
+      path: info.outputPath("tapetide-reference-available-detail.png"),
+    });
+  await page.screenshot({
+    path: info.outputPath("tapetide-reference-available.png"),
+    fullPage: true,
+  });
+  await page.route("**/api/v1/watchlists/*/items/*/reference", (route) =>
+    route.fulfill({
+      json: {
+        provider: "tapetide",
+        tool: "get_stock_quote",
+        state: "UNAVAILABLE",
+        market_cap_inr: null,
+        pe_ratio: null,
+        high_52_week: null,
+        low_52_week: null,
+        received_at: new Date().toISOString(),
+        source_time: null,
+        freshness: "UNAVAILABLE",
+      },
+    }),
+  );
+  // A full reload clears the component cache; the selected instrument is reopened.
+  await page.reload();
+  await page
+    .locator(".wl-table tbody tr")
+    .first()
+    .getByRole("button", { name: "RELIANCE", exact: true })
+    .click();
+  await expect(
+    panel.getByText(/TapTide reference data is temporarily unavailable/),
+  ).toBeVisible();
+  await expect(panel.getByRole("img", { name: /Price chart/ })).toBeVisible();
+  await panel
+    .getByRole("region", { name: "Reference / fundamentals" })
+    .screenshot({
+      path: info.outputPath("tapetide-reference-unavailable-detail.png"),
+    });
+  await page.screenshot({
+    path: info.outputPath("tapetide-reference-unavailable.png"),
+    fullPage: true,
+  });
+  await expect(
+    panel.getByRole("region", { name: "Instrument metadata" }),
+  ).toContainText("Energy");
   await panel.getByRole("tab", { name: "Overview" }).focus();
   await page.keyboard.press("ArrowRight");
   await expect(panel.getByRole("tab", { name: "Option Chain" })).toBeFocused();

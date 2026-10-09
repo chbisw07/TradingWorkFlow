@@ -32,6 +32,9 @@ type Connection = {
   error: string | null;
   cleanup_pending: boolean;
   operations_pending: number;
+  unresolved_cleanup_count?: number;
+  last_failure_at?: string | null;
+  last_failure_kind?: string | null;
   recovery_required: boolean;
   tools: { name: string }[];
   last_success_at: string | null;
@@ -186,6 +189,44 @@ export function ProviderConnectionsSection() {
   useEffect(() => {
     queueMicrotask(() => void load());
   }, [load]);
+
+  const hasActiveOperations = connections.some(
+    (row) => row.operations_pending > 0,
+  );
+  useEffect(() => {
+    if (!hasActiveOperations || pending) return;
+    let cancelled = false;
+    let attempts = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    const refreshActive = async () => {
+      try {
+        const rows = await mcpApi<Connection[]>("connections");
+        if (cancelled) return;
+        setConnections((current) =>
+          current.map(
+            (old) =>
+              rows.find(
+                (row) => row.id === old.id && row.generation >= old.generation,
+              ) || old,
+          ),
+        );
+        attempts += 1;
+        if (rows.some((row) => row.operations_pending > 0) && attempts < 20) {
+          timer = setTimeout(() => void refreshActive(), 2000);
+        }
+      } catch {
+        if (!cancelled)
+          setError(
+            "Provider status could not be refreshed. Reload status to check current operations.",
+          );
+      }
+    };
+    timer = setTimeout(() => void refreshActive(), 2000);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [hasActiveOperations, pending]);
 
   async function run(action: () => Promise<void>) {
     setPending(true);
@@ -541,9 +582,20 @@ export function ProviderConnectionsSection() {
             </div>
             <p>
               Generation {connection.generation} · {connection.tools.length}{" "}
-              tools discovered · {connection.operations_pending} operation(s)
-              pending
+              tools discovered · Active operations:{" "}
+              {connection.operations_pending}
             </p>
+            {!!connection.unresolved_cleanup_count && (
+              <p>Unresolved cleanup: {connection.unresolved_cleanup_count}</p>
+            )}
+            {connection.last_failure_at && (
+              <p>
+                Last failure:{" "}
+                {words(connection.last_failure_kind || "Unavailable")}
+                {" · "}
+                {new Date(connection.last_failure_at).toLocaleString()}
+              </p>
+            )}
             {connection.error === "TOOL_NOT_FOUND" && (
               <p>
                 Required market-intelligence capabilities were not discovered.

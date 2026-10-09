@@ -92,7 +92,10 @@ def test_lost_commit_ack_reconciles_committed_success_without_replay(
         assert failed.value.code == Code.STORAGE
         peer = ConnectionManager(m.factory, m.settings, tuple(m.providers.values()), http=m.http)
         state = peer.status(who, row.id)
-        assert state.recovery_required and state.operations_pending == 1
+        assert (
+            state.recovery_required
+            and (state.operations_pending + state.unresolved_cleanup_count) == 1
+        )
         before = len(server.calls)
         with pytest.raises(Failure):
             await peer.tools(who, row.id, row.generation)
@@ -270,7 +273,10 @@ def test_actual_process_loss_after_commit(fixture: Fixture, terminal: str) -> No
             result = await peer.recover(who, row.id)
             assert await peer.recover(who, row.id) == result
             if terminal == "AUTH_LOSS":
-                assert result.recovery_required and result.operations_pending == 1
+                assert (
+                    result.recovery_required
+                    and (result.operations_pending + result.unresolved_cleanup_count) == 1
+                )
                 with pytest.raises(Failure):
                     await peer.tools(who, row.id, row.generation)
             else:
@@ -330,8 +336,11 @@ def test_sqlite_receipt_contention_is_recoverable_without_provider_replay(
         assert ("delivery_receipt", "UNRESOLVED") in audits
         assert not any(outcome == "SUCCESS" for _, outcome in audits)
         blocked = m.status(who, row.id)
-        assert blocked.recovery_required and blocked.operations_pending == 1
-        assert blocked.health == Health.DEGRADED and blocked.error == Code.STALE
+        assert (
+            blocked.recovery_required
+            and (blocked.operations_pending + blocked.unresolved_cleanup_count) == 1
+        )
+        assert blocked.health == Health.UNKNOWN and blocked.error is None
         peer = ConnectionManager(m.factory, m.settings, tuple(m.providers.values()), http=m.http)
         before = len(server.calls)
         with pytest.raises(Failure):
