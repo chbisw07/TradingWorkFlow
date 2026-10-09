@@ -248,9 +248,38 @@ test("persistent Watchlists, instrument detail, CSV, notes, archive and responsi
   await expect(
     page.getByRole("button", { name: "All 5", exact: true }),
   ).toBeVisible();
-  await page.getByLabel("Search symbols in this list").fill("INFY");
+  const symbolSearch = page.getByLabel("Search symbols in this list");
+  await expect(page.getByRole("button", { name: "Clear search" })).toHaveCount(
+    0,
+  );
+  if (info.project.name.match(/390|1440/))
+    await page.screenshot({
+      path: info.outputPath("watchlists-search-empty.png"),
+      fullPage: true,
+    });
+  await symbolSearch.fill("INFY");
   await expect(page.locator(".wl-table tbody tr")).toHaveCount(1);
-  await page.getByLabel("Search symbols in this list").fill("");
+  const clearSearch = page.getByRole("button", { name: "Clear search" });
+  await expect(clearSearch).toBeVisible();
+  if (info.project.name.match(/390|1440/))
+    await page.screenshot({
+      path: info.outputPath("watchlists-search-nonempty.png"),
+      fullPage: true,
+    });
+  await clearSearch.click();
+  await expect(symbolSearch).toHaveValue("");
+  await expect(symbolSearch).toBeFocused();
+  await expect(page.locator(".wl-table tbody tr")).toHaveCount(5);
+  if (info.project.name.match(/390|1440/))
+    await page.screenshot({
+      path: info.outputPath("watchlists-search-cleared.png"),
+      fullPage: true,
+    });
+  await symbolSearch.fill("INFY");
+  await symbolSearch.press("Escape");
+  await expect(symbolSearch).toHaveValue("");
+  await expect(symbolSearch).toBeFocused();
+  await expect(page.locator(".wl-table tbody tr")).toHaveCount(5);
   await page.getByRole("button", { name: "Options 1", exact: true }).click();
   await expect(page.locator(".wl-table tbody tr")).toHaveCount(1);
   await page.getByRole("button", { name: "All 5", exact: true }).click();
@@ -328,12 +357,14 @@ test("persistent Watchlists, instrument detail, CSV, notes, archive and responsi
   await expect(
     page.getByRole("button", { name: "Unknown (3)", exact: true }),
   ).toBeVisible();
-  await page.getByLabel("Search symbols in this list").fill("RELIANCE");
+  await symbolSearch.fill("RELIANCE");
   await expect(
     page.getByRole("button", { name: "Energy (1)", exact: true }),
   ).toBeVisible();
   await expect(page.locator(".wl-group-header")).toHaveCount(1);
-  await page.getByLabel("Search symbols in this list").fill("");
+  await page.getByRole("button", { name: "Clear search" }).click();
+  await expect(groupBy).toHaveValue("SECTOR");
+  await expect(page.locator(".wl-group-header")).toHaveCount(3);
 
   const columnsControl = page
     .locator("details")

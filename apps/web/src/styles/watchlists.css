@@ -213,9 +213,42 @@
   margin: 12px 0;
   flex-wrap: wrap;
 }
-.wl-tools > input {
+.wl-symbol-search {
+  position: relative;
   flex: 1;
   min-width: 120px;
+}
+.wl-symbol-search input {
+  width: 100%;
+  padding-right: 34px;
+}
+.wl-symbol-search button {
+  position: absolute;
+  top: 50%;
+  right: 3px;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 5px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--shell-secondary);
+  place-items: center;
+  transform: translateY(-50%);
+}
+.wl-symbol-search button:hover {
+  background: var(--shell-hover);
+  color: var(--shell-text);
+}
+.wl-symbol-search button:focus-visible {
+  outline: 2px solid var(--shell-accent);
+  outline-offset: 1px;
+}
+.wl-symbol-search button svg {
+  width: 14px;
+  height: 14px;
 }
 .wl-tools > label {
   display: flex;

@@ -331,6 +331,145 @@ test("search and filters precede grouping and hidden columns are irrelevant", ()
     groupSummary(matching, WATCHLIST_GROUP_MODE.MARKET_CAP_CATEGORY),
   ).toEqual([["Large", ["ONGC"]]]);
 });
+
+test("symbol search clears by button or Escape without resetting table state", async () => {
+  const at = "2026-10-09T09:00:00Z";
+  const list = {
+    id: "core",
+    name: "My Core",
+    description: "",
+    favorite: false,
+    archived: false,
+    count: 3,
+    updated_at: at,
+    revision: 1,
+    ownership_kind: "USER",
+    read_only: false,
+    system_code: null,
+    enabled: true,
+    availability: "READY",
+    pending_reason: null,
+    expected_count: null,
+    instrument_type_summary: ["EQUITY"],
+    source_reference: null,
+    source_received_at: null,
+    freshness: "CURRENT",
+  };
+  const definitions = [
+    ["RELIANCE", "Energy", 1],
+    ["INFY", "Technology", 2],
+    ["HDFCBANK", "Financial Services", -1],
+  ] as const;
+  const items = definitions.map(([symbol, sector], ordering) => ({
+    instrument: {
+      instrument_id: symbol.toLowerCase(),
+      symbol,
+      exchange: "NSE",
+      segment: "EQUITY",
+      instrument_type: "EQUITY",
+      native: { namespace: "dhan", native_id: symbol },
+    },
+    kind: "EQUITY",
+    ordering,
+    added_at: at,
+    instrument_metadata: {
+      sector,
+      market_cap: 1_000_000_000_000,
+      market_cap_currency: "INR",
+      market_cap_category: "LARGE",
+    },
+  }));
+  vi.spyOn(global, "fetch").mockImplementation(async (input) => {
+    const path = String(input);
+    if (path.endsWith("/brokers/accounts")) return Response.json([]);
+    if (path.endsWith("/watchlists")) return Response.json([list]);
+    if (path.endsWith("/watchlists/core"))
+      return Response.json({ ...list, items, notes: [], activity: [] });
+    if (path.endsWith("/quotes"))
+      return Response.json({
+        error: null,
+        quotes: items.map((item, index) => ({
+          instrument: item.instrument,
+          last_price: String(100 + index),
+          previous_close: "100",
+          change_percent: definitions[index][2],
+          open: "100",
+          high: "105",
+          low: "95",
+          volume: "1000",
+          provider: "dhan",
+          received_at: at,
+          provider_source_time: at,
+        })),
+      });
+    if (path.includes("/chart?"))
+      return Response.json({
+        provider: "dhan",
+        interval: "1d",
+        bars: [],
+        metrics: null,
+        error: null,
+      });
+    throw new Error(`Unexpected path: ${path}`);
+  });
+
+  render(<WatchlistsWorkspace />);
+  const search = await screen.findByLabelText("Search symbols in this list");
+  await screen.findByRole("button", { name: /^RELIANCE$/ });
+  expect(
+    screen.queryByRole("button", { name: "Clear search" }),
+  ).not.toBeInTheDocument();
+
+  fireEvent.change(screen.getByLabelText("Group by"), {
+    target: { value: "SECTOR" },
+  });
+  fireEvent.click(screen.getByText("Columns", { selector: "summary" }));
+  fireEvent.click(screen.getByLabelText("Market Cap"));
+  fireEvent.click(screen.getByText("Filters", { selector: "summary" }));
+  const positive = screen.getByLabelText("Positive change only");
+  fireEvent.click(positive);
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("button", { name: /^HDFCBANK$/ }),
+    ).not.toBeInTheDocument(),
+  );
+
+  fireEvent.change(search, { target: { value: "INF" } });
+  expect(
+    screen.queryByRole("button", { name: /^RELIANCE$/ }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: /^Technology \(1\)$/ }),
+  ).toBeVisible();
+  const clear = screen.getByRole("button", { name: "Clear search" });
+  expect(clear).toHaveAttribute("type", "button");
+  fireEvent.click(clear);
+
+  expect(search).toHaveValue("");
+  expect(search).toHaveFocus();
+  expect(screen.getByLabelText("Group by")).toHaveValue("SECTOR");
+  expect(positive).toBeChecked();
+  expect(
+    screen.queryByRole("columnheader", { name: "Market Cap" }),
+  ).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /^Energy \(1\)$/ })).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: /^Technology \(1\)$/ }),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: /^HDFCBANK$/ }),
+  ).not.toBeInTheDocument();
+
+  fireEvent.change(search, { target: { value: "INF" } });
+  search.focus();
+  fireEvent.keyDown(search, { key: "Escape" });
+  expect(search).toHaveValue("");
+  expect(search).toHaveFocus();
+  expect(
+    screen.queryByRole("button", { name: "Clear search" }),
+  ).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /^RELIANCE$/ })).toBeVisible();
+});
 test("normalized bars render an accessible provider-attributed chart", () => {
   render(
     <MarketChart

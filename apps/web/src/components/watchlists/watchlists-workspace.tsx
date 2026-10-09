@@ -182,6 +182,7 @@ export function WatchlistsWorkspace() {
     [results, setResults] = useState<WatchItem[]>([]),
     [addFeedback, setAddFeedback] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
+  const symbolSearchRef = useRef<HTMLInputElement>(null);
   const [csv, setCsv] = useState(""),
     [importResult, setImportResult] = useState<{
       added: number;
@@ -1430,15 +1431,38 @@ export function WatchlistsWorkspace() {
                 </button>
               </div>
               <div className="wl-tools">
-                <input
-                  aria-label="Search symbols in this list"
-                  placeholder="Search symbols in this list…"
-                  value={query}
-                  onChange={(e) => {
-                    setQuery(e.target.value);
-                    setPage(1);
-                  }}
-                />
+                <div className="wl-symbol-search">
+                  <input
+                    ref={symbolSearchRef}
+                    aria-label="Search symbols in this list"
+                    placeholder="Search symbols in this list…"
+                    value={query}
+                    onChange={(e) => {
+                      setQuery(e.target.value);
+                      setPage(1);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key !== "Escape" || !query) return;
+                      e.preventDefault();
+                      setQuery("");
+                      setPage(1);
+                    }}
+                  />
+                  {query && (
+                    <button
+                      type="button"
+                      aria-label="Clear search"
+                      title="Clear search"
+                      onClick={() => {
+                        setQuery("");
+                        setPage(1);
+                        symbolSearchRef.current?.focus();
+                      }}
+                    >
+                      <Icon name="close" />
+                    </button>
+                  )}
+                </div>
                 <details>
                   <summary>Filters</summary>
                   <div className="wl-popover">

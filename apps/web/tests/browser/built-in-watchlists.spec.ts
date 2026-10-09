@@ -40,6 +40,25 @@ test("built-in watchlists are read-only, copyable and responsive", async ({
   await expect(
     page.getByRole("button", { name: "Technology (1)", exact: true }),
   ).toBeVisible();
+  const builtInSearch = page.getByLabel("Search symbols in this list");
+  await builtInSearch.fill("INFY");
+  await expect(
+    page.getByRole("button", { name: "Technology (1)", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Energy (1)", exact: true }),
+  ).toHaveCount(0);
+  const builtInClear = page.getByRole("button", { name: "Clear search" });
+  await builtInClear.focus();
+  await page.keyboard.press("Enter");
+  await expect(builtInSearch).toHaveValue("");
+  await expect(builtInSearch).toBeFocused();
+  await expect(page.getByLabel("Group by", { exact: true })).toHaveValue(
+    "SECTOR",
+  );
+  await expect(
+    page.getByRole("button", { name: "Energy (1)", exact: true }),
+  ).toBeVisible();
   await page.screenshot({
     path: info.outputPath("built-in-watchlists-grouped.png"),
     fullPage: true,
