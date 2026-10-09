@@ -599,3 +599,15 @@
     max-width: none;
   }
 }
+
+@media (max-width: 600px) {
+  .sc-table td[data-label="Sector"],
+  .sc-table td[data-label="Industry"],
+  .sc-table td[data-label="Market Cap"],
+  .sc-table td[data-label="TWF Tier"] {
+    grid-column: 2;
+  }
+  .sc-table td[data-label="Cap Category"] {
+    grid-column: 3;
+  }
+}

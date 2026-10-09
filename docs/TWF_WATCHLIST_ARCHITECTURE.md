@@ -282,3 +282,15 @@ Current live validation on October 6 at approximately 21:24–21:27 IST passed a
 four My Core Dhan rows and all five detail periods. TapTide reference metrics were
 available for the three equities; NIFTY reference metrics remained unavailable. The report's latest remediation section supersedes
 its earlier expired-credential observations. No live broker order was attempted.
+
+## Instrument metadata presentation — 2026-10-09
+
+Custom and built-in Watchlists enrich rows from the same system-global
+`InstrumentMetadataService` used by Scanner V2. Each detail response performs at
+most one bounded bulk lookup after any provider I/O. Sector is visible by default;
+industry, readable INR market cap, stored NSE size band, stored TWF analytical tier,
+and analytical context benchmark appear in the selected-instrument panel. Equity
+lookups use exact exchange/symbol identity. Futures and options inherit metadata only
+from an unambiguous canonical underlying and are labelled accordingly; indices and
+unknown instruments remain unavailable. Stale last-known values are explicit. No
+Watchlist request calls Yahoo, NSE, or the metadata harvester.

@@ -1,0 +1,60 @@
+.instrument-metadata {
+  margin-top: 16px;
+  padding-top: 2px;
+  border-top: 1px solid var(--shell-border);
+}
+.instrument-metadata > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.instrument-metadata h3 {
+  margin: 14px 0 10px;
+  font-size: 12px;
+}
+.instrument-metadata dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+  margin: 0;
+}
+.instrument-metadata dl > div {
+  min-width: 0;
+}
+.instrument-metadata dt {
+  color: var(--shell-secondary);
+  font-size: 10px;
+}
+.instrument-metadata dd {
+  margin: 4px 0 0;
+  font-size: 11px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.instrument-metadata > small,
+.metadata-basis {
+  display: block;
+  margin: 8px 0 0;
+  color: var(--shell-secondary);
+  font-size: 10px;
+  line-height: 1.45;
+}
+.metadata-stale {
+  border: 1px solid #b67a16;
+  border-radius: 999px;
+  padding: 3px 6px;
+  color: #8a5a09;
+  background: #fff8e8;
+  font-size: 9px;
+  white-space: nowrap;
+}
+[data-theme="dark"] .metadata-stale {
+  color: #f5c46b;
+  background: #3b2b11;
+}
+@media (max-width: 390px) {
+  .instrument-metadata dl {
+    grid-template-columns: 1fr;
+  }
+}

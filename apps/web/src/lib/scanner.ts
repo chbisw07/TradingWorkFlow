@@ -1,4 +1,8 @@
-import type { WatchInstrument, WatchBar } from "./watchlists";
+import type {
+  InstrumentMetadataSummary,
+  WatchInstrument,
+  WatchBar,
+} from "./watchlists";
 export type Filter = {
   field: string;
   operator: string;
@@ -89,6 +93,7 @@ export type AnalysisPacket = {
 export type ScanRow = {
   symbol: string;
   instrument?: WatchInstrument;
+  instrument_metadata?: InstrumentMetadataSummary | null;
   outcome: "MATCH" | "NON_MATCH" | "NOT_EVALUATED";
   matched?: boolean;
   technical_match?: boolean;

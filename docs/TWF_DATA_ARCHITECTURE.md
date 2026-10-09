@@ -370,7 +370,13 @@ is idempotent.
 The read-only instrument metadata service supports bounded symbol/ISIN lookups,
 sector and context-benchmark resolution, and last-refresh status. Authenticated
 API routes expose those bounded reads; import remains an explicit local CLI and
-accepts no public filesystem path. Scanner and Watchlist consumers must use this
-provenance-bearing service in later increments and must not invoke Yahoo or the
-harvester in an application request. This increment creates no UI behavior and
-does not change Scanner, Watchlist, Discovery, or Market Context decisions.
+accepts no public filesystem path. Scanner V2 and Watchlists now consume this
+same provenance-bearing service through one bounded bulk lookup per response.
+Sector is visible by default, while industry, market cap, stored size bands, the
+TWF analytical tier, and analytical context benchmark remain in detail views.
+Stale rows retain explicitly labelled last-known metadata and missing values stay
+unknown. Derivatives use metadata only when their canonical underlying is exact;
+indices do not receive invented company metadata. These display enrichments do
+not change Scanner matching, Market Context ranking, or Watchlist trading, and no
+application request invokes Yahoo, NSE, or the harvester. Dynamic Sector Context
+remains future work.

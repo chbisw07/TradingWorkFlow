@@ -879,6 +879,10 @@
 }
 
 @media (min-width: 601px) and (max-width: 900px) {
+  .wl-table th:nth-child(n + 7):nth-child(-n + 9),
+  .wl-table td:nth-child(n + 7):nth-child(-n + 9) {
+    display: none;
+  }
   .wl-row-actions {
     display: grid;
     grid-template-columns: repeat(2, minmax(24px, 1fr));

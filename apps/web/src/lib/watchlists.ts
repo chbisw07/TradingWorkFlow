@@ -10,11 +10,33 @@ export type WatchInstrument = {
   strike: string | null;
   right: "CALL" | "PUT" | null;
 };
+export type InstrumentMetadataSummary = {
+  applies_to_symbol: string;
+  metadata_symbol: string;
+  resolution_basis: "DIRECT" | "UNDERLYING";
+  sector: string | null;
+  industry: string | null;
+  market_cap: number | null;
+  market_cap_currency: string | null;
+  market_cap_rank: number | null;
+  market_cap_category: "LARGE" | "MID" | "SMALL" | null;
+  twf_cap_tier: "LARGE" | "MID" | "SMALL" | "MICRO" | null;
+  context_benchmark: string | null;
+  context_benchmark_symbol: string | null;
+  resolution_status: string;
+  present_in_latest_snapshot: boolean;
+  sector_as_of: string | null;
+  industry_as_of: string | null;
+  market_cap_as_of: string | null;
+  dataset_generated_at: string;
+  metadata_updated_at: string;
+};
 export type WatchItem = {
   instrument: WatchInstrument;
   kind: Kind;
   ordering: number;
   added_at: string;
+  instrument_metadata?: InstrumentMetadataSummary | null;
 };
 export type Watchlist = {
   id: string;
@@ -249,6 +271,15 @@ export function indianVolume(value: string | number | null | undefined) {
 
 // Input contract is market_cap_inr, already normalized to rupees by the API.
 // One crore = 10^7 INR; one lakh crore = 10^12 INR. Never pass raw provider crores.
+export function metadataMarketCap(
+  metadata: InstrumentMetadataSummary | null | undefined,
+) {
+  if (!metadata?.market_cap) return "—";
+  if (metadata.market_cap_currency === "INR")
+    return indianMarketCap(metadata.market_cap);
+  return `${numberText(metadata.market_cap)} ${metadata.market_cap_currency || ""}`.trim();
+}
+
 export function indianMarketCap(inr: string | number | null | undefined) {
   if (
     inr == null ||

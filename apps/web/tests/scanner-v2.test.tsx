@@ -649,6 +649,27 @@ test("stored deterministic Reason opens complete no-LLM Evidence analysis", asyn
               segment: "EQ",
             },
             outcome: "MATCH",
+            instrument_metadata: {
+              applies_to_symbol: "RELIANCE",
+              metadata_symbol: "RELIANCE",
+              resolution_basis: "DIRECT",
+              sector: "Energy",
+              industry: "Oil & Gas Exploration",
+              market_cap: 20000000000000,
+              market_cap_currency: "INR",
+              market_cap_rank: 1,
+              market_cap_category: "LARGE",
+              twf_cap_tier: "LARGE",
+              context_benchmark: "NIFTY OIL & GAS",
+              context_benchmark_symbol: "NIFTYOILGAS",
+              resolution_status: "RESOLVED",
+              present_in_latest_snapshot: true,
+              sector_as_of: "2026-10-09",
+              industry_as_of: "2026-10-09",
+              market_cap_as_of: "2026-10-09",
+              dataset_generated_at: "2026-10-09T09:15:00+05:30",
+              metadata_updated_at: "2026-10-09T09:20:00+05:30",
+            },
             metrics: { change: 1.2, volume: 1000, rsi: 58, trend: "Up" },
             diagnostics: [
               {
@@ -730,6 +751,17 @@ test("stored deterministic Reason opens complete no-LLM Evidence analysis", asyn
   expect(
     await screen.findByText("1/1 technical · Context +1 Mixed · Final 81"),
   ).toBeVisible();
+  expect(screen.getByRole("columnheader", { name: "Sector" })).toBeVisible();
+  expect(screen.getByText("Energy")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "RELIANCE" }));
+  const metadataPanels = await screen.findAllByRole("region", {
+    name: "Instrument metadata",
+  });
+  const metadata = metadataPanels.at(-1)!;
+  expect(metadata).toHaveTextContent("Oil & Gas Exploration");
+  expect(metadata).toHaveTextContent("₹20 L Cr");
+  expect(metadata).toHaveTextContent("NIFTY OIL & GAS");
+  fireEvent.click(screen.getByRole("button", { name: "Close dialog" }));
   fireEvent.click(screen.getByRole("button", { name: "Why?" }));
   const panels = await screen.findAllByLabelText(
     "Deterministic candidate analysis",

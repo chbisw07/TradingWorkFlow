@@ -27,6 +27,7 @@ import {
   watchApi,
   numberText,
   indianVolume,
+  metadataMarketCap,
   changeText,
   type Watchlist,
   type WatchDetail,
@@ -37,6 +38,18 @@ import { OrderTicket } from "../brokers/order-ticket";
 import { MarketChart } from "../watchlists/market-chart";
 import { WatchDialog } from "../watchlists/dialog";
 import { Icon } from "../shell/icon";
+import { InstrumentMetadataPanel } from "../instrument-metadata-panel";
+
+const resultColumns = [
+  ["volume", "Volume"],
+  ["rsi", "RSI (14)"],
+  ["trend", "Trend"],
+  ["industry", "Industry"],
+  ["marketCap", "Market Cap"],
+  ["capCategory", "Cap Category"],
+  ["twfTier", "TWF Tier"],
+  ["chart", "Quick Chart (1M)"],
+] as const;
 
 export function ScannerWorkspace() {
   const [filterOpen, setFilterOpen] = useState(true);
@@ -584,6 +597,7 @@ export function ScannerWorkspace() {
                 </div>
               ))}
             </dl>
+            <InstrumentMetadataPanel metadata={selected.instrument_metadata} />
             <h3>Why matched</h3>
             <ul>
               {selected.diagnostics?.map((d, i) => (
@@ -1448,7 +1462,7 @@ export function ScannerWorkspace() {
                 </h2>
                 <details>
                   <summary>Columns</summary>
-                  {["volume", "rsi", "trend", "chart"].map((c) => (
+                  {resultColumns.map(([c, label]) => (
                     <label key={c}>
                       <input
                         type="checkbox"
@@ -1461,7 +1475,7 @@ export function ScannerWorkspace() {
                           )
                         }
                       />
-                      {c}
+                      {label}
                     </label>
                   ))}
                 </details>
@@ -1594,11 +1608,18 @@ export function ScannerWorkspace() {
                           />
                         </th>
                         <th>Symbol</th>
+                        <th>Sector</th>
                         <th>LTP</th>
                         <th>1D %</th>
                         {columns.includes("volume") && <th>Volume</th>}
                         {columns.includes("rsi") && <th>RSI (14)</th>}
                         {columns.includes("trend") && <th>Trend</th>}
+                        {columns.includes("industry") && <th>Industry</th>}
+                        {columns.includes("marketCap") && <th>Market Cap</th>}
+                        {columns.includes("capCategory") && (
+                          <th>Cap Category</th>
+                        )}
+                        {columns.includes("twfTier") && <th>TWF Tier</th>}
                         {columns.includes("chart") && <th>Quick Chart (1M)</th>}
                         <th>Reason (Why Matched)</th>
                         <th>Actions</th>
@@ -1629,6 +1650,17 @@ export function ScannerWorkspace() {
                               {r.symbol}
                             </button>
                             <small>{r.instrument?.exchange}</small>
+                          </td>
+                          <td
+                            data-label="Sector"
+                            title={
+                              r.instrument_metadata?.resolution_basis ===
+                              "UNDERLYING"
+                                ? `Underlying sector for ${r.instrument_metadata.metadata_symbol}`
+                                : undefined
+                            }
+                          >
+                            {r.instrument_metadata?.sector || "—"}
                           </td>
                           <td data-label="LTP">
                             {numberText(
@@ -1662,6 +1694,27 @@ export function ScannerWorkspace() {
                               <span className="sc-trend">
                                 {r.metrics?.trend ?? "—"}
                               </span>
+                            </td>
+                          )}
+                          {columns.includes("industry") && (
+                            <td data-label="Industry">
+                              {r.instrument_metadata?.industry || "—"}
+                            </td>
+                          )}
+                          {columns.includes("marketCap") && (
+                            <td data-label="Market Cap">
+                              {metadataMarketCap(r.instrument_metadata)}
+                            </td>
+                          )}
+                          {columns.includes("capCategory") && (
+                            <td data-label="Cap Category">
+                              {r.instrument_metadata?.market_cap_category ||
+                                "—"}
+                            </td>
+                          )}
+                          {columns.includes("twfTier") && (
+                            <td data-label="TWF Tier">
+                              {r.instrument_metadata?.twf_cap_tier || "—"}
                             </td>
                           )}
                           {columns.includes("chart") && (

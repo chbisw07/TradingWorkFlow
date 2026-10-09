@@ -137,6 +137,18 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def fixture_lifespan(instance):
         async with original_lifespan(instance):
+            from twf.instrument_metadata.importer import SnapshotImporter
+
+            metadata_snapshot = (
+                Path(__file__).resolve().parents[3]
+                / "api"
+                / "tests"
+                / "fixtures"
+                / "instrument_metadata_product.csv"
+            )
+            SnapshotImporter(
+                instance.state.session_factory, minimum_rows=1
+            ).import_snapshot(metadata_snapshot)
             manager = instance.state.dhan_credentials
             original_capture = manager.capture
             manager.capture = lambda *args, **kwargs: ready_capture

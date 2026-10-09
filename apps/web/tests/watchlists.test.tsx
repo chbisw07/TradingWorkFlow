@@ -6,6 +6,7 @@ import {
   WatchlistsWorkspace,
 } from "../src/components/watchlists/watchlists-workspace";
 import { MarketChart } from "../src/components/watchlists/market-chart";
+import { InstrumentMetadataPanel } from "../src/components/instrument-metadata-panel";
 import {
   change,
   changeText,
@@ -24,6 +25,46 @@ beforeEach(() => {
   };
 });
 afterEach(() => vi.restoreAllMocks());
+
+test("instrument metadata renders Indian cap, unknowns, stale state and underlying scope", () => {
+  const metadata = {
+    applies_to_symbol: "NIFTY99DECFUT",
+    metadata_symbol: "RELIANCE",
+    resolution_basis: "UNDERLYING" as const,
+    sector: "Energy",
+    industry: "Oil & Gas Exploration",
+    market_cap: 20000000000000,
+    market_cap_currency: "INR",
+    market_cap_rank: 1,
+    market_cap_category: "LARGE" as const,
+    twf_cap_tier: "LARGE" as const,
+    context_benchmark: "NIFTY OIL & GAS",
+    context_benchmark_symbol: "NIFTYOILGAS",
+    resolution_status: "RESOLVED",
+    present_in_latest_snapshot: false,
+    sector_as_of: "2026-10-09",
+    industry_as_of: "2026-10-09",
+    market_cap_as_of: "2026-10-09",
+    dataset_generated_at: "2026-10-09T09:15:00+05:30",
+    metadata_updated_at: "2026-10-09T09:20:00+05:30",
+  };
+  const view = render(<InstrumentMetadataPanel metadata={metadata} />);
+  const panel = screen.getByRole("region", {
+    name: "Underlying instrument metadata",
+  });
+  expect(panel).toHaveTextContent("Underlying sector");
+  expect(panel).toHaveTextContent("Applies to RELIANCE");
+  expect(panel).toHaveTextContent("₹20 L Cr");
+  expect(panel).toHaveTextContent("Stale metadata");
+  expect(panel).toHaveTextContent("Last-known values are retained");
+  view.rerender(<InstrumentMetadataPanel metadata={null} />);
+  expect(
+    screen.getByText(
+      "Authoritative metadata is unavailable for this instrument.",
+    ),
+  ).toBeVisible();
+  expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+});
 test("empty collections, create dialog and unavailable broker remain truthful", async () => {
   const mock = vi
     .spyOn(global, "fetch")

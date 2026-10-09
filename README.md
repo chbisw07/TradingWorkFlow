@@ -54,9 +54,14 @@ V2 acceptance records are the current implementation status.
 `/scanners` now uses the fresh Scanner V2 product layout. Watchlist/Custom
 universes, explicit daily technical filters, editable templates, saved scans,
 immutable history, archived Dhan result analysis, and canonical Watchlist handoff
-are implemented. TapTide provides optional technical screens, bounded movers and
-reference metrics independently of internal Dhan scanning. Discovery remains a
-separate downstream workspace with historical records intact.
+are implemented. Results use the system-global Instrument Metadata service for a
+default Sector column and a compact detail view of industry, market cap, stored
+size bands, TWF analytical tier, and analytical context benchmark. This metadata
+is display-only and is loaded in one bounded database query after evaluation; it
+does not affect matches or Market Context ranking. TapTide provides optional
+technical screens, bounded movers and reference metrics independently of internal
+Dhan scanning. Discovery remains a separate downstream workspace with historical
+records intact.
 
 Index-constituent, sector and broad-market universe feeds are not configured;
 those controls explain the limitation. Derivatives is an explicit future shell.
@@ -165,8 +170,11 @@ revalidation and hardening gate, together with remote cleanup/recovery obligatio
   export, Broker V2 preview, copy-selected/all into custom lists, and Scanner V2
   immutable universe snapshots. F&O 50/100 remain disabled as Definition pending.
   Custom archive/restore, search, CSV import/export, bulk move/copy, notes/activity,
-  Dhan overlays and lazy charts remain intact. Optional TapTide news remains
-  independent. Live built-in constituent and quote/chart validation requires current
+  Dhan overlays and lazy charts remain intact. Custom and built-in rows use the same
+  system-global Instrument Metadata service as Scanner for the default Sector column
+  and richer selected-instrument details. Unknown and stale values remain explicit;
+  derivative metadata is shown only for an exact canonical underlying. Optional
+  TapTide news remains independent. Live built-in constituent and quote/chart validation requires current
   Dhan credentials; live preview needs broker reauthorization. See the
   [Watchlists architecture](docs/TWF_WATCHLIST_ARCHITECTURE.md) and
   [implementation evidence](docs/TWF_WATCHLIST_IMPLEMENTATION_REPORT.md).

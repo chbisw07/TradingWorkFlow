@@ -36,9 +36,11 @@ import { OrderTicket } from "../brokers/order-ticket";
 import { Icon } from "../shell/icon";
 import { WatchDialog } from "./dialog";
 import { MarketChart } from "./market-chart";
+import { InstrumentMetadataPanel } from "../instrument-metadata-panel";
 
 const kinds: Kind[] = ["EQUITY", "OPTION", "FUTURE", "INDEX"];
 const columns = [
+  "Sector",
   "LTP",
   "1D %",
   "Volume",
@@ -775,6 +777,7 @@ export function WatchlistsWorkspace() {
                     </div>
                   ))}
                 </dl>
+                <InstrumentMetadataPanel metadata={item.instrument_metadata} />
               </section>
             )}
             <ReferencePanel
@@ -1563,6 +1566,18 @@ export function WatchlistsWorkspace() {
                               {badge[i.kind]}
                             </span>
                           </td>
+                          {visible.includes("Sector") && (
+                            <td
+                              title={
+                                i.instrument_metadata?.resolution_basis ===
+                                "UNDERLYING"
+                                  ? `Underlying sector for ${i.instrument_metadata.metadata_symbol}`
+                                  : undefined
+                              }
+                            >
+                              {i.instrument_metadata?.sector || "—"}
+                            </td>
+                          )}
                           {visible.includes("LTP") && (
                             <td>{numberText(q?.last_price)}</td>
                           )}

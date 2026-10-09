@@ -165,6 +165,13 @@ def test_valid_import_lookup_and_idempotent_replay(
         bulk = service.get_many_by_symbols("NSE", ("TECHCO", "MISSING", "HEALTHCO"))
         assert [item.symbol for item in bulk.items] == ["TECHCO", "HEALTHCO"]
         assert bulk.missing_symbols == ("MISSING",)
+        assert service.get_many_by_exchange_symbols(()) == {}
+        one = service.get_many_by_exchange_symbols((("nse", "techco"),))
+        assert one[("NSE", "TECHCO")].sector == "Technology"
+        mixed = service.get_many_by_exchange_symbols(
+            (("NSE", "TECHCO"), ("BSE", "MISSING"), ("NSE", "HEALTHCO"))
+        )
+        assert set(mixed) == {("NSE", "TECHCO"), ("NSE", "HEALTHCO")}
         rights = service.get_by_symbol("NSE", "TECHCO-RE")
         assert rights and rights.instrument_kind == "RIGHTS_ENTITLEMENT"
         assert rights.underlying_symbol == "TECHCO"

@@ -232,13 +232,14 @@ source conditions:
 
 Harvesting and importing remain separate stages. After reviewing a successful
 snapshot summary and applying API migration `0019_instrument_metadata`, import
-the canonical snapshot explicitly from the repository root:
+the canonical snapshot explicitly from the API directory. Running here ensures
+`Settings` loads the same `apps/api/.env` and database used by the API:
 
 ```bash
-PYTHONPATH=apps/api/src apps/api/.venv/bin/python -m \
-  twf.instrument_metadata.import_snapshot \
-  var/market_metadata/nse_instrument_metadata.csv \
-  --summary var/market_metadata/nse_instrument_metadata_summary.json
+cd apps/api
+.venv/bin/python -m twf.instrument_metadata.import_snapshot \
+  ../../var/market_metadata/nse_instrument_metadata.csv \
+  --summary ../../var/market_metadata/nse_instrument_metadata_summary.json
 ```
 
 The importer independently validates schema version, required columns, row

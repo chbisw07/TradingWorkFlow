@@ -293,6 +293,17 @@ test("persistent Watchlists, instrument detail, CSV, notes, archive and responsi
   const panel = mobile
     ? page.getByRole("dialog", { name: "RELIANCE details" })
     : page.getByRole("complementary", { name: "Selected instrument" });
+  await expect(page.locator(".wl-table thead")).toContainText("Sector");
+  await expect(page.locator(".wl-table tbody")).toContainText("Energy");
+  const metadata = panel.getByRole("region", { name: "Instrument metadata" });
+  await expect(metadata).toContainText("Energy");
+  await expect(metadata).toContainText("Oil & Gas Exploration");
+  await expect(metadata).toContainText("₹20 L Cr");
+  await expect(metadata).toContainText("NIFTY OIL & GAS");
+  await page.screenshot({
+    path: info.outputPath("watchlists-metadata-detail.png"),
+    fullPage: !mobile,
+  });
   await expect(panel.getByRole("img", { name: /Price chart/ })).toBeVisible();
   if (page.viewportSize()!.width > 390) {
     await expect(

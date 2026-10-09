@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Literal, cast
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, tuple_
 from sqlalchemy.orm import Session
 
 from twf.infrastructure.instrument_metadata import (
@@ -15,6 +15,7 @@ from twf.infrastructure.instrument_metadata import (
 from twf.instrument_metadata.contracts import (
     BulkLookupResult,
     InstrumentMetadata,
+    InstrumentMetadataSummary,
     MetadataStatus,
 )
 
@@ -116,6 +117,60 @@ class InstrumentMetadataService:
         return BulkLookupResult(
             items=tuple(rows[symbol] for symbol in normalized if symbol in rows),
             missing_symbols=tuple(symbol for symbol in normalized if symbol not in rows),
+        )
+
+    def get_many_by_exchange_symbols(
+        self, pairs: tuple[tuple[str, str], ...]
+    ) -> dict[tuple[str, str], InstrumentMetadata]:
+        """Resolve a mixed-exchange batch with one database query."""
+
+        normalized = tuple(
+            dict.fromkeys(
+                (exchange.strip().upper(), symbol.strip().upper())
+                for exchange, symbol in pairs
+                if exchange.strip() and symbol.strip()
+            )
+        )
+        if not normalized:
+            return {}
+        return {
+            (row.exchange, row.symbol): public(row)
+            for row in self.session.scalars(
+                select(InstrumentMetadataRow).where(
+                    tuple_(InstrumentMetadataRow.exchange, InstrumentMetadataRow.symbol).in_(
+                        normalized
+                    )
+                )
+            )
+        }
+
+    @staticmethod
+    def summary(
+        item: InstrumentMetadata,
+        *,
+        applies_to_symbol: str,
+        resolution_basis: Literal["DIRECT", "UNDERLYING"],
+    ) -> InstrumentMetadataSummary:
+        return InstrumentMetadataSummary(
+            applies_to_symbol=applies_to_symbol,
+            metadata_symbol=item.symbol,
+            resolution_basis=resolution_basis,
+            sector=item.sector,
+            industry=item.industry,
+            market_cap=item.market_cap,
+            market_cap_currency=item.market_cap_currency,
+            market_cap_rank=item.market_cap_rank,
+            market_cap_category=item.market_cap_category,
+            twf_cap_tier=item.twf_cap_tier,
+            context_benchmark=item.context_benchmark,
+            context_benchmark_symbol=item.context_benchmark_symbol,
+            resolution_status=item.resolution_status,
+            present_in_latest_snapshot=item.present_in_latest_snapshot,
+            sector_as_of=item.sector_as_of,
+            industry_as_of=item.industry_as_of,
+            market_cap_as_of=item.market_cap_as_of,
+            dataset_generated_at=item.dataset_generated_at,
+            metadata_updated_at=item.updated_at,
         )
 
     def get_sector(self, exchange: str, symbol: str) -> str | None:

@@ -298,3 +298,14 @@ For VIX, Low/Normal contributes +1, Elevated -1 and High -2. For event/news, Pos
 The no-LLM Evidence view is complete and immediate. It shows the V1 baseline limitation, exact technical diagnostics, each context contribution, ranking math, supporting factors, contradictions, missing evidence, Hard-filter checks and collapsible provenance/freshness. The repository currently has no active Scanner narrative adapter, so optional LLM narrative, lazy synthesis and LLM-failure fallback are not applicable in this version. If added later, synthesis must consume only the stored packet, run lazily on explicit request, remain bounded, and cannot alter any match or score.
 
 Future providers can populate currently unavailable normalized dimensions without changing Scanner matching, scoring consumers, history, or UI contracts. A future technical-quality policy may replace the documented 80-point match baseline only through a separately versioned deterministic contract.
+
+## Instrument metadata presentation — 2026-10-09
+
+Scanner V2 enriches persisted result rows from the system-global
+`InstrumentMetadataService` with one bounded, indexed bulk lookup after technical
+evaluation and Market Context ranking have completed. Sector is visible by default;
+industry, readable INR market cap, stored NSE size band, stored TWF analytical tier,
+and analytical context benchmark appear in the result inspector. Missing data stays
+unknown and last-known metadata is labelled stale. The enrichment makes no external
+provider request and cannot alter technical matches, context contributions, or rank.
+Dynamic Sector Context remains future work.

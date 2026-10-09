@@ -119,6 +119,13 @@ test("Scanner V2 editable filters, durable runs, Watchlist handoff and responsiv
   await expect(page.locator(".sc-reason").first()).toContainText(
     "1/1 technical · Context unavailable · Final 80",
   );
+  await expect(page.locator(".sc-table thead")).toContainText("Sector");
+  await expect(page.locator(".sc-table tbody")).toContainText("Energy");
+  await expect(page.locator(".sc-table tbody")).toContainText("Technology");
+  await page.screenshot({
+    path: info.outputPath("scanner-metadata-table.png"),
+    fullPage: true,
+  });
   await page.getByRole("button", { name: "Why?", exact: true }).first().click();
   const analysis = page.locator(
     '[aria-label="Deterministic candidate analysis"]:visible',
@@ -158,7 +165,10 @@ test("Scanner V2 editable filters, durable runs, Watchlist handoff and responsiv
   expect(persisted.count).toBe(3);
   await page.getByRole("button", { name: "Add All", exact: true }).click();
   await page.getByRole("button", { name: "Add results", exact: true }).click();
-  await page.locator(".sc-symbol").first().click();
+  await page
+    .locator(".sc-table .sc-symbol")
+    .filter({ hasText: "RELIANCE" })
+    .click();
   if (page.viewportSize()!.width < 1200)
     await expect(
       page.getByRole("dialog", { name: "Result analysis" }),
@@ -170,6 +180,13 @@ test("Scanner V2 editable filters, durable runs, Watchlist handoff and responsiv
   await expect(
     surface.getByText("As scanned · completed daily bars", { exact: true }),
   ).toBeVisible();
+  const metadata = surface.getByRole("region", {
+    name: "Instrument metadata",
+  });
+  await expect(metadata).toContainText("Energy");
+  await expect(metadata).toContainText("Oil & Gas Exploration");
+  await expect(metadata).toContainText("₹20 L Cr");
+  await expect(metadata).toContainText("NIFTY OIL & GAS");
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({
     path: info.outputPath("scanner-detail-light.png"),

@@ -166,7 +166,8 @@ async def detail(key: UUID, service: Service, request: Request, who: Who) -> dic
     if definition is not None:
         if not definition.enabled:
             raise WatchlistFailure("SYSTEM_UNIVERSE_DEFINITION_PENDING", 409)
-        return await systems(request).detail(key, system_provider(request, who))
+        resolved = await systems(request).detail(key, system_provider(request, who))
+        return service.enrich_detail(resolved)
     return service.detail(key)
 
 

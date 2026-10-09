@@ -61,6 +61,30 @@ class InstrumentMetadata(Contract):
     updated_at: AwareDatetime
 
 
+class InstrumentMetadataSummary(Contract):
+    """Display-only metadata shared by Scanner and Watchlists."""
+
+    applies_to_symbol: str
+    metadata_symbol: str
+    resolution_basis: Literal["DIRECT", "UNDERLYING"]
+    sector: str | None
+    industry: str | None
+    market_cap: int | None
+    market_cap_currency: str | None
+    market_cap_rank: int | None
+    market_cap_category: Literal["LARGE", "MID", "SMALL"] | None
+    twf_cap_tier: Literal["LARGE", "MID", "SMALL", "MICRO"] | None
+    context_benchmark: str | None
+    context_benchmark_symbol: str | None
+    resolution_status: str
+    present_in_latest_snapshot: bool
+    sector_as_of: date | None
+    industry_as_of: date | None
+    market_cap_as_of: date | None
+    dataset_generated_at: AwareDatetime
+    metadata_updated_at: AwareDatetime
+
+
 class BulkLookup(Contract):
     exchange: str = Field(min_length=1, max_length=16)
     symbols: tuple[str, ...] = Field(min_length=1, max_length=100)

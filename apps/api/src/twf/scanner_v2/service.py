@@ -18,6 +18,7 @@ from twf.discovery.market_data import (
     MarketDataProvider,
 )
 from twf.infrastructure.scanner_v2 import SavedScannerRow, ScannerRunRow
+from twf.instrument_metadata.service import InstrumentMetadataService
 from twf.scanner_v2.context import MarketContextSnapshot, analyze_candidate, infer_direction
 from twf.scanner_v2.contracts import SavedInput, ScanConfig
 from twf.scanner_v2.engine import evaluate
@@ -351,5 +352,30 @@ class ScannerService:
             "rows": rows,
         }
         with self.factory.begin() as db:
+            targets: dict[int, tuple[str, str]] = {}
+            for index, row in enumerate(rows):
+                if not row.get("instrument"):
+                    continue
+                instrument = InstrumentIdentity.model_validate(row["instrument"])
+                if kind(instrument) == "EQUITY":
+                    targets[index] = (instrument.exchange, instrument.symbol)
+            metadata_service = InstrumentMetadataService(db)
+            metadata = metadata_service.get_many_by_exchange_symbols(tuple(targets.values()))
+            for index, row in enumerate(rows):
+                target = targets.get(index)
+                metadata_item = (
+                    metadata.get((target[0].upper(), target[1].upper()))
+                    if target is not None
+                    else None
+                )
+                row["instrument_metadata"] = (
+                    metadata_service.summary(
+                        metadata_item,
+                        applies_to_symbol=row["symbol"],
+                        resolution_basis="DIRECT",
+                    ).model_dump(mode="json")
+                    if metadata_item is not None
+                    else None
+                )
             db.add(ScannerRunRow(id=key, owner_id=self.owner, payload=result, created_at=now))
         return result

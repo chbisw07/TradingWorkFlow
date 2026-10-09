@@ -2,8 +2,9 @@
 
 import csv
 import io
+from collections.abc import Sequence
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from sqlalchemy import delete, func, select, update
@@ -17,6 +18,7 @@ from twf.infrastructure.watchlists import (
     WatchlistNoteRow,
     WatchlistRow,
 )
+from twf.instrument_metadata.service import InstrumentMetadataService
 from twf.watchlists.catalog import kind
 from twf.watchlists.contracts import (
     CreateWatchlist,
@@ -183,6 +185,56 @@ class WatchlistService:
                 db.delete(row)
             return {"deleted": len(rows)}
 
+    @staticmethod
+    def _metadata_target(
+        instrument: InstrumentIdentity, instrument_kind: str
+    ) -> tuple[tuple[str, str], Literal["DIRECT", "UNDERLYING"]] | None:
+        if instrument_kind == "EQUITY":
+            return (instrument.exchange.upper(), instrument.symbol.upper()), "DIRECT"
+        if instrument_kind not in {"FUTURE", "OPTION"}:
+            return None
+        source = instrument.underlying.source
+        if instrument.underlying.ambiguous or source.namespace != "dhan-symbol":
+            return None
+        exchange, separator, symbol = source.native_id.upper().partition(":")
+        if not separator or exchange not in {"NSE", "BSE"} or not symbol:
+            return None
+        return (exchange, symbol), "UNDERLYING"
+
+    @classmethod
+    def _enrich_items(cls, db: Session, items: Sequence[dict[str, Any]]) -> None:
+        targets: dict[str, tuple[tuple[str, str], Literal["DIRECT", "UNDERLYING"]]] = {}
+        for item in items:
+            instrument = InstrumentIdentity.model_validate(item["instrument"])
+            target = cls._metadata_target(instrument, str(item["kind"]))
+            if target is not None:
+                targets[str(instrument.instrument_id)] = target
+        service = InstrumentMetadataService(db)
+        metadata = service.get_many_by_exchange_symbols(
+            tuple(target[0] for target in targets.values())
+        )
+        for item in items:
+            instrument = InstrumentIdentity.model_validate(item["instrument"])
+            target = targets.get(str(instrument.instrument_id))
+            found = metadata.get(target[0]) if target is not None else None
+            item["instrument_metadata"] = (
+                service.summary(
+                    found,
+                    applies_to_symbol=instrument.symbol,
+                    resolution_basis=target[1],
+                ).model_dump(mode="json")
+                if found is not None and target is not None
+                else None
+            )
+
+    def enrich_detail(self, detail: dict[str, Any]) -> dict[str, Any]:
+        """Enrich an already-resolved built-in universe without provider I/O."""
+
+        items = [dict(item) for item in detail["items"]]
+        with self.factory() as db:
+            self._enrich_items(db, items)
+        return {**detail, "items": items}
+
     def detail(self, key: UUID) -> dict[str, Any]:
         with self.factory() as db:
             row = self._get(db, key)
@@ -205,18 +257,20 @@ class WatchlistService:
                 .order_by(WatchlistActivityRow.created_at.desc())
                 .limit(30)
             )
+            public_items = [
+                dict(
+                    instrument=item.instrument,
+                    kind=kind(InstrumentIdentity.model_validate(item.instrument)),
+                    added_at=stamp(item.added_at),
+                    ordering=item.ordering,
+                    source=item.source,
+                )
+                for item in items
+            ]
+            self._enrich_items(db, public_items)
             return {
                 **self._summary(db, row),
-                "items": [
-                    dict(
-                        instrument=item.instrument,
-                        kind=kind(InstrumentIdentity.model_validate(item.instrument)),
-                        added_at=stamp(item.added_at),
-                        ordering=item.ordering,
-                        source=item.source,
-                    )
-                    for item in items
-                ],
+                "items": public_items,
                 "notes": [
                     dict(
                         id=str(n.id),
