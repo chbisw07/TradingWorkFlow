@@ -125,6 +125,136 @@ export const label: Record<Kind, string> = {
   FUTURE: "Futures",
   OPTION: "Options",
 };
+
+export const WATCHLIST_GROUP_MODE = {
+  NONE: "NONE",
+  TYPE: "TYPE",
+  SECTOR: "SECTOR",
+  MARKET_CAP_CATEGORY: "MARKET_CAP_CATEGORY",
+  TREND: "TREND",
+  GAIN_LOSS: "GAIN_LOSS",
+} as const;
+export type WatchlistGroupMode =
+  (typeof WATCHLIST_GROUP_MODE)[keyof typeof WATCHLIST_GROUP_MODE];
+
+export const GAIN_LOSS_NEUTRAL_BAND_PERCENT = 0.5;
+
+export type WatchlistGroupableRow<T> = {
+  value: T;
+  kind: Kind | null;
+  sector: string | null;
+  marketCapCategory: InstrumentMetadataSummary["market_cap_category"];
+  trend: string | null;
+  oneDayChangePercent: number | null;
+};
+
+export type WatchlistRowGroup<T> = {
+  key: string;
+  label: string;
+  rows: WatchlistGroupableRow<T>[];
+};
+
+const TYPE_GROUPS = ["EQUITY", "INDEX", "FUTURE", "OPTION", "UNKNOWN"];
+const CAP_GROUPS = ["LARGE", "MID", "SMALL", "UNKNOWN"];
+const TREND_GROUPS = ["UP", "SIDEWAYS", "DOWN", "UNKNOWN"];
+const GAIN_LOSS_GROUPS = ["GAINERS", "FLAT", "LOSERS", "UNAVAILABLE"];
+
+function groupingKey<T>(
+  row: WatchlistGroupableRow<T>,
+  mode: WatchlistGroupMode,
+) {
+  if (mode === WATCHLIST_GROUP_MODE.TYPE) return row.kind || "UNKNOWN";
+  if (mode === WATCHLIST_GROUP_MODE.SECTOR)
+    return row.sector?.trim() || "UNKNOWN";
+  if (mode === WATCHLIST_GROUP_MODE.MARKET_CAP_CATEGORY)
+    return row.marketCapCategory || "UNKNOWN";
+  if (mode === WATCHLIST_GROUP_MODE.TREND) {
+    const trend = row.trend?.trim().toUpperCase();
+    return TREND_GROUPS.includes(trend || "") ? trend! : "UNKNOWN";
+  }
+  if (mode === WATCHLIST_GROUP_MODE.GAIN_LOSS) {
+    const value = row.oneDayChangePercent;
+    if (value == null || !Number.isFinite(value)) return "UNAVAILABLE";
+    if (value > GAIN_LOSS_NEUTRAL_BAND_PERCENT) return "GAINERS";
+    if (value < -GAIN_LOSS_NEUTRAL_BAND_PERCENT) return "LOSERS";
+    return "FLAT";
+  }
+  return "ALL";
+}
+
+function groupingLabel(key: string, mode: WatchlistGroupMode) {
+  if (key === "UNKNOWN") return "Unknown";
+  if (mode === WATCHLIST_GROUP_MODE.TYPE)
+    return {
+      EQUITY: "Equity",
+      INDEX: "Index",
+      FUTURE: "Future",
+      OPTION: "Option",
+    }[key]!;
+  if (mode === WATCHLIST_GROUP_MODE.MARKET_CAP_CATEGORY)
+    return marketCapCategoryText(
+      key as InstrumentMetadataSummary["market_cap_category"],
+    );
+  if (mode === WATCHLIST_GROUP_MODE.TREND)
+    return key.charAt(0) + key.slice(1).toLowerCase();
+  if (mode === WATCHLIST_GROUP_MODE.GAIN_LOSS)
+    return {
+      GAINERS: "Gainers",
+      FLAT: "Flat",
+      LOSERS: "Losers",
+      UNAVAILABLE: "Unavailable",
+    }[key]!;
+  return key;
+}
+
+function groupOrder(mode: WatchlistGroupMode, key: string) {
+  const order =
+    mode === WATCHLIST_GROUP_MODE.TYPE
+      ? TYPE_GROUPS
+      : mode === WATCHLIST_GROUP_MODE.MARKET_CAP_CATEGORY
+        ? CAP_GROUPS
+        : mode === WATCHLIST_GROUP_MODE.TREND
+          ? TREND_GROUPS
+          : mode === WATCHLIST_GROUP_MODE.GAIN_LOSS
+            ? GAIN_LOSS_GROUPS
+            : [];
+  const index = order.indexOf(key);
+  return index < 0 ? order.length : index;
+}
+
+export function groupWatchlistRows<T>(
+  input: readonly WatchlistGroupableRow<T>[],
+  mode: WatchlistGroupMode,
+  compareRows?: (
+    left: WatchlistGroupableRow<T>,
+    right: WatchlistGroupableRow<T>,
+  ) => number,
+): WatchlistRowGroup<T>[] {
+  const rows = [...input];
+  if (compareRows) rows.sort(compareRows);
+  if (mode === WATCHLIST_GROUP_MODE.NONE)
+    return [{ key: "ALL", label: "", rows }];
+
+  const grouped = new Map<string, WatchlistGroupableRow<T>[]>();
+  for (const row of rows) {
+    const key = groupingKey(row, mode);
+    grouped.set(key, [...(grouped.get(key) || []), row]);
+  }
+  return [...grouped.entries()]
+    .sort(([left], [right]) => {
+      if (mode === WATCHLIST_GROUP_MODE.SECTOR) {
+        if (left === "UNKNOWN") return 1;
+        if (right === "UNKNOWN") return -1;
+        return left.localeCompare(right, "en", { sensitivity: "base" });
+      }
+      return groupOrder(mode, left) - groupOrder(mode, right);
+    })
+    .map(([key, groupRows]) => ({
+      key,
+      label: groupingLabel(key, mode),
+      rows: groupRows,
+    }));
+}
 export async function watchApi<T>(
   path = "",
   method = "GET",

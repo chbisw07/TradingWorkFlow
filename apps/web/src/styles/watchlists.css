@@ -293,6 +293,29 @@
 .wl-table .wl-row-selected td:last-child {
   background: var(--shell-hover);
 }
+.wl-table .wl-group-header {
+  position: static;
+  right: auto;
+  z-index: auto;
+  padding: 7px;
+  border-block: 1px solid var(--shell-border);
+  background: color-mix(in srgb, var(--shell-hover) 75%, var(--shell-surface));
+  color: var(--shell-text);
+}
+.wl-group-header button {
+  width: 100%;
+  border: 0;
+  padding: 3px 2px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 650;
+  text-align: left;
+}
+.wl-group-header button:focus-visible {
+  outline: 2px solid var(--shell-accent);
+  outline-offset: 2px;
+}
 .wl-table td small {
   font-size: 9px;
 }

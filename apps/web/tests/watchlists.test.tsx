@@ -17,6 +17,9 @@ import {
   marketCapCategoryText,
   metadataMarketCap,
   metricPercentText,
+  groupWatchlistRows,
+  GAIN_LOSS_NEUTRAL_BAND_PERCENT,
+  WATCHLIST_GROUP_MODE,
 } from "../src/lib/watchlists";
 
 beforeEach(() => {
@@ -191,6 +194,142 @@ test("Watchlist market metrics use canonical presentation semantics", () => {
       market_cap_currency: "INR",
     } as never),
   ).toBe("₹1.08 L Cr");
+});
+
+type GroupFixture = {
+  symbol: string;
+  ordering: number;
+};
+const groupRow = (
+  symbol: string,
+  ordering: number,
+  overrides: Partial<{
+    kind: "EQUITY" | "INDEX" | "FUTURE" | "OPTION" | null;
+    sector: string | null;
+    marketCapCategory: "LARGE" | "MID" | "SMALL" | null;
+    trend: string | null;
+    oneDayChangePercent: number | null;
+  }> = {},
+) => ({
+  value: { symbol, ordering },
+  kind: "kind" in overrides ? overrides.kind! : "EQUITY",
+  sector: overrides.sector ?? null,
+  marketCapCategory: overrides.marketCapCategory ?? null,
+  trend: overrides.trend ?? null,
+  oneDayChangePercent: overrides.oneDayChangePercent ?? null,
+});
+const groupSummary = (
+  rows: ReturnType<typeof groupRow>[],
+  mode: Parameters<typeof groupWatchlistRows<GroupFixture>>[1],
+) =>
+  groupWatchlistRows(
+    rows,
+    mode,
+    (left, right) => left.value.ordering - right.value.ordering,
+  ).map((group) => [group.label, group.rows.map((row) => row.value.symbol)]);
+
+test("Watchlist grouping uses canonical type order and stable row ordering", () => {
+  expect(
+    groupSummary(
+      [
+        groupRow("OPTION", 4, { kind: "OPTION" }),
+        groupRow("INDEX", 2, { kind: "INDEX" }),
+        groupRow("EQUITY-B", 3),
+        groupRow("FUTURE", 1, { kind: "FUTURE" }),
+        groupRow("EQUITY-A", 0),
+        groupRow("UNKNOWN", 5, { kind: null }),
+      ],
+      WATCHLIST_GROUP_MODE.TYPE,
+    ),
+  ).toEqual([
+    ["Equity", ["EQUITY-A", "EQUITY-B"]],
+    ["Index", ["INDEX"]],
+    ["Future", ["FUTURE"]],
+    ["Option", ["OPTION"]],
+    ["Unknown", ["UNKNOWN"]],
+  ]);
+});
+
+test("Watchlist grouping uses metadata category, sector and canonical trend", () => {
+  const rows = [
+    groupRow("UNKNOWN", 4),
+    groupRow("ENERGY", 3, {
+      sector: "Energy",
+      marketCapCategory: "SMALL",
+      trend: "Down",
+    }),
+    groupRow("TECH", 1, {
+      sector: "Technology",
+      marketCapCategory: "LARGE",
+      trend: "Up",
+    }),
+    groupRow("FINANCE", 2, {
+      sector: "Financial Services",
+      marketCapCategory: "MID",
+      trend: "Sideways",
+    }),
+  ];
+  expect(
+    groupSummary(rows, WATCHLIST_GROUP_MODE.SECTOR).map(([name]) => name),
+  ).toEqual(["Energy", "Financial Services", "Technology", "Unknown"]);
+  expect(
+    groupSummary(rows, WATCHLIST_GROUP_MODE.MARKET_CAP_CATEGORY).map(
+      ([name]) => name,
+    ),
+  ).toEqual(["Large", "Mid", "Small", "Unknown"]);
+  expect(
+    groupSummary(rows, WATCHLIST_GROUP_MODE.TREND).map(([name]) => name),
+  ).toEqual(["Up", "Sideways", "Down", "Unknown"]);
+});
+
+test("Gainers and losers use the inclusive plus/minus 0.50 neutral band", () => {
+  expect(GAIN_LOSS_NEUTRAL_BAND_PERCENT).toBe(0.5);
+  const changes = [10, 0.51, 0.5, 0.49, 0, -0.49, -0.5, -0.51, -10, null];
+  const groups = groupWatchlistRows(
+    changes.map((value, ordering) =>
+      groupRow(value == null ? "NULL" : String(value), ordering, {
+        oneDayChangePercent: value,
+      }),
+    ),
+    WATCHLIST_GROUP_MODE.GAIN_LOSS,
+  );
+  expect(groups.map((group) => [group.label, group.rows.length])).toEqual([
+    ["Gainers", 2],
+    ["Flat", 5],
+    ["Losers", 2],
+    ["Unavailable", 1],
+  ]);
+  expect(groups[1].rows.map((row) => row.value.symbol)).toEqual([
+    "0.5",
+    "0.49",
+    "0",
+    "-0.49",
+    "-0.5",
+  ]);
+});
+
+test("search and filters precede grouping and hidden columns are irrelevant", () => {
+  const rows = [
+    groupRow("RELIANCE", 0, {
+      sector: "Energy",
+      marketCapCategory: "LARGE",
+    }),
+    groupRow("ONGC", 1, {
+      sector: "Energy",
+      marketCapCategory: "LARGE",
+    }),
+    groupRow("INFY", 2, {
+      sector: "Technology",
+      marketCapCategory: "LARGE",
+    }),
+  ];
+  const matching = rows.filter((row) => row.value.symbol.includes("ON"));
+  expect(groupSummary(matching, WATCHLIST_GROUP_MODE.SECTOR)).toEqual([
+    ["Energy", ["ONGC"]],
+  ]);
+  expect(
+    groupSummary(matching, WATCHLIST_GROUP_MODE.MARKET_CAP_CATEGORY),
+  ).toEqual([["Large", ["ONGC"]]]);
 });
 test("normalized bars render an accessible provider-attributed chart", () => {
   render(

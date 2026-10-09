@@ -60,11 +60,22 @@ test("persistent Watchlists, instrument detail, CSV, notes, archive and responsi
         provider: "dhan",
         error: null,
         quotes: detail.items.map(
-          (item: { instrument: unknown }, i: number) => ({
+          (item: { instrument: { symbol: string } }, i: number) => ({
             instrument: item.instrument,
             provider: "dhan",
             last_price: String(1500 + i * 100),
-            previous_close: "1480",
+            previous_close:
+              item.instrument.symbol === "NIFTY99DECFUT" ? null : "1480",
+            change_percent:
+              (
+                {
+                  RELIANCE: 0.51,
+                  INFY: 0.5,
+                  NIFTY: -0.51,
+                  NIFTY99DECFUT: null,
+                  NIFTY99DEC25000CE: -10,
+                } as Record<string, number | null>
+              )[item.instrument.symbol] ?? null,
             open: "1490",
             high: "1510",
             low: "1475",
@@ -287,6 +298,95 @@ test("persistent Watchlists, instrument detail, CSV, notes, archive and responsi
     path: info.outputPath("watchlists-market-metrics.png"),
     fullPage: true,
   });
+  const groupBy = page.getByLabel("Group by", { exact: true });
+  await expect(groupBy.locator("option")).toHaveText([
+    "None",
+    "Type",
+    "Sector",
+    "Market Cap Category",
+    "Trend",
+    "Gainers / Losers",
+  ]);
+  await groupBy.selectOption("TYPE");
+  for (const groupName of [
+    "Equity (2)",
+    "Index (1)",
+    "Future (1)",
+    "Option (1)",
+  ])
+    await expect(
+      page.getByRole("button", { name: groupName, exact: true }),
+    ).toBeVisible();
+
+  await groupBy.selectOption("SECTOR");
+  await expect(
+    page.getByRole("button", { name: "Energy (1)", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Technology (1)", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Unknown (3)", exact: true }),
+  ).toBeVisible();
+  await page.getByLabel("Search symbols in this list").fill("RELIANCE");
+  await expect(
+    page.getByRole("button", { name: "Energy (1)", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".wl-group-header")).toHaveCount(1);
+  await page.getByLabel("Search symbols in this list").fill("");
+
+  const columnsControl = page
+    .locator("details")
+    .filter({ has: page.getByText("Columns", { exact: true }) });
+  await columnsControl.getByText("Columns", { exact: true }).click();
+  await columnsControl
+    .getByLabel("Market Cap Category", { exact: true })
+    .uncheck();
+  await groupBy.selectOption("MARKET_CAP_CATEGORY");
+  const largeGroup = page.getByRole("button", {
+    name: "Large (2)",
+    exact: true,
+  });
+  await expect(largeGroup).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Unknown (3)", exact: true }),
+  ).toBeVisible();
+  await largeGroup.focus();
+  await page.keyboard.press("Enter");
+  await expect(largeGroup).toHaveAttribute("aria-expanded", "false");
+  await expect(
+    page.getByRole("button", { name: "RELIANCE", exact: true }),
+  ).not.toBeVisible();
+  await largeGroup.focus();
+  await page.keyboard.press("Enter");
+  await expect(largeGroup).toHaveAttribute("aria-expanded", "true");
+  const infySelection = page.getByLabel("Select INFY", { exact: true });
+  await infySelection.focus();
+  await page.keyboard.press("Space");
+  await expect(page.getByText("1 selected", { exact: true })).toBeVisible();
+  await infySelection.focus();
+  await page.keyboard.press("Space");
+
+  await groupBy.selectOption("TREND");
+  await expect(
+    page.getByRole("button", { name: "Up (5)", exact: true }),
+  ).toBeVisible();
+  await groupBy.selectOption("GAIN_LOSS");
+  for (const groupName of [
+    "Gainers (1)",
+    "Flat (1)",
+    "Losers (2)",
+    "Unavailable (1)",
+  ])
+    await expect(
+      page.getByRole("button", { name: groupName, exact: true }),
+    ).toBeVisible();
+  await page.screenshot({
+    path: info.outputPath("watchlists-group-by.png"),
+    fullPage: true,
+  });
+  await groupBy.selectOption("NONE");
+  await expect(page.locator(".wl-group-header")).toHaveCount(0);
   await page.reload();
   await expect(page.locator('.wl-table tbody svg[role="img"]')).toHaveCount(5);
   await expect(page.locator(".wl-table tbody tr").first()).toContainText(

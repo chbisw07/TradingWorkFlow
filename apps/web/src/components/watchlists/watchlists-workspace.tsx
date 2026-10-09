@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import {
+  Fragment,
   useCallback,
   useEffect,
   useRef,
@@ -21,6 +22,7 @@ import {
   marketCapCategoryText,
   metadataMarketCap,
   metricPercentText,
+  groupWatchlistRows,
   previousClose,
   periodChange,
   sessionDate,
@@ -32,6 +34,8 @@ import {
   type WatchDetail,
   type WatchItem,
   type WatchMetrics,
+  WATCHLIST_GROUP_MODE,
+  type WatchlistGroupMode,
   type Watchlist,
   type WatchQuote,
 } from "../../lib/watchlists";
@@ -95,7 +99,8 @@ export function WatchlistsWorkspace() {
   const [query, setQuery] = useState(""),
     [type, setType] = useState<Kind | "ALL">("ALL");
   const [visible, setVisible] = useState(columns),
-    [group, setGroup] = useState("none");
+    [group, setGroup] = useState<WatchlistGroupMode>(WATCHLIST_GROUP_MODE.NONE),
+    [collapsedGroups, setCollapsedGroups] = useState<string[]>([]);
   const [minimum, setMinimum] = useState(""),
     [positive, setPositive] = useState(false),
     [minVolume, setMinVolume] = useState("");
@@ -625,16 +630,27 @@ export function WatchlistsWorkspace() {
           Number(quotes[i.instrument.instrument_id]?.volume) >=
             Number(minVolume)),
     )
-    .sort((a, b) =>
-      group === "type"
-        ? a.kind.localeCompare(b.kind) || a.ordering - b.ordering
-        : a.ordering - b.ordering,
-    );
+    .sort((a, b) => a.ordering - b.ordering);
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const actualPage = Math.min(page, pages);
   const rows = filtered.slice(
     (actualPage - 1) * pageSize,
     actualPage * pageSize,
+  );
+  const groupedRows = groupWatchlistRows(
+    rows.map((row) => {
+      const id = row.instrument.instrument_id;
+      return {
+        value: row,
+        kind: row.kind,
+        sector: row.instrument_metadata?.sector || null,
+        marketCapCategory: row.instrument_metadata?.market_cap_category || null,
+        trend: metrics[id]?.trend || null,
+        oneDayChangePercent: change(quotes[id], history[id]),
+      };
+    }),
+    group,
+    (left, right) => left.value.ordering - right.value.ordering,
   );
   const visibleRowIds = rows
     .map((row) => row.instrument.instrument_id)
@@ -1478,11 +1494,24 @@ export function WatchlistsWorkspace() {
                 <label>
                   Group by
                   <select
+                    aria-label="Group by"
                     value={group}
-                    onChange={(e) => setGroup(e.target.value)}
+                    onChange={(e) => {
+                      setGroup(e.target.value as WatchlistGroupMode);
+                      setCollapsedGroups([]);
+                      setPage(1);
+                    }}
                   >
-                    <option value="none">None</option>
-                    <option value="type">Type</option>
+                    <option value={WATCHLIST_GROUP_MODE.NONE}>None</option>
+                    <option value={WATCHLIST_GROUP_MODE.TYPE}>Type</option>
+                    <option value={WATCHLIST_GROUP_MODE.SECTOR}>Sector</option>
+                    <option value={WATCHLIST_GROUP_MODE.MARKET_CAP_CATEGORY}>
+                      Market Cap Category
+                    </option>
+                    <option value={WATCHLIST_GROUP_MODE.TREND}>Trend</option>
+                    <option value={WATCHLIST_GROUP_MODE.GAIN_LOSS}>
+                      Gainers / Losers
+                    </option>
                   </select>
                 </label>
               </div>
@@ -1603,236 +1632,280 @@ export function WatchlistsWorkspace() {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((i) => {
-                      const id = i.instrument.instrument_id,
-                        q = quotes[id],
-                        delta = change(q, history[id]);
+                    {groupedRows.map((rowGroup) => {
+                      const groupId = `${group}:${rowGroup.key}`;
+                      const collapsed = collapsedGroups.includes(groupId);
                       return (
-                        <tr
-                          key={id}
-                          className={
-                            instrumentId === id ? "wl-row-selected" : ""
-                          }
-                        >
-                          <td>
-                            <input
-                              type="checkbox"
-                              aria-label={`Select ${i.instrument.symbol}`}
-                              checked={checked.includes(id)}
-                              onChange={(e) =>
-                                setChecked((old) =>
-                                  e.target.checked
-                                    ? [...old, id]
-                                    : old.filter((v) => v !== id),
-                                )
-                              }
-                            />
-                          </td>
-                          <td>
-                            <button
-                              className="wl-symbol"
-                              onClick={() => inspect(i)}
-                            >
-                              {i.instrument.symbol}
-                            </button>
-                            <small>
-                              {i.instrument.exchange}
-                              {i.instrument.expiry
-                                ? ` · ${i.instrument.expiry.slice(0, 10)}`
-                                : ""}
-                            </small>
-                          </td>
-                          <td>
-                            <span
-                              className={`wl-badge ${i.kind.toLowerCase()}`}
-                            >
-                              {badge[i.kind]}
-                            </span>
-                          </td>
-                          {visible.includes("Sector") && (
-                            <td
-                              className="wl-priority-medium"
-                              title={
-                                i.instrument_metadata?.resolution_basis ===
-                                "UNDERLYING"
-                                  ? `Underlying sector for ${i.instrument_metadata.metadata_symbol}`
-                                  : undefined
-                              }
-                            >
-                              {i.instrument_metadata?.sector || "—"}
-                            </td>
-                          )}
-                          {visible.includes("Market Cap Category") && (
-                            <td
-                              className="wl-priority-medium"
-                              title={
-                                i.instrument_metadata?.resolution_basis ===
-                                "UNDERLYING"
-                                  ? `Underlying market-cap category for ${i.instrument_metadata.metadata_symbol}`
-                                  : columnHelp["Market Cap Category"]
-                              }
-                            >
-                              {marketCapCategoryText(
-                                i.instrument_metadata?.market_cap_category,
-                              )}
-                            </td>
-                          )}
-                          {visible.includes("Market Cap") && (
-                            <td className="wl-priority-low">
-                              {metadataMarketCap(i.instrument_metadata)}
-                            </td>
-                          )}
-                          {visible.includes("LTP") && (
-                            <td className="wl-priority-high">
-                              {numberText(q?.last_price)}
-                            </td>
-                          )}
-                          {visible.includes("1D %") && (
-                            <td
-                              className={`wl-priority-high ${
-                                delta == null || delta === 0
-                                  ? "neutral"
-                                  : delta > 0
-                                    ? "up"
-                                    : "down"
-                              }`}
-                            >
-                              {changeText(delta)}
-                            </td>
-                          )}
-                          {visible.includes("Volume") && (
-                            <td className="wl-priority-low">
-                              {numberText(q?.volume)}
-                            </td>
-                          )}
-                          {visible.includes("RSI (14)") && (
-                            <td
-                              className="wl-priority-medium"
-                              title={
-                                metrics[i.instrument.instrument_id]
-                                  ? `${metrics[i.instrument.instrument_id].basis} · ${metrics[i.instrument.instrument_id].as_of}`
-                                  : "Daily indicator history is loading or unavailable"
-                              }
-                            >
-                              {numberText(
-                                metrics[i.instrument.instrument_id]?.rsi14,
-                              )}
-                            </td>
-                          )}
-                          {visible.includes("Trend") && (
-                            <td
-                              className="wl-priority-medium"
-                              title={
-                                metrics[i.instrument.instrument_id]
-                                  ? `${metrics[i.instrument.instrument_id].basis} · ${metrics[i.instrument.instrument_id].as_of}`
-                                  : "Daily trend history is loading or unavailable"
-                              }
-                            >
-                              {metrics[i.instrument.instrument_id]?.trend ||
-                                "—"}
-                            </td>
-                          )}
-                          {visible.includes("ATR %") && (
-                            <td
-                              className="wl-priority-low"
-                              title={
-                                metrics[id]
-                                  ? `${columnHelp["ATR %"]} · ${metrics[id].as_of}`
-                                  : "Completed daily history is loading or unavailable"
-                              }
-                            >
-                              {metricPercentText(metrics[id]?.atr_percent)}
-                            </td>
-                          )}
-                          {visible.includes("52W High Distance") && (
-                            <td
-                              className="wl-priority-low"
-                              title={
-                                metrics[id]
-                                  ? `${columnHelp["52W High Distance"]} · ${metrics[id].history_coverage_sessions} completed sessions`
-                                  : "Completed daily history is loading or unavailable"
-                              }
-                            >
-                              {metricPercentText(
-                                metrics[id]?.high_52w_distance_percent,
-                              )}
-                            </td>
-                          )}
-                          {visible.includes("52W Low Distance") && (
-                            <td
-                              className="wl-priority-low"
-                              title={
-                                metrics[id]
-                                  ? `${columnHelp["52W Low Distance"]} · ${metrics[id].history_coverage_sessions} completed sessions`
-                                  : "Completed daily history is loading or unavailable"
-                              }
-                            >
-                              {metricPercentText(
-                                metrics[id]?.low_52w_distance_percent,
-                              )}
-                            </td>
-                          )}
-                          {visible.includes("Quick Chart (1M)") && (
-                            <td className="wl-priority-low">
-                              <MarketChart bars={history[id] || []} compact />
-                            </td>
-                          )}
-                          <td>
-                            <div className="wl-row-actions">
-                              <button
-                                aria-label={`View ${i.instrument.symbol} chart`}
-                                onClick={() => inspect(i)}
+                        <Fragment key={groupId}>
+                          {group !== WATCHLIST_GROUP_MODE.NONE && (
+                            <tr className="wl-group-row">
+                              <th
+                                className="wl-group-header"
+                                colSpan={tableColSpan}
+                                scope="rowgroup"
                               >
-                                ↗
-                              </button>
-                              <button
-                                className="wl-buy"
-                                aria-label={`Buy ${i.instrument.symbol}`}
-                                disabled={
-                                  busy ||
-                                  !account ||
-                                  i.kind === "INDEX" ||
-                                  current.archived
-                                }
-                                onClick={() => void trade(i, "BUY")}
-                              >
-                                B
-                              </button>
-                              <button
-                                className="wl-sell"
-                                aria-label={`Sell ${i.instrument.symbol}`}
-                                disabled={
-                                  busy ||
-                                  !account ||
-                                  i.kind === "INDEX" ||
-                                  current.archived
-                                }
-                                onClick={() => void trade(i, "SELL")}
-                              >
-                                S
-                              </button>
-                              {!current.read_only && (
                                 <button
-                                  className="wl-remove"
-                                  aria-label={`Remove ${i.instrument.symbol} from ${current.name}`}
-                                  title={`Remove ${i.instrument.symbol} from ${current.name}`}
-                                  disabled={busy || current.archived}
-                                  onClick={() => {
-                                    if (
-                                      window.confirm(
-                                        `Remove ${i.instrument.symbol} from ${current.name}? Other watchlists are not affected.`,
-                                      )
-                                    ) {
-                                      void remove([id]);
-                                    }
-                                  }}
+                                  type="button"
+                                  aria-expanded={!collapsed}
+                                  onClick={() =>
+                                    setCollapsedGroups((old) =>
+                                      old.includes(groupId)
+                                        ? old.filter(
+                                            (value) => value !== groupId,
+                                          )
+                                        : [...old, groupId],
+                                    )
+                                  }
                                 >
-                                  <Icon name="trash" />
+                                  <span aria-hidden="true">
+                                    {collapsed ? "▸" : "▾"}
+                                  </span>{" "}
+                                  {rowGroup.label} ({rowGroup.rows.length})
                                 </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
+                              </th>
+                            </tr>
+                          )}
+                          {!collapsed &&
+                            rowGroup.rows.map(({ value: i }) => {
+                              const id = i.instrument.instrument_id,
+                                q = quotes[id],
+                                delta = change(q, history[id]);
+                              return (
+                                <tr
+                                  key={id}
+                                  className={
+                                    instrumentId === id ? "wl-row-selected" : ""
+                                  }
+                                >
+                                  <td>
+                                    <input
+                                      type="checkbox"
+                                      aria-label={`Select ${i.instrument.symbol}`}
+                                      checked={checked.includes(id)}
+                                      onChange={(e) =>
+                                        setChecked((old) =>
+                                          e.target.checked
+                                            ? [...old, id]
+                                            : old.filter((v) => v !== id),
+                                        )
+                                      }
+                                    />
+                                  </td>
+                                  <td>
+                                    <button
+                                      className="wl-symbol"
+                                      onClick={() => inspect(i)}
+                                    >
+                                      {i.instrument.symbol}
+                                    </button>
+                                    <small>
+                                      {i.instrument.exchange}
+                                      {i.instrument.expiry
+                                        ? ` · ${i.instrument.expiry.slice(0, 10)}`
+                                        : ""}
+                                    </small>
+                                  </td>
+                                  <td>
+                                    <span
+                                      className={`wl-badge ${i.kind.toLowerCase()}`}
+                                    >
+                                      {badge[i.kind]}
+                                    </span>
+                                  </td>
+                                  {visible.includes("Sector") && (
+                                    <td
+                                      className="wl-priority-medium"
+                                      title={
+                                        i.instrument_metadata
+                                          ?.resolution_basis === "UNDERLYING"
+                                          ? `Underlying sector for ${i.instrument_metadata.metadata_symbol}`
+                                          : undefined
+                                      }
+                                    >
+                                      {i.instrument_metadata?.sector || "—"}
+                                    </td>
+                                  )}
+                                  {visible.includes("Market Cap Category") && (
+                                    <td
+                                      className="wl-priority-medium"
+                                      title={
+                                        i.instrument_metadata
+                                          ?.resolution_basis === "UNDERLYING"
+                                          ? `Underlying market-cap category for ${i.instrument_metadata.metadata_symbol}`
+                                          : columnHelp["Market Cap Category"]
+                                      }
+                                    >
+                                      {marketCapCategoryText(
+                                        i.instrument_metadata
+                                          ?.market_cap_category,
+                                      )}
+                                    </td>
+                                  )}
+                                  {visible.includes("Market Cap") && (
+                                    <td className="wl-priority-low">
+                                      {metadataMarketCap(i.instrument_metadata)}
+                                    </td>
+                                  )}
+                                  {visible.includes("LTP") && (
+                                    <td className="wl-priority-high">
+                                      {numberText(q?.last_price)}
+                                    </td>
+                                  )}
+                                  {visible.includes("1D %") && (
+                                    <td
+                                      className={`wl-priority-high ${
+                                        delta == null || delta === 0
+                                          ? "neutral"
+                                          : delta > 0
+                                            ? "up"
+                                            : "down"
+                                      }`}
+                                    >
+                                      {changeText(delta)}
+                                    </td>
+                                  )}
+                                  {visible.includes("Volume") && (
+                                    <td className="wl-priority-low">
+                                      {numberText(q?.volume)}
+                                    </td>
+                                  )}
+                                  {visible.includes("RSI (14)") && (
+                                    <td
+                                      className="wl-priority-medium"
+                                      title={
+                                        metrics[i.instrument.instrument_id]
+                                          ? `${metrics[i.instrument.instrument_id].basis} · ${metrics[i.instrument.instrument_id].as_of}`
+                                          : "Daily indicator history is loading or unavailable"
+                                      }
+                                    >
+                                      {numberText(
+                                        metrics[i.instrument.instrument_id]
+                                          ?.rsi14,
+                                      )}
+                                    </td>
+                                  )}
+                                  {visible.includes("Trend") && (
+                                    <td
+                                      className="wl-priority-medium"
+                                      title={
+                                        metrics[i.instrument.instrument_id]
+                                          ? `${metrics[i.instrument.instrument_id].basis} · ${metrics[i.instrument.instrument_id].as_of}`
+                                          : "Daily trend history is loading or unavailable"
+                                      }
+                                    >
+                                      {metrics[i.instrument.instrument_id]
+                                        ?.trend || "—"}
+                                    </td>
+                                  )}
+                                  {visible.includes("ATR %") && (
+                                    <td
+                                      className="wl-priority-low"
+                                      title={
+                                        metrics[id]
+                                          ? `${columnHelp["ATR %"]} · ${metrics[id].as_of}`
+                                          : "Completed daily history is loading or unavailable"
+                                      }
+                                    >
+                                      {metricPercentText(
+                                        metrics[id]?.atr_percent,
+                                      )}
+                                    </td>
+                                  )}
+                                  {visible.includes("52W High Distance") && (
+                                    <td
+                                      className="wl-priority-low"
+                                      title={
+                                        metrics[id]
+                                          ? `${columnHelp["52W High Distance"]} · ${metrics[id].history_coverage_sessions} completed sessions`
+                                          : "Completed daily history is loading or unavailable"
+                                      }
+                                    >
+                                      {metricPercentText(
+                                        metrics[id]?.high_52w_distance_percent,
+                                      )}
+                                    </td>
+                                  )}
+                                  {visible.includes("52W Low Distance") && (
+                                    <td
+                                      className="wl-priority-low"
+                                      title={
+                                        metrics[id]
+                                          ? `${columnHelp["52W Low Distance"]} · ${metrics[id].history_coverage_sessions} completed sessions`
+                                          : "Completed daily history is loading or unavailable"
+                                      }
+                                    >
+                                      {metricPercentText(
+                                        metrics[id]?.low_52w_distance_percent,
+                                      )}
+                                    </td>
+                                  )}
+                                  {visible.includes("Quick Chart (1M)") && (
+                                    <td className="wl-priority-low">
+                                      <MarketChart
+                                        bars={history[id] || []}
+                                        compact
+                                      />
+                                    </td>
+                                  )}
+                                  <td>
+                                    <div className="wl-row-actions">
+                                      <button
+                                        aria-label={`View ${i.instrument.symbol} chart`}
+                                        onClick={() => inspect(i)}
+                                      >
+                                        ↗
+                                      </button>
+                                      <button
+                                        className="wl-buy"
+                                        aria-label={`Buy ${i.instrument.symbol}`}
+                                        disabled={
+                                          busy ||
+                                          !account ||
+                                          i.kind === "INDEX" ||
+                                          current.archived
+                                        }
+                                        onClick={() => void trade(i, "BUY")}
+                                      >
+                                        B
+                                      </button>
+                                      <button
+                                        className="wl-sell"
+                                        aria-label={`Sell ${i.instrument.symbol}`}
+                                        disabled={
+                                          busy ||
+                                          !account ||
+                                          i.kind === "INDEX" ||
+                                          current.archived
+                                        }
+                                        onClick={() => void trade(i, "SELL")}
+                                      >
+                                        S
+                                      </button>
+                                      {!current.read_only && (
+                                        <button
+                                          className="wl-remove"
+                                          aria-label={`Remove ${i.instrument.symbol} from ${current.name}`}
+                                          title={`Remove ${i.instrument.symbol} from ${current.name}`}
+                                          disabled={busy || current.archived}
+                                          onClick={() => {
+                                            if (
+                                              window.confirm(
+                                                `Remove ${i.instrument.symbol} from ${current.name}? Other watchlists are not affected.`,
+                                              )
+                                            ) {
+                                              void remove([id]);
+                                            }
+                                          }}
+                                        >
+                                          <Icon name="trash" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                        </Fragment>
                       );
                     })}
                     {!rows.length && (

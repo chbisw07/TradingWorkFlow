@@ -310,3 +310,30 @@ Symbol, Type, LTP, 1D % and Actions visible while lower-priority metrics remain
 available in the selected-instrument detail. CSV export intentionally remains the
 canonical membership/identity interchange format; it does not serialize transient
 quotes, metadata snapshots or technical metrics.
+
+## Group By V1 — 2026-10-09
+
+Group By is a component-local presentation mode. It does not mutate membership,
+persist a new row order, change CSV output, or affect Scanner, market-data,
+metadata, and broker contracts. The typed modes are None, Type, Sector, Market Cap
+Category, Trend, and Gainers / Losers. Type uses the canonical Watchlist kind;
+Sector and Market Cap Category use the existing Instrument Metadata summary; Trend
+uses the existing completed-bar Watchlist metric. Missing or unsupported values are
+grouped under Unknown.
+
+Gainers / Losers consumes the same authoritative numeric 1D % rendered in the row.
+The centralized neutral band is inclusive: values greater than +0.50% are Gainers,
+values from -0.50% through +0.50% are Flat, values below -0.50% are Losers, and a
+missing or unusable value is Unavailable. Group labels and counts are textual, and
+keyboard-operable headers are expanded by default and may be collapsed.
+
+The pipeline is current Watchlist membership → search/type/value filters → existing
+client pagination → group the current page → preserve canonical row ordering within
+each group → render. Group counts therefore describe the displayed page after search
+and filters. This page-scoped policy preserves the existing bounded visible-page
+history enrichment for large built-in universes; selecting Trend does not fetch the
+entire Nifty 500 history. Group order is deterministic: Equity/Index/Future/Option,
+alphabetical sectors with Unknown last, Large/Mid/Small, Up/Sideways/Down, and
+Gainers/Flat/Losers/Unavailable. Grouping reads row data even when its corresponding
+column is hidden. Column and group choices remain component-local because Watchlists
+has no saved table-preference contract.

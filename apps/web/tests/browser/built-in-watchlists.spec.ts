@@ -32,6 +32,18 @@ test("built-in watchlists are read-only, copyable and responsive", async ({
   await expect(
     systemNavigation.getByRole("button", { name: /F&O 100/ }),
   ).toBeDisabled();
+  await systemNavigation.getByRole("button", { name: /Nifty Energy/ }).click();
+  await page.getByLabel("Group by", { exact: true }).selectOption("SECTOR");
+  await expect(
+    page.getByRole("button", { name: "Energy (1)", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Technology (1)", exact: true }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: info.outputPath("built-in-watchlists-grouped.png"),
+    fullPage: true,
+  });
   await systemNavigation.getByRole("button", { name: /Nifty Bank/ }).click();
 
   await expect(page.getByRole("heading", { name: /Nifty Bank/ })).toBeVisible();
