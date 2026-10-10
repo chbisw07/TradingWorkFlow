@@ -14,6 +14,7 @@ from twf.discovery.market_data import DhanMarketDataProvider
 from twf.options.chain_contracts import OptionChainRequest, OptionChainSnapshot
 from twf.options.chain_service import ChainFailure, OptionChainService
 from twf.options.dhan_chain import DhanOptionChainSource
+from twf.watchlists.market import WatchlistQuoteCache
 
 router = APIRouter(prefix="/api/v1/options", tags=["Canonical option chains"])
 
@@ -23,7 +24,11 @@ class OptionChainRegistry:
         self.sources: dict[tuple[UUID, int], DhanOptionChainSource] = {}
 
     def get(
-        self, owner: UUID, generation: int, provider: DhanMarketDataProvider
+        self,
+        owner: UUID,
+        generation: int,
+        provider: DhanMarketDataProvider,
+        quote_cache: WatchlistQuoteCache,
     ) -> DhanOptionChainSource:
         key = owner, generation
         for old in tuple(self.sources):
@@ -32,7 +37,7 @@ class OptionChainRegistry:
         if key not in self.sources or self.sources[key].provider is not provider:
             if len(self.sources) >= 64:
                 del self.sources[next(iter(self.sources))]
-            self.sources[key] = DhanOptionChainSource(provider)
+            self.sources[key] = DhanOptionChainSource(provider, owner, generation, quote_cache)
         return self.sources[key]
 
 
@@ -43,7 +48,12 @@ def service(request: Request, who: Who) -> OptionChainService:
         raise ChainFailure("provider_unavailable", 503)
     registry = cast(OptionChainRegistry, request.app.state.option_chains)
     return OptionChainService(
-        registry.get(who.user_id, capture.status.generation, capture.provider)
+        registry.get(
+            who.user_id,
+            capture.status.generation,
+            capture.provider,
+            cast(WatchlistQuoteCache, request.app.state.watchlist_quotes),
+        )
     )
 
 

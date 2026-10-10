@@ -23,7 +23,13 @@ from twf.discovery.dhan_credentials import (
     DhanCredentialState,
     DhanCredentialStatus,
 )
-from twf.discovery.market_data import DhanMarketDataProvider, DhanMarketDataSettings
+from twf.discovery.market_data import (
+    DhanMarketDataProvider,
+    DhanMarketDataSettings,
+    MarketDataErrorCode,
+    MarketDataFailure,
+)
+from twf.discovery.market_summary import GlobalMarketSummaryService, MarketSummaryCache
 from twf.options.chain_contracts import OptionChainRequest, OptionMarketSnapshot
 from twf.options.chain_service import ChainFailure, ChainMarketBatch, OptionChainService
 from twf.options.contracts import OptionContract, OptionType, UnderlyingType, option_contract_id
@@ -33,6 +39,7 @@ from twf.options.dhan_chain import (
     normalize_market,
     parse_contracts,
 )
+from twf.watchlists.market import WatchlistHistoryCache, WatchlistQuoteCache
 
 TODAY = datetime.now(UTC).astimezone(ZoneInfo("Asia/Kolkata")).date()
 EXPIRY = TODAY + timedelta(days=7)
@@ -272,6 +279,11 @@ def dhan_source(
         calls.append(request.url.path)
         if request.method == "GET":
             return httpx.Response(200, content=master_bytes())
+        if request.url.path == "/v2/marketfeed/quote":
+            assert json.loads(request.content) == {"IDX_I": [13]}
+            return httpx.Response(
+                200, json={"status": "success", "data": {"IDX_I": {"13": {"last_price": 25010}}}}
+            )
         assert json.loads(request.content)["UnderlyingScrip"] == 13
         if fail:
             return httpx.Response(429)
@@ -305,7 +317,7 @@ def dhan_source(
         ),
         transport=httpx.MockTransport(handler),
     )
-    return DhanOptionChainSource(provider), calls
+    return DhanOptionChainSource(provider, uuid4(), 1, WatchlistQuoteCache()), calls
 
 
 def test_dhan_master_normalization_batched_fetch_and_cache() -> None:
@@ -318,9 +330,11 @@ def test_dhan_master_normalization_batched_fetch_and_cache() -> None:
         assert result.rows[0].ce is not None
         assert result.rows[0].ce.contract.tick_size == Decimal("0.05")
         assert result.rows[0].ce.market.change_in_open_interest == 100
+        assert result.spot == 25010
+        assert "underlying_spot_mismatch" not in result.warnings
         assert again.provenance.cached and not result.provenance.cached
         assert again.provenance.received_at == result.provenance.received_at
-        assert len(calls) == 2  # one master and one complete batch, no per-leg requests
+        assert len(calls) == 3  # master, chain batch, one index quote; no per-leg requests
         assert "security_id" not in result.model_dump_json()
         assert "access-token" not in result.model_dump_json()
 
@@ -333,7 +347,7 @@ def test_dhan_failure_and_token_mismatch(fail: bool, mismatch: bool) -> None:
     result = asyncio.run(
         OptionChainService(source).snapshot(OptionChainRequest(underlying="NIFTY", expiry=EXPIRY))
     )
-    assert result.status == "PARTIAL" and len(calls) == 2
+    assert result.status == "PARTIAL" and len(calls) == (2 if fail else 3)
     assert result.rows[0].ce is not None and result.rows[0].ce.market.ltp is None
     if mismatch:
         assert result.rows[0].pe is not None and result.rows[0].pe.market.ltp == 50
@@ -349,10 +363,11 @@ def test_generation_and_owner_cache_isolation() -> None:
     registry = OptionChainRegistry()
     source, _ = dhan_source()
     owner, other = uuid4(), uuid4()
-    first = registry.get(owner, 1, source.provider)
-    assert registry.get(owner, 1, source.provider) is first
-    assert registry.get(other, 1, source.provider) is not first
-    assert registry.get(owner, 2, source.provider) is not first
+    cache = WatchlistQuoteCache()
+    first = registry.get(owner, 1, source.provider, cache)
+    assert registry.get(owner, 1, source.provider, cache) is first
+    assert registry.get(other, 1, source.provider, cache) is not first
+    assert registry.get(owner, 2, source.provider, cache) is not first
     assert (owner, 1) not in registry.sources
 
 
@@ -429,7 +444,7 @@ def test_concurrent_requests_share_master_and_quote_batch() -> None:
             for _ in range(4)
         ]
         snapshots = await asyncio.gather(*requests)
-        assert len(calls) == 2
+        assert len(calls) == 3
         assert sum(s.provenance.cached for s in snapshots) == 3
 
     asyncio.run(run())
@@ -454,3 +469,305 @@ def test_request_with_no_listed_selected_side_rejects_empty_rows() -> None:
     source.items = (contract(100, "CE"),)
     with pytest.raises(ChainFailure, match="no_option_contracts"):
         snapshot(source, side="PE")
+
+
+@pytest.mark.parametrize(
+    ("symbol", "security_id", "canonical_spot", "chain_spot", "strikes", "expected_atm"),
+    [
+        ("NIFTY", "13", 22520, 23122, (22500, 22550, 23100), 22500),
+        ("BANKNIFTY", "25", 48040, 49050, (48000, 48100, 49000), 48000),
+        ("FINNIFTY", "27", 23370, 24020, (23350, 23400, 24000), 23350),
+        ("MIDCPNIFTY", "442", 11820, 12100, (11800, 11850, 12100), 11800),
+        ("NIFTYNXT50", "38", 68040, 69050, (68000, 68100, 69000), 68000),
+    ],
+)
+def test_index_spot_uses_canonical_quote_and_drives_atm(
+    symbol: str,
+    security_id: str,
+    canonical_spot: int,
+    chain_spot: int,
+    strikes: tuple[int, ...],
+    expected_atm: int,
+) -> None:
+    from twf.discovery.market_data import _identity
+
+    output = io.StringIO()
+    writer = csv.DictWriter(
+        output,
+        fieldnames=[
+            "EXCH_ID",
+            "SEGMENT",
+            "SECURITY_ID",
+            "INSTRUMENT",
+            "UNDERLYING_SYMBOL",
+            "LOT_SIZE",
+            "SM_EXPIRY_DATE",
+            "STRIKE_PRICE",
+            "OPTION_TYPE",
+            "TICK_SIZE",
+        ],
+    )
+    writer.writeheader()
+    chain: dict[str, dict[str, dict[str, int]]] = {}
+    for index, strike in enumerate(strikes):
+        chain[f"{strike}.000000"] = {}
+        for side, token in (("CE", 100 + index * 2), ("PE", 101 + index * 2)):
+            writer.writerow(
+                {
+                    "EXCH_ID": "NSE",
+                    "SEGMENT": "D",
+                    "SECURITY_ID": str(token),
+                    "INSTRUMENT": "OPTIDX",
+                    "UNDERLYING_SYMBOL": symbol,
+                    "LOT_SIZE": "65",
+                    "SM_EXPIRY_DATE": EXPIRY.isoformat(),
+                    "STRIKE_PRICE": str(strike),
+                    "OPTION_TYPE": side,
+                    "TICK_SIZE": "5",
+                }
+            )
+            chain[f"{strike}.000000"][side.lower()] = {
+                "security_id": token,
+                "last_price": 100,
+                "top_bid_price": 99,
+                "top_ask_price": 101,
+                "volume": 80,
+                "oi": 1000,
+            }
+    instrument = _identity(
+        {
+            "SEM_EXM_EXCH_ID": "NSE",
+            "SEM_SEGMENT": "I",
+            "SEM_SMST_SECURITY_ID": security_id,
+            "SEM_TRADING_SYMBOL": symbol,
+            "SEM_INSTRUMENT_NAME": "INDEX",
+        }
+    )
+    calls: list[str] = []
+
+    class IndexProvider(DhanMarketDataProvider):
+        async def resolve_instruments(self, symbols: tuple[str, ...]) -> Any:
+            assert symbols == (symbol,)
+            return (instrument,)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        if request.method == "GET":
+            return httpx.Response(200, content=output.getvalue().encode())
+        if request.url.path == "/v2/marketfeed/quote":
+            assert json.loads(request.content) == {"IDX_I": [int(security_id)]}
+            return httpx.Response(
+                200,
+                json={
+                    "status": "success",
+                    "data": {"IDX_I": {security_id: {"last_price": canonical_spot}}},
+                },
+            )
+        assert json.loads(request.content)["UnderlyingSeg"] == "IDX_I"
+        return httpx.Response(
+            200,
+            json={
+                "status": "success",
+                "data": {
+                    "last_price": chain_spot,
+                    "oc": chain,
+                },
+            },
+        )
+
+    provider = IndexProvider(
+        DhanMarketDataSettings(
+            enabled=True, client_id=SecretStr("123"), access_token=SecretStr("test-token")
+        ),
+        transport=httpx.MockTransport(handler),
+    )
+    source = DhanOptionChainSource(provider, uuid4(), 1, WatchlistQuoteCache())
+    result = asyncio.run(
+        OptionChainService(source).snapshot(
+            OptionChainRequest(underlying=symbol, expiry=EXPIRY, around_atm=2)
+        )
+    )
+    assert result.spot == canonical_spot
+    assert result.atm_strike == expected_atm
+    assert result.rows[0].is_atm is (strikes[0] == expected_atm)
+    assert result.rows[0].ce is not None and result.rows[0].pe is not None
+    assert result.rows[0].ce.moneyness == "ATM"
+    assert result.rows[0].pe.moneyness == "ATM"
+    assert result.rows[1].ce is not None and result.rows[1].pe is not None
+    assert result.rows[1].ce.moneyness == "OTM"
+    assert result.rows[1].pe.moneyness == "ITM"
+    assert "underlying_spot_mismatch" in result.warnings
+    assert result.provenance.market_source == "option-chain + underlying-quote"
+    assert calls.count("/v2/marketfeed/quote") == 1
+    assert calls.count("/v2/optionchain") == 1
+
+
+def test_missing_index_quote_preserves_listed_option_quotes_without_atm() -> None:
+    source, calls = dhan_source()
+    source.quote_cache.read = lambda *args: asyncio.sleep(
+        0, result={"error": "RATE_LIMITED", "quotes": []}
+    )
+    result = asyncio.run(
+        OptionChainService(source).snapshot(OptionChainRequest(underlying="NIFTY", expiry=EXPIRY))
+    )
+    assert result.spot is None and result.atm_strike is None
+    assert result.status == "PARTIAL"
+    assert {"underlying_spot_unavailable", "spot_unavailable"} <= set(result.warnings)
+    assert result.rows[0].ce is not None and result.rows[0].ce.market.ltp == 100
+    assert result.rows[0].ce.moneyness is None
+    assert calls == ["/api-data/api-scrip-master-detailed.csv", "/v2/optionchain"]
+
+
+@pytest.mark.parametrize(
+    ("segment", "instrument_type", "symbol"),
+    [("D", "FUTIDX", "NIFTY"), ("E", "EQUITY", "NIFTY"), ("I", "INDEX", "NIFTYIT")],
+)
+def test_wrong_underlying_instrument_rejected_before_chain_or_quote(
+    segment: str, instrument_type: str, symbol: str
+) -> None:
+    from twf.discovery.market_data import _identity
+
+    source, calls = dhan_source()
+    wrong = _identity(
+        {
+            "SEM_EXM_EXCH_ID": "NSE",
+            "SEM_SEGMENT": segment,
+            "SEM_SMST_SECURITY_ID": "13",
+            "SEM_TRADING_SYMBOL": symbol,
+            "SEM_INSTRUMENT_NAME": instrument_type,
+        }
+    )
+
+    async def resolve(symbols: tuple[str, ...]) -> Any:
+        return (wrong,)
+
+    source.provider.resolve_instruments = resolve
+    result = asyncio.run(
+        OptionChainService(source).snapshot(OptionChainRequest(underlying="NIFTY", expiry=EXPIRY))
+    )
+    assert "underlying_instrument_type_mismatch" in result.warnings
+    assert result.spot is None and result.atm_strike is None
+    assert calls == ["/api-data/api-scrip-master-detailed.csv"]
+
+
+@pytest.mark.parametrize("symbol", ["HDFCBANK", "RELIANCE", "ABB"])
+def test_equity_option_spot_keeps_chain_semantics_without_index_quote(symbol: str) -> None:
+    from twf.discovery.market_data import _identity
+
+    source, calls = dhan_source()
+    equity = _identity(
+        {
+            "SEM_EXM_EXCH_ID": "NSE",
+            "SEM_SEGMENT": "E",
+            "SEM_SMST_SECURITY_ID": "1333",
+            "SEM_TRADING_SYMBOL": "HDFCBANK",
+            "SEM_INSTRUMENT_NAME": "EQUITY",
+        }
+    )
+    contracts = tuple(
+        item.model_copy(
+            update={
+                "underlying_symbol": symbol,
+                "underlying_type": UnderlyingType.EQUITY,
+                "canonical_id": option_contract_id(
+                    "NFO", symbol, EXPIRY, item.strike, item.option_type
+                ),
+            }
+        )
+        for item in parse_contracts(master_bytes())[0]
+    )
+    source._tokens = {item.canonical_id: str(5 + index) for index, item in enumerate(contracts)}
+
+    async def resolve(symbols: tuple[str, ...]) -> Any:
+        return (equity,)
+
+    source.provider.resolve_instruments = resolve
+
+    # Equity retains option-chain last_price without requesting an index quote.
+    async def run() -> ChainMarketBatch:
+        original_json = source.provider._json
+
+        async def chain_json(path: str, payload: Any) -> Any:
+            assert path == "/optionchain"
+            return {
+                "status": "success",
+                "data": {
+                    "last_price": 25020,
+                    "oc": {
+                        "25000.000000": {
+                            "ce": {"security_id": 5, "last_price": 100},
+                            "pe": {"security_id": 6, "last_price": 50},
+                        },
+                    },
+                },
+            }
+
+        source.provider._json = chain_json
+        try:
+            return await source.market(symbol, EXPIRY, contracts)
+        finally:
+            source.provider._json = original_json
+
+    batch = asyncio.run(run())
+    assert batch.spot == 25020
+    assert batch.market_source == "option-chain"
+    assert calls == []
+
+
+def test_market_summary_and_options_share_canonical_index_quote() -> None:
+    source, calls = dhan_source()
+
+    async def run() -> None:
+        (instrument,) = await source.provider.resolve_instruments(("NIFTY",))
+        summary = GlobalMarketSummaryService(
+            source.owner,
+            source.generation,
+            source.provider,
+            source.quote_cache,
+            WatchlistHistoryCache(),
+            MarketSummaryCache(),
+        )
+        quotes, errors = await summary._quotes((instrument,))
+        assert not errors
+        result = await OptionChainService(source).snapshot(
+            OptionChainRequest(underlying="NIFTY", expiry=EXPIRY)
+        )
+        assert result.spot == quotes[instrument.instrument_id].last_price
+        assert result.provenance.market_source == "option-chain + underlying-quote"
+        assert calls.count("/v2/marketfeed/quote") == 1
+
+    asyncio.run(run())
+
+
+def test_unresolved_index_does_not_use_option_chain_spot() -> None:
+    source, calls = dhan_source()
+
+    async def unresolved(symbols: tuple[str, ...]) -> Any:
+        raise MarketDataFailure(MarketDataErrorCode.INSTRUMENT_NOT_FOUND)
+
+    source.provider.resolve_instruments = unresolved
+    result = asyncio.run(
+        OptionChainService(source).snapshot(OptionChainRequest(underlying="NIFTY", expiry=EXPIRY))
+    )
+    assert result.spot is None and result.atm_strike is None
+    assert "underlying_index_unresolved" in result.warnings
+    assert calls == ["/api-data/api-scrip-master-detailed.csv"]
+
+
+def test_index_validation_allows_exact_or_explicit_alias_not_fuzzy() -> None:
+    from twf.discovery.market_data import _identity
+
+    def index(symbol: str) -> Any:
+        return _identity(
+            {
+                "SEM_EXM_EXCH_ID": "NSE",
+                "SEM_SEGMENT": "I",
+                "SEM_SMST_SECURITY_ID": "25",
+                "SEM_TRADING_SYMBOL": symbol,
+                "SEM_INSTRUMENT_NAME": "INDEX",
+            }
+        )
+
+    assert DhanOptionChainSource._validated_index(index("BANKNIFTY"), "NIFTYBANK")
+    assert DhanOptionChainSource._validated_index(index("NIFTYBANK"), "NIFTYBANK")
+    assert not DhanOptionChainSource._validated_index(index("NIFTYBANK50"), "NIFTYBANK")

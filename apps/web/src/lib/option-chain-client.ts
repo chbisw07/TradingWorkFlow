@@ -5,6 +5,14 @@ export const chainMessages: Record<string, string> = {
     "No active option contracts are available for this selection.",
   expiry_not_found:
     "This expiry is no longer available. Select another expiry.",
+  underlying_spot_unavailable:
+    "Dhan index spot is unavailable. Listed option quotes remain visible without ATM.",
+  underlying_spot_mismatch:
+    "The option-chain spot differed from the canonical index quote; the canonical quote was used.",
+  underlying_index_unresolved:
+    "No exact Dhan index instrument is available for this option underlying.",
+  underlying_instrument_type_mismatch:
+    "The underlying did not resolve to the expected index instrument.",
   spot_unavailable:
     "Underlying spot is unavailable. ATM and moneyness are unavailable.",
   quote_unavailable:

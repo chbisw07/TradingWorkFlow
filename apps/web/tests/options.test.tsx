@@ -68,7 +68,7 @@ beforeEach(() => {
     if (noSpot) {
       data.spot = null;
       data.atm_strike = null;
-      data.warnings = ["spot_unavailable"];
+      data.warnings = ["underlying_spot_unavailable", "spot_unavailable"];
       for (const r of data.rows) {
         r.is_atm = null;
         if (r.ce) r.ce.moneyness = null;
@@ -198,6 +198,7 @@ test("no spot keeps rows and does not invent ATM", async () => {
   await load();
   expect(table().queryByText("ATM")).not.toBeInTheDocument();
   expect(screen.getByText(/Underlying spot is unavailable/)).toBeVisible();
+  expect(screen.getByText(/Dhan index spot is unavailable/)).toBeVisible();
 });
 test("late response cannot replace a new underlying", async () => {
   let resolveOld: (r: Response) => void = () => {};

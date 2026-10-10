@@ -35,6 +35,7 @@ class ChainMarketBatch:
     source_time: datetime | None = None
     cached: bool = False
     warnings: tuple[str, ...] = ()
+    market_source: str = "option-chain"
 
 
 class OptionChainSource(Protocol):
@@ -232,7 +233,7 @@ class OptionChainService:
             provenance=OptionChainProvenance(
                 provider=caps.provider,
                 contract_source="instrument-master",
-                market_source="option-chain",
+                market_source=batch.market_source,
                 master_received_at=self.source.master_received_at,
                 received_at=batch.received_at,
                 source_time=batch.source_time,

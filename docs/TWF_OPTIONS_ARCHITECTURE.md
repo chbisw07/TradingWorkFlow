@@ -261,6 +261,44 @@ to INR. Underlying spot lookup reuses the existing Dhan resolver; derivative mas
 underlying IDs are not assumed to be the spot endpoint's IDs. Quote legs are accepted
 only when both structural identity and the master security ID agree.
 
+For index options, the Dhan adapter resolves the exact NSE `INDEX`/`IDX_I`
+underlying through the same compact-master resolver used by the global market
+summary. It reads `QuoteSnapshot.last_price` through the shared owner/generation
+Dhan quote cache (`/marketfeed/quote`) once per chain snapshot. That canonical
+quote is the sole index spot for O2, ATM and moneyness. The option-chain payload's
+`last_price` is only a diagnostic comparison: a discrepancy greater than 1% adds
+`underlying_spot_mismatch`, while the canonical quote still wins. If the quote is
+unavailable, O2 preserves listed option quotes but leaves spot, ATM and dependent
+moneyness unavailable with `underlying_spot_unavailable`/`spot_unavailable`.
+An incorrect instrument type, NSE segment, native segment, or non-exact symbol
+is rejected before an option-chain or quote call; neither futures nor similarly
+named indices can supply spot. Explicit aliases use the existing Dhan benchmark
+resolver. Equity options retain their previous option-chain `last_price` behavior.
+The backend O2 snapshot remains the only source for O3 spot, ATM and moneyness;
+no Dhan security ID enters the neutral contract or frontend identity.
+
+On 10 October 2026 the public Dhan detailed master listed these index-option
+families. The compact master supplied exact NSE `I`/`INDEX` rows as shown. The
+five resolvable families are deterministic adapter-tested; authenticated live
+quote and chain support require a signed-in Dhan READY session and were not
+validated in this remediation.
+
+| Option underlying | Compact-master index | Segment | Quote support | Chain support | Spot resolution |
+| --- | --- | --- | --- | --- | --- |
+| NIFTY | NIFTY | IDX_I | canonical path; live untested | listed; live untested | exact index |
+| BANKNIFTY | BANKNIFTY | IDX_I | canonical path; live untested | listed; live untested | exact index |
+| FINNIFTY | FINNIFTY | IDX_I | canonical path; live untested | listed; live untested | exact index |
+| MIDCPNIFTY | MIDCPNIFTY | IDX_I | canonical path; live untested | listed; live untested | exact index |
+| NIFTYNXT50 | NIFTYNXT50 | IDX_I | canonical path; live untested | listed; live untested | exact index |
+| NIFTYFPI | no exact index row | unavailable | unresolved; no substitution | listed, but chain call blocked | unavailable |
+
+The deterministic reproduction used canonical NIFTY 22,520 and chain payload
+23,122: O2 now selects listed ATM 22,500, not the strike nearest 23,122. A
+BANKNIFTY fixture similarly uses canonical 48,040 despite a conflicting chain
+payload of 49,050. The prior divergence began at the Dhan adapter's use of the
+option-chain `data.last_price`; the nearest-listed-strike algorithm was already
+correct and remains unchanged.
+
 Primary provider contracts consulted:
 [Dhan option-chain API](https://dhanhq.co/docs/v2/option-chain/) and
 [Dhan instrument master](https://dhanhq.co/docs/v2/instruments/).
@@ -308,10 +346,10 @@ that owner's older entries. The application registry is bounded to 64 owner/gene
 sources. No chain snapshot history or database migration is introduced.
 
 `received_at` is retained on cache hits, never refreshed to disguise stale data. Source
-time is separate; Dhan's documented chain response has no source timestamp, so freshness
-is `SOURCE_TIME_UNAVAILABLE`, including when the market is closed. The service does not
-call such data fresh/live solely because it was just received. Source timestamps, where
-available through another adapter, support fresh/stale classification. Missing quote
+time is separate; index spot now inherits the canonical quote's provider source time when
+supplied, while equity chain responses without source time remain
+`SOURCE_TIME_UNAVAILABLE`. The service does not call data fresh/live solely because it
+was just received; the existing source-time freshness rule still applies. Missing quote
 legs retain their canonical contract and null market values. Full quote failure still
 returns bounded contract structure as PARTIAL. Chain failures do not write Dhan health,
 Broker connection state, Watchlist data, Scanner results, or Instrument Metadata.

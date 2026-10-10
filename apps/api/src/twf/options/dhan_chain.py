@@ -7,11 +7,17 @@ from dataclasses import replace
 from datetime import UTC, date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
+from uuid import UUID
 
-from twf.discovery.market_data import DhanMarketDataProvider, MarketDataFailure
+from pydantic import ValidationError
+
+from twf.discovery.dhan_benchmarks import benchmark_alias, normalized_index_name
+from twf.discovery.domain import InstrumentIdentity
+from twf.discovery.market_data import DhanMarketDataProvider, MarketDataFailure, QuoteSnapshot
 from twf.options.chain_contracts import OptionChainCapabilities, OptionMarketSnapshot
 from twf.options.chain_service import ChainFailure, ChainMarketBatch
 from twf.options.contracts import OptionContract, OptionType, UnderlyingType, option_contract_id
+from twf.watchlists.market import WatchlistQuoteCache
 
 MASTER_URL = "https://images.dhan.co/api-data/api-scrip-master-detailed.csv"
 CAPABILITIES = OptionChainCapabilities(
@@ -140,8 +146,17 @@ class DhanOptionChainSource:
     capabilities = CAPABILITIES
     quote_ttl_seconds = 5
 
-    def __init__(self, provider: DhanMarketDataProvider) -> None:
+    def __init__(
+        self,
+        provider: DhanMarketDataProvider,
+        owner: UUID,
+        generation: int,
+        quote_cache: WatchlistQuoteCache,
+    ) -> None:
         self.provider = provider
+        self.owner = owner
+        self.generation = generation
+        self.quote_cache = quote_cache
         self.master_received_at = datetime.min.replace(tzinfo=UTC)
         self._contracts: tuple[OptionContract, ...] = ()
         self._tokens: dict[str, str] = {}
@@ -168,6 +183,40 @@ class DhanOptionChainSource:
             self._quotes.clear()
             return contracts
 
+    @staticmethod
+    def _validated_index(instrument: InstrumentIdentity, underlying: str) -> bool:
+        alias = benchmark_alias(underlying)
+        expected_symbols = {normalized_index_name(underlying)}
+        if alias:
+            expected_symbols.add(normalized_index_name(alias[1]))
+        segment, separator, security_id = instrument.native.native_id.partition(":")
+        return (
+            instrument.exchange == "NSE"
+            and instrument.segment == "INDEX"
+            and instrument.instrument_type == "INDEX"
+            and segment == "IDX_I"
+            and separator == ":"
+            and security_id.isdecimal()
+            and int(security_id) > 0
+            and normalized_index_name(instrument.symbol) in expected_symbols
+        )
+
+    async def _index_spot(
+        self, instrument: InstrumentIdentity
+    ) -> tuple[Decimal | None, datetime | None]:
+        result = await self.quote_cache.read(
+            self.owner, self.generation, self.provider, (instrument,)
+        )
+        if result["error"] is not None or len(result["quotes"]) != 1:
+            return None, None
+        try:
+            quote = QuoteSnapshot.model_validate(result["quotes"][0])
+        except ValidationError:
+            return None, None
+        if quote.provider != "dhan" or quote.instrument.instrument_id != instrument.instrument_id:
+            return None, None
+        return quote.last_price, quote.provider_source_time
+
     async def market(
         self, underlying: str, expiry: date, contracts: tuple[OptionContract, ...]
     ) -> ChainMarketBatch:
@@ -180,14 +229,28 @@ class DhanOptionChainSource:
                 < self.quote_ttl_seconds
             ):
                 return replace(cached, cached=True)
+            underlying_types = {contract.underlying_type for contract in contracts}
+            if len(underlying_types) != 1:
+                raise ChainFailure("partial_chain", 503)
+            is_index = UnderlyingType.INDEX in underlying_types
             loop = asyncio.get_running_loop()
             # Respect provider spacing, with no retries and no busy loop.
             await asyncio.sleep(max(0, 3.1 - (loop.time() - self._last_call)))
             try:
                 instruments = await self.provider.resolve_instruments((underlying,))
-                if len(instruments) != 1:
-                    raise ChainFailure("underlying_not_found", 404)
-                segment, security_id = instruments[0].native.native_id.split(":", 1)
+            except MarketDataFailure:
+                raise ChainFailure(
+                    "underlying_index_unresolved" if is_index else "provider_unavailable", 503
+                ) from None
+            if len(instruments) != 1:
+                raise ChainFailure(
+                    "underlying_index_unresolved" if is_index else "underlying_not_found", 503
+                )
+            instrument = instruments[0]
+            if is_index and not self._validated_index(instrument, underlying):
+                raise ChainFailure("underlying_instrument_type_mismatch", 503)
+            try:
+                segment, security_id = instrument.native.native_id.split(":", 1)
                 self._last_call = loop.time()
                 raw = await self.provider._json(
                     "/optionchain",
@@ -224,12 +287,27 @@ class DhanOptionChainSource:
                     if contract.canonical_id in quotes:
                         raise ChainFailure("partial_chain", 503)
                     quotes[contract.canonical_id] = normalize_market(value)
-            spot = number(data.get("last_price"))
+            chain_spot = number(data.get("last_price"))
+            source_time = None
+            if is_index:
+                spot, source_time = await self._index_spot(instrument)
+                if spot is None:
+                    warnings.append("underlying_spot_unavailable")
+                elif (
+                    chain_spot is not None
+                    and chain_spot > 0
+                    and abs(chain_spot - spot) / spot > Decimal("0.01")
+                ):
+                    warnings.append("underlying_spot_mismatch")
+            else:
+                spot = chain_spot
             batch = ChainMarketBatch(
                 spot=spot if spot and spot > 0 else None,
                 quotes=quotes,
                 received_at=datetime.now(UTC),
+                source_time=source_time,
                 warnings=tuple(dict.fromkeys(warnings)),
+                market_source="option-chain + underlying-quote" if is_index else "option-chain",
             )
             if len(self._quotes) >= 32:
                 del self._quotes[next(iter(self._quotes))]
