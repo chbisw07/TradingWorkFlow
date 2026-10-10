@@ -133,6 +133,11 @@ test("canonical chain, CE/PE Broker preview, partial data and responsive layout"
       table.locator(".chain-strike").filter({ hasText: "ATM" }),
     ).toHaveCount(1);
   }
+  await expect(page.getByLabel("Selected contract")).toHaveCount(0);
+  await expect(page.locator(".chain-layout")).not.toHaveClass(/has-detail/);
+  const chainWidthWithoutDetail = await page
+    .locator(".chain-card")
+    .evaluate((element) => element.getBoundingClientRect().width);
   await page.screenshot({
     path: info.outputPath("chain-loaded-light.png"),
     fullPage: true,
@@ -176,6 +181,13 @@ test("canonical chain, CE/PE Broker preview, partial data and responsive layout"
     await page.keyboard.press("Enter");
     await expect(select).toHaveAttribute("aria-pressed", "true");
     const detail = page.getByLabel("Selected contract");
+    await expect(page.locator(".chain-layout")).toHaveClass(/has-detail/);
+    if (info.project.use.viewport!.width >= 1200) {
+      const chainWidthWithDetail = await page
+        .locator(".chain-card")
+        .evaluate((element) => element.getBoundingClientRect().width);
+      expect(chainWidthWithDetail).toBeLessThan(chainWidthWithoutDetail - 100);
+    }
     await expect(detail.locator(".chain-detail-bar")).toContainText(
       "Selected Contract",
     );
@@ -189,6 +201,20 @@ test("canonical chain, CE/PE Broker preview, partial data and responsive layout"
       fullPage: true,
       animations: "disabled",
     });
+    if (side === "CE") {
+      await page.evaluate(() => {
+        document.documentElement.dataset.theme = "dark";
+      });
+      await expect(detail).toBeVisible();
+      await page.screenshot({
+        path: info.outputPath("selected-CE-dark.png"),
+        fullPage: true,
+        animations: "disabled",
+      });
+      await page.evaluate(() => {
+        document.documentElement.dataset.theme = "light";
+      });
+    }
     const begun = Date.now();
     await page
       .getByRole("button", { name: `${action} ${side}`, exact: true })
@@ -239,6 +265,20 @@ test("canonical chain, CE/PE Broker preview, partial data and responsive layout"
     // Explicitly stop at preview. Never click Confirm.
     await dialog.getByRole("button", { name: "Close order ticket" }).click();
   }
+  await page.getByRole("button", { name: "Clear selection" }).click();
+  await expect(page.getByLabel("Selected contract")).toHaveCount(0);
+  await expect(page.locator(".chain-layout")).not.toHaveClass(/has-detail/);
+  const chainWidthAfterClear = await page
+    .locator(".chain-card")
+    .evaluate((element) => element.getBoundingClientRect().width);
+  expect(Math.abs(chainWidthAfterClear - chainWidthWithoutDetail)).toBeLessThan(
+    2,
+  );
+  await page.screenshot({
+    path: info.outputPath("chain-cleared-light.png"),
+    fullPage: true,
+    animations: "disabled",
+  });
   const refreshStart = Date.now();
   partial = true;
   await page.getByRole("button", { name: "Refresh", exact: true }).click();

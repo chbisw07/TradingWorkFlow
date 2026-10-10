@@ -791,6 +791,10 @@ test("visible rows hydrate serially without selection and detail reuses history"
   expect(
     screen.queryByRole("img", { name: /^Price chart/ }),
   ).not.toBeInTheDocument();
+  expect(
+    screen.queryByLabelText("Selected instrument"),
+  ).not.toBeInTheDocument();
+  expect(document.querySelector(".wl-layout")).not.toHaveClass("has-detail");
   fireEvent.click(screen.getByRole("button", { name: "SYMBOL0" }));
   await screen.findByRole("img", { name: /^Price chart/ });
   expect(
@@ -823,6 +827,15 @@ test("visible rows hydrate serially without selection and detail reuses history"
     ).toHaveLength(2),
   );
   expect(calls).toBe(12);
+  fireEvent.click(screen.getByRole("button", { name: "Clear selection" }));
+  expect(
+    screen.queryByRole("dialog", { name: "SYMBOL0 details" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByLabelText("Selected instrument"),
+  ).not.toBeInTheDocument();
+  expect(document.querySelector(".wl-layout")).not.toHaveClass("has-detail");
+  expect(screen.getByRole("button", { name: "All 12" })).toBeInTheDocument();
   first.unmount();
   render(<WatchlistsWorkspace />);
   await waitFor(

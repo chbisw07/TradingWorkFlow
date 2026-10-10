@@ -122,11 +122,25 @@ test("Scanner V2 editable filters, durable runs, Watchlist handoff and responsiv
   await expect(page.locator(".sc-table thead")).toContainText("Sector");
   await expect(page.locator(".sc-table tbody")).toContainText("Energy");
   await expect(page.locator(".sc-table tbody")).toContainText("Technology");
+  await expect(page.locator(".sc-inspector")).toHaveCount(0);
+  await expect(page.locator(".sc-grid")).not.toHaveClass(/has-detail/);
+  const resultsWidthWithoutDetail = await page
+    .locator(".sc-center")
+    .evaluate((element) => element.getBoundingClientRect().width);
   await page.screenshot({
     path: info.outputPath("scanner-metadata-table.png"),
     fullPage: true,
   });
   await page.getByRole("button", { name: "Why?", exact: true }).first().click();
+  await expect(page.locator(".sc-grid")).toHaveClass(/has-detail/);
+  if (page.viewportSize()!.width >= 1200) {
+    const resultsWidthWithDetail = await page
+      .locator(".sc-center")
+      .evaluate((element) => element.getBoundingClientRect().width);
+    expect(resultsWidthWithDetail).toBeLessThan(
+      resultsWidthWithoutDetail - 100,
+    );
+  }
   const analysis = page.locator(
     '[aria-label="Deterministic candidate analysis"]:visible',
   );
@@ -223,8 +237,32 @@ test("Scanner V2 editable filters, durable runs, Watchlist handoff and responsiv
     path: info.outputPath("scanner-detail-light.png"),
     fullPage: page.viewportSize()!.width >= 1200,
   });
-  if (page.viewportSize()!.width < 1200)
-    await page.getByLabel("Close dialog").click();
+  await page.evaluate(() => {
+    document.documentElement.dataset.theme = "dark";
+  });
+  await expect(
+    surface.getByRole("button", { name: "Clear selection" }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: info.outputPath("scanner-detail-dark.png"),
+    fullPage: page.viewportSize()!.width >= 1200,
+  });
+  await page.evaluate(() => {
+    document.documentElement.dataset.theme = "light";
+  });
+  await surface.getByRole("button", { name: "Clear selection" }).click();
+  await expect(page.locator(".sc-inspector")).toHaveCount(0);
+  await expect(page.locator(".sc-grid")).not.toHaveClass(/has-detail/);
+  const resultsWidthAfterClear = await page
+    .locator(".sc-center")
+    .evaluate((element) => element.getBoundingClientRect().width);
+  expect(
+    Math.abs(resultsWidthAfterClear - resultsWidthWithoutDetail),
+  ).toBeLessThan(2);
+  await page.screenshot({
+    path: info.outputPath("scanner-cleared-light.png"),
+    fullPage: true,
+  });
   await expect(page.locator(".wl-toast")).toBeHidden({ timeout: 7000 });
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({

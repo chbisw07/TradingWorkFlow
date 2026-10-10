@@ -304,9 +304,12 @@ test("CE and PE halves follow independent canonical moneyness with an ATM landma
 
 test("selected contract uses semantic badges, signed OI, source, and no raw identifier", async () => {
   await load();
+  expect(screen.queryByLabelText("Selected contract")).not.toBeInTheDocument();
+  expect(document.querySelector(".chain-layout")).not.toHaveClass("has-detail");
   fireEvent.click(
     table().getByRole("button", { name: "Select NIFTY 24500 CE" }),
   );
+  expect(document.querySelector(".chain-layout")).toHaveClass("has-detail");
   const detail = within(screen.getByLabelText("Selected contract"));
   expect(detail.getByText("CE", { selector: ".chain-badge" })).toBeVisible();
   expect(detail.getByText("ITM", { selector: ".chain-badge" })).toBeVisible();
@@ -319,13 +322,12 @@ test("selected contract uses semantic badges, signed OI, source, and no raw iden
   );
   expect(detail.getByText("PE", { selector: ".chain-badge" })).toBeVisible();
   expect(detail.getByText("ATM", { selector: ".chain-badge" })).toBeVisible();
-  fireEvent.click(detail.getByRole("button", { name: "Clear" }));
+  fireEvent.click(detail.getByRole("button", { name: "Clear selection" }));
+  expect(screen.queryByLabelText("Selected contract")).not.toBeInTheDocument();
+  expect(document.querySelector(".chain-layout")).not.toHaveClass("has-detail");
   expect(
-    detail.getByRole("heading", { name: "Select a contract" }),
-  ).toBeVisible();
-  expect(
-    detail.queryByRole("button", { name: "Buy PE" }),
-  ).not.toBeInTheDocument();
+    table().getByRole("button", { name: "Select NIFTY 25000 PE" }),
+  ).toHaveAttribute("aria-pressed", "false");
 });
 
 test("negative and missing OI change retain typed visual states", async () => {

@@ -50,7 +50,7 @@
 }
 .sc-grid {
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr) 280px;
+  grid-template-columns: 260px minmax(0, 1fr);
   gap: 12px;
   align-items: start;
 }
@@ -282,6 +282,13 @@
 .sc-detail header button {
   font-size: 10px;
 }
+.sc-detail-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 5px;
+}
 .sc-price {
   font-size: 22px;
   font-weight: 700;
@@ -386,7 +393,7 @@
 }
 @media (min-width: 1800px) {
   .sc-grid {
-    grid-template-columns: 280px minmax(0, 1fr) 320px;
+    grid-template-columns: 280px minmax(0, 1fr);
   }
   .sc-table td {
     padding: 20px 8px;
@@ -394,7 +401,7 @@
 }
 @media (max-width: 1599px) {
   .sc-grid {
-    grid-template-columns: 220px minmax(0, 1fr) 250px;
+    grid-template-columns: 220px minmax(0, 1fr);
   }
   .sc-type-tabs button {
     min-width: 180px;
@@ -412,6 +419,21 @@
   .sc-table th {
     padding-left: 3px;
     padding-right: 3px;
+  }
+}
+@media (min-width: 1800px) {
+  .sc-grid.has-detail {
+    grid-template-columns: 280px minmax(0, 1fr) var(--detail-panel-width);
+  }
+}
+@media (min-width: 1600px) and (max-width: 1799px) {
+  .sc-grid.has-detail {
+    grid-template-columns: 260px minmax(0, 1fr) var(--detail-panel-width);
+  }
+}
+@media (min-width: 1200px) and (max-width: 1599px) {
+  .sc-grid.has-detail {
+    grid-template-columns: 220px minmax(0, 1fr) var(--detail-panel-width);
   }
 }
 @media (max-width: 1199px) {

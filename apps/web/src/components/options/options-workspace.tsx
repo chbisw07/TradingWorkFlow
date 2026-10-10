@@ -496,7 +496,9 @@ export function OptionsWorkspace() {
               ))}
             </div>
           )}
-          <div className="chain-layout">
+          <div
+            className={`chain-layout conditional-detail-layout${selected ? " has-detail" : ""}`}
+          >
             <div className="chain-card">
               <div className="chain-table-title">
                 <h2>{data.underlying} option chain</h2>
@@ -641,12 +643,17 @@ export function OptionsWorkspace() {
                 </span>
               </div>
             </div>
-            <aside className="chain-detail" aria-label="Selected contract">
-              {selected ? (
+            {selected && (
+              <aside className="chain-detail" aria-label="Selected contract">
                 <>
                   <div className="chain-detail-bar">
                     <span>Selected Contract</span>
-                    <button type="button" onClick={() => setSelection("")}>
+                    <button
+                      type="button"
+                      className="detail-panel-clear"
+                      aria-label="Clear selection"
+                      onClick={() => setSelection("")}
+                    >
                       Clear
                     </button>
                   </div>
@@ -833,19 +840,8 @@ export function OptionsWorkspace() {
                     </small>
                   </div>
                 </>
-              ) : (
-                <div className="chain-empty chain-detail-empty">
-                  <span className="chain-empty-icon" aria-hidden="true">
-                    ◎
-                  </span>
-                  <h2>Select a contract</h2>
-                  <p>
-                    Choose a Call or Put price to inspect its quote, liquidity,
-                    and exact contract before opening Broker V2 preview.
-                  </p>
-                </div>
-              )}
-            </aside>
+              </aside>
+            )}
           </div>
         </>
       ) : (

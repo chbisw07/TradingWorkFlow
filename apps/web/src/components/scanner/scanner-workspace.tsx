@@ -505,9 +505,22 @@ export function ScannerWorkspace() {
     <div className="sc-detail">
       <header>
         <strong>{selected.symbol}</strong>
-        <button disabled={busy} onClick={() => addTo([identity(selected)])}>
-          ☆ Add to Watchlist
-        </button>
+        <div className="sc-detail-actions">
+          <button disabled={busy} onClick={() => addTo([identity(selected)])}>
+            ☆ Add to Watchlist
+          </button>
+          <button
+            type="button"
+            className="detail-panel-clear"
+            aria-label="Clear selection"
+            onClick={() => {
+              setSelected(null);
+              setModal(null);
+            }}
+          >
+            Clear
+          </button>
+        </div>
       </header>
       <small>
         {selected.instrument?.exchange} · {selected.instrument?.segment} · Dhan
@@ -849,15 +862,7 @@ export function ScannerWorkspace() {
       </div>
       <small>Opens Broker V2 preview. Confirmation is required.</small>
     </div>
-  ) : (
-    <div className="sc-empty">
-      <Icon name="scanners" />
-      <h3>Instrument analysis</h3>
-      <p>
-        Select a result to review its chart, exact metrics and match reasons.
-      </p>
-    </div>
-  );
+  ) : null;
   return (
     <section className="watchlists-workspace scanner-v2">
       <header className="sc-page-head">
@@ -946,7 +951,9 @@ export function ScannerWorkspace() {
           </button>
         </div>
       ) : (
-        <div className="sc-grid">
+        <div
+          className={`sc-grid conditional-detail-layout${selected ? " has-detail" : ""}`}
+        >
           <aside className="wl-card sc-builder">
             <details
               open={filterOpen}
@@ -2029,7 +2036,7 @@ export function ScannerWorkspace() {
               </section>
             </div>
           </main>
-          <aside className="wl-card sc-inspector">{detail}</aside>
+          {selected && <aside className="wl-card sc-inspector">{detail}</aside>}
         </div>
       )}
       {modal && (

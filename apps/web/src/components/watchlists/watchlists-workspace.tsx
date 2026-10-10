@@ -730,7 +730,20 @@ export function WatchlistsWorkspace() {
             {item.instrument.exchange} · {badge[item.kind]}
           </small>
         </div>
-        <span className="wl-badge">{badge[item.kind]}</span>
+        <div className="wl-instrument-actions">
+          <span className="wl-badge">{badge[item.kind]}</span>
+          <button
+            type="button"
+            className="detail-panel-clear"
+            aria-label="Clear selection"
+            onClick={() => {
+              setInstrumentId("");
+              setMobilePanel(false);
+            }}
+          >
+            Clear
+          </button>
+        </div>
       </header>
       <div className="wl-price" title="Change across selected chart period">
         {numberText(quote?.last_price)}{" "}
@@ -1002,11 +1015,7 @@ export function WatchlistsWorkspace() {
         )}
       </section>
     </>
-  ) : (
-    <div className="wl-empty">
-      Select a symbol to view its chart and broker actions.
-    </div>
-  );
+  ) : null;
   return (
     <section className="watchlists-workspace">
       <header className="wl-page-head">
@@ -1056,7 +1065,9 @@ export function WatchlistsWorkspace() {
           {notice}
         </div>
       )}
-      <div className={`wl-layout${trash ? " wl-trash-layout" : ""}`}>
+      <div
+        className={`wl-layout conditional-detail-layout${trash ? " wl-trash-layout" : ""}${item && !trash && !mobilePanel ? " has-detail" : ""}`}
+      >
         <aside className="wl-navigator wl-card">
           <h2>My Watchlists</h2>
           <input
@@ -2005,12 +2016,12 @@ export function WatchlistsWorkspace() {
             </>
           )}
         </div>
-        {!trash && (
+        {!trash && item && !mobilePanel && (
           <aside
             className="wl-inspector wl-card"
             aria-label="Selected instrument"
           >
-            {!mobilePanel && panel}
+            {panel}
           </aside>
         )}
       </div>

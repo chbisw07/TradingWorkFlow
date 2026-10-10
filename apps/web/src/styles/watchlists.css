@@ -81,7 +81,7 @@
 }
 .wl-layout {
   display: grid;
-  grid-template-columns: 180px minmax(0, 1fr) 260px;
+  grid-template-columns: 180px minmax(0, 1fr);
   gap: 12px;
   align-items: start;
 }
@@ -454,6 +454,12 @@
   display: flex;
   align-items: start;
   justify-content: space-between;
+  gap: 6px;
+}
+.wl-instrument-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
 }
 .wl-price {
   font-size: 20px;
@@ -757,7 +763,7 @@
 }
 @media (min-width: 1800px) {
   .wl-layout {
-    grid-template-columns: 210px minmax(0, 1fr) 310px;
+    grid-template-columns: 210px minmax(0, 1fr);
   }
   .wl-table td {
     padding: 14px 10px;
@@ -768,7 +774,7 @@
 }
 @media (max-width: 1399px) {
   .wl-layout {
-    grid-template-columns: 155px minmax(0, 1fr) 235px;
+    grid-template-columns: 155px minmax(0, 1fr);
   }
   .wl-card {
     padding: 10px;
@@ -783,6 +789,21 @@
   }
   .wl-table .wl-chart {
     width: 65px;
+  }
+}
+@media (min-width: 1800px) {
+  .wl-layout.has-detail {
+    grid-template-columns: 210px minmax(0, 1fr) var(--detail-panel-width);
+  }
+}
+@media (min-width: 1400px) and (max-width: 1799px) {
+  .wl-layout.has-detail {
+    grid-template-columns: 180px minmax(0, 1fr) var(--detail-panel-width);
+  }
+}
+@media (min-width: 1200px) and (max-width: 1399px) {
+  .wl-layout.has-detail {
+    grid-template-columns: 155px minmax(0, 1fr) var(--detail-panel-width);
   }
 }
 @media (max-width: 1199px) {

@@ -744,6 +744,8 @@ test("stored deterministic Reason opens complete no-LLM Evidence analysis", asyn
   });
   render(<ScannerWorkspace />);
   await screen.findByText("Context: RANKING");
+  expect(document.querySelector(".sc-inspector")).not.toBeInTheDocument();
+  expect(document.querySelector(".sc-grid")).not.toHaveClass("has-detail");
   fireEvent.change(screen.getByLabelText("NSE symbols"), {
     target: { value: "RELIANCE" },
   });
@@ -774,4 +776,15 @@ test("stored deterministic Reason opens complete no-LLM Evidence analysis", asyn
   expect(within(panel).getByText("Missing evidence")).toBeVisible();
   fireEvent.click(within(panel).getByText("Provenance and freshness"));
   expect(within(panel).getByText(/get_india_vix/)).toBeVisible();
+  expect(document.querySelector(".sc-grid")).toHaveClass("has-detail");
+  fireEvent.click(
+    within(screen.getByRole("dialog")).getByRole("button", {
+      name: "Clear selection",
+    }),
+  );
+  expect(document.querySelector(".sc-inspector")).not.toBeInTheDocument();
+  expect(document.querySelector(".sc-grid")).not.toHaveClass("has-detail");
+  expect(
+    screen.getByText("1/1 technical · Context +1 Mixed · Final 81"),
+  ).toBeInTheDocument();
 });

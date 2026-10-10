@@ -423,6 +423,13 @@ test("persistent Watchlists, instrument detail, CSV, notes, archive and responsi
   await expect(page.locator(".wl-table tbody tr").first()).toContainText(
     "64.2",
   );
+  await expect(
+    page.getByRole("complementary", { name: "Selected instrument" }),
+  ).toHaveCount(0);
+  await expect(page.locator(".wl-layout")).not.toHaveClass(/has-detail/);
+  const tableWidthWithoutDetail = await page
+    .locator(".wl-main")
+    .evaluate((element) => element.getBoundingClientRect().width);
   await page.screenshot({
     path: info.outputPath("watchlists-hard-reload-unselected.png"),
     fullPage: true,
@@ -452,6 +459,13 @@ test("persistent Watchlists, instrument detail, CSV, notes, archive and responsi
   const panel = mobile
     ? page.getByRole("dialog", { name: "RELIANCE details" })
     : page.getByRole("complementary", { name: "Selected instrument" });
+  if (!mobile) {
+    await expect(page.locator(".wl-layout")).toHaveClass(/has-detail/);
+    const tableWidthWithDetail = await page
+      .locator(".wl-main")
+      .evaluate((element) => element.getBoundingClientRect().width);
+    expect(tableWidthWithDetail).toBeLessThan(tableWidthWithoutDetail - 100);
+  }
   await expect(page.locator(".wl-table thead")).toContainText("Sector");
   await expect(page.locator(".wl-table tbody")).toContainText("Energy");
   const metadata = panel.getByRole("region", { name: "Instrument metadata" });
@@ -620,7 +634,24 @@ test("persistent Watchlists, instrument detail, CSV, notes, archive and responsi
       fullPage: !mobile,
     });
   }
-  if (mobile) await panel.getByRole("button", { name: "Close dialog" }).click();
+  await panel.getByRole("button", { name: "Clear selection" }).click();
+  await expect(
+    page.getByRole("complementary", { name: "Selected instrument" }),
+  ).toHaveCount(0);
+  await expect(page.locator(".wl-layout")).not.toHaveClass(/has-detail/);
+  const tableWidthAfterClear = await page
+    .locator(".wl-main")
+    .evaluate((element) => element.getBoundingClientRect().width);
+  expect(Math.abs(tableWidthAfterClear - tableWidthWithoutDetail)).toBeLessThan(
+    2,
+  );
+  await expect(
+    page.getByRole("button", { name: "RELIANCE", exact: true }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: info.outputPath("watchlists-cleared.png"),
+    fullPage: true,
+  });
   await page.getByLabel("Watchlist note").fill("Review after earnings.");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(

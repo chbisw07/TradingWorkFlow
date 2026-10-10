@@ -129,7 +129,7 @@
 }
 .chain-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 270px;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   align-items: start;
 }
@@ -998,8 +998,8 @@
   padding: 37px 15px;
 }
 @media (min-width: 1200px) {
-  .chain-layout {
-    grid-template-columns: minmax(0, 1fr) clamp(285px, 22vw, 345px);
+  .chain-layout.has-detail {
+    grid-template-columns: minmax(0, 1fr) var(--detail-panel-width);
   }
   .chain-detail {
     position: sticky;
