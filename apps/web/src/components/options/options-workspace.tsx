@@ -11,6 +11,7 @@ import type {
 } from "../../lib/options";
 import {
   chainApi,
+  chainCompactNumber as compact,
   chainMessages,
   chainNumber as num,
   expiryLabel,
@@ -29,11 +30,31 @@ const fields = [
   "ltp",
 ] as const;
 
+type ChainField = (typeof fields)[number];
+
+function fieldValue(field: ChainField, value: string | null | undefined) {
+  return ["open_interest", "change_in_open_interest", "volume"].includes(
+    field,
+  )
+    ? compact(value, field === "change_in_open_interest")
+    : num(value);
+}
+
+function signedClass(value: string | null | undefined) {
+  const parsed = Number(value);
+  return parsed > 0
+    ? "chain-value-positive"
+    : parsed < 0
+      ? "chain-value-negative"
+      : "";
+}
+
 export function OptionsWorkspace() {
   const [search, setSearch] = useState("");
   const [choices, setChoices] = useState<string[]>([]);
   const [searching, setSearching] = useState(true);
   const [searchError, setSearchError] = useState("");
+  const [searchOpen, setSearchOpen] = useState(true);
   const [underlying, setUnderlying] = useState("");
   const [expiries, setExpiries] = useState<string[]>([]);
   const [expiry, setExpiry] = useState("");
@@ -70,6 +91,22 @@ export function OptionsWorkspace() {
       .flatMap((r) => [r.ce, r.pe])
       .find((leg) => leg?.contract.canonical_id === selection) || null;
   const broker = brokers.find((b) => b.account.id === brokerId);
+  const selectedRow = data?.rows.find(
+    (row) => row.ce === selected || row.pe === selected,
+  );
+  const firstLeg = data?.rows
+    .flatMap((row) => [row.ce, row.pe])
+    .find((leg): leg is OptionLegSnapshot => leg !== null);
+  const providerLabel = data
+    ? data.provenance.provider === "dhan"
+      ? "Dhan"
+      : data.provenance.provider
+    : "";
+  const currentLiveData =
+    data?.provenance.provider === "dhan" &&
+    data.provenance.freshness === "FRESH" &&
+    !data.provenance.cached &&
+    !error;
 
   useEffect(() => {
     const c = new AbortController();
@@ -181,6 +218,8 @@ export function OptionsWorkspace() {
     setExpiryError("");
     setExpiryBusy(true);
     setSelection("");
+    setSearch(value);
+    setSearchOpen(false);
   }
   function open(side: Side) {
     if (!selected || !broker || busy || error) return;
@@ -213,43 +252,80 @@ export function OptionsWorkspace() {
   }
   function cells(leg: OptionLegSnapshot | null, side: "ce" | "pe") {
     const keys = side === "ce" ? [...fields] : [...fields].reverse();
-    return keys.map((field) => (
-      <td
-        key={field}
-        className={leg?.moneyness === "ITM" ? "chain-itm" : undefined}
-      >
-        {field === "ltp" && leg ? legButton(leg) : num(leg?.market[field])}
-      </td>
-    ));
+    return keys.map((field) => {
+      const value = leg?.market[field];
+      const moneyClass = leg?.moneyness
+        ? `chain-money-${leg.moneyness.toLowerCase()}`
+        : "";
+      const direction =
+        field === "change_in_open_interest" ? signedClass(value) : "";
+      return (
+        <td
+          key={field}
+          className={`${moneyClass} ${direction}`.trim() || undefined}
+          title={value == null ? undefined : num(value, 6)}
+        >
+          {field === "ltp" && leg ? legButton(leg) : fieldValue(field, value)}
+        </td>
+      );
+    });
   }
   return (
     <section className="options-workspace" aria-labelledby="options-title">
       <header className="options-title">
         <div>
-          <span className="options-eyebrow">OPTIONS WORKSPACE</span>
           <h1 id="options-title">Options Analytics</h1>
-          <p>Explore listed contracts. Review an exact leg before trading.</p>
+          <p>
+            Analyze option chains, track liquidity and open interest, and trade
+            directly through your broker.
+          </p>
         </div>
-        <Link href="/settings#integrations">Provider connections</Link>
+        <div className="options-title-actions">
+          {data && (
+            <span
+              className={`options-data-badge ${currentLiveData ? "is-live" : ""}`}
+            >
+              <span aria-hidden="true">●</span>{" "}
+              {currentLiveData
+                ? "Live Data (Dhan)"
+                : data.provenance.cached
+                  ? `${providerLabel} cached snapshot`
+                  : `${providerLabel} snapshot`}
+            </span>
+          )}
+          <Link href="/settings#integrations">Provider connections</Link>
+        </div>
       </header>
       <div className="options-controls">
         <div className="chain-search">
-          <label htmlFor="chain-search">Search underlying</label>
+          <label htmlFor="chain-search">Underlying</label>
           <input
             id="chain-search"
             type="search"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={searchOpen}
+            aria-controls="chain-suggestions"
+            autoComplete="off"
             value={search}
             placeholder="NIFTY, BANKNIFTY, HDFCBANK…"
+            onFocus={() => setSearchOpen(true)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setSearchOpen(false);
+            }}
             onChange={(e) => {
               setSearch(e.target.value);
               setSearching(true);
+              setSearchOpen(true);
             }}
           />
-          <div
-            className="chain-suggestions"
-            aria-label="Underlying search results"
-            aria-busy={searching}
-          >
+          {searchOpen && (
+            <div
+              id="chain-suggestions"
+              className="chain-suggestions"
+              aria-label="Underlying search results"
+              aria-busy={searching}
+            >
             {searching ? (
               <span role="status">Searching underlyings…</span>
             ) : (
@@ -259,14 +335,16 @@ export function OptionsWorkspace() {
                   aria-pressed={u === underlying}
                   onClick={() => choose(u)}
                 >
-                  {u}
+                  <strong>{u}</strong>
+                  <small>Load listed expiries</small>
                 </button>
               ))
             )}
             {!searching && !searchError && !choices.length && (
               <span>No optionable underlyings found.</span>
             )}
-          </div>
+            </div>
+          )}
         </div>
         <label>
           Expiry
@@ -311,7 +389,7 @@ export function OptionsWorkspace() {
             else setRefresh((n) => n + 1);
           }}
         >
-          {" "}
+          <span aria-hidden="true">↻</span>{" "}
           {busy ? "Refreshing…" : "Refresh"}
         </button>
       </div>
@@ -328,10 +406,32 @@ export function OptionsWorkspace() {
         </div>
       )}
       {busy && (
-        <div role="status" className="chain-loading">
-          {data
-            ? "Updating chain snapshot…"
-            : "Loading listed contracts and market data…"}
+        <div
+          role="status"
+          aria-label={
+            data
+              ? "Updating chain snapshot"
+              : "Loading listed contracts and market data"
+          }
+          className={
+            data ? "chain-loading chain-loading-inline" : "chain-loading"
+          }
+        >
+          {data ? (
+            <span>Updating chain snapshot…</span>
+          ) : (
+            <>
+              <span className="options-sr-only">
+                Loading listed contracts and market data…
+              </span>
+              <div className="chain-skeleton-summary" aria-hidden="true" />
+              <div className="chain-skeleton-body" aria-hidden="true">
+                {Array.from({ length: 7 }, (_, index) => (
+                  <span key={index} />
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
       {data ? (
@@ -341,22 +441,20 @@ export function OptionsWorkspace() {
               ["Underlying", data.underlying],
               ["Spot ₹", num(data.spot)],
               ["Expiry", expiryLabel(data.expiry)],
-              ["DTE", String(data.dte)],
+              ["DTE", `${data.dte} ${data.dte === 1 ? "day" : "days"}`],
               ["ATM strike", num(data.atm_strike)],
+              ["Lot size", num(firstLeg?.contract.lot_size)],
+              ["Market data", providerLabel],
+              [
+                "Retrieved",
+                `${retrievedLabel(data.provenance.received_at)} IST`,
+              ],
             ].map(([k, v]) => (
               <div key={k}>
                 <dt>{k}</dt>
                 <dd>{v}</dd>
               </div>
             ))}
-            <div>
-              <dt>Market data</dt>
-              <dd>
-                {data.provenance.provider === "dhan"
-                  ? "Dhan"
-                  : data.provenance.provider}
-              </dd>
-            </div>
           </dl>
           <div className="chain-provenance">
             <span>
@@ -408,11 +506,21 @@ export function OptionsWorkspace() {
                 <table aria-label="Calls and puts option chain">
                   <thead>
                     <tr>
-                      <th colSpan={7} scope="colgroup">
+                      <th
+                        className="chain-call-head"
+                        colSpan={7}
+                        scope="colgroup"
+                      >
                         CALLS · CE
                       </th>
-                      <th scope="col">STRIKE</th>
-                      <th colSpan={7} scope="colgroup">
+                      <th className="chain-strike-head" scope="col">
+                        STRIKE
+                      </th>
+                      <th
+                        className="chain-put-head"
+                        colSpan={7}
+                        scope="colgroup"
+                      >
                         PUTS · PE
                       </th>
                     </tr>
@@ -482,8 +590,12 @@ export function OptionsWorkspace() {
                         <td>
                           {r[mobileSide] ? legButton(r[mobileSide]) : "—"}
                         </td>
-                        <td>{num(r[mobileSide]?.market.open_interest)}</td>
-                        <td>{num(r[mobileSide]?.market.volume)}</td>
+                        <td title={num(r[mobileSide]?.market.open_interest)}>
+                          {compact(r[mobileSide]?.market.open_interest)}
+                        </td>
+                        <td title={num(r[mobileSide]?.market.volume)}>
+                          {compact(r[mobileSide]?.market.volume)}
+                        </td>
                         <td>{num(r[mobileSide]?.market.implied_volatility)}</td>
                       </tr>
                     ))}

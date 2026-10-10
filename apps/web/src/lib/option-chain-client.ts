@@ -41,6 +41,37 @@ export const chainNumber = (
   value == null || value === "" || !Number.isFinite(Number(value))
     ? "—"
     : Number(value).toLocaleString("en-IN", { maximumFractionDigits });
+export const chainCompactNumber = (
+  value: string | number | null | undefined,
+  signed = false,
+) => {
+  if (value == null || value === "" || !Number.isFinite(Number(value)))
+    return "—";
+  const number = Number(value);
+  const absolute = Math.abs(number);
+  const unit = absolute >= 1_000_000 ? "M" : absolute >= 1_000 ? "K" : "";
+  const scaled =
+    unit === "M"
+      ? absolute / 1_000_000
+      : unit === "K"
+        ? absolute / 1_000
+        : absolute;
+  const maximumFractionDigits =
+    unit === "M"
+      ? 2
+      : unit === "K"
+        ? scaled >= 100
+          ? 0
+          : scaled >= 10
+            ? 1
+            : 2
+        : 2;
+  const formatted = scaled.toLocaleString("en-IN", {
+    maximumFractionDigits,
+  });
+  const prefix = number < 0 ? "−" : signed && number > 0 ? "+" : "";
+  return `${prefix}${formatted}${unit}`;
+};
 export const expiryLabel = (value: string) =>
   new Date(`${value}T00:00:00Z`).toLocaleDateString("en-IN", {
     day: "2-digit",
