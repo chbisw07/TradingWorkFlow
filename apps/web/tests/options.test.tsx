@@ -85,6 +85,7 @@ afterEach(() => {
 });
 async function load() {
   render(<OptionsWorkspace />);
+  fireEvent.focus(screen.getByRole("combobox", { name: "Underlying" }));
   fireEvent.click(await screen.findByRole("button", { name: "NIFTY" }));
   await screen.findByRole("table", { name: "Calls and puts option chain" });
 }
@@ -93,7 +94,7 @@ const table = () =>
 
 test("search uses canonical O2 underlyings, renders stock chain and nearest expiry", async () => {
   render(<OptionsWorkspace />);
-  fireEvent.change(screen.getByLabelText("Search underlying"), {
+  fireEvent.change(screen.getByLabelText("Underlying"), {
     target: { value: "HDFC" },
   });
   fireEvent.click(await screen.findByRole("button", { name: "HDFCBANK" }));
@@ -211,11 +212,13 @@ test("late response cannot replace a new underlying", async () => {
       : normal(path),
   );
   render(<OptionsWorkspace />);
+  fireEvent.focus(screen.getByRole("combobox", { name: "Underlying" }));
   fireEvent.click(await screen.findByRole("button", { name: "NIFTY" }));
   await waitFor(() =>
     expect(fetcher.mock.calls.some(([p]) => p.includes("chain?"))).toBe(true),
   );
-  fireEvent.click(screen.getByRole("button", { name: "BANKNIFTY" }));
+  fireEvent.focus(screen.getByRole("combobox", { name: "Underlying" }));
+  fireEvent.click(await screen.findByRole("button", { name: "BANKNIFTY" }));
   await screen.findByRole("heading", { name: "BANKNIFTY option chain" });
   resolveOld(Response.json(chainFixture()));
   await waitFor(() =>
@@ -236,4 +239,120 @@ test("failed refresh preserves previous timestamp but prevents trade launch", as
     screen.getByText(/Showing the previously retrieved snapshot/),
   ).toBeVisible();
   expect(screen.getByRole("button", { name: "Buy CE" })).toBeDisabled();
+});
+
+test("landing keeps suggestions interaction-only and presents a compact purposeful card", async () => {
+  render(<OptionsWorkspace />);
+  expect(
+    screen.getByRole("heading", { name: "Explore an option chain" }),
+  ).toBeVisible();
+  expect(screen.getByText("Market data · Dhan")).toBeVisible();
+  expect(
+    screen.queryByLabelText("Underlying search results"),
+  ).not.toBeInTheDocument();
+  fireEvent.focus(screen.getByRole("combobox", { name: "Underlying" }));
+  expect(await screen.findByRole("button", { name: "NIFTY" })).toBeVisible();
+  fireEvent.keyDown(screen.getByRole("combobox", { name: "Underlying" }), {
+    key: "Escape",
+  });
+  expect(
+    screen.queryByLabelText("Underlying search results"),
+  ).not.toBeInTheDocument();
+  fireEvent.focus(screen.getByRole("combobox", { name: "Underlying" }));
+  expect(screen.getByLabelText("Underlying search results")).toBeVisible();
+  fireEvent.blur(screen.getByRole("combobox", { name: "Underlying" }), {
+    relatedTarget: document.body,
+  });
+  expect(
+    screen.queryByLabelText("Underlying search results"),
+  ).not.toBeInTheDocument();
+});
+
+test("CE and PE halves follow independent canonical moneyness with an ATM landmark", async () => {
+  await load();
+  const ceItm = table()
+    .getByRole("button", { name: "Select NIFTY 24500 CE" })
+    .closest("td");
+  const peOtm = table()
+    .getByRole("button", { name: "Select NIFTY 24500 PE" })
+    .closest("td");
+  const ceAtm = table()
+    .getByRole("button", { name: "Select NIFTY 25000 CE" })
+    .closest("td");
+  const peAtm = table()
+    .getByRole("button", { name: "Select NIFTY 25000 PE" })
+    .closest("td");
+  const ceOtm = table()
+    .getByRole("button", { name: "Select NIFTY 25500 CE" })
+    .closest("td");
+  const peItm = table()
+    .getByRole("button", { name: "Select NIFTY 25500 PE" })
+    .closest("td");
+  expect(ceItm).toHaveClass("chain-money-itm");
+  expect(peOtm).toHaveClass("chain-money-otm");
+  expect(ceAtm).toHaveClass("chain-money-atm");
+  expect(peAtm).toHaveClass("chain-money-atm");
+  expect(ceOtm).toHaveClass("chain-money-otm");
+  expect(peItm).toHaveClass("chain-money-itm");
+  expect(ceAtm?.parentElement).toHaveClass("chain-atm");
+  expect(
+    within(ceAtm!.parentElement!.querySelector("th")!).getByText("ATM"),
+  ).toBeVisible();
+  expect(screen.getByLabelText("Moneyness legend")).toHaveTextContent("ITM");
+  expect(screen.getByLabelText("Moneyness legend")).toHaveTextContent("OTM");
+});
+
+test("selected contract uses semantic badges, signed OI, source, and no raw identifier", async () => {
+  await load();
+  fireEvent.click(
+    table().getByRole("button", { name: "Select NIFTY 24500 CE" }),
+  );
+  const detail = within(screen.getByLabelText("Selected contract"));
+  expect(detail.getByText("CE", { selector: ".chain-badge" })).toBeVisible();
+  expect(detail.getByText("ITM", { selector: ".chain-badge" })).toBeVisible();
+  expect(detail.getByText("₹147.05")).toBeVisible();
+  expect(detail.getByText("+30K")).toHaveClass("chain-value-positive");
+  expect(detail.getByText("NFO · Dhan")).toBeVisible();
+  expect(detail.queryByText(/NFO:NIFTY:/)).not.toBeInTheDocument();
+  fireEvent.click(
+    table().getByRole("button", { name: "Select NIFTY 25000 PE" }),
+  );
+  expect(detail.getByText("PE", { selector: ".chain-badge" })).toBeVisible();
+  expect(detail.getByText("ATM", { selector: ".chain-badge" })).toBeVisible();
+  fireEvent.click(detail.getByRole("button", { name: "Clear" }));
+  expect(
+    detail.getByRole("heading", { name: "Select a contract" }),
+  ).toBeVisible();
+  expect(
+    detail.queryByRole("button", { name: "Buy PE" }),
+  ).not.toBeInTheDocument();
+});
+
+test("negative and missing OI change retain typed visual states", async () => {
+  const original = fetcher.getMockImplementation() as (
+    path: string,
+  ) => Promise<Response>;
+  fetcher.mockImplementation(async (path: string) => {
+    if (!path.includes("chain?")) return original(path);
+    const response = await original(path);
+    const data = await response.json();
+    data.rows[0].pe.market.change_in_open_interest = "-160000";
+    data.rows[1].ce.market.change_in_open_interest = null;
+    return Response.json(data);
+  });
+  await load();
+  fireEvent.click(
+    table().getByRole("button", { name: "Select NIFTY 24500 PE" }),
+  );
+  expect(
+    within(screen.getByLabelText("Selected contract")).getByText("−160K"),
+  ).toHaveClass("chain-value-negative");
+  fireEvent.click(
+    table().getByRole("button", { name: "Select NIFTY 24550 CE" }),
+  );
+  expect(
+    within(screen.getByLabelText("Selected contract")).getByText("—", {
+      selector: "dd",
+    }),
+  ).toBeVisible();
 });

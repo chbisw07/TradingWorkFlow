@@ -33,9 +33,7 @@ const fields = [
 type ChainField = (typeof fields)[number];
 
 function fieldValue(field: ChainField, value: string | null | undefined) {
-  return ["open_interest", "change_in_open_interest", "volume"].includes(
-    field,
-  )
+  return ["open_interest", "change_in_open_interest", "volume"].includes(field)
     ? compact(value, field === "change_in_open_interest")
     : num(value);
 }
@@ -54,7 +52,7 @@ export function OptionsWorkspace() {
   const [choices, setChoices] = useState<string[]>([]);
   const [searching, setSearching] = useState(true);
   const [searchError, setSearchError] = useState("");
-  const [searchOpen, setSearchOpen] = useState(true);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [underlying, setUnderlying] = useState("");
   const [expiries, setExpiries] = useState<string[]>([]);
   const [expiry, setExpiry] = useState("");
@@ -91,9 +89,6 @@ export function OptionsWorkspace() {
       .flatMap((r) => [r.ce, r.pe])
       .find((leg) => leg?.contract.canonical_id === selection) || null;
   const broker = brokers.find((b) => b.account.id === brokerId);
-  const selectedRow = data?.rows.find(
-    (row) => row.ce === selected || row.pe === selected,
-  );
   const firstLeg = data?.rows
     .flatMap((row) => [row.ce, row.pe])
     .find((leg): leg is OptionLegSnapshot => leg !== null);
@@ -211,7 +206,10 @@ export function OptionsWorkspace() {
   }, []);
 
   function choose(value: string) {
-    if (value === underlying) return;
+    if (value === underlying) {
+      setSearchOpen(false);
+      return;
+    }
     setUnderlying(value);
     setExpiry("");
     setExpiries([]);
@@ -297,7 +295,14 @@ export function OptionsWorkspace() {
         </div>
       </header>
       <div className="options-controls">
-        <div className="chain-search">
+        <div
+          className="chain-search"
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget)) {
+              setSearchOpen(false);
+            }
+          }}
+        >
           <label htmlFor="chain-search">Underlying</label>
           <input
             id="chain-search"
@@ -305,7 +310,7 @@ export function OptionsWorkspace() {
             role="combobox"
             aria-autocomplete="list"
             aria-expanded={searchOpen}
-            aria-controls="chain-suggestions"
+            aria-controls={searchOpen ? "chain-suggestions" : undefined}
             autoComplete="off"
             value={search}
             placeholder="NIFTY, BANKNIFTY, HDFCBANK…"
@@ -326,23 +331,24 @@ export function OptionsWorkspace() {
               aria-label="Underlying search results"
               aria-busy={searching}
             >
-            {searching ? (
-              <span role="status">Searching underlyings…</span>
-            ) : (
-              choices.map((u) => (
-                <button
-                  key={u}
-                  aria-pressed={u === underlying}
-                  onClick={() => choose(u)}
-                >
-                  <strong>{u}</strong>
-                  <small>Load listed expiries</small>
-                </button>
-              ))
-            )}
-            {!searching && !searchError && !choices.length && (
-              <span>No optionable underlyings found.</span>
-            )}
+              {searching ? (
+                <span role="status">Searching underlyings…</span>
+              ) : (
+                choices.map((u) => (
+                  <button
+                    key={u}
+                    aria-label={u}
+                    aria-pressed={u === underlying}
+                    onClick={() => choose(u)}
+                  >
+                    <strong>{u}</strong>
+                    <small>Load listed expiries</small>
+                  </button>
+                ))
+              )}
+              {!searching && !searchError && !choices.length && (
+                <span>No optionable underlyings found.</span>
+              )}
             </div>
           )}
         </div>
@@ -389,8 +395,7 @@ export function OptionsWorkspace() {
             else setRefresh((n) => n + 1);
           }}
         >
-          <span aria-hidden="true">↻</span>{" "}
-          {busy ? "Refreshing…" : "Refresh"}
+          <span aria-hidden="true">↻</span> {busy ? "Refreshing…" : "Refresh"}
         </button>
       </div>
       {(searchError || expiryError || error) && (
@@ -581,7 +586,15 @@ export function OptionsWorkspace() {
                     {data.rows.map((r) => (
                       <tr
                         key={r.strike}
-                        className={r.is_atm ? "chain-atm" : undefined}
+                        className={[
+                          r.is_atm ? "chain-atm" : "",
+                          r[mobileSide]?.moneyness
+                            ? "chain-money-" +
+                              r[mobileSide].moneyness.toLowerCase()
+                            : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" ")}
                       >
                         <th scope="row">
                           {num(r.strike)}
@@ -607,44 +620,139 @@ export function OptionsWorkspace() {
                   No listed contracts in this window.
                 </p>
               )}
-              <p className="chain-legend">
-                ATM = nearest listed strike · ITM = in the money · OTM = out of
-                the money · — = unavailable
-              </p>
+              <div className="chain-table-footer">
+                <div className="chain-legend" aria-label="Moneyness legend">
+                  <span>
+                    <i className="chain-swatch chain-swatch-itm" />
+                    ITM · In the money
+                  </span>
+                  <span>
+                    <i className="chain-swatch chain-swatch-atm" />
+                    ATM · Nearest strike
+                  </span>
+                  <span>
+                    <i className="chain-swatch chain-swatch-otm" />
+                    OTM · Out of the money
+                  </span>
+                </div>
+                <span className="chain-window-info">
+                  Showing {data.rows.length} strikes (±{windowSize}) · —
+                  unavailable
+                </span>
+              </div>
             </div>
             <aside className="chain-detail" aria-label="Selected contract">
               {selected ? (
                 <>
-                  <span className="options-eyebrow">SELECTED CONTRACT</span>
-                  <h2>
-                    {selected.contract.underlying_symbol}{" "}
-                    {num(selected.contract.strike)}{" "}
-                    {selected.contract.option_type}
-                  </h2>
-                  <p>
-                    {expiryLabel(selected.contract.expiry)} ·{" "}
-                    {selected.moneyness || "Moneyness unavailable"}
-                  </p>
-                  <dl>
-                    {[
-                      ["LTP ₹", selected.market.ltp],
-                      ["Bid ₹", selected.market.bid],
-                      ["Ask ₹", selected.market.ask],
-                      ["Spread ₹", selected.market.spread],
-                      ["Spread %", selected.market.spread_percent],
-                      ["Volume", selected.market.volume],
-                      ["OI", selected.market.open_interest],
-                      ["ΔOI", selected.market.change_in_open_interest],
-                      ["IV %", selected.market.implied_volatility],
-                      ["Lot size", selected.contract.lot_size],
-                      ["DTE", data.dte],
-                    ].map(([k, v]) => (
-                      <div key={String(k)}>
-                        <dt>{k}</dt>
-                        <dd>{num(v)}</dd>
-                      </div>
-                    ))}
-                  </dl>
+                  <div className="chain-detail-bar">
+                    <span>Selected Contract</span>
+                    <button type="button" onClick={() => setSelection("")}>
+                      Clear
+                    </button>
+                  </div>
+                  <div className="chain-detail-body">
+                    <h2>
+                      {selected.contract.underlying_symbol}{" "}
+                      {expiryLabel(selected.contract.expiry)}{" "}
+                      {num(selected.contract.strike)}{" "}
+                      {selected.contract.option_type}
+                    </h2>
+                    <div className="chain-detail-badges">
+                      <span
+                        className={
+                          "chain-badge chain-badge-" +
+                          selected.contract.option_type.toLowerCase()
+                        }
+                      >
+                        {selected.contract.option_type}
+                      </span>
+                      {selected.moneyness && (
+                        <span
+                          className={
+                            "chain-badge chain-badge-" +
+                            selected.moneyness.toLowerCase()
+                          }
+                        >
+                          {selected.moneyness}
+                        </span>
+                      )}
+                      <span className="chain-badge chain-badge-provider">
+                        {selected.contract.exchange} · {providerLabel}
+                      </span>
+                    </div>
+                    <p className="chain-detail-price">
+                      {selected.market.ltp == null ? (
+                        "—"
+                      ) : (
+                        <>₹{num(selected.market.ltp)}</>
+                      )}
+                    </p>
+                    <span className="chain-detail-price-caption">
+                      Last traded price · Provider snapshot
+                    </span>
+                    <dl className="chain-detail-metrics">
+                      {[
+                        ["Bid ₹", selected.market.bid],
+                        ["Ask ₹", selected.market.ask],
+                        ["Spread ₹", selected.market.spread],
+                        ["Spread %", selected.market.spread_percent],
+                        ["Volume", selected.market.volume],
+                        ["Open interest", selected.market.open_interest],
+                        ["ΔOI", selected.market.change_in_open_interest],
+                        ["IV %", selected.market.implied_volatility],
+                        ["Delta", selected.market.delta],
+                        ["Gamma", selected.market.gamma],
+                        ["Vega", selected.market.vega],
+                        ["Theta", selected.market.theta],
+                      ].map(([label, value]) => (
+                        <div key={String(label)}>
+                          <dt>{label}</dt>
+                          <dd
+                            className={
+                              label === "ΔOI" ? signedClass(value) : undefined
+                            }
+                          >
+                            {label === "ΔOI"
+                              ? compact(value, true)
+                              : label === "Volume" || label === "Open interest"
+                                ? compact(value)
+                                : num(value, label === "Gamma" ? 6 : 2)}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                    <div className="chain-detail-characteristics">
+                      <h3>Contract characteristics</h3>
+                      <dl>
+                        <div>
+                          <dt>Expiry</dt>
+                          <dd>{expiryLabel(selected.contract.expiry)}</dd>
+                        </div>
+                        <div>
+                          <dt>Lot size</dt>
+                          <dd>{num(selected.contract.lot_size)}</dd>
+                        </div>
+                        <div>
+                          <dt>Strike</dt>
+                          <dd>₹{num(selected.contract.strike)}</dd>
+                        </div>
+                        <div>
+                          <dt>DTE</dt>
+                          <dd>{data.dte} days</dd>
+                        </div>
+                      </dl>
+                    </div>
+                    <p className="chain-detail-source">
+                      <strong>{providerLabel} market data</strong> · Retrieved{" "}
+                      {retrievedLabel(data.provenance.received_at)} IST
+                      <br />
+                      {selected.market.source_time
+                        ? "Source " +
+                          retrievedLabel(selected.market.source_time) +
+                          " IST"
+                        : "Provider source time unavailable"}
+                    </p>
+                  </div>
                   {selected.availability !== "AVAILABLE" && (
                     <p role="note">
                       {selected.availability === "UNAVAILABLE"
@@ -672,7 +780,6 @@ export function OptionsWorkspace() {
                       Provider values only. Unavailable calculations remain
                       blank.
                     </p>
-                    <p>{selected.contract.canonical_id}</p>
                   </details>
                   <div className="chain-trade">
                     <label>
@@ -727,11 +834,14 @@ export function OptionsWorkspace() {
                   </div>
                 </>
               ) : (
-                <div className="chain-empty">
+                <div className="chain-empty chain-detail-empty">
+                  <span className="chain-empty-icon" aria-hidden="true">
+                    ◎
+                  </span>
                   <h2>Select a contract</h2>
                   <p>
-                    Choose a Call or Put LTP to inspect its quote, liquidity and
-                    exact trading contract.
+                    Choose a Call or Put price to inspect its quote, liquidity,
+                    and exact contract before opening Broker V2 preview.
                   </p>
                 </div>
               )}
@@ -742,13 +852,19 @@ export function OptionsWorkspace() {
         !busy &&
         !error &&
         !expiryError && (
-          <div className="chain-empty chain-card">
+          <div className="chain-empty chain-card chain-landing">
+            <span className="chain-empty-icon" aria-hidden="true">
+              ▥
+            </span>
             <h2>Explore an option chain</h2>
-            <p>Select an underlying to load its nearest listed expiry.</p>
-            <small>
-              Dhan market data · Exact listed contracts · Explicit Broker
-              preview
-            </small>
+            <p>
+              Search an underlying to inspect listed expiries, liquidity, open
+              interest, and exact contracts.
+            </p>
+            <div className="chain-landing-capabilities">
+              <span>Market data · Dhan</span>
+              <span>Trading preview · Broker V2</span>
+            </div>
           </div>
         )
       )}

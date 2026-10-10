@@ -88,13 +88,56 @@ test("canonical chain, CE/PE Broker preview, partial data and responsive layout"
     .getByRole("link", { name: "Options Analytics", exact: true })
     .click();
   await expect(page).toHaveURL("/options-analytics");
+  await expect(
+    page.getByRole("heading", { name: "Explore an option chain" }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Underlying search results")).toHaveCount(0);
+  await page.evaluate(() => {
+    document.documentElement.dataset.theme = "light";
+  });
+  await page.screenshot({
+    path: info.outputPath("landing-light.png"),
+    fullPage: true,
+    animations: "disabled",
+  });
   const start = Date.now();
+  await page.getByRole("combobox", { name: "Underlying" }).focus();
   await page.getByRole("button", { name: "NIFTY", exact: true }).click();
   const compact = info.project.use.viewport!.width < 768;
   const table = page.getByRole("table", {
     name: compact ? "Compact option chain" : "Calls and puts option chain",
   });
   await expect(table).toBeVisible();
+  await expect(page.getByText("Showing 21 strikes (±10)")).toBeVisible();
+  if (compact) {
+    await expect(table.locator("tr.chain-money-itm")).toHaveCount(10);
+    await expect(table.locator("tr.chain-money-atm")).toHaveCount(1);
+    await page.getByRole("button", { name: "Puts", exact: true }).click();
+    await expect(table.locator("tr.chain-money-otm")).toHaveCount(10);
+    await expect(table.locator("tr.chain-money-atm")).toHaveCount(1);
+    await page.getByRole("button", { name: "Calls", exact: true }).click();
+  } else {
+    if (info.project.use.viewport!.width >= 1440) {
+      expect(
+        await page
+          .locator(".chain-desktop")
+          .evaluate(
+            (element) => element.scrollWidth <= element.clientWidth + 1,
+          ),
+      ).toBeTruthy();
+    }
+    await expect(table.locator("td.chain-money-itm")).toHaveCount(140);
+    await expect(table.locator("td.chain-money-atm")).toHaveCount(14);
+    await expect(table.locator("td.chain-money-otm")).toHaveCount(140);
+    await expect(
+      table.locator(".chain-strike").filter({ hasText: "ATM" }),
+    ).toHaveCount(1);
+  }
+  await page.screenshot({
+    path: info.outputPath("chain-loaded-light.png"),
+    fullPage: true,
+    animations: "disabled",
+  });
   const initialMs = Date.now() - start;
   await expect(
     page.getByText("Provider source time unavailable", { exact: true }),
@@ -132,6 +175,20 @@ test("canonical chain, CE/PE Broker preview, partial data and responsive layout"
     await select.focus();
     await page.keyboard.press("Enter");
     await expect(select).toHaveAttribute("aria-pressed", "true");
+    const detail = page.getByLabel("Selected contract");
+    await expect(detail.locator(".chain-detail-bar")).toContainText(
+      "Selected Contract",
+    );
+    await expect(
+      detail.locator(".chain-badge-" + side.toLowerCase()),
+    ).toBeVisible();
+    await expect(detail.locator(".chain-badge-atm")).toBeVisible();
+    await expect(detail.locator(".chain-detail-price")).toHaveText("₹147.05");
+    await page.screenshot({
+      path: info.outputPath("selected-" + side + "-light.png"),
+      fullPage: true,
+      animations: "disabled",
+    });
     const begun = Date.now();
     await page
       .getByRole("button", { name: `${action} ${side}`, exact: true })
