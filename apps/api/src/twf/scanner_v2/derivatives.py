@@ -32,6 +32,9 @@ from twf.watchlists.system import SystemUniverseCatalog
 
 MAX_UNDERLYINGS = 5
 MIN_RELATIVE_VOLUME_COHORT = 5
+MIN_RELATIVE_OI_COHORT = 5
+MAX_INTERPRETATION_WINDOW_SECONDS = 30 * 60
+MIN_CLEAR_MOVE_PERCENT = 0.1
 NumericOperator = Literal[">", ">=", "<", "<=", "equals", "between"]
 EnumOperator = Literal["equals", "not_equals"]
 
@@ -72,7 +75,29 @@ FIELDS: dict[str, dict[str, Any]] = {
     "open_interest": dict(
         category="Open Interest", label="Open Interest", kind="integer", minimum=0
     ),
+    "oi_percentile": dict(
+        category="Open Interest",
+        label="OI Percentile",
+        kind="number",
+        minimum=0,
+        maximum=100,
+        unit="%",
+    ),
+    "oi_vs_chain_median": dict(
+        category="Open Interest", label="OI vs Chain Median", kind="number", minimum=0, unit="x"
+    ),
     "change_in_open_interest": dict(category="Open Interest", label="Change in OI", kind="integer"),
+    "oi_change_percent": dict(
+        category="Open Interest", label="Change in OI %", kind="number", unit="%"
+    ),
+    "oi_change_percentile": dict(
+        category="Open Interest",
+        label="Change in OI Percentile",
+        kind="number",
+        minimum=0,
+        maximum=100,
+        unit="%",
+    ),
     "volume_oi_percent": dict(
         category="Open Interest",
         label="Volume / OI %",
@@ -256,6 +281,13 @@ class DerivativeScanResult(DerivativeModel):
     volume_vs_chain_median: float | None
     volume_oi_percent: float | None
     relative_volume_cohort_size: int = Field(ge=0)
+    oi_percentile: float | None
+    oi_chain_median: float | None
+    oi_vs_chain_median: float | None
+    oi_change_percent: float | None
+    oi_change_percentile: float | None
+    relative_oi_cohort_size: int = Field(ge=0)
+    oi_interpretation: dict[str, Any]
     availability: Literal["AVAILABLE", "PARTIAL", "UNAVAILABLE"]
     technical: dict[str, float | str | None]
     technical_provenance: dict[str, Any] | None
@@ -333,12 +365,178 @@ def relative_volume_metrics(chain: OptionChainSnapshot) -> dict[str, dict[str, f
     return result
 
 
+def relative_oi_metrics(chain: OptionChainSnapshot) -> dict[str, dict[str, Decimal | int | None]]:
+    """CE+PE metrics from one bounded underlying/expiry chain before filtering.
+
+    Ties share last-rank percentile. ΔOI percentile ranks absolute change
+    magnitude; its direction remains separately visible. Missing is not zero.
+    """
+    legs = {
+        leg.contract.canonical_id: leg
+        for row in chain.rows
+        for leg in (row.ce, row.pe)
+        if leg is not None
+    }
+    valid_oi = sorted(
+        leg.market.open_interest for leg in legs.values() if leg.market.open_interest is not None
+    )
+    valid_change = sorted(
+        abs(leg.market.change_in_open_interest)
+        for leg in legs.values()
+        if leg.market.change_in_open_interest is not None
+    )
+    size = len(valid_oi)
+    middle = size // 2
+    median = (
+        (valid_oi[middle] if size % 2 else (valid_oi[middle - 1] + valid_oi[middle]) / 2)
+        if size >= MIN_RELATIVE_OI_COHORT
+        else None
+    )
+    result: dict[str, dict[str, Decimal | int | None]] = {}
+    for key, leg in legs.items():
+        oi = leg.market.open_interest
+        change = leg.market.change_in_open_interest
+        previous = oi - change if oi is not None and change is not None else None
+        result[key] = {
+            "oi_percentile": (
+                Decimal(100) * sum(v <= oi for v in valid_oi) / size
+                if oi is not None and size >= MIN_RELATIVE_OI_COHORT
+                else None
+            ),
+            "oi_chain_median": median if median is not None else None,
+            "oi_vs_chain_median": (
+                oi / median if oi is not None and median is not None and median > 0 else None
+            ),
+            "oi_change_percent": (
+                change / previous * 100
+                if change is not None and previous is not None and previous > 0
+                else None
+            ),
+            "oi_change_percentile": (
+                Decimal(100) * sum(v <= abs(change) for v in valid_change) / len(valid_change)
+                if change is not None and len(valid_change) >= MIN_RELATIVE_OI_COHORT
+                else None
+            ),
+            "relative_oi_cohort_size": size,
+        }
+    return result
+
+
+def oi_interpretation(
+    chain: OptionChainSnapshot, leg: OptionLegSnapshot, previous: dict[str, Any] | None
+) -> dict[str, Any]:
+    """Conservative exact-contract snapshot comparison; no effect on MATCH."""
+    current_at = chain.provenance.received_at
+    # Dhan's chain currently has no per-leg source time. An underlying quote's
+    # source time must not be presented as option-premium/OI source time.
+    option_freshness = (
+        "STALE"
+        if chain.provenance.freshness == "STALE"
+        else chain.provenance.freshness
+        if leg.market.source_time is not None
+        else "SOURCE_TIME_UNAVAILABLE"
+    )
+    evidence: dict[str, Any] = {
+        "label": "Insufficient evidence",
+        "inferred": True,
+        "confidence": "INSUFFICIENT",
+        "freshness": option_freshness,
+        "window_start": None,
+        "window_end": current_at.isoformat(),
+        "window_seconds": None,
+        "premium_change_percent": None,
+        "oi_window_change_percent": None,
+        "underlying_change_percent": None,
+        "iv_change_points": None,
+        "reason": "No comparable earlier scan snapshot",
+    }
+    if previous is None:
+        return evidence
+    market = previous.get("market") or {}
+    provenance = previous.get("provenance") or {}
+    try:
+        previous_at = datetime.fromisoformat(provenance["received_at"])
+        duration = (current_at - previous_at).total_seconds()
+        old_ltp = Decimal(str(market["ltp"]))
+        old_oi = Decimal(str(market["open_interest"]))
+        old_spot = Decimal(str(previous["spot"]))
+        ltp, oi, spot = leg.market.ltp, leg.market.open_interest, chain.spot
+        if not (
+            0 < duration <= MAX_INTERPRETATION_WINDOW_SECONDS
+            and old_ltp > 0
+            and old_oi > 0
+            and old_spot > 0
+            and ltp is not None
+            and oi is not None
+            and spot is not None
+            and not chain.provenance.cached
+            and not provenance.get("cached")
+        ):
+            evidence["reason"] = "Comparison snapshot is incomplete, cached, or outside the window"
+            return evidence
+        if provenance.get("provider") != "dhan":
+            return evidence
+        premium_move = float((ltp - old_ltp) / old_ltp * 100)
+        oi_move = float((oi - old_oi) / old_oi * 100)
+        spot_move = float((spot - old_spot) / old_spot * 100)
+        old_iv = market.get("implied_volatility")
+        iv_move = (
+            float(leg.market.implied_volatility - Decimal(str(old_iv)))
+            if leg.market.implied_volatility is not None and old_iv is not None
+            else None
+        )
+    except (KeyError, ValueError, TypeError, ArithmeticError):
+        evidence["reason"] = "Comparison snapshot contains incomplete values"
+        return evidence
+    evidence.update(
+        window_start=previous_at.isoformat(),
+        window_seconds=duration,
+        premium_change_percent=premium_move,
+        oi_window_change_percent=oi_move,
+        underlying_change_percent=spot_move,
+        iv_change_points=iv_move,
+    )
+    if (
+        leg.market.source_time is not None
+        and market.get("source_time") == leg.market.source_time.isoformat()
+    ):
+        evidence["reason"] = "Provider source time did not advance"
+        return evidence
+    if option_freshness == "STALE":
+        evidence["reason"] = "Current source data is stale"
+        return evidence
+    if abs(premium_move) < MIN_CLEAR_MOVE_PERCENT or abs(oi_move) < MIN_CLEAR_MOVE_PERCENT:
+        evidence.update(label="Mixed / Unclear", confidence="LOW", reason="Moves are too small")
+        return evidence
+    if oi_move > 0:
+        label = ("Call" if leg.contract.option_type.value == "CE" else "Put") + (
+            " long buildup" if premium_move > 0 else " short buildup"
+        )
+    else:
+        label = "Short covering" if premium_move > 0 else "Long unwinding"
+    # Underlying and IV only qualify the evidence; they never affect O4 MATCH.
+    support = (spot_move > 0) == (leg.contract.option_type.value == "CE")
+    if premium_move < 0:
+        support = not support
+    iv_conflict = iv_move is not None and (iv_move > 0) != (premium_move > 0)
+    confidence = "HIGH" if support and not iv_conflict and option_freshness == "FRESH" else "MEDIUM"
+    if not support or iv_conflict:
+        confidence = "LOW"
+    evidence.update(
+        label=label,
+        confidence=confidence,
+        reason="Observed snapshot-to-snapshot premium and OI moves",
+    )
+    return evidence
+
+
 def observations(
     chain: OptionChainSnapshot,
     leg: OptionLegSnapshot,
     distance: Any,
     technical: dict[str, Any],
     relative: dict[str, float | int | None],
+    relative_oi: dict[str, Decimal | int | None],
 ) -> dict[str, Any]:
     market = leg.market
     return {
@@ -353,6 +551,16 @@ def observations(
                 "volume_chain_median",
                 "volume_vs_chain_median",
                 "volume_oi_percent",
+            )
+        },
+        **{
+            field: relative_oi[field]
+            for field in (
+                "oi_percentile",
+                "oi_chain_median",
+                "oi_vs_chain_median",
+                "oi_change_percent",
+                "oi_change_percentile",
             )
         },
         **{
@@ -384,7 +592,10 @@ def evaluate(
         passed: bool | None = None
         if observed is not None:
             if item.operator == "between" and isinstance(item.value, tuple):
-                passed = item.value[0] <= observed <= item.value[1]
+                if isinstance(observed, Decimal):
+                    passed = Decimal(str(item.value[0])) <= observed <= Decimal(str(item.value[1]))
+                else:
+                    passed = item.value[0] <= observed <= item.value[1]
             elif item.operator in {"equals", "not_equals"}:
                 values_to_compare = (item.value,) if isinstance(item.value, str) else item.value
                 same = item.field == "option_type" and item.value == "BOTH"
@@ -395,12 +606,17 @@ def evaluate(
                         else observed == values_to_compare
                     )
                 passed = same if item.operator == "equals" else not same
-            elif isinstance(observed, (int, float)) and isinstance(item.value, (int, float)):
+            elif isinstance(observed, (int, float, Decimal)) and isinstance(
+                item.value, (int, float)
+            ):
+                threshold = (
+                    Decimal(str(item.value)) if isinstance(observed, Decimal) else item.value
+                )
                 passed = {
-                    ">": observed > item.value,
-                    ">=": observed >= item.value,
-                    "<": observed < item.value,
-                    "<=": observed <= item.value,
+                    ">": observed > threshold,
+                    ">=": observed >= threshold,
+                    "<": observed < threshold,
+                    "<=": observed <= threshold,
                 }[item.operator]
         diagnostics.append(
             {
@@ -575,6 +791,26 @@ class DerivativeScannerService:
                 else None
                 for s in symbols
             }
+        # One bounded local archive read, keyed by exact O1 contract. It never
+        # acquires more market data and cannot affect deterministic matching.
+        previous_by_contract: dict[str, dict[str, Any]] = {}
+        with self.factory() as db:
+            prior_runs = db.scalars(
+                select(ScannerRunRow)
+                .where(
+                    ScannerRunRow.owner_id == self.owner,
+                    ScannerRunRow.payload["config"]["scanner_type"].as_string() == "DERIVATIVES",
+                )
+                .order_by(ScannerRunRow.created_at.desc())
+                .limit(10)
+            )
+            for prior_run in prior_runs:
+                if prior_run.payload.get("market_data_provider") != "dhan":
+                    continue
+                for prior_row in prior_run.payload.get("rows", ()):
+                    contract_id = prior_row.get("contract", {}).get("canonical_id")
+                    if contract_id and contract_id not in previous_by_contract:
+                        previous_by_contract[contract_id] = prior_row
         chains_evaluated = 0
         seen_contracts: set[str] = set()
         for symbol in symbols:
@@ -639,14 +875,24 @@ class DerivativeScannerService:
                 provenance=chain.provenance.model_dump(mode="json"),
             )
             relative_by_contract = relative_volume_metrics(chain)
+            oi_by_contract = relative_oi_metrics(chain)
             for chain_row in chain.rows:
                 for leg in (chain_row.ce, chain_row.pe):
                     if leg is None or leg.contract.canonical_id in seen_contracts:
                         continue
                     seen_contracts.add(leg.contract.canonical_id)
                     relative = relative_by_contract[leg.contract.canonical_id]
+                    relative_oi = oi_by_contract[leg.contract.canonical_id]
                     values = observations(
-                        chain, leg, chain_row.distance_percent, technical, relative
+                        chain,
+                        leg,
+                        chain_row.distance_percent,
+                        technical,
+                        relative,
+                        relative_oi,
+                    )
+                    interpretation = oi_interpretation(
+                        chain, leg, previous_by_contract.get(leg.contract.canonical_id)
                     )
                     result = evaluate(
                         config.filters, values, quote_available=leg.market.ltp is not None
@@ -665,6 +911,8 @@ class DerivativeScannerService:
                                 "strike_distance_percent": values["strike_distance_percent"],
                                 "market": leg.market.model_dump(mode="json"),
                                 **relative,
+                                **relative_oi,
+                                "oi_interpretation": interpretation,
                                 "availability": leg.availability,
                                 "technical": technical,
                                 "technical_provenance": technical_provenance,

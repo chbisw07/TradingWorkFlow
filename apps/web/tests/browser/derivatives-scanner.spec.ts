@@ -99,6 +99,26 @@ test("O4 bounded scanner, explanation and exact Analytics handoff", async ({
               volume_vs_chain_median: 5,
               volume_oi_percent: 20,
               relative_volume_cohort_size: 22,
+              oi_percentile: 90,
+              oi_chain_median: 250000,
+              oi_vs_chain_median: 2,
+              oi_change_percent: 4.1666667,
+              oi_change_percentile: 80,
+              relative_oi_cohort_size: 22,
+              oi_interpretation: {
+                label: "Call long buildup",
+                inferred: true,
+                confidence: "MEDIUM",
+                freshness: "SOURCE_TIME_UNAVAILABLE",
+                window_start: "2026-10-10T09:45:00Z",
+                window_end: "2026-10-10T10:00:00Z",
+                window_seconds: 900,
+                premium_change_percent: 12.4,
+                oi_window_change_percent: 4.2,
+                underlying_change_percent: 0.8,
+                iv_change_points: null,
+                reason: "Observed snapshot-to-snapshot premium and OI moves",
+              },
               technical: {},
               instrument_metadata: null,
               observed: { option_type: "CE" },
@@ -204,7 +224,7 @@ test("O4 bounded scanner, explanation and exact Analytics handoff", async ({
   const fieldOptions = page
     .getByRole("combobox", { name: "Field" })
     .locator("option");
-  await expect(fieldOptions).toHaveCount(20);
+  await expect(fieldOptions).toHaveCount(24);
   await expect(page.getByRole("combobox", { name: "Field" })).toHaveValue("");
   await expect(page.getByRole("radio", { name: "Both" })).toBeChecked();
   await page.getByRole("radio", { name: "Both" }).focus();
@@ -268,10 +288,26 @@ test("O4 bounded scanner, explanation and exact Analytics handoff", async ({
   const results = page.locator(
     compact ? ".derivative-mobile-cards" : ".derivative-table-wrap",
   );
-  await expect(results).toContainText("1/1 active filters matched");
+  await expect(results).toContainText("Call long buildup");
   await expect(
     results.getByRole("link", { name: "Open NIFTY in Options Analytics" }),
   ).toHaveAttribute("href", "/options-analytics?underlying=NIFTY");
+  if (!compact) {
+    for (const label of [
+      "OI",
+      "OI Pctl",
+      "ΔOI",
+      "ΔOI %",
+      "OI Interpretation (Inferred)",
+    ]) {
+      await expect(
+        page.getByRole("columnheader", { name: label, exact: true }),
+      ).toBeVisible();
+    }
+    await expect(
+      page.getByRole("columnheader", { name: "Spot", exact: true }),
+    ).toHaveCount(0);
+  }
   await expect(page.getByLabel("Derivatives selection actions")).toContainText(
     "0 selected",
   );
@@ -324,6 +360,17 @@ test("O4 bounded scanner, explanation and exact Analytics handoff", async ({
     name: "Visible result columns",
   });
   await expect(columnsPopup).toBeVisible();
+  for (const label of [
+    "OI Pctl",
+    "OI vs Median",
+    "ΔOI %",
+    "ΔOI Percentile",
+    "OI Interpretation (Inferred)",
+  ]) {
+    await expect(
+      columnsPopup.getByRole("checkbox", { name: label }),
+    ).toBeVisible();
+  }
   const popupBox = await columnsPopup.boundingBox();
   expect(popupBox).not.toBeNull();
   expect(popupBox!.x).toBeGreaterThanOrEqual(0);
@@ -385,6 +432,15 @@ test("O4 bounded scanner, explanation and exact Analytics handoff", async ({
   await expect(columnsButton).toHaveAttribute("aria-expanded", "false");
   await expect(await layout()).toEqual(beforeColumns);
   await expect(page.getByLabel("Selected option contract")).toHaveCount(0);
+  if (!compact) {
+    const badge = page.locator(".derivative-oi-badge").first();
+    await badge.focus();
+    await expect(badge).toBeFocused();
+    await expect(badge).toHaveAttribute(
+      "aria-label",
+      /OI interpretation, inferred: Call long buildup.*Premium \+12\.4%/,
+    );
+  }
   const why = page.getByRole("button", { name: "Why?" });
   await why.focus();
   await page.keyboard.press("Enter");
@@ -394,6 +450,11 @@ test("O4 bounded scanner, explanation and exact Analytics handoff", async ({
     /has-detail/,
   );
   await expect(detail).toContainText("Liquidity / Activity");
+  await expect(detail).toContainText("OI Interpretation (Inferred)");
+  await expect(detail).toContainText("Premium change");
+  await expect(detail).toContainText("+12.4%");
+  await expect(detail).toContainText("900 seconds");
+  await expect(detail).toContainText("SOURCE_TIME_UNAVAILABLE");
   for (const [label, expected] of [
     ["Volume percentile", "92"],
     ["Chain median volume", "20,000"],
@@ -703,7 +764,7 @@ test("O4 real catalog drives typed filters, saved setup, and scan payload", asyn
   await page.getByRole("tab", { name: /Derivatives Scanner/ }).click();
   const field = page.getByRole("combobox", { name: "Field" });
   const comparison = page.getByRole("combobox", { name: "Comparison" });
-  await expect(field.locator("option")).toHaveCount(20);
+  await expect(field.locator("option")).toHaveCount(24);
   await field.selectOption("moneyness");
   await expect(comparison).toHaveValue("equals");
   await page.getByRole("checkbox", { name: "ITM" }).uncheck();
@@ -749,6 +810,28 @@ test("O4 real catalog drives typed filters, saved setup, and scan payload", asyn
   await page.getByRole("button", { name: "Add / update filter" }).click();
   await expect(
     page.getByRole("button", { name: "Remove Volume / OI % >= 20%" }),
+  ).toBeVisible();
+  for (const [key, comparisonValue, numericValue] of [
+    ["oi_percentile", ">=", "80"],
+    ["oi_vs_chain_median", ">=", "2"],
+    ["oi_change_percent", ">=", "10"],
+    ["oi_change_percentile", ">=", "80"],
+  ]) {
+    await field.selectOption(key);
+    await comparison.selectOption(comparisonValue);
+    await page.getByRole("spinbutton", { name: "Value" }).fill(numericValue);
+    await expect(page.locator(".derivative-active-bar")).not.toContainText(
+      key === "oi_percentile"
+        ? "OI Percentile >= 80%"
+        : "Change in OI Percentile >= 80%",
+    );
+    await page.getByRole("button", { name: "Add / update filter" }).click();
+  }
+  await expect(
+    page.getByRole("button", { name: "Remove OI Percentile >= 80% filter" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Remove Change in OI % >= 10% filter" }),
   ).toBeVisible();
   await field.selectOption("underlying_trend");
   await expect(comparison.locator("option")).toHaveCount(2);
@@ -799,6 +882,10 @@ test("O4 real catalog drives typed filters, saved setup, and scan payload", asyn
       { field: "volume_percentile", operator: ">=", value: 70 },
       { field: "volume_vs_chain_median", operator: ">=", value: 1.5 },
       { field: "volume_oi_percent", operator: ">=", value: 20 },
+      { field: "oi_percentile", operator: ">=", value: 80 },
+      { field: "oi_vs_chain_median", operator: ">=", value: 2 },
+      { field: "oi_change_percent", operator: ">=", value: 10 },
+      { field: "oi_change_percentile", operator: ">=", value: 80 },
       { field: "underlying_trend", operator: "equals", value: "Up" },
       { field: "option_type", operator: "equals", value: "BOTH" },
     ],
@@ -834,6 +921,10 @@ test("O4 real catalog drives typed filters, saved setup, and scan payload", asyn
   expect(savedConfig).toMatchObject({
     filters: expect.arrayContaining([
       { field: "option_type", operator: "equals", value: "CE" },
+      { field: "oi_percentile", operator: ">=", value: 80 },
+      { field: "oi_vs_chain_median", operator: ">=", value: 2 },
+      { field: "oi_change_percent", operator: ">=", value: 10 },
+      { field: "oi_change_percentile", operator: ">=", value: 80 },
     ]),
   });
   await page.getByRole("button", { name: "My Scans" }).click();
@@ -1107,7 +1198,7 @@ test("O4 catalog failure shows a retryable error without empty controls", async 
   ).toBeVisible();
   await expect(field).toBeDisabled();
   await page.getByRole("button", { name: "Retry" }).click();
-  await expect(field.locator("option")).toHaveCount(20);
+  await expect(field.locator("option")).toHaveCount(24);
   await expect(field).toBeEnabled();
   await expect(
     page.getByText("Derivatives filter catalog could not be loaded."),

@@ -82,6 +82,26 @@ type Row = {
   volume_vs_chain_median?: number | null;
   volume_oi_percent?: number | null;
   relative_volume_cohort_size?: number;
+  oi_percentile?: number | null;
+  oi_chain_median?: number | null;
+  oi_vs_chain_median?: number | null;
+  oi_change_percent?: number | null;
+  oi_change_percentile?: number | null;
+  relative_oi_cohort_size?: number;
+  oi_interpretation?: {
+    label: string;
+    inferred: boolean;
+    confidence: "LOW" | "MEDIUM" | "HIGH" | "INSUFFICIENT";
+    freshness: string;
+    window_start: string | null;
+    window_end: string;
+    window_seconds: number | null;
+    premium_change_percent: number | null;
+    oi_window_change_percent: number | null;
+    underlying_change_percent: number | null;
+    iv_change_points: number | null;
+    reason: string;
+  };
   technical: Record<string, string | number | null>;
   instrument_metadata: {
     sector?: string | null;
@@ -121,37 +141,86 @@ type Saved = {
   archived: boolean;
   updated_at: string;
 };
-const optionalResultColumns = [
+const resultColumnOptions = [
+  ["underlying", "Underlying"],
+  ["expiry", "Expiry"],
+  ["strike", "Strike"],
+  ["option_type", "Type"],
+  ["ltp", "LTP"],
+  ["volume", "Volume"],
+  ["volume_percentile", "Vol Pctl"],
+  ["open_interest", "OI"],
+  ["oi_percentile", "OI Pctl"],
+  ["change_in_open_interest", "ΔOI"],
+  ["oi_change_percent", "ΔOI %"],
+  ["implied_volatility", "IV"],
+  ["trend", "Trend"],
+  ["oi_interpretation", "OI Interpretation (Inferred)"],
+  ["spot", "Spot"],
+  ["dte", "DTE"],
+  ["moneyness", "Money"],
+  ["spread_percent", "Spread %"],
+  ["oi_vs_chain_median", "OI vs Median"],
+  ["oi_change_percentile", "ΔOI Percentile"],
   ["volume_vs_chain_median", "Vol/Median"],
   ["volume_oi_percent", "Vol/OI %"],
   ["bid", "Bid"],
   ["ask", "Ask"],
   ["strike_distance_percent", "Strike distance %"],
   ["delta", "Delta"],
+  ["gamma", "Gamma"],
   ["theta", "Theta"],
+  ["vega", "Vega"],
   ["rsi", "Underlying RSI"],
   ["sector", "Sector"],
+  ["reason", "Reason"],
 ] as const;
-type OptionalResultColumn = (typeof optionalResultColumns)[number][0];
-function optionalResultValue(row: Row, column: OptionalResultColumn): string {
-  switch (column) {
-    case "volume_vs_chain_median":
-      return row.volume_vs_chain_median == null
-        ? "—"
-        : `${num(row.volume_vs_chain_median)}x`;
-    case "volume_oi_percent":
-      return row.volume_oi_percent == null
-        ? "—"
-        : `${num(row.volume_oi_percent)}%`;
-    case "strike_distance_percent":
-      return num(row.strike_distance_percent);
-    case "rsi":
-      return num(row.technical.rsi);
-    case "sector":
-      return row.instrument_metadata?.sector || "—";
-    default:
-      return num(row.market[column]);
-  }
+type ResultColumn = (typeof resultColumnOptions)[number][0];
+const defaultResultColumns: ResultColumn[] = resultColumnOptions
+  .slice(0, 14)
+  .map(([key]) => key);
+function signed(value: number | string | null | undefined, unit = ""): string {
+  if (value == null) return "—";
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  return `${n > 0 ? "+" : ""}${num(n)}${unit}`;
+}
+function oiEvidenceText(row: Row): string {
+  const evidence = row.oi_interpretation;
+  if (!evidence)
+    return "Inferred, not proven. Historical interpretation unavailable.";
+  return [
+    "Inferred, not proven",
+    `Premium ${signed(evidence.premium_change_percent, "%")}`,
+    `OI ${signed(evidence.oi_window_change_percent, "%")}`,
+    `Underlying ${signed(evidence.underlying_change_percent, "%")}`,
+    `IV ${signed(evidence.iv_change_points, " pp")}`,
+    `Window ${evidence.window_seconds == null ? "unavailable" : `${num(evidence.window_seconds)} seconds`}`,
+    `Freshness ${evidence.freshness}`,
+    evidence.reason,
+  ].join(" · ");
+}
+function OiBadge({ row }: { row: Row }) {
+  const label = row.oi_interpretation?.label || "Insufficient evidence";
+  const tone = label.includes("long buildup")
+    ? "long"
+    : label.includes("short buildup")
+      ? "short"
+      : label === "Short covering"
+        ? "covering"
+        : label === "Long unwinding"
+          ? "unwinding"
+          : "neutral";
+  return (
+    <span
+      className={`derivative-oi-badge derivative-oi-${tone}`}
+      title={oiEvidenceText(row)}
+      aria-label={`OI interpretation, inferred: ${label}. ${oiEvidenceText(row)}`}
+      tabIndex={0}
+    >
+      {label} <small>Inferred</small>
+    </span>
+  );
 }
 type Broker = { account: Account; capability: Capability };
 const initial: Config = {
@@ -182,18 +251,21 @@ function valueText(value: unknown): string {
 }
 function filterText(filter: Filter, fields: Field[]) {
   const spec = fields.find((f) => f.field === filter.field);
-  const unit =
-    (spec?.unit === "x" || filter.field === "volume_oi_percent") && spec
-      ? spec.unit
-      : "";
+  const unit = spec?.unit === "x" || spec?.unit === "%" ? spec.unit : "";
   return `${spec?.label || filter.field} ${filter.operator === "between" ? "between" : filter.operator} ${valueText(filter.value)}${unit || ""}`;
 }
 function diagnosticObserved(diagnostic: Diagnostic): string {
   if (diagnostic.observed == null) return "Unavailable";
   const suffix =
-    diagnostic.filter.field === "volume_vs_chain_median"
+    diagnostic.filter.field === "volume_vs_chain_median" ||
+    diagnostic.filter.field === "oi_vs_chain_median"
       ? "x"
-      : diagnostic.filter.field === "volume_oi_percent"
+      : [
+            "volume_oi_percent",
+            "oi_percentile",
+            "oi_change_percent",
+            "oi_change_percentile",
+          ].includes(diagnostic.filter.field)
         ? "%"
         : "";
   return `${valueText(diagnostic.observed)}${suffix}`;
@@ -202,6 +274,10 @@ const resultColumnHelp: Record<string, string> = {
   "Vol Pctl": "Volume percentile within the same underlying and expiry chain",
   "Vol/Median": "Contract volume divided by the chain median volume",
   "Vol/OI %": "Contract volume as a percentage of current open interest",
+  "OI Pctl": "OI percentile within this bounded underlying and expiry chain",
+  "ΔOI %": "Signed change divided by prior OI; not a scan-to-scan movement",
+  "OI Interpretation (Inferred)":
+    "Candidate interpretation from comparable archived snapshots; not a signal",
 };
 function expiredContract(contract: OptionContract): boolean {
   const today = new Intl.DateTimeFormat("sv-SE", {
@@ -282,9 +358,8 @@ export function DerivativesScanner() {
   const [notice, setNotice] = useState("");
   const [showAll, setShowAll] = useState(false);
   const [sort, setSort] = useState("canonical");
-  const [optionalColumns, setOptionalColumns] = useState<
-    OptionalResultColumn[]
-  >([]);
+  const [visibleColumns, setVisibleColumns] =
+    useState<ResultColumn[]>(defaultResultColumns);
   const [brokers, setBrokers] = useState<Broker[]>([]);
   const [brokerId, setBrokerId] = useState("");
   const [ticket, setTicket] = useState<{
@@ -324,6 +399,10 @@ export function DerivativesScanner() {
         "volume_percentile",
         "volume_vs_chain_median",
         "volume_oi_percent",
+        "oi_percentile",
+        "oi_vs_chain_median",
+        "oi_change_percent",
+        "oi_change_percentile",
       ].includes(sort)
     )
       return (
@@ -333,6 +412,10 @@ export function DerivativesScanner() {
               | "volume_percentile"
               | "volume_vs_chain_median"
               | "volume_oi_percent"
+              | "oi_percentile"
+              | "oi_vs_chain_median"
+              | "oi_change_percent"
+              | "oi_change_percentile"
           ] ?? Number.POSITIVE_INFINITY,
         ) -
         Number(
@@ -341,6 +424,10 @@ export function DerivativesScanner() {
               | "volume_percentile"
               | "volume_vs_chain_median"
               | "volume_oi_percent"
+              | "oi_percentile"
+              | "oi_vs_chain_median"
+              | "oi_change_percent"
+              | "oi_change_percentile"
           ] ?? Number.POSITIVE_INFINITY,
         )
       );
@@ -641,6 +728,97 @@ export function DerivativesScanner() {
         </button>
       </div>
     );
+  }
+  function resultCell(row: Row, column: ResultColumn) {
+    switch (column) {
+      case "underlying":
+        return (
+          <Link
+            className="derivative-underlying-link"
+            href={underlyingHref(row)}
+            aria-label={`Open ${row.contract.underlying_symbol} in Options Analytics`}
+          >
+            {row.underlying}
+          </Link>
+        );
+      case "expiry":
+        return expiryLabel(row.expiry);
+      case "strike":
+        return num(row.strike);
+      case "option_type":
+        return row.option_type;
+      case "spot":
+        return num(row.spot);
+      case "dte":
+        return row.dte;
+      case "moneyness":
+        return row.moneyness || "—";
+      case "volume_percentile":
+      case "oi_percentile":
+      case "oi_change_percentile":
+        return (
+          <span className="derivative-percentile">{num(row[column])}</span>
+        );
+      case "oi_vs_chain_median":
+      case "volume_vs_chain_median":
+        return row[column] == null ? "—" : `${num(row[column])}x`;
+      case "volume_oi_percent":
+        return row.volume_oi_percent == null
+          ? "—"
+          : `${num(row.volume_oi_percent)}%`;
+      case "oi_change_percent":
+        return (
+          <span
+            className={
+              row.oi_change_percent == null
+                ? undefined
+                : Number(row.oi_change_percent) >= 0
+                  ? "derivative-positive"
+                  : "derivative-negative"
+            }
+          >
+            {signed(row.oi_change_percent, "%")}
+          </span>
+        );
+      case "change_in_open_interest":
+        return (
+          <span
+            className={
+              row.market.change_in_open_interest == null
+                ? undefined
+                : Number(row.market.change_in_open_interest) >= 0
+                  ? "derivative-positive"
+                  : "derivative-negative"
+            }
+          >
+            {signed(row.market.change_in_open_interest)}
+          </span>
+        );
+      case "trend":
+        return row.technical.trend || "—";
+      case "oi_interpretation":
+        return <OiBadge row={row} />;
+      case "rsi":
+        return num(row.technical.rsi);
+      case "sector":
+        return row.instrument_metadata?.sector || "—";
+      case "strike_distance_percent":
+        return num(row.strike_distance_percent);
+      case "reason":
+        return row.reason;
+      case "ltp":
+      case "volume":
+      case "open_interest":
+      case "implied_volatility":
+      case "spread_percent":
+      case "bid":
+      case "ask":
+      case "delta":
+      case "gamma":
+      case "theta":
+      case "vega":
+        return num(row.market[column]);
+    }
   }
   return (
     <div
@@ -1038,11 +1216,15 @@ export function DerivativesScanner() {
               "volume_percentile",
               "volume_vs_chain_median",
               "volume_oi_percent",
+              "oi_percentile",
+              "oi_vs_chain_median",
+              "oi_change_percentile",
             ].includes(spec.field) && (
               <small>
-                Relative volume uses CE and PE contracts from this underlying
-                and expiry&apos;s bounded chain. Missing observations cannot
-                pass an active filter.
+                Relative volume and OI use CE and PE contracts from this
+                underlying and expiry&apos;s bounded chain. ΔOI percentile ranks
+                absolute change magnitude; direction remains in ΔOI and ΔOI %.
+                Missing observations cannot pass an active filter.
               </small>
             )}
           {spec?.provider_dependent && (
@@ -1103,12 +1285,12 @@ export function DerivativesScanner() {
                     Show non-matches / not evaluated
                   </label>
                   <ScannerColumnsMenu
-                    options={optionalResultColumns}
-                    selected={optionalColumns}
+                    options={resultColumnOptions}
+                    selected={visibleColumns}
                     onChange={(key, checked) =>
-                      setOptionalColumns((current) =>
+                      setVisibleColumns((current) =>
                         checked
-                          ? [...current, key as OptionalResultColumn]
+                          ? [...current, key as ResultColumn]
                           : current.filter((column) => column !== key),
                       )
                     }
@@ -1131,7 +1313,11 @@ export function DerivativesScanner() {
                         ["volume_vs_chain_median", "Vol/Median"],
                         ["volume_oi_percent", "Vol/OI %"],
                         ["open_interest", "OI"],
+                        ["oi_percentile", "OI Pctl"],
+                        ["oi_vs_chain_median", "OI vs Median"],
                         ["change_in_open_interest", "ΔOI"],
+                        ["oi_change_percent", "ΔOI %"],
+                        ["oi_change_percentile", "ΔOI Percentile"],
                         ["spread_percent", "Spread %"],
                         ["implied_volatility", "IV"],
                       ].map(([v, l]) => (
@@ -1170,33 +1356,15 @@ export function DerivativesScanner() {
                   <table>
                     <thead>
                       <tr>
-                        {[
-                          "Select",
-                          "Underlying",
-                          "Spot",
-                          "Expiry",
-                          "DTE",
-                          "Strike",
-                          "Type",
-                          "Money",
-                          "LTP",
-                          "Volume",
-                          "Vol Pctl",
-                          "OI",
-                          "ΔOI",
-                          "Spread %",
-                          "IV",
-                          "Trend",
-                          ...optionalResultColumns
-                            .filter(([key]) => optionalColumns.includes(key))
-                            .map(([, label]) => label),
-                          "Reason",
-                          "Actions",
-                        ].map((h) => (
-                          <th key={h} title={resultColumnHelp[h]}>
-                            {h}
-                          </th>
-                        ))}
+                        <th>Select</th>
+                        {resultColumnOptions
+                          .filter(([key]) => visibleColumns.includes(key))
+                          .map(([key, label]) => (
+                            <th key={key} title={resultColumnHelp[label]}>
+                              {label}
+                            </th>
+                          ))}
+                        <th>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1229,39 +1397,11 @@ export function DerivativesScanner() {
                               }
                             />
                           </td>
-                          <td>
-                            <Link
-                              className="derivative-underlying-link"
-                              href={underlyingHref(row)}
-                              aria-label={`Open ${row.contract.underlying_symbol} in Options Analytics`}
-                            >
-                              {row.underlying}
-                            </Link>
-                          </td>
-                          <td>{num(row.spot)}</td>
-                          <td>{expiryLabel(row.expiry)}</td>
-                          <td>{row.dte}</td>
-                          <td>{num(row.strike)}</td>
-                          <td>{row.option_type}</td>
-                          <td>{row.moneyness || "—"}</td>
-                          <td>{num(row.market.ltp)}</td>
-                          <td>{num(row.market.volume)}</td>
-                          <td title="Volume percentile within the same underlying and expiry chain">
-                            {row.volume_percentile == null
-                              ? "—"
-                              : num(row.volume_percentile)}
-                          </td>
-                          <td>{num(row.market.open_interest)}</td>
-                          <td>{num(row.market.change_in_open_interest)}</td>
-                          <td>{num(row.market.spread_percent)}</td>
-                          <td>{num(row.market.implied_volatility)}</td>
-                          <td>{row.technical.trend || "—"}</td>
-                          {optionalResultColumns
-                            .filter(([key]) => optionalColumns.includes(key))
+                          {resultColumnOptions
+                            .filter(([key]) => visibleColumns.includes(key))
                             .map(([key]) => (
-                              <td key={key}>{optionalResultValue(row, key)}</td>
+                              <td key={key}>{resultCell(row, key)}</td>
                             ))}
-                          <td>{row.reason}</td>
                           <td>{rowActions(row)}</td>
                         </tr>
                       ))}
@@ -1337,6 +1477,12 @@ export function DerivativesScanner() {
                           ? "—"
                           : `${num(row.volume_oi_percent)}%`}
                       </p>
+                      <p>
+                        OI Pctl {num(row.oi_percentile)} · ΔOI{" "}
+                        {signed(row.market.change_in_open_interest)} · ΔOI %{" "}
+                        {signed(row.oi_change_percent, "%")}
+                      </p>
+                      <OiBadge row={row} />
                       <p>{row.reason}</p>
                       {rowActions(row)}
                     </article>
@@ -1662,7 +1808,18 @@ export function DerivativesScanner() {
                   <dt>Open interest</dt>
                   <dd>
                     OI {num(selected.market.open_interest)} · ΔOI{" "}
-                    {num(selected.market.change_in_open_interest)}
+                    {signed(selected.market.change_in_open_interest)} · ΔOI %{" "}
+                    {signed(selected.oi_change_percent, "%")}
+                  </dd>
+                  <dt>Relative OI context</dt>
+                  <dd>
+                    OI percentile {num(selected.oi_percentile)} · chain median{" "}
+                    {num(selected.oi_chain_median)} · vs median{" "}
+                    {selected.oi_vs_chain_median == null
+                      ? "—"
+                      : `${num(selected.oi_vs_chain_median)}x`}{" "}
+                    · absolute ΔOI percentile{" "}
+                    {num(selected.oi_change_percentile)}
                   </dd>
                   <dt>Volatility / Greeks</dt>
                   <dd>
@@ -1706,6 +1863,66 @@ export function DerivativesScanner() {
                 {selected.warnings.length > 0 && (
                   <p>Warnings: {selected.warnings.join(", ")}</p>
                 )}
+                <section
+                  className="derivative-oi-evidence"
+                  aria-label="OI interpretation evidence"
+                >
+                  <h3>OI Interpretation (Inferred)</h3>
+                  <OiBadge row={selected} />
+                  <p>
+                    Evidence quality:{" "}
+                    {selected.oi_interpretation?.confidence || "INSUFFICIENT"}
+                  </p>
+                  <dl>
+                    <dt>Premium change</dt>
+                    <dd>
+                      {signed(
+                        selected.oi_interpretation?.premium_change_percent,
+                        "%",
+                      )}
+                    </dd>
+                    <dt>OI change over comparison window</dt>
+                    <dd>
+                      {signed(
+                        selected.oi_interpretation?.oi_window_change_percent,
+                        "%",
+                      )}
+                    </dd>
+                    <dt>Underlying change</dt>
+                    <dd>
+                      {signed(
+                        selected.oi_interpretation?.underlying_change_percent,
+                        "%",
+                      )}
+                    </dd>
+                    <dt>IV change</dt>
+                    <dd>
+                      {signed(
+                        selected.oi_interpretation?.iv_change_points,
+                        " pp",
+                      )}
+                    </dd>
+                    <dt>Window</dt>
+                    <dd>
+                      {selected.oi_interpretation?.window_start ||
+                        "Unavailable"}{" "}
+                      to{" "}
+                      {selected.oi_interpretation?.window_end || "Unavailable"}
+                      {" · "}
+                      {selected.oi_interpretation?.window_seconds == null
+                        ? "duration unavailable"
+                        : `${num(selected.oi_interpretation.window_seconds)} seconds`}
+                    </dd>
+                    <dt>Freshness</dt>
+                    <dd>
+                      {selected.oi_interpretation?.freshness || "INSUFFICIENT"}
+                    </dd>
+                  </dl>
+                  <small>
+                    {selected.oi_interpretation?.reason ||
+                      "Historical interpretation unavailable"}
+                  </small>
+                </section>
                 <h3>Provenance</h3>
                 <p>
                   Dhan · {selected.provenance.market_source} ·{" "}

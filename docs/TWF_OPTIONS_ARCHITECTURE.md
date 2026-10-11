@@ -519,3 +519,43 @@ remains separate. Expired historical contracts remain inspectable and cannot ope
 O4 does not add option Watchlist storage, multi-leg execution, automated orders or ranking.
 Authenticated live Dhan acceptance is still required; deterministic tests do not constitute
 live-provider proof.
+
+### O4 relative OI and inferred context
+
+O4 retains Dhan's absolute OI and signed ΔOI. From each already acquired, bounded O2
+chain snapshot, before active filters, it calculates CE+PE metrics within one
+underlying and one expiry. At least five valid observations are required for
+OI percentile and median. Null OI is excluded; observed zero participates. OI
+percentile is 100 × count(OI ≤ current OI) / N, so ties share the last rank.
+The chain median is the ordinary middle value (mean of the two middle values
+for even N); OI vs median is unavailable when that median is zero.
+
+Signed ΔOI % is ΔOI / (current OI − ΔOI) × 100 and is unavailable when
+current OI or ΔOI is missing, or the reconstructed previous OI is nonpositive.
+ΔOI percentile ranks absolute ΔOI magnitude in the same bounded chain,
+requiring five valid signed changes. Raw ΔOI and signed ΔOI % retain direction.
+Values are filtered at raw precision and rounded only for display. An active
+filter with missing data is NOT_EVALUATED; an inactive missing field has no
+effect. Typed OI predicates round-trip in the existing saved config and all
+derived values are archived in the immutable run payload. These calculations
+make zero additional provider calls and do not change relative-volume formulas.
+
+OI Interpretation is explicitly inferred evidence, never a market signal.
+It compares an exact canonical contract with the latest comparable archived
+Dhan scan row found in the ten most recent owner-scoped derivative runs. Both
+snapshots must be uncached and no more than 30 minutes apart. The recorded
+measurement window is snapshot receipt to snapshot receipt, not an assumed
+exchange interval. Premium %, OI % and underlying spot % are calculated from
+the two archived/current snapshots; IV change in percentage points is optional.
+A missing comparable row, incomplete input, unchanged option source time, or
+stale chain evidence yields Insufficient evidence. Moves smaller than 0.1% are
+Mixed / Unclear. Otherwise the premium/OI sign pair yields the candidate
+Call/Put long or short buildup, Short covering, or Long unwinding label.
+Contradictory underlying or IV movement caps evidence quality at LOW; missing
+option source timestamps prevent HIGH confidence. The current Dhan option-chain
+adapter supplies no per-leg source time, so the evidence reports
+SOURCE_TIME_UNAVAILABLE even when an underlying index quote has a timestamp.
+Every label and its evidence/window/freshness are archived and shown as
+"Inferred." It neither changes MATCH nor sort relevance or Broker V2 actions.
+O5 may consume these facts for future suitability ranking; O4 does not score or
+rank them.

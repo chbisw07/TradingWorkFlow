@@ -28,7 +28,7 @@ def test_derivatives_catalog_api_and_openapi_match_typed_registry(client: TestCl
     catalog = response.json()
     fields = {item["field"]: item for item in catalog["fields"]}
     assert fields.keys() == FIELDS.keys()
-    assert len(fields) == 20
+    assert len(fields) == 24
     assert fields["moneyness"]["values"] == ["ITM", "ATM", "OTM"]
     assert fields["moneyness"]["operators"] == ["equals", "not_equals"]
     assert fields["dte"]["kind"] == "integer"
@@ -257,6 +257,11 @@ def test_relative_volume_filters_archive_exact_metrics_without_extra_chain_calls
     assert first["volume_vs_chain_median"] == 1
     assert first["volume_oi_percent"] == 60
     assert first["relative_volume_cohort_size"] >= 5
+    assert first["oi_percentile"] == 100
+    assert first["oi_chain_median"] == 50
+    assert first["oi_vs_chain_median"] == 1
+    assert first["oi_change_percent"] is None
+    assert first["oi_interpretation"]["label"] == "Insufficient evidence"
     assert [d["passed"] for d in first["diagnostics"]] == [True, True, True]
     assert first["observed"]["volume_oi_percent"] == 60
     saved = client.post(BASE + "/saved", json={"config": payload}, headers=HEADERS)
@@ -333,3 +338,60 @@ def test_unavailable_chain_is_not_counted_and_other_underlyings_continue(
     assert run["underlyings"][1]["outcome"] == "NOT_EVALUATED"
     assert run["underlyings"][1]["failure"] == "CHAIN_MARKET_UNAVAILABLE"
     assert {row["underlying"] for row in run["rows"]} == {"NIFTY", "RELIANCE"}
+
+
+def test_oi_interpretation_uses_archived_exact_contract_without_provider_calls(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from twf.options.chain_service import ChainMarketBatch
+
+    install_market(client, monkeypatch)
+
+    class MovingSource(Source):
+        async def market(self, underlying: str, expiry: Any, contracts: Any) -> Any:
+            batch = await super().market(underlying, expiry, contracts)
+            current = self.calls == 2
+            quotes = {
+                key: quote.model_copy(
+                    update={
+                        "ltp": Decimal("11" if current else "10"),
+                        "open_interest": Decimal("60" if current else "50"),
+                        "change_in_open_interest": Decimal("10" if current else "0"),
+                    }
+                )
+                for key, quote in batch.quotes.items()
+            }
+            return ChainMarketBatch(
+                spot=Decimal("102" if current else "100"),
+                quotes=quotes,
+                received_at=datetime.now(UTC),
+            )
+
+    source = MovingSource()
+    monkeypatch.setattr(cast(Any, client.app).state.option_chains, "get", lambda *args: source)
+    payload = config(
+        universe={"source": "CUSTOM", "symbols": ["NIFTY"]},
+        filters=[{"field": "option_type", "operator": "equals", "value": "CE"}],
+    )
+    first_response = client.post(BASE + "/runs", json=payload, headers=HEADERS)
+    assert first_response.status_code == 200, first_response.text
+    first = first_response.json()
+    second_response = client.post(BASE + "/runs", json=payload, headers=HEADERS)
+    assert second_response.status_code == 200, second_response.text
+    second = second_response.json()
+    assert source.calls == 2
+    prior = first["rows"][0]
+    current = second["rows"][0]
+    assert prior["oi_interpretation"]["label"] == "Insufficient evidence"
+    assert current["oi_interpretation"]["label"] == "Call long buildup"
+    assert current["oi_interpretation"]["inferred"] is True
+    assert current["oi_interpretation"]["premium_change_percent"] == 10
+    assert current["oi_interpretation"]["oi_window_change_percent"] == 20
+    assert current["oi_interpretation"]["underlying_change_percent"] == 2
+    assert current["oi_interpretation"]["window_seconds"] > 0
+    assert current["oi_interpretation"]["freshness"] == "SOURCE_TIME_UNAVAILABLE"
+    assert current["outcome"] == prior["outcome"] == "MATCH"
+    assert current["reason"] == prior["reason"] == "1/1 active filters matched"
+    source.fail = True
+    assert client.get(BASE + "/runs/" + second["id"]).json()["rows"][0] == current
+    assert source.calls == 2

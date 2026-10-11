@@ -621,3 +621,21 @@ remain unchanged. Result rows archive derived values, median, cohort size, under
 and expiry, so history does not recalculate them. No additional Dhan or DB calls,
 liquidity score, cross-chain comparison, ranking or directional Volume/OI claim is
 introduced. O5 owns suitability ranking.
+
+### O4 OI context and interpretation
+
+The Derivatives result table now prioritizes raw Volume, OI and ΔOI alongside
+Volume Percentile, OI Percentile and signed ΔOI %. The Columns overlay toggles
+all available OI fields plus secondary O4 data without changing result-card
+height or moving the selection/action bar. The right Instrument Analysis panel
+shows chain cohort, median ratio, absolute ΔOI percentile, and a separate
+"Inferred" interpretation evidence section. Default interpretation is
+Insufficient evidence when no valid earlier exact-contract scan snapshot
+exists. Option source time is not inferred from an underlying quote.
+
+The backend computes OI cohort metrics before active predicates and stores
+them, filter observations, and interpretation evidence in the original
+owner-scoped run JSON. Historical views read that JSON unchanged. OI
+interpretation does not participate in O4 MATCH, hidden ranking, trade
+availability, or automatic execution. The definitions, bounded comparison
+window and O5 boundary are in TWF_OPTIONS_ARCHITECTURE.md.
