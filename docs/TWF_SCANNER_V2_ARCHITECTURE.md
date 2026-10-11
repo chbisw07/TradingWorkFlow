@@ -17,7 +17,7 @@ Work began on `main`, HEAD `d2a35176fd01efa095871ac6f5347af314dc7b33`, with a cl
 
 ## C–E. Product and provider boundaries
 
-Scanner performs explicit candidate generation. Discovery performs downstream interpretation and temporal tracking. Scanner V2 does not automatically create Discovery candidates or authorize orders. A persisted match contains canonical instrument identity, versioned filters, predicate diagnostics, observed metrics, provider lineage, source/received timestamps and archived bars for a future explicit Discovery handoff.
+Scanner performs explicit candidate generation. Discovery performs downstream interpretation and temporal tracking. Scanner V2 does not automatically create Discovery candidates or authorize orders. A persisted match contains canonical instrument identity, versioned filters, predicate diagnostics, observed metrics, provider lineage, source/received timestamps and archived bars for a future explicit Discovery handoff. Resolved equity result rows can open the existing Broker V2 Buy/Sell ticket using an exact, currently valid broker contract mapping, including when viewing a historical run. Scanner never places an order directly; Broker V2 retains preview, explicit confirmation, and execution authority. Index and unresolved rows cannot launch equity trading.
 
 Equity/Index is functional. O4 activates the separate Derivatives tab for bounded single-leg option-chain filtering; provider-dependent IV/Greeks remain unavailable where O2 does not provide them. Futures/options in a mixed Equity/Index Watchlist scan still receive `NOT_EVALUATED / DERIVATIVES_UNSUPPORTED`.
 

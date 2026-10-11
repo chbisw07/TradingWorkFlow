@@ -37,6 +37,7 @@ import {
   type WatchReference,
 } from "../../lib/watchlists";
 import { brokerApi, type Account, type Instrument } from "../../lib/brokers";
+import { canOrder, type Capability } from "../../lib/broker-orders";
 import { OrderTicket } from "../brokers/order-ticket";
 import { MarketChart } from "../watchlists/market-chart";
 import { WatchDialog } from "../watchlists/dialog";
@@ -112,7 +113,8 @@ export function ScannerWorkspace() {
   const [movers, setMovers] = useState<ProviderResults | null>(null),
     [moverTab, setMoverTab] = useState("Top Gainers");
   const [accounts, setAccounts] = useState<Account[]>([]),
-    [accountId, setAccountId] = useState("");
+    [accountId, setAccountId] = useState(""),
+    [accountsLoaded, setAccountsLoaded] = useState(false);
   const [ticket, setTicket] = useState<{
     account: Account;
     instrument: Instrument;
@@ -145,8 +147,31 @@ export function ScannerWorkspace() {
   useEffect(() => {
     void refresh().catch((e) => setError(String(e.message)));
     void brokerApi<Account[]>("accounts")
-      .then(setAccounts)
-      .catch(() => {});
+      .then(async (all) => {
+        const eligible = await Promise.all(
+          all
+            .filter((account) => account.state === "connected")
+            .map(async (account) => {
+              try {
+                const capability = await brokerApi<Capability>(
+                  `accounts/${account.id}/order-entry/capabilities`,
+                );
+                return capability.enabled && capability.broker.supports_equity
+                  ? account
+                  : null;
+              } catch {
+                return null;
+              }
+            }),
+        );
+        const valid = eligible.filter((account): account is Account =>
+          Boolean(account),
+        );
+        setAccounts(valid);
+        if (valid.length === 1) setAccountId(valid[0].id);
+      })
+      .catch(() => setAccounts([]))
+      .finally(() => setAccountsLoaded(true));
   }, []);
   useEffect(() => {
     let active = true;
@@ -456,6 +481,23 @@ export function ScannerWorkspace() {
           a.symbol.localeCompare(b.symbol),
   );
   const identity = (r: ScanRow) => r.instrument?.instrument_id || r.symbol;
+  const equityIdentity = (row: ScanRow) =>
+    row.outcome === "MATCH" &&
+    !!row.instrument?.instrument_id &&
+    !!row.instrument.symbol &&
+    !!row.instrument.exchange &&
+    row.instrument.segment === "EQ" &&
+    row.instrument.instrument_type === "EQUITY";
+  const tradeAvailability = (row: ScanRow) =>
+    !equityIdentity(row)
+      ? "Only resolved equity instruments can open a broker ticket."
+      : !accountsLoaded
+        ? "Checking equity-capable brokers."
+        : !accounts.length
+          ? "Connect/select an equity-capable broker to preview a trade."
+          : !accountId && accounts.length > 1
+            ? "Select an equity-capable broker in Instrument Analysis to preview a trade."
+            : "Opens Broker V2 order ticket; preview and confirmation are required.";
   function addTo(ids: string[]) {
     setAddIds(ids);
     setTarget(lists[0]?.id || "new");
@@ -463,12 +505,30 @@ export function ScannerWorkspace() {
     setModal("add");
   }
   async function trade(row: ScanRow, side: "BUY" | "SELL") {
+    if (!equityIdentity(row) || !run) return;
+    if (!accountId && accounts.length > 1) {
+      inspect(row);
+      setNotice("Select an equity-capable broker in Instrument Analysis.");
+      return;
+    }
     await action(async () => {
       const account = accounts.find((a) => a.id === accountId);
-      if (!account || !run) throw new Error("Select a connected broker.");
+      if (!account)
+        throw new Error(
+          "Connect/select an equity-capable broker to preview a trade.",
+        );
       const instrument = await scannerApi<Instrument>(
         `runs/${run.id}/items/${identity(row)}/broker-instrument?account_id=${account.id}`,
       );
+      if (
+        !canOrder(instrument) ||
+        instrument.kind !== "EQ" ||
+        instrument.symbol !== row.instrument?.symbol ||
+        instrument.exchange !== row.instrument.exchange
+      )
+        throw new Error(
+          "An exact, currently tradable broker equity contract is unavailable.",
+        );
       setModal(null);
       setTicket({ account, instrument, side });
     });
@@ -850,8 +910,9 @@ export function ScannerWorkspace() {
         <button
           className="wl-buy"
           disabled={
-            busy || !accountId || selected.instrument?.segment === "INDEX"
+            busy || !equityIdentity(selected) || !accounts.length || !accountId
           }
+          title={tradeAvailability(selected)}
           onClick={() => void trade(selected, "BUY")}
         >
           Buy
@@ -859,14 +920,15 @@ export function ScannerWorkspace() {
         <button
           className="wl-sell"
           disabled={
-            busy || !accountId || selected.instrument?.segment === "INDEX"
+            busy || !equityIdentity(selected) || !accounts.length || !accountId
           }
+          title={tradeAvailability(selected)}
           onClick={() => void trade(selected, "SELL")}
         >
           Sell
         </button>
       </div>
-      <small>Opens Broker V2 preview. Confirmation is required.</small>
+      <small>{tradeAvailability(selected)}</small>
     </div>
   ) : null;
   return (
@@ -1582,6 +1644,14 @@ export function ScannerWorkspace() {
                   )}
                 </>
               )}
+              {matches.some(equityIdentity) &&
+                accountsLoaded &&
+                !accounts.length && (
+                  <p className="sc-broker-unavailable" role="status">
+                    Connect/select an equity-capable broker to preview a trade.{" "}
+                    <Link href="/brokers">Manage Brokers</Link>
+                  </p>
+                )}
               {!run ? (
                 <div className="sc-empty">
                   <Icon name="scanners" />
@@ -1781,6 +1851,40 @@ export function ScannerWorkspace() {
                                 onClick={() => inspect(r)}
                               >
                                 ↗
+                              </button>
+                              <button
+                                className="wl-buy"
+                                aria-label={`Buy ${r.symbol}`}
+                                title={tradeAvailability(r)}
+                                disabled={
+                                  busy ||
+                                  !equityIdentity(r) ||
+                                  !accounts.length ||
+                                  !accountsLoaded
+                                }
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  void trade(r, "BUY");
+                                }}
+                              >
+                                B
+                              </button>
+                              <button
+                                className="wl-sell"
+                                aria-label={`Sell ${r.symbol}`}
+                                title={tradeAvailability(r)}
+                                disabled={
+                                  busy ||
+                                  !equityIdentity(r) ||
+                                  !accounts.length ||
+                                  !accountsLoaded
+                                }
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  void trade(r, "SELL");
+                                }}
+                              >
+                                S
                               </button>
                             </div>
                           </td>

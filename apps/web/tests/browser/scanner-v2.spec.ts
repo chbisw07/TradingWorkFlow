@@ -39,6 +39,33 @@ test("Scanner V2 editable filters, durable runs, Watchlist handoff and responsiv
     headers,
     data: { instrument_ids: ids },
   });
+  const configured = await page.request.post("/api/v1/brokers/accounts", {
+    headers,
+    data: {
+      name: "Scanner Equity Preview",
+      api_key: `scannerkey${info.project.name.replaceAll("-", "")}`,
+      api_secret: "testsecret123",
+    },
+  });
+  expect(configured.ok()).toBe(true);
+  const brokerId = (await configured.json()).id;
+  const connect = await page.request.post(
+    `/api/v1/brokers/accounts/${brokerId}/connect`,
+    { headers, data: {} },
+  );
+  expect(connect.ok()).toBe(true);
+  const loginUrl = new URL((await connect.json()).login_url);
+  const state = new URLSearchParams(
+    loginUrl.searchParams.get("redirect_params")!,
+  ).get("state");
+  expect(
+    (
+      await page.request.post("/api/v1/brokers/callback", {
+        headers,
+        data: { state, request_token: "request123" },
+      })
+    ).ok(),
+  ).toBe(true);
   await page.addInitScript(() => localStorage.setItem("twf-theme", "light"));
   let dispatches = 0;
   page.on("request", (r) => {
@@ -157,6 +184,63 @@ test("Scanner V2 editable filters, durable runs, Watchlist handoff and responsiv
   await expect(page.locator(".sc-reason").first()).toContainText(
     "1/1 technical · Context +0 Mixed · Final 80",
   );
+  const relianceRow = page
+    .locator(".sc-table tbody tr")
+    .filter({ hasText: "RELIANCE" });
+  const indexRow = page
+    .locator(".sc-table tbody tr")
+    .filter({ hasText: "NIFTY" });
+  await expect(
+    relianceRow.getByRole("button", { name: "Buy RELIANCE" }),
+  ).toBeEnabled();
+  await expect(
+    relianceRow.getByRole("button", { name: "Sell RELIANCE" }),
+  ).toBeEnabled();
+  await expect(
+    indexRow.getByRole("button", { name: "Buy NIFTY" }),
+  ).toBeDisabled();
+  await expect(
+    indexRow.getByRole("button", { name: "Sell NIFTY" }),
+  ).toBeDisabled();
+  for (const [action, side] of [
+    ["Buy", "BUY"],
+    ["Sell", "SELL"],
+  ] as const) {
+    await relianceRow
+      .getByRole("button", { name: `${action} RELIANCE` })
+      .click();
+    const ticket = page.getByRole("dialog");
+    await expect(
+      ticket.getByRole("heading", { name: "Order Ticket" }),
+    ).toBeVisible();
+    await expect(
+      ticket.getByRole("button", { name: action, exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(ticket).toContainText("RELIANCE");
+    await expect(ticket).toContainText("NSE");
+    const price = ticket.getByLabel("Price (₹)", { exact: true });
+    if (await price.count()) await price.fill("100.05");
+    await ticket.getByRole("button", { name: `Preview ${action}` }).click();
+    await expect(
+      ticket.getByRole("button", { name: `Confirm ${action}` }),
+    ).toBeVisible();
+    await expect(ticket.locator(".order-preview")).toContainText(
+      `${side} RELIANCE`,
+    );
+    await page.screenshot({
+      path: info.outputPath(`scanner-${action.toLowerCase()}-preview.png`),
+    });
+    await ticket.getByLabel("Close order ticket").click();
+    await expect(ticket).toHaveCount(0);
+    await expect(page.getByLabel("Watchlist", { exact: true })).toHaveValue(
+      list.id,
+    );
+    await expect(page.locator(".sc-grid")).not.toHaveClass(/has-detail/);
+    await expect(
+      page.getByRole("button", { name: "Remove filter 1" }),
+    ).toBeVisible();
+  }
+  expect(dispatches).toBe(0);
   await expect(page.locator(".sc-table thead")).toContainText("Sector");
   await expect(page.locator(".sc-table tbody")).toContainText("Energy");
   await expect(page.locator(".sc-table tbody")).toContainText("Technology");

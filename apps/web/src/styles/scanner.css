@@ -230,11 +230,23 @@
 }
 .sc-row-actions {
   display: flex;
+  align-items: center;
   gap: 4px;
+  white-space: nowrap;
 }
 .sc-row-actions button {
   min-width: 26px;
   padding: 4px;
+}
+.sc-row-actions .wl-buy,
+.sc-row-actions .wl-sell {
+  font-size: 10px;
+  font-weight: 600;
+}
+.sc-broker-unavailable {
+  margin: 4px 0;
+  color: var(--shell-secondary);
+  font-size: 11px;
 }
 .sc-bulk {
   display: flex;
