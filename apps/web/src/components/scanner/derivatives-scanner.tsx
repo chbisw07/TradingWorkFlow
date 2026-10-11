@@ -69,6 +69,11 @@ type Row = {
   moneyness: string | null;
   strike_distance_percent: number | null;
   market: OptionMarketSnapshot;
+  volume_percentile?: number | null;
+  volume_chain_median?: number | null;
+  volume_vs_chain_median?: number | null;
+  volume_oi_percent?: number | null;
+  relative_volume_cohort_size?: number;
   technical: Record<string, string | number | null>;
   instrument_metadata: {
     sector?: string | null;
@@ -109,6 +114,8 @@ type Saved = {
   updated_at: string;
 };
 const optionalResultColumns = [
+  ["volume_vs_chain_median", "Vol/Median"],
+  ["volume_oi_percent", "Vol/OI %"],
   ["bid", "Bid"],
   ["ask", "Ask"],
   ["strike_distance_percent", "Strike distance %"],
@@ -120,6 +127,14 @@ const optionalResultColumns = [
 type OptionalResultColumn = (typeof optionalResultColumns)[number][0];
 function optionalResultValue(row: Row, column: OptionalResultColumn): string {
   switch (column) {
+    case "volume_vs_chain_median":
+      return row.volume_vs_chain_median == null
+        ? "—"
+        : `${num(row.volume_vs_chain_median)}x`;
+    case "volume_oi_percent":
+      return row.volume_oi_percent == null
+        ? "—"
+        : `${num(row.volume_oi_percent)}%`;
     case "strike_distance_percent":
       return num(row.strike_distance_percent);
     case "rsi":
@@ -158,8 +173,28 @@ function valueText(value: unknown): string {
   return value == null ? "—" : String(value);
 }
 function filterText(filter: Filter, fields: Field[]) {
-  return `${fields.find((f) => f.field === filter.field)?.label || filter.field} ${filter.operator === "between" ? "between" : filter.operator} ${valueText(filter.value)}`;
+  const spec = fields.find((f) => f.field === filter.field);
+  const unit =
+    (spec?.unit === "x" || filter.field === "volume_oi_percent") && spec
+      ? spec.unit
+      : "";
+  return `${spec?.label || filter.field} ${filter.operator === "between" ? "between" : filter.operator} ${valueText(filter.value)}${unit || ""}`;
 }
+function diagnosticObserved(diagnostic: Diagnostic): string {
+  if (diagnostic.observed == null) return "Unavailable";
+  const suffix =
+    diagnostic.filter.field === "volume_vs_chain_median"
+      ? "x"
+      : diagnostic.filter.field === "volume_oi_percent"
+        ? "%"
+        : "";
+  return `${valueText(diagnostic.observed)}${suffix}`;
+}
+const resultColumnHelp: Record<string, string> = {
+  "Vol Pctl": "Volume percentile within the same underlying and expiry chain",
+  "Vol/Median": "Contract volume divided by the chain median volume",
+  "Vol/OI %": "Contract volume as a percentage of current open interest",
+};
 function expiredContract(contract: OptionContract): boolean {
   const today = new Intl.DateTimeFormat("sv-SE", {
     timeZone: "Asia/Kolkata",
@@ -190,11 +225,11 @@ export function DerivativesScanner() {
   const [raw, setRaw] = useState("");
   const [lists, setLists] = useState<Watchlist[]>([]);
   const [members, setMembers] = useState<WatchDetail | null>(null);
-  const [field, setField] = useState("option_type");
-  const [operator, setOperator] = useState("equals");
-  const [value, setValue] = useState("BOTH");
+  const [field, setField] = useState("");
+  const [operator, setOperator] = useState("");
+  const [value, setValue] = useState("");
   const [upper, setUpper] = useState("");
-  const [selectedEnums, setSelectedEnums] = useState<string[]>(["ATM"]);
+  const [selectedEnums, setSelectedEnums] = useState<string[]>([]);
   const [run, setRun] = useState<Run | null>(null);
   const [history, setHistory] = useState<Run[]>([]);
   const [saved, setSaved] = useState<Saved[]>([]);
@@ -238,6 +273,31 @@ export function DerivativesScanner() {
         Number(
           b.market[sort as keyof OptionMarketSnapshot] ??
             Number.POSITIVE_INFINITY,
+        )
+      );
+    if (
+      [
+        "volume_percentile",
+        "volume_vs_chain_median",
+        "volume_oi_percent",
+      ].includes(sort)
+    )
+      return (
+        Number(
+          a[
+            sort as
+              | "volume_percentile"
+              | "volume_vs_chain_median"
+              | "volume_oi_percent"
+          ] ?? Number.POSITIVE_INFINITY,
+        ) -
+        Number(
+          b[
+            sort as
+              | "volume_percentile"
+              | "volume_vs_chain_median"
+              | "volume_oi_percent"
+          ] ?? Number.POSITIVE_INFINITY,
         )
       );
     if (sort === "dte") return a.dte - b.dte;
@@ -329,7 +389,7 @@ export function DerivativesScanner() {
     setOperator(
       info?.kind === "enum" || info?.kind === "multi" ? "equals" : ">=",
     );
-    setValue(info?.values?.[0] || "0");
+    setValue(info?.values?.[0] || "");
     setUpper("");
     setSelectedEnums(info?.values ? [info.values[0]] : []);
   }
@@ -686,7 +746,9 @@ export function DerivativesScanner() {
               disabled={!catalog}
               onChange={(e) => editField(e.target.value)}
             >
-              {!catalog && <option value="">Filters unavailable</option>}
+              <option value="">
+                {catalog ? "Select field" : "Filters unavailable"}
+              </option>
               {catalog &&
                 [...new Set(catalog.fields.map((f) => f.category))].map(
                   (category) => (
@@ -774,6 +836,18 @@ export function DerivativesScanner() {
               )}
             </>
           )}
+          {spec &&
+            [
+              "volume_percentile",
+              "volume_vs_chain_median",
+              "volume_oi_percent",
+            ].includes(spec.field) && (
+              <small>
+                Relative volume uses CE and PE contracts from this underlying
+                and expiry&apos;s bounded chain. Missing observations cannot
+                pass an active filter.
+              </small>
+            )}
           {spec?.provider_dependent && (
             <small>
               This field can be unavailable in the current Dhan chain; an active
@@ -795,6 +869,7 @@ export function DerivativesScanner() {
               onClick={() => {
                 setConfig(initial);
                 setRaw("");
+                editField("");
                 setRun(null);
                 setSelected(null);
               }}
@@ -861,6 +936,9 @@ export function DerivativesScanner() {
                         ["strike", "Strike"],
                         ["ltp", "LTP"],
                         ["volume", "Volume"],
+                        ["volume_percentile", "Vol Pctl"],
+                        ["volume_vs_chain_median", "Vol/Median"],
+                        ["volume_oi_percent", "Vol/OI %"],
                         ["open_interest", "OI"],
                         ["change_in_open_interest", "ΔOI"],
                         ["spread_percent", "Spread %"],
@@ -911,6 +989,7 @@ export function DerivativesScanner() {
                           "Money",
                           "LTP",
                           "Volume",
+                          "Vol Pctl",
                           "OI",
                           "ΔOI",
                           "Spread %",
@@ -922,7 +1001,9 @@ export function DerivativesScanner() {
                           "Reason",
                           "Actions",
                         ].map((h) => (
-                          <th key={h}>{h}</th>
+                          <th key={h} title={resultColumnHelp[h]}>
+                            {h}
+                          </th>
                         ))}
                       </tr>
                     </thead>
@@ -946,6 +1027,11 @@ export function DerivativesScanner() {
                           <td>{row.moneyness || "—"}</td>
                           <td>{num(row.market.ltp)}</td>
                           <td>{num(row.market.volume)}</td>
+                          <td title="Volume percentile within the same underlying and expiry chain">
+                            {row.volume_percentile == null
+                              ? "—"
+                              : num(row.volume_percentile)}
+                          </td>
                           <td>{num(row.market.open_interest)}</td>
                           <td>{num(row.market.change_in_open_interest)}</td>
                           <td>{num(row.market.spread_percent)}</td>
@@ -1001,6 +1087,16 @@ export function DerivativesScanner() {
                           <b>{row.dte}</b>
                         </span>
                       </div>
+                      <p>
+                        Vol Pctl {num(row.volume_percentile)} · Vol/Median{" "}
+                        {row.volume_vs_chain_median == null
+                          ? "—"
+                          : `${num(row.volume_vs_chain_median)}x`}{" "}
+                        · Vol/OI{" "}
+                        {row.volume_oi_percent == null
+                          ? "—"
+                          : `${num(row.volume_oi_percent)}%`}
+                      </p>
                       <p>{row.reason}</p>
                       <button onClick={() => setSelected(row)}>Why?</button>
                     </article>
@@ -1097,10 +1193,32 @@ export function DerivativesScanner() {
                 LTP {num(selected.market.ltp)} · Bid {num(selected.market.bid)}{" "}
                 · Ask {num(selected.market.ask)}
               </dd>
-              <dt>Liquidity</dt>
+              <dt>Liquidity / Activity</dt>
               <dd>
                 Volume {num(selected.market.volume)} · Spread{" "}
                 {num(selected.market.spread_percent)}%
+              </dd>
+              <dt>Volume percentile</dt>
+              <dd>{num(selected.volume_percentile)}</dd>
+              <dt>Chain median volume</dt>
+              <dd>{num(selected.volume_chain_median)}</dd>
+              <dt>Volume vs median</dt>
+              <dd>
+                {selected.volume_vs_chain_median == null
+                  ? "—"
+                  : `${num(selected.volume_vs_chain_median)}x`}
+              </dd>
+              <dt>Volume / OI</dt>
+              <dd>
+                {selected.volume_oi_percent == null
+                  ? "—"
+                  : `${num(selected.volume_oi_percent)}%`}
+              </dd>
+              <dt>Comparison cohort</dt>
+              <dd>
+                {selected.underlying} · {expiryLabel(selected.expiry)} ·{" "}
+                {selected.relative_volume_cohort_size ?? "—"} valid CE + PE
+                volumes in the bounded chain
               </dd>
               <dt>Open interest</dt>
               <dd>
@@ -1137,7 +1255,7 @@ export function DerivativesScanner() {
                 <li key={d.filter.field}>
                   {d.passed === true ? "✓" : d.passed === false ? "✕" : "?"}{" "}
                   {filterText(d.filter, catalog?.fields || [])}
-                  <small>Observed: {valueText(d.observed)}</small>
+                  <small>Observed: {diagnosticObserved(d)}</small>
                 </li>
               ))}
             </ul>

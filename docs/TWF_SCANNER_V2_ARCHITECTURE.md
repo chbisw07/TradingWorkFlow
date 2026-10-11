@@ -587,3 +587,19 @@ one active optional field becomes explicit `NOT_EVALUATED`; the other underlying
 continue. Counts distinguish requested/resolved underlyings, acquired chains, evaluated
 contracts, not-evaluated inputs and matches. There is no derivatives relevance score or
 option strategy inference. O4 needs authenticated live user validation before acceptance.
+
+### O4 relative option activity
+
+O4 keeps raw Volume and adds Volume Percentile, Volume vs Chain Median and Volume / OI %
+to the typed option filter catalog. These are in-memory deterministic facts derived
+before predicate evaluation from all observed CE+PE volumes in the one bounded O2
+snapshot for the same underlying and resolved expiry. Percentile uses
+`100 × count(volume <= current) / N`, so ties share the last rank; null volume is
+excluded while zero is valid. At least five valid volumes are needed for percentile
+and median ratio. A zero median makes that ratio unavailable. Volume / OI is
+`volume / positive OI × 100` and does not require the five-member cohort. Active
+missing metrics produce explicit `NOT_EVALUATED`; raw volume and all other O4 rules
+remain unchanged. Result rows archive derived values, median, cohort size, underlying
+and expiry, so history does not recalculate them. No additional Dhan or DB calls,
+liquidity score, cross-chain comparison, ranking or directional Volume/OI claim is
+introduced. O5 owns suitability ranking.

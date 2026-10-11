@@ -28,12 +28,15 @@ def test_derivatives_catalog_api_and_openapi_match_typed_registry(client: TestCl
     catalog = response.json()
     fields = {item["field"]: item for item in catalog["fields"]}
     assert fields.keys() == FIELDS.keys()
-    assert len(fields) == 17
+    assert len(fields) == 20
     assert fields["moneyness"]["values"] == ["ITM", "ATM", "OTM"]
     assert fields["moneyness"]["operators"] == ["equals", "not_equals"]
     assert fields["dte"]["kind"] == "integer"
     assert "between" in fields["dte"]["operators"]
     assert fields["spread_percent"]["unit"] == "%"
+    assert fields["volume_percentile"]["maximum"] == 100
+    assert fields["volume_vs_chain_median"]["unit"] == "x"
+    assert fields["volume_oi_percent"]["unit"] == "%"
     assert fields["implied_volatility"]["provider_dependent"] is True
     assert fields["delta"]["provider_dependent"] is True
     assert fields["theta"]["provider_dependent"] is True
@@ -61,6 +64,9 @@ def config(**updates: Any) -> dict[str, Any]:
         ("open_interest", ">", "delta"),
         ("dte", "between", [5, 2]),
         ("volume", ">=", -1),
+        ("volume_percentile", ">=", 101),
+        ("volume_vs_chain_median", ">=", -1),
+        ("volume_oi_percent", ">=", -1),
         ("option_type", "not_equals", "BOTH"),
         ("delta", "between", [2, 3]),
         ("unknown", "equals", 1),
@@ -90,6 +96,15 @@ def test_both_option_types_match_without_side_bias() -> None:
         ("strike_distance_percent", "<=", 2, 1.5, "MATCH"),
         ("ltp", "between", (20, 300), 125, "MATCH"),
         ("volume", ">=", 100_000, 150_000, "MATCH"),
+        ("volume_percentile", ">=", 70, 69.9, "NON_MATCH"),
+        ("volume_percentile", ">=", 70, 70, "MATCH"),
+        ("volume_percentile", ">=", 70, 90, "MATCH"),
+        ("volume_vs_chain_median", ">=", 1.5, 1.49, "NON_MATCH"),
+        ("volume_vs_chain_median", ">=", 1.5, 1.5, "MATCH"),
+        ("volume_vs_chain_median", ">=", 1.5, 3, "MATCH"),
+        ("volume_oi_percent", ">=", 20, 19.9, "NON_MATCH"),
+        ("volume_oi_percent", ">=", 20, 20, "MATCH"),
+        ("volume_oi_percent", ">=", 20, 50, "MATCH"),
         ("open_interest", ">=", 500_000, 499_999, "NON_MATCH"),
         ("change_in_open_interest", "<", 0, -80_000, "MATCH"),
         ("spread_percent", "<=", 2, 4.5, "NON_MATCH"),
@@ -213,6 +228,43 @@ def test_api_exact_contract_partial_underlying_history_saved_and_owner_isolation
     login(client, "bob")
     assert client.get(BASE + "/runs/" + run["id"]).status_code == 404
     assert client.get(BASE + "/saved").json() == []
+
+
+def test_relative_volume_filters_archive_exact_metrics_without_extra_chain_calls(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    install_market(client, monkeypatch)
+    source = Source()
+    monkeypatch.setattr(cast(Any, client.app).state.option_chains, "get", lambda *args: source)
+    filters = [
+        {"field": "volume_percentile", "operator": ">=", "value": 70},
+        {"field": "volume_vs_chain_median", "operator": ">=", "value": 1},
+        {"field": "volume_oi_percent", "operator": ">=", "value": 20},
+    ]
+    payload = config(
+        universe={"source": "CUSTOM", "symbols": ["NIFTY"]},
+        filters=filters,
+    )
+    response = client.post(BASE + "/runs", json=payload, headers=HEADERS)
+    assert response.status_code == 200, response.text
+    run = response.json()
+    assert source.calls == 1
+    assert run["counts"]["matches"] > 0
+    first = run["rows"][0]
+    assert first["market"]["volume"] == "30"
+    assert first["volume_percentile"] == 100
+    assert first["volume_chain_median"] == 30
+    assert first["volume_vs_chain_median"] == 1
+    assert first["volume_oi_percent"] == 60
+    assert first["relative_volume_cohort_size"] >= 5
+    assert [d["passed"] for d in first["diagnostics"]] == [True, True, True]
+    assert first["observed"]["volume_oi_percent"] == 60
+    saved = client.post(BASE + "/saved", json={"config": payload}, headers=HEADERS)
+    assert saved.status_code == 200
+    assert client.get(BASE + "/saved").json()[0]["config"]["filters"] == filters
+    source.missing = {c.canonical_id for c in source.items}
+    assert client.get(BASE + "/runs/" + run["id"]).json()["rows"][0] == first
+    assert source.calls == 1
 
 
 def test_watchlist_selection_reuses_only_selected_optionable_underlying(

@@ -4,6 +4,7 @@ import asyncio
 import math
 import re
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from typing import Any, Literal, Self
 from uuid import UUID, uuid4
 
@@ -30,6 +31,7 @@ from twf.watchlists.service import WatchlistFailure, WatchlistService
 from twf.watchlists.system import SystemUniverseCatalog
 
 MAX_UNDERLYINGS = 5
+MIN_RELATIVE_VOLUME_COHORT = 5
 NumericOperator = Literal[">", ">=", "<", "<=", "equals", "between"]
 EnumOperator = Literal["equals", "not_equals"]
 
@@ -49,6 +51,21 @@ FIELDS: dict[str, dict[str, Any]] = {
         category="Price & Liquidity", label="Option LTP", kind="number", minimum=0, unit="INR"
     ),
     "volume": dict(category="Price & Liquidity", label="Volume", kind="integer", minimum=0),
+    "volume_percentile": dict(
+        category="Price & Liquidity",
+        label="Volume Percentile",
+        kind="number",
+        minimum=0,
+        maximum=100,
+        unit="%",
+    ),
+    "volume_vs_chain_median": dict(
+        category="Price & Liquidity",
+        label="Volume vs Chain Median",
+        kind="number",
+        minimum=0,
+        unit="x",
+    ),
     "spread_percent": dict(
         category="Price & Liquidity", label="Spread %", kind="number", minimum=0, unit="%"
     ),
@@ -56,6 +73,13 @@ FIELDS: dict[str, dict[str, Any]] = {
         category="Open Interest", label="Open Interest", kind="integer", minimum=0
     ),
     "change_in_open_interest": dict(category="Open Interest", label="Change in OI", kind="integer"),
+    "volume_oi_percent": dict(
+        category="Open Interest",
+        label="Volume / OI %",
+        kind="number",
+        minimum=0,
+        unit="%",
+    ),
     "implied_volatility": dict(
         category="Volatility & Greeks",
         label="IV %",
@@ -227,6 +251,11 @@ class DerivativeScanResult(DerivativeModel):
     moneyness: Literal["ITM", "ATM", "OTM"] | None
     strike_distance_percent: float | None
     market: OptionMarketSnapshot
+    volume_percentile: float | None
+    volume_chain_median: float | None
+    volume_vs_chain_median: float | None
+    volume_oi_percent: float | None
+    relative_volume_cohort_size: int = Field(ge=0)
     availability: Literal["AVAILABLE", "PARTIAL", "UNAVAILABLE"]
     technical: dict[str, float | str | None]
     technical_provenance: dict[str, Any] | None
@@ -258,8 +287,58 @@ def catalog() -> dict[str, Any]:
     }
 
 
+def relative_volume_metrics(chain: OptionChainSnapshot) -> dict[str, dict[str, float | int | None]]:
+    """Snapshot-local CE+PE volume ranks. Ties use count(volume <= current) / N.
+
+    Null volumes are excluded; observed zero participates. Percentile and median
+    ratio need at least five valid observations. Volume/OI is independent of that
+    cohort minimum. Only this already acquired O2 chain is read.
+    """
+    legs = {
+        leg.contract.canonical_id: leg
+        for row in chain.rows
+        for leg in (row.ce, row.pe)
+        if leg is not None
+    }
+    valid = sorted(leg.market.volume for leg in legs.values() if leg.market.volume is not None)
+    size = len(valid)
+    middle = size // 2
+    median_volume: Decimal | None = None
+    if size >= MIN_RELATIVE_VOLUME_COHORT:
+        median_volume = valid[middle] if size % 2 else (valid[middle - 1] + valid[middle]) / 2
+    result: dict[str, dict[str, float | int | None]] = {}
+    for key, leg in legs.items():
+        volume = leg.market.volume
+        oi = leg.market.open_interest
+        percentile = (
+            float(Decimal(100) * sum(v <= volume for v in valid) / size)
+            if volume is not None and size >= MIN_RELATIVE_VOLUME_COHORT
+            else None
+        )
+        vs_median = (
+            float(volume / median_volume)
+            if volume is not None and median_volume is not None and median_volume > 0
+            else None
+        )
+        volume_oi = (
+            float(volume / oi * 100) if volume is not None and oi is not None and oi > 0 else None
+        )
+        result[key] = {
+            "volume_percentile": percentile,
+            "volume_chain_median": float(median_volume) if median_volume is not None else None,
+            "volume_vs_chain_median": vs_median,
+            "volume_oi_percent": volume_oi,
+            "relative_volume_cohort_size": size,
+        }
+    return result
+
+
 def observations(
-    chain: OptionChainSnapshot, leg: OptionLegSnapshot, distance: Any, technical: dict[str, Any]
+    chain: OptionChainSnapshot,
+    leg: OptionLegSnapshot,
+    distance: Any,
+    technical: dict[str, Any],
+    relative: dict[str, float | int | None],
 ) -> dict[str, Any]:
     market = leg.market
     return {
@@ -267,6 +346,15 @@ def observations(
         "moneyness": leg.moneyness,
         "dte": chain.dte,
         "strike_distance_percent": abs(float(distance)) if distance is not None else None,
+        **{
+            field: relative[field]
+            for field in (
+                "volume_percentile",
+                "volume_chain_median",
+                "volume_vs_chain_median",
+                "volume_oi_percent",
+            )
+        },
         **{
             field: float(getattr(market, field)) if getattr(market, field) is not None else None
             for field in (
@@ -550,12 +638,16 @@ class DerivativeScannerService:
                 chain_status=chain.status,
                 provenance=chain.provenance.model_dump(mode="json"),
             )
+            relative_by_contract = relative_volume_metrics(chain)
             for chain_row in chain.rows:
                 for leg in (chain_row.ce, chain_row.pe):
                     if leg is None or leg.contract.canonical_id in seen_contracts:
                         continue
                     seen_contracts.add(leg.contract.canonical_id)
-                    values = observations(chain, leg, chain_row.distance_percent, technical)
+                    relative = relative_by_contract[leg.contract.canonical_id]
+                    values = observations(
+                        chain, leg, chain_row.distance_percent, technical, relative
+                    )
                     result = evaluate(
                         config.filters, values, quote_available=leg.market.ltp is not None
                     )
@@ -572,6 +664,7 @@ class DerivativeScannerService:
                                 "moneyness": leg.moneyness,
                                 "strike_distance_percent": values["strike_distance_percent"],
                                 "market": leg.market.model_dump(mode="json"),
+                                **relative,
                                 "availability": leg.availability,
                                 "technical": technical,
                                 "technical_provenance": technical_provenance,

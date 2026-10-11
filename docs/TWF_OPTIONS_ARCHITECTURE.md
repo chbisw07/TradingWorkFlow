@@ -480,8 +480,26 @@ The typed filter catalog separates contract fields (side, moneyness, DTE and str
 distance), price/liquidity (LTP, volume and spread), open interest and signed change,
 provider-dependent IV/Greeks, and underlying daily-bar technicals (SMA20 trend, RSI,
 supertrend, 1D change and 10-day momentum). Only added filter chips execute; draft
-editor values do not. The default side choice is Both. Optional IV/Greek values remain
+editor values do not. The filter editor starts with Select field and adds no implicit predicate. Optional IV/Greek values remain
 unavailable when O2 does not supply them.
+
+Raw option volume is retained, but absolute counts are not comparable across NIFTY,
+BANKNIFTY and stock options. O4 derives three provider-neutral activity facts from each
+already acquired bounded O2 chain, before applying filters. The cohort is all CE and PE
+legs for one underlying and one resolved expiry; no other underlying or expiry contributes.
+`volume_percentile = 100 × count(valid cohort volumes <= contract volume) / N` uses
+the last tied rank. Missing volume is excluded; observed zero remains valid. A central
+minimum of five valid volumes gates percentile and standard odd/even median ratio.
+`volume_vs_chain_median = contract volume / median_valid_volume` is unavailable if
+the median is zero. `volume_oi_percent = volume / open_interest × 100` is independently
+available when volume is observed and OI is positive. The numeric values are filtered
+and archived without display rounding, along with median and valid cohort size. The
+result's underlying and expiry identify cohort scope. These in-memory calculations add
+zero provider or database calls. Missing active relative evidence retains O4's explicit
+`NOT_EVALUATED` outcome; inactive missing fields do not block a match. Historical rows
+use archived metrics without recomputing from a later chain. Users may combine explicit
+percentile, OI and spread predicates; none is a hidden liquidity score, directional
+signal or ranking. Explainable suitability ranking remains an O5 responsibility.
 
 Every active filter is an AND predicate. Missing active evidence yields `NOT_EVALUATED`, not a
 zero or a match; unavailable inactive fields do not block a match. The run archives the

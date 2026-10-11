@@ -94,6 +94,11 @@ test("O4 bounded scanner, explanation and exact Analytics handoff", async ({
               moneyness: "ATM",
               strike_distance_percent: 0,
               market,
+              volume_percentile: 92,
+              volume_chain_median: 20000,
+              volume_vs_chain_median: 5,
+              volume_oi_percent: 20,
+              relative_volume_cohort_size: 22,
               technical: {},
               instrument_metadata: null,
               observed: { option_type: "CE" },
@@ -176,7 +181,14 @@ test("O4 bounded scanner, explanation and exact Analytics handoff", async ({
   const fieldOptions = page
     .getByRole("combobox", { name: "Field" })
     .locator("option");
-  await expect(fieldOptions).toHaveCount(17);
+  await expect(fieldOptions).toHaveCount(21);
+  await expect(page.getByRole("combobox", { name: "Field" })).toHaveValue("");
+  await expect(
+    page.getByRole("button", { name: "Add / update filter" }),
+  ).toBeDisabled();
+  await page
+    .getByRole("combobox", { name: "Field" })
+    .selectOption("option_type");
   for (const label of ["Field", "Comparison", "Value"]) {
     const bounds = await page
       .getByRole("combobox", { name: label })
@@ -221,6 +233,19 @@ test("O4 bounded scanner, explanation and exact Analytics handoff", async ({
   if (!compact)
     await expect(page.getByRole("columnheader", { name: "Bid" })).toBeVisible();
   await page.getByRole("checkbox", { name: "Bid", exact: true }).uncheck();
+  await page.getByRole("checkbox", { name: "Vol/Median" }).check();
+  await page.getByRole("checkbox", { name: "Vol/OI %" }).check();
+  if (!compact) {
+    await expect(
+      page.getByRole("columnheader", { name: "Vol Pctl" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("columnheader", { name: "Vol/Median" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("columnheader", { name: "Vol/OI %" }),
+    ).toBeVisible();
+  }
   await page.locator(".derivative-columns summary").click();
   await expect(page.getByLabel("Selected option contract")).toHaveCount(0);
   const why = page.getByRole("button", { name: "Why?" });
@@ -228,6 +253,21 @@ test("O4 bounded scanner, explanation and exact Analytics handoff", async ({
   await page.keyboard.press("Enter");
   const detail = page.getByLabel("Selected option contract");
   await expect(detail).toContainText(id);
+  await expect(detail).toContainText("Liquidity / Activity");
+  for (const [label, expected] of [
+    ["Volume percentile", "92"],
+    ["Chain median volume", "20,000"],
+    ["Volume vs median", "5x"],
+    ["Volume / OI", "20%"],
+  ]) {
+    await expect(
+      detail
+        .locator("dt")
+        .filter({ hasText: label })
+        .locator("xpath=following-sibling::dd[1]"),
+    ).toHaveText(expected);
+  }
+  await expect(detail).toContainText("22 valid CE + PE volumes");
   await expect(detail).toContainText("Observed: CE");
   await page.screenshot({
     path: info.outputPath(`o4-${info.project.name}.png`),
@@ -385,6 +425,9 @@ test("O4 exact canonical contract reaches Broker V2 Buy and Sell previews", asyn
   await page.goto("/scanners");
   await page.getByRole("tab", { name: /Derivatives Scanner/ }).click();
   await page.getByLabel("NSE underlyings").fill("NIFTY");
+  await page
+    .getByRole("combobox", { name: "Field" })
+    .selectOption("option_type");
   await expect(page.getByRole("combobox", { name: "Value" })).toBeVisible();
   await page.getByRole("combobox", { name: "Value" }).selectOption("PE");
   await page.getByRole("button", { name: "Add / update filter" }).click();
@@ -508,7 +551,7 @@ test("O4 real catalog drives typed filters, saved setup, and scan payload", asyn
   await page.getByRole("tab", { name: /Derivatives Scanner/ }).click();
   const field = page.getByRole("combobox", { name: "Field" });
   const comparison = page.getByRole("combobox", { name: "Comparison" });
-  await expect(field.locator("option")).toHaveCount(17);
+  await expect(field.locator("option")).toHaveCount(21);
   await field.selectOption("moneyness");
   await expect(comparison).toHaveValue("equals");
   await page.getByRole("checkbox", { name: "ITM" }).uncheck();
@@ -533,6 +576,25 @@ test("O4 real catalog drives typed filters, saved setup, and scan payload", asyn
   await comparison.selectOption("<=");
   await page.getByRole("spinbutton", { name: "Value" }).fill("2");
   await page.getByRole("button", { name: "Add / update filter" }).click();
+  await field.selectOption("volume_percentile");
+  await comparison.selectOption(">=");
+  await page.getByRole("spinbutton", { name: "Value" }).fill("70");
+  await page.getByRole("button", { name: "Add / update filter" }).click();
+  await expect(
+    page.getByRole("button", { name: "Remove Volume Percentile >= 70" }),
+  ).toBeVisible();
+  await field.selectOption("volume_vs_chain_median");
+  await page.getByRole("spinbutton", { name: "Value" }).fill("1.5");
+  await page.getByRole("button", { name: "Add / update filter" }).click();
+  await expect(
+    page.getByRole("button", { name: "Remove Volume vs Chain Median >= 1.5x" }),
+  ).toBeVisible();
+  await field.selectOption("volume_oi_percent");
+  await page.getByRole("spinbutton", { name: "Value" }).fill("20");
+  await page.getByRole("button", { name: "Add / update filter" }).click();
+  await expect(
+    page.getByRole("button", { name: "Remove Volume / OI % >= 20%" }),
+  ).toBeVisible();
   await field.selectOption("underlying_trend");
   await expect(comparison.locator("option")).toHaveCount(2);
   await page.getByRole("combobox", { name: "Value" }).selectOption("Up");
@@ -558,6 +620,9 @@ test("O4 real catalog drives typed filters, saved setup, and scan payload", asyn
       { field: "dte", operator: ">=", value: 3 },
       { field: "volume", operator: ">=", value: 100000 },
       { field: "spread_percent", operator: "<=", value: 2 },
+      { field: "volume_percentile", operator: ">=", value: 70 },
+      { field: "volume_vs_chain_median", operator: ">=", value: 1.5 },
+      { field: "volume_oi_percent", operator: ">=", value: 20 },
       { field: "underlying_trend", operator: "equals", value: "Up" },
     ],
   });
@@ -577,6 +642,15 @@ test("O4 real catalog drives typed filters, saved setup, and scan payload", asyn
   await page.getByRole("button", { name: "Use setup" }).click();
   await expect(
     page.getByRole("button", { name: "Remove DTE >= 3" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Remove Volume Percentile >= 70" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Remove Volume vs Chain Median >= 1.5x" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Remove Volume / OI % >= 20%" }),
   ).toBeVisible();
   await field.selectOption("dte");
   await expect(comparison.locator("option")).toHaveCount(6);
@@ -627,7 +701,7 @@ test("O4 catalog failure shows a retryable error without empty controls", async 
   ).toBeVisible();
   await expect(field).toBeDisabled();
   await page.getByRole("button", { name: "Retry" }).click();
-  await expect(field.locator("option")).toHaveCount(17);
+  await expect(field.locator("option")).toHaveCount(21);
   await expect(field).toBeEnabled();
   await expect(
     page.getByText("Derivatives filter catalog could not be loaded."),
