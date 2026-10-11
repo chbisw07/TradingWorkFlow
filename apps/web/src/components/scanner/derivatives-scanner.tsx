@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { OrderTicket } from "../brokers/order-ticket";
 import { brokerApi, type Account } from "../../lib/brokers";
 import type { Capability, Side } from "../../lib/broker-orders";
@@ -11,9 +12,15 @@ import type {
   OptionMarketSnapshot,
 } from "../../lib/options";
 import { chainNumber as num, expiryLabel } from "../../lib/option-chain-client";
-import { scannerApi } from "../../lib/scanner";
+import {
+  scannerApi,
+  initialConfig,
+  type ProviderResults,
+} from "../../lib/scanner";
+import { ScannerHistoryMenu } from "./scanner-history-menu";
 import {
   watchApi,
+  changeText,
   type Watchlist,
   type WatchDetail,
 } from "../../lib/watchlists";
@@ -234,6 +241,19 @@ export function DerivativesScanner() {
   const [history, setHistory] = useState<Run[]>([]);
   const [saved, setSaved] = useState<Saved[]>([]);
   const [selected, setSelected] = useState<Row | null>(null);
+  const [panelView, setPanelView] = useState<
+    "detail" | "saved" | "recent" | "history" | "movers" | null
+  >(null);
+  const [toolbarHost, setToolbarHost] = useState<HTMLElement | null>(null);
+  const [movers, setMovers] = useState<ProviderResults | null>(null);
+  const [moverTab, setMoverTab] = useState("Top Gainers");
+  const [moversBusy, setMoversBusy] = useState(false);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() =>
+      setToolbarHost(document.getElementById("sc-derivative-toolbar")),
+    );
+    return () => cancelAnimationFrame(frame);
+  }, []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -463,6 +483,7 @@ export function DerivativesScanner() {
     setBusy(true);
     setError("");
     setSelected(null);
+    setPanelView(null);
     try {
       const next = await scannerApi<Run>("derivatives/runs", "POST", submitted);
       setRun(next);
@@ -550,15 +571,86 @@ export function DerivativesScanner() {
           </button>
         </div>
       )}
-      <div className="derivative-actions wl-card">
-        <strong>Single-leg NSE options · Dhan market data</strong>
-        <span>Up to 5 underlyings · ±5–20 strikes · no ranking</span>
-        <button onClick={() => void save()}>Save Scan</button>
-        <a href="#derivative-saved">My Scans</a>
-        <a href="#derivative-history">Scan History</a>
+      {toolbarHost &&
+        createPortal(
+          <>
+            <button onClick={() => setPanelView("saved")}>My Scans</button>
+            <ScannerHistoryMenu
+              onRecent={() => setPanelView("recent")}
+              onHistory={() => setPanelView("history")}
+            />
+            <button onClick={() => setPanelView("movers")}>
+              Market Movers
+            </button>
+            <button className="wl-primary" onClick={() => void save()}>
+              ＋ Save Scan
+            </button>
+          </>,
+          toolbarHost,
+        )}
+      <div
+        className="wl-card sc-chips derivative-active-bar"
+        aria-label="Active derivatives scan configuration"
+      >
+        <span className="derivative-mode-label">
+          Single-leg NSE options · Dhan market data
+        </span>
+        <button
+          aria-label="Remove selected underlyings"
+          onClick={() => {
+            setConfig((c) => ({
+              ...c,
+              universe: { ...c.universe, symbols: [] },
+            }));
+            setRaw("");
+          }}
+        >
+          Underlyings:{" "}
+          {(config.universe.source === "CUSTOM"
+            ? parseSymbols(raw)
+            : config.universe.symbols
+          ).join(", ") || "None selected"}{" "}
+          ×
+        </button>
+        {config.expiry_mode === "EXACT" ? (
+          <button
+            aria-label="Remove exact expiry"
+            onClick={() =>
+              setConfig((c) => ({
+                ...c,
+                expiry_mode: "NEAREST",
+                exact_expiry: null,
+              }))
+            }
+          >
+            Expiry: {config.exact_expiry || "Choose date"} ×
+          </button>
+        ) : (
+          <span>Expiry: Nearest active</span>
+        )}
+        <span>±{config.strike_window} strikes</span>
+        {config.filters.map((f) => (
+          <button
+            key={f.field}
+            aria-label={`Remove ${filterText(f, catalog?.fields || [])} filter`}
+            onClick={() =>
+              setConfig((c) => ({
+                ...c,
+                filters: c.filters.filter((item) => item.field !== f.field),
+              }))
+            }
+          >
+            {filterText(f, catalog?.fields || [])} ×
+          </button>
+        ))}
+        {config.filters.length > 0 && (
+          <button onClick={() => setConfig((c) => ({ ...c, filters: [] }))}>
+            Clear All
+          </button>
+        )}
       </div>
       <div
-        className={`sc-grid conditional-detail-layout${selected ? " has-detail" : ""}`}
+        className={`sc-grid conditional-detail-layout${panelView ? " has-detail" : ""}`}
       >
         <aside className="wl-card sc-builder derivative-builder">
           <h2>Build an options scan</h2>
@@ -709,27 +801,6 @@ export function DerivativesScanner() {
               ))}
             </select>
           </label>
-          <h3>Active filters</h3>
-          {config.filters.length ? (
-            <div className="derivative-chips">
-              {config.filters.map((f) => (
-                <button
-                  key={f.field}
-                  onClick={() =>
-                    setConfig((c) => ({
-                      ...c,
-                      filters: c.filters.filter((x) => x.field !== f.field),
-                    }))
-                  }
-                  aria-label={`Remove ${filterText(f, catalog?.fields || [])}`}
-                >
-                  {filterText(f, catalog?.fields || [])} ×
-                </button>
-              ))}
-            </div>
-          ) : (
-            <p>No active filters. Draft values do not run.</p>
-          )}
           <h3>Add / edit filter</h3>
           {catalogError && (
             <div className="wl-error" role="alert">
@@ -872,6 +943,7 @@ export function DerivativesScanner() {
                 editField("");
                 setRun(null);
                 setSelected(null);
+                setPanelView(null);
               }}
             >
               Reset
@@ -1044,7 +1116,12 @@ export function DerivativesScanner() {
                             ))}
                           <td>{row.reason}</td>
                           <td>
-                            <button onClick={() => setSelected(row)}>
+                            <button
+                              onClick={() => {
+                                setSelected(row);
+                                setPanelView("detail");
+                              }}
+                            >
                               Why?
                             </button>
                           </td>
@@ -1098,7 +1175,14 @@ export function DerivativesScanner() {
                           : `${num(row.volume_oi_percent)}%`}
                       </p>
                       <p>{row.reason}</p>
-                      <button onClick={() => setSelected(row)}>Why?</button>
+                      <button
+                        onClick={() => {
+                          setSelected(row);
+                          setPanelView("detail");
+                        }}
+                      >
+                        Why?
+                      </button>
                     </article>
                   ))}
                 </div>
@@ -1137,182 +1221,358 @@ export function DerivativesScanner() {
               </p>
             )}
           </section>
-          <div className="derivative-history-grid">
-            <section className="wl-card" id="derivative-saved">
-              <h3>Saved Scans</h3>
-              {saved
-                .filter((s) => !s.archived)
-                .map((s) => (
-                  <div key={s.id} className="derivative-history-item">
-                    <strong>{s.config.name}</strong>
-                    <button onClick={() => load(s.config)}>Use setup</button>
-                  </div>
-                ))}
-              {!saved.length && <p>No saved derivatives scans yet.</p>}
-            </section>
-            <section className="wl-card" id="derivative-history">
-              <h3>Recent Scans</h3>
-              {history.slice(0, 10).map((h) => (
-                <div key={h.id} className="derivative-history-item">
-                  <span>
-                    {h.config.name} · {h.counts.matches} matches ·{" "}
-                    {new Date(h.created_at).toLocaleString("en-IN")}
-                  </span>
-                  <button onClick={() => void view(h.id)}>View</button>
-                </div>
-              ))}
-              {!history.length && <p>No derivatives scan history yet.</p>}
-            </section>
-          </div>
         </main>
-        {selected && (
+        {panelView && (
           <aside
-            className="wl-card derivative-detail"
-            aria-label="Selected option contract"
+            className="wl-card derivative-detail sc-context-panel"
+            aria-label={
+              panelView === "detail"
+                ? "Selected option contract"
+                : "Scanner contextual panel"
+            }
           >
-            <button
-              className="detail-panel-clear"
-              onClick={() => setSelected(null)}
-            >
-              Close details
-            </button>
-            <h2>{selected.contract.display_symbol}</h2>
-            <p>{selected.contract.canonical_id}</p>
-            <dl>
-              <dt>Contract</dt>
-              <dd>
-                {selected.underlying} · {expiryLabel(selected.expiry)} ·{" "}
-                {num(selected.strike)} {selected.option_type}
-              </dd>
-              <dt>Spot / moneyness</dt>
-              <dd>
-                {num(selected.spot)} · {selected.moneyness || "Unavailable"}
-              </dd>
-              <dt>Market data</dt>
-              <dd>
-                LTP {num(selected.market.ltp)} · Bid {num(selected.market.bid)}{" "}
-                · Ask {num(selected.market.ask)}
-              </dd>
-              <dt>Liquidity / Activity</dt>
-              <dd>
-                Volume {num(selected.market.volume)} · Spread{" "}
-                {num(selected.market.spread_percent)}%
-              </dd>
-              <dt>Volume percentile</dt>
-              <dd>{num(selected.volume_percentile)}</dd>
-              <dt>Chain median volume</dt>
-              <dd>{num(selected.volume_chain_median)}</dd>
-              <dt>Volume vs median</dt>
-              <dd>
-                {selected.volume_vs_chain_median == null
-                  ? "—"
-                  : `${num(selected.volume_vs_chain_median)}x`}
-              </dd>
-              <dt>Volume / OI</dt>
-              <dd>
-                {selected.volume_oi_percent == null
-                  ? "—"
-                  : `${num(selected.volume_oi_percent)}%`}
-              </dd>
-              <dt>Comparison cohort</dt>
-              <dd>
-                {selected.underlying} · {expiryLabel(selected.expiry)} ·{" "}
-                {selected.relative_volume_cohort_size ?? "—"} valid CE + PE
-                volumes in the bounded chain
-              </dd>
-              <dt>Open interest</dt>
-              <dd>
-                OI {num(selected.market.open_interest)} · ΔOI{" "}
-                {num(selected.market.change_in_open_interest)}
-              </dd>
-              <dt>Volatility / Greeks</dt>
-              <dd>
-                IV {num(selected.market.implied_volatility)} · Delta{" "}
-                {num(selected.market.delta)} · Theta{" "}
-                {num(selected.market.theta)}
-              </dd>
-              <dt>Underlying technical</dt>
-              <dd>
-                Trend {selected.technical.trend || "—"} · RSI{" "}
-                {num(selected.technical.rsi as number | null)} · Supertrend{" "}
-                {selected.technical.supertrend || "—"}
-              </dd>
-              <dt>Sector / market cap</dt>
-              <dd>
-                {selected.instrument_metadata?.sector || "Unavailable"} ·{" "}
-                {selected.instrument_metadata?.market_cap_category ||
-                  "Unavailable"}
-              </dd>
-            </dl>
-            <h3>
-              Why{" "}
-              {selected.outcome === "MATCH"
-                ? "matched"
-                : selected.outcome.toLowerCase().replace("_", " ")}
-            </h3>
-            <ul className="derivative-diagnostics">
-              {selected.diagnostics.map((d) => (
-                <li key={d.filter.field}>
-                  {d.passed === true ? "✓" : d.passed === false ? "✕" : "?"}{" "}
-                  {filterText(d.filter, catalog?.fields || [])}
-                  <small>Observed: {diagnosticObserved(d)}</small>
-                </li>
-              ))}
-            </ul>
-            {selected.missing_evidence.length > 0 && (
-              <p>Missing evidence: {selected.missing_evidence.join(", ")}</p>
-            )}
-            {selected.warnings.length > 0 && (
-              <p>Warnings: {selected.warnings.join(", ")}</p>
-            )}
-            <h3>Provenance</h3>
-            <p>
-              Dhan · {selected.provenance.market_source} ·{" "}
-              {selected.provenance.freshness}
-              {selected.provenance.cached ? " · cached" : " · retrieved"}
-            </p>
-            <small>
-              Source time: {selected.provenance.source_time || "Unavailable"}
-              <br />
-              Retrieved: {selected.provenance.received_at}
-            </small>
-            <div className="derivative-detail-actions">
-              <Link
-                href={`/options-analytics?underlying=${encodeURIComponent(selected.underlying)}&expiry=${encodeURIComponent(selected.expiry)}&contract_id=${encodeURIComponent(selected.contract.canonical_id)}&strike=${encodeURIComponent(selected.strike)}&side=${selected.option_type}`}
+            <header className="sc-context-head">
+              <h2>
+                {panelView === "detail"
+                  ? "Instrument Analysis"
+                  : panelView === "saved"
+                    ? "My Scans"
+                    : panelView === "history"
+                      ? "Scan History"
+                      : panelView === "movers"
+                        ? "Market Movers"
+                        : "Recent Scans"}
+              </h2>
+              <button
+                className="detail-panel-clear"
+                aria-label="Close panel"
+                onClick={() => setPanelView(null)}
               >
-                Open in Options Analytics
-              </Link>
-              <label>
-                Broker
-                <select
-                  value={brokerId}
-                  onChange={(e) => setBrokerId(e.target.value)}
-                >
-                  <option value="">Select broker</option>
-                  {brokers.map((b) => (
-                    <option key={b.account.id} value={b.account.id}>
-                      {b.account.name}
-                    </option>
+                ×
+              </button>
+            </header>
+            {panelView === "saved" && (
+              <div className="sc-utility-list">
+                <h3>Saved Scans</h3>
+                {saved
+                  .filter((s) => !s.archived)
+                  .map((s) => (
+                    <div key={s.id} className="derivative-history-item">
+                      <strong>{s.config.name}</strong>
+                      <button onClick={() => load(s.config)}>Use setup</button>
+                    </div>
                   ))}
-                </select>
-              </label>
-              <button
-                disabled={!broker || expiredContract(selected.contract)}
-                onClick={() => openTrade("BUY")}
-              >
-                Buy · Broker V2 preview
-              </button>
-              <button
-                disabled={!broker || expiredContract(selected.contract)}
-                onClick={() => openTrade("SELL")}
-              >
-                Sell · Broker V2 preview
-              </button>
-            </div>
-            <small>
-              Broker preview requires separate confirmation. Expired historical
-              contracts cannot be traded.
-            </small>
+                {!saved.length && <p>No saved derivatives scans yet.</p>}
+              </div>
+            )}
+            {(panelView === "recent" || panelView === "history") && (
+              <div className="sc-utility-list">
+                <h3>
+                  {panelView === "history" ? "Scan History" : "Recent Scans"}
+                </h3>
+                {history
+                  .slice(0, panelView === "history" ? 50 : 10)
+                  .map((h) => (
+                    <div key={h.id} className="derivative-history-item">
+                      <span>
+                        {h.config.name} · {h.counts.matches} matches ·{" "}
+                        {new Date(h.created_at).toLocaleString("en-IN")}
+                      </span>
+                      <button onClick={() => void view(h.id)}>View</button>
+                    </div>
+                  ))}
+                {!history.length && <p>No derivatives scan history yet.</p>}
+              </div>
+            )}
+            {panelView === "movers" && (
+              <div className="sc-utility-list sc-movers">
+                <p>
+                  TapTide · Optional provider-wide evidence. Load on demand.
+                </p>
+                <button
+                  disabled={moversBusy}
+                  onClick={() =>
+                    void (async () => {
+                      setMoversBusy(true);
+                      try {
+                        setMovers(await scannerApi<ProviderResults>("movers"));
+                        setError("");
+                      } catch (error) {
+                        setError((error as Error).message);
+                      } finally {
+                        setMoversBusy(false);
+                      }
+                    })()
+                  }
+                >
+                  Load movers
+                </button>
+                <button
+                  disabled={moversBusy}
+                  onClick={() =>
+                    void (async () => {
+                      setMoversBusy(true);
+                      try {
+                        setMovers(
+                          await scannerApi<ProviderResults>(
+                            "provider-screen",
+                            "POST",
+                            {
+                              ...initialConfig,
+                              universe: {
+                                source: "CUSTOM",
+                                symbols: ["NIFTY"],
+                                instrument_ids: [],
+                              },
+                            },
+                          ),
+                        );
+                        setError("");
+                      } catch (error) {
+                        setError((error as Error).message);
+                      } finally {
+                        setMoversBusy(false);
+                      }
+                    })()
+                  }
+                >
+                  TapTide technical screen
+                </button>
+                <div className="sc-periods">
+                  {[
+                    "Top Gainers",
+                    "Top Losers",
+                    "High Volume",
+                    "52W High",
+                    "52W Low",
+                  ].map((tab) => (
+                    <button
+                      key={tab}
+                      aria-pressed={moverTab === tab}
+                      onClick={() => setMoverTab(tab)}
+                    >
+                      {tab}
+                    </button>
+                  ))}
+                </div>
+                {movers && (
+                  <>
+                    <small>
+                      {movers.tool === "screen_stocks_technical"
+                        ? "Technical screen results · "
+                        : ""}
+                      {movers.state} · {movers.coverage} · {movers.freshness}
+                    </small>
+                    {[...movers.rows]
+                      .filter((row) =>
+                        movers.tool === "screen_stocks_technical"
+                          ? true
+                          : moverTab === "52W High"
+                            ? (row.buckets || [row.bucket]).includes(
+                                "near_52w_high",
+                              )
+                            : moverTab === "52W Low"
+                              ? (row.buckets || [row.bucket]).includes(
+                                  "near_52w_low",
+                                )
+                              : moverTab === "Top Gainers"
+                                ? Number(row.metrics.change) > 0
+                                : moverTab === "Top Losers"
+                                  ? Number(row.metrics.change) < 0
+                                  : true,
+                      )
+                      .sort((a, b) =>
+                        moverTab === "High Volume"
+                          ? Number(b.metrics.volume) - Number(a.metrics.volume)
+                          : moverTab === "Top Losers"
+                            ? Number(a.metrics.change) -
+                              Number(b.metrics.change)
+                            : Number(b.metrics.change) -
+                              Number(a.metrics.change),
+                      )
+                      .slice(0, 5)
+                      .map((row) => (
+                        <article key={row.symbol}>
+                          <button
+                            onClick={() => {
+                              setConfig((current) => ({
+                                ...current,
+                                universe: { source: "CUSTOM", symbols: [] },
+                              }));
+                              setRaw(row.symbol);
+                              setNotice(
+                                "Symbol loaded. Review optionability and run the Dhan scan to evaluate your filters.",
+                              );
+                            }}
+                          >
+                            {row.symbol}
+                          </button>
+                          <span
+                            className={
+                              Number(row.metrics.change) > 0 ? "up" : "down"
+                            }
+                          >
+                            {changeText(row.metrics.change)}
+                          </span>
+                        </article>
+                      ))}
+                  </>
+                )}
+              </div>
+            )}
+            {panelView === "detail" && selected && (
+              <div>
+                <button
+                  className="detail-panel-clear"
+                  onClick={() => {
+                    setSelected(null);
+                    setPanelView(null);
+                  }}
+                >
+                  Close details
+                </button>
+                <h2>{selected.contract.display_symbol}</h2>
+                <p>{selected.contract.canonical_id}</p>
+                <dl>
+                  <dt>Contract</dt>
+                  <dd>
+                    {selected.underlying} · {expiryLabel(selected.expiry)} ·{" "}
+                    {num(selected.strike)} {selected.option_type}
+                  </dd>
+                  <dt>Spot / moneyness</dt>
+                  <dd>
+                    {num(selected.spot)} · {selected.moneyness || "Unavailable"}
+                  </dd>
+                  <dt>Market data</dt>
+                  <dd>
+                    LTP {num(selected.market.ltp)} · Bid{" "}
+                    {num(selected.market.bid)} · Ask {num(selected.market.ask)}
+                  </dd>
+                  <dt>Liquidity / Activity</dt>
+                  <dd>
+                    Volume {num(selected.market.volume)} · Spread{" "}
+                    {num(selected.market.spread_percent)}%
+                  </dd>
+                  <dt>Volume percentile</dt>
+                  <dd>{num(selected.volume_percentile)}</dd>
+                  <dt>Chain median volume</dt>
+                  <dd>{num(selected.volume_chain_median)}</dd>
+                  <dt>Volume vs median</dt>
+                  <dd>
+                    {selected.volume_vs_chain_median == null
+                      ? "—"
+                      : `${num(selected.volume_vs_chain_median)}x`}
+                  </dd>
+                  <dt>Volume / OI</dt>
+                  <dd>
+                    {selected.volume_oi_percent == null
+                      ? "—"
+                      : `${num(selected.volume_oi_percent)}%`}
+                  </dd>
+                  <dt>Comparison cohort</dt>
+                  <dd>
+                    {selected.underlying} · {expiryLabel(selected.expiry)} ·{" "}
+                    {selected.relative_volume_cohort_size ?? "—"} valid CE + PE
+                    volumes in the bounded chain
+                  </dd>
+                  <dt>Open interest</dt>
+                  <dd>
+                    OI {num(selected.market.open_interest)} · ΔOI{" "}
+                    {num(selected.market.change_in_open_interest)}
+                  </dd>
+                  <dt>Volatility / Greeks</dt>
+                  <dd>
+                    IV {num(selected.market.implied_volatility)} · Delta{" "}
+                    {num(selected.market.delta)} · Theta{" "}
+                    {num(selected.market.theta)}
+                  </dd>
+                  <dt>Underlying technical</dt>
+                  <dd>
+                    Trend {selected.technical.trend || "—"} · RSI{" "}
+                    {num(selected.technical.rsi as number | null)} · Supertrend{" "}
+                    {selected.technical.supertrend || "—"}
+                  </dd>
+                  <dt>Sector / market cap</dt>
+                  <dd>
+                    {selected.instrument_metadata?.sector || "Unavailable"} ·{" "}
+                    {selected.instrument_metadata?.market_cap_category ||
+                      "Unavailable"}
+                  </dd>
+                </dl>
+                <h3>
+                  Why{" "}
+                  {selected.outcome === "MATCH"
+                    ? "matched"
+                    : selected.outcome.toLowerCase().replace("_", " ")}
+                </h3>
+                <ul className="derivative-diagnostics">
+                  {selected.diagnostics.map((d) => (
+                    <li key={d.filter.field}>
+                      {d.passed === true ? "✓" : d.passed === false ? "✕" : "?"}{" "}
+                      {filterText(d.filter, catalog?.fields || [])}
+                      <small>Observed: {diagnosticObserved(d)}</small>
+                    </li>
+                  ))}
+                </ul>
+                {selected.missing_evidence.length > 0 && (
+                  <p>
+                    Missing evidence: {selected.missing_evidence.join(", ")}
+                  </p>
+                )}
+                {selected.warnings.length > 0 && (
+                  <p>Warnings: {selected.warnings.join(", ")}</p>
+                )}
+                <h3>Provenance</h3>
+                <p>
+                  Dhan · {selected.provenance.market_source} ·{" "}
+                  {selected.provenance.freshness}
+                  {selected.provenance.cached ? " · cached" : " · retrieved"}
+                </p>
+                <small>
+                  Source time:{" "}
+                  {selected.provenance.source_time || "Unavailable"}
+                  <br />
+                  Retrieved: {selected.provenance.received_at}
+                </small>
+                <div className="derivative-detail-actions">
+                  <Link
+                    href={`/options-analytics?underlying=${encodeURIComponent(selected.underlying)}&expiry=${encodeURIComponent(selected.expiry)}&contract_id=${encodeURIComponent(selected.contract.canonical_id)}&strike=${encodeURIComponent(selected.strike)}&side=${selected.option_type}`}
+                  >
+                    Open in Options Analytics
+                  </Link>
+                  <label>
+                    Broker
+                    <select
+                      value={brokerId}
+                      onChange={(e) => setBrokerId(e.target.value)}
+                    >
+                      <option value="">Select broker</option>
+                      {brokers.map((b) => (
+                        <option key={b.account.id} value={b.account.id}>
+                          {b.account.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    disabled={!broker || expiredContract(selected.contract)}
+                    onClick={() => openTrade("BUY")}
+                  >
+                    Buy · Broker V2 preview
+                  </button>
+                  <button
+                    disabled={!broker || expiredContract(selected.contract)}
+                    onClick={() => openTrade("SELL")}
+                  >
+                    Sell · Broker V2 preview
+                  </button>
+                </div>
+                <small>
+                  Broker preview requires separate confirmation. Expired
+                  historical contracts cannot be traded.
+                </small>
+              </div>
+            )}
           </aside>
         )}
       </div>

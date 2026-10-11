@@ -48,6 +48,44 @@ test("Scanner V2 editable filters, durable runs, Watchlist handoff and responsiv
   await expect(
     page.getByRole("heading", { name: "Scanners", exact: true }),
   ).toBeVisible();
+  await expect(page.locator(".sc-bottom")).toHaveCount(0);
+  await expect(page.locator(".sc-context-panel")).toHaveCount(0);
+  await page.screenshot({
+    path: info.outputPath("scanner-clean-workspace.png"),
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Market Movers" }).click();
+  await expect(page.locator(".sc-context-panel")).toContainText("TapTide");
+  await page.screenshot({
+    path: info.outputPath("scanner-market-movers-panel.png"),
+    fullPage: true,
+  });
+  await page.getByLabel("Close Market Movers").click();
+  await page.getByRole("button", { name: /Scan History ▾/ }).click();
+  await expect(
+    page.getByRole("button", { name: /Scan History ▾/ }),
+  ).toHaveAttribute("aria-expanded", "true");
+  await page.screenshot({
+    path: info.outputPath("scanner-history-menu.png"),
+    fullPage: true,
+  });
+  await page.keyboard.press("Escape");
+  await expect(
+    page.getByRole("button", { name: /Scan History ▾/ }),
+  ).toHaveAttribute("aria-expanded", "false");
+  await page.getByRole("button", { name: /Scan History ▾/ }).click();
+  await page.getByRole("menuitem", { name: "Recent Scans" }).click();
+  await expect(page.locator(".sc-context-panel")).toContainText("Recent Scans");
+  await page.screenshot({
+    path: info.outputPath("scanner-recent-scans-panel.png"),
+    fullPage: true,
+  });
+  await page.getByLabel("Close panel").click();
+  await page.getByRole("button", { name: /Scan History ▾/ }).click();
+  await page.getByRole("menuitem", { name: "Scan History" }).click();
+  await expect(page.locator(".sc-context-head")).toContainText("Scan History");
+  await page.getByLabel("Close panel").click();
+  await expect(page.locator(".sc-grid")).not.toHaveClass(/has-detail/);
   if (page.viewportSize()!.width <= 800)
     await page.locator(".sc-builder > details > summary").click();
   await page.getByRole("button", { name: "Watchlist", exact: true }).click();
@@ -131,7 +169,13 @@ test("Scanner V2 editable filters, durable runs, Watchlist handoff and responsiv
     path: info.outputPath("scanner-metadata-table.png"),
     fullPage: true,
   });
+  await page.getByRole("button", { name: "Market Movers" }).click();
+  await expect(page.locator(".sc-context-panel")).toContainText("TapTide");
   await page.getByRole("button", { name: "Why?", exact: true }).first().click();
+  await expect(page.locator(".sc-context-panel")).toHaveCount(1);
+  await expect(page.locator(".sc-context-head")).toContainText(
+    "Instrument Analysis",
+  );
   await expect(page.locator(".sc-grid")).toHaveClass(/has-detail/);
   if (page.viewportSize()!.width >= 1200) {
     const resultsWidthWithDetail = await page
@@ -178,8 +222,7 @@ test("Scanner V2 editable filters, durable runs, Watchlist handoff and responsiv
     path: info.outputPath("scanner-analysis-light.png"),
     fullPage: page.viewportSize()!.width >= 1200,
   });
-  if (page.viewportSize()!.width < 1200)
-    await page.getByLabel("Close dialog").click();
+  await page.getByLabel("Close panel").click();
   await page
     .locator(".sc-table tbody tr")
     .filter({ hasText: "RELIANCE" })
@@ -191,14 +234,14 @@ test("Scanner V2 editable filters, durable runs, Watchlist handoff and responsiv
   await sector.screenshot({
     path: info.outputPath("scanner-sector-oil-gas-evidence.png"),
   });
-  if (page.viewportSize()!.width < 1200)
-    await page.getByLabel("Close dialog").click();
+  await page.getByLabel("Close panel").click();
   await page.getByRole("button", { name: "Save Scan", exact: false }).click();
   await page.getByLabel("Scan name", { exact: true }).fill("My RSI");
   await page
     .getByRole("button", { name: "Save configuration", exact: true })
     .click();
-  await expect(page.locator("#sc-saved")).toContainText("My RSI");
+  await page.getByRole("button", { name: "My Scans" }).click();
+  await expect(page.locator(".sc-context-panel")).toContainText("My RSI");
   await page.getByLabel("Select RELIANCE", { exact: true }).check();
   await page
     .getByRole("button", { name: "Add Selected to Watchlist", exact: false })
@@ -214,14 +257,8 @@ test("Scanner V2 editable filters, durable runs, Watchlist handoff and responsiv
     .locator(".sc-table .sc-symbol")
     .filter({ hasText: "RELIANCE" })
     .click();
-  if (page.viewportSize()!.width < 1200)
-    await expect(
-      page.getByRole("dialog", { name: "Result analysis" }),
-    ).toBeVisible();
-  const surface =
-    page.viewportSize()!.width < 1200
-      ? page.getByRole("dialog")
-      : page.locator(".sc-inspector");
+  const surface = page.locator(".sc-inspector");
+  await expect(surface).toBeVisible();
   await expect(
     surface.getByText("As scanned · completed daily bars", { exact: true }),
   ).toBeVisible();
@@ -307,9 +344,12 @@ test("Scanner V2 editable filters, durable runs, Watchlist handoff and responsiv
     fullPage: true,
   });
   await page.reload();
-  await expect(page.locator("#sc-saved")).toContainText("My RSI");
+  await page.getByRole("button", { name: "My Scans" }).click();
+  await expect(page.locator(".sc-context-panel")).toContainText("My RSI");
+  await page.getByRole("button", { name: /Scan History ▾/ }).click();
+  await page.getByRole("menuitem", { name: "Recent Scans" }).click();
   await page
-    .locator("#sc-history")
+    .locator(".sc-context-panel")
     .getByRole("button", { name: "View", exact: true })
     .first()
     .click();

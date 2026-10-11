@@ -245,34 +245,6 @@
 .sc-bulk > span {
   margin-right: auto;
 }
-.sc-bottom {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-.sc-bottom article {
-  padding: 12px 0;
-  border-bottom: 1px solid var(--shell-border);
-}
-.sc-bottom article strong,
-.sc-bottom article small {
-  display: block;
-}
-.sc-bottom article small {
-  margin: 4px 0 7px;
-  color: var(--shell-secondary);
-}
-.sc-bottom article button {
-  margin-right: 4px;
-}
-.sc-bottom p {
-  font-size: 11px;
-}
-.sc-movers article {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
 .sc-detail header {
   display: flex;
   align-items: center;
@@ -439,12 +411,6 @@
 @media (max-width: 1199px) {
   .sc-grid {
     grid-template-columns: 220px minmax(0, 1fr);
-  }
-  .sc-inspector {
-    display: none;
-  }
-  .sc-bottom {
-    grid-template-columns: 1fr;
   }
 }
 @media (max-width: 800px) {
@@ -640,17 +606,6 @@
   gap: 12px;
   min-width: 0;
 }
-.derivative-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.derivative-actions span {
-  color: var(--shell-secondary);
-  margin-right: auto;
-}
-.derivative-actions a,
 .derivative-detail-actions a {
   color: #1764c3;
 }
@@ -667,19 +622,6 @@
   display: inline-flex;
   gap: 4px;
   align-items: center;
-}
-.derivative-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 10px 0;
-}
-.derivative-chips button {
-  border: 1px solid #a7c8ef;
-  background: #edf6ff;
-  color: #133d71;
-  border-radius: 16px;
-  padding: 5px 9px;
 }
 .derivative-run {
   display: flex;
@@ -763,11 +705,6 @@
 .derivative-selected {
   background: #e9f4ff;
 }
-.derivative-history-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
 .derivative-history-item {
   display: flex;
   justify-content: space-between;
@@ -824,9 +761,6 @@
   }
   .derivative-scanner .sc-grid > * {
     margin-bottom: 12px;
-  }
-  .derivative-history-grid {
-    grid-template-columns: 1fr;
   }
   .derivative-counts {
     grid-template-columns: repeat(2, minmax(85px, 1fr));
@@ -899,4 +833,104 @@
   .derivative-mobile-card p {
     margin: 8px 0;
   }
+}
+
+/* Scanner utility views share the conditional result-analysis slot. */
+.sc-history-menu {
+  position: relative;
+}
+.sc-history-options {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+  min-width: 165px;
+  padding: 4px;
+  border: 1px solid var(--shell-border);
+  border-radius: 5px;
+  background: var(--shell-surface);
+  box-shadow: 0 8px 24px rgb(20 48 78 / 14%);
+}
+.sc-history-options button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+}
+.sc-history-options button:hover,
+.sc-history-options button:focus-visible {
+  background: #edf6ff;
+}
+.sc-context-panel {
+  min-width: 0;
+  max-height: 75vh;
+  overflow: auto;
+}
+.sc-context-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--shell-border);
+}
+.sc-context-head h2 {
+  margin: 0;
+}
+.sc-utility-list article,
+.sc-utility-list .derivative-history-item {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--shell-border);
+}
+.sc-utility-list article strong,
+.sc-utility-list article small {
+  display: block;
+}
+.sc-utility-list article small {
+  margin: 4px 0 7px;
+  color: var(--shell-secondary);
+}
+.sc-utility-list article button {
+  margin-right: 4px;
+}
+.sc-utility-list p {
+  font-size: 11px;
+}
+.sc-movers article {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.sc-chips {
+  margin-bottom: 12px;
+}
+.sc-results,
+.derivative-results {
+  min-height: clamp(380px, 62vh, 900px);
+}
+@media (max-width: 1199px) {
+  .sc-grid.has-detail {
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+  .sc-inspector,
+  .sc-grid.has-detail > .sc-context-panel {
+    display: block;
+    grid-column: 1 / -1;
+    max-height: none;
+  }
+}
+@media (max-width: 800px) {
+  .sc-grid.has-detail {
+    grid-template-columns: 1fr;
+  }
+  .sc-results,
+  .derivative-results {
+    min-height: 300px;
+  }
+}
+
+.sc-grid > .sc-chips {
+  grid-column: 1 / -1;
+  margin-bottom: 0;
 }

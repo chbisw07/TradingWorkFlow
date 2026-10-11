@@ -178,6 +178,13 @@ test("O4 bounded scanner, explanation and exact Analytics handoff", async ({
   await expect(
     page.getByRole("tabpanel", { name: "Derivatives Scanner" }),
   ).toBeVisible();
+  await page.getByRole("button", { name: "Market Movers" }).click();
+  await expect(page.locator(".sc-context-panel")).toContainText("TapTide");
+  await page.screenshot({
+    path: info.outputPath("derivatives-market-movers-panel.png"),
+    fullPage: true,
+  });
+  await page.getByLabel("Close panel").click();
   const fieldOptions = page
     .getByRole("combobox", { name: "Field" })
     .locator("option");
@@ -209,9 +216,9 @@ test("O4 bounded scanner, explanation and exact Analytics handoff", async ({
   await expect(
     page.getByText("maximum 5; excess selection is rejected", { exact: false }),
   ).toBeVisible();
-  await expect(
-    page.getByText("No active filters. Draft values do not run."),
-  ).toBeVisible();
+  await expect(page.locator(".derivative-active-bar")).not.toContainText(
+    "Moneyness",
+  );
   await page.getByLabel("NSE underlyings").fill("NIFTY, NIFTY");
   await expect(
     page.getByRole("button", { name: "Add / update filter" }),
@@ -605,6 +612,19 @@ test("O4 real catalog drives typed filters, saved setup, and scan payload", asyn
     }),
   ).toBeVisible();
   await page.getByLabel("NSE underlyings").fill("NIFTY");
+  await expect(page.locator(".derivative-active-bar")).toContainText(
+    "Moneyness",
+  );
+  await expect(page.locator(".derivative-active-bar")).toContainText(
+    "Volume Percentile",
+  );
+  await expect(page.locator(".derivative-builder")).not.toContainText(
+    "Active filters",
+  );
+  await page.screenshot({
+    path: info.outputPath("derivatives-horizontal-active-chips.png"),
+    fullPage: true,
+  });
   await page.getByRole("button", { name: "Run Scan" }).click();
   await expect(
     page.getByText(
@@ -626,7 +646,12 @@ test("O4 real catalog drives typed filters, saved setup, and scan payload", asyn
       { field: "underlying_trend", operator: "equals", value: "Up" },
     ],
   });
-  await page.getByRole("button", { name: "View", exact: true }).click();
+  await page.getByRole("button", { name: /Scan History ▾/ }).click();
+  await page.getByRole("menuitem", { name: "Recent Scans" }).click();
+  await page
+    .locator(".sc-context-panel")
+    .getByRole("button", { name: "View", exact: true })
+    .click();
   await expect(
     page.getByText(
       "No contracts matched these filters. No result was invented.",
@@ -634,11 +659,13 @@ test("O4 real catalog drives typed filters, saved setup, and scan payload", asyn
   ).toBeVisible();
   page.once("dialog", (dialog) => void dialog.accept("Typed O4"));
   await page.getByRole("button", { name: "Save Scan" }).click();
+  await page.getByRole("button", { name: "My Scans" }).click();
   await expect(page.getByRole("button", { name: "Use setup" })).toBeVisible();
   await page.getByRole("button", { name: "Reset" }).click();
-  await expect(
-    page.getByText("No active filters. Draft values do not run."),
-  ).toBeVisible();
+  await expect(page.locator(".derivative-active-bar")).not.toContainText(
+    "Moneyness",
+  );
+  await page.getByRole("button", { name: "My Scans" }).click();
   await page.getByRole("button", { name: "Use setup" }).click();
   await expect(
     page.getByRole("button", { name: "Remove DTE >= 3" }),

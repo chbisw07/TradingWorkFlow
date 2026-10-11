@@ -211,8 +211,8 @@ test("fresh Scanner UI separates equity and active derivatives workspace", async
     screen.getByRole("heading", { name: "Build an options scan" }),
   ).toBeVisible();
   expect(
-    screen.getByText("No active filters. Draft values do not run."),
-  ).toBeVisible();
+    screen.getByLabelText("Active derivatives scan configuration"),
+  ).toHaveTextContent("Expiry: Nearest active");
   expect(
     screen.queryByText("Candidates requiring review"),
   ).not.toBeInTheDocument();
@@ -766,7 +766,7 @@ test("stored deterministic Reason opens complete no-LLM Evidence analysis", asyn
   expect(metadata).toHaveTextContent("Oil & Gas Exploration");
   expect(metadata).toHaveTextContent("₹20 L Cr");
   expect(metadata).toHaveTextContent("NIFTY OIL & GAS");
-  fireEvent.click(screen.getByRole("button", { name: "Close dialog" }));
+  fireEvent.click(screen.getByRole("button", { name: "Close panel" }));
   fireEvent.click(screen.getByRole("button", { name: "Why?" }));
   const panels = await screen.findAllByLabelText(
     "Deterministic candidate analysis",
@@ -781,9 +781,12 @@ test("stored deterministic Reason opens complete no-LLM Evidence analysis", asyn
   expect(within(panel).getByText(/get_india_vix/)).toBeVisible();
   expect(document.querySelector(".sc-grid")).toHaveClass("has-detail");
   fireEvent.click(
-    within(screen.getByRole("dialog")).getByRole("button", {
-      name: "Clear selection",
-    }),
+    within(screen.getByLabelText("Scanner contextual panel")).getByRole(
+      "button",
+      {
+        name: "Clear selection",
+      },
+    ),
   );
   expect(document.querySelector(".sc-inspector")).not.toBeInTheDocument();
   expect(document.querySelector(".sc-grid")).not.toHaveClass("has-detail");

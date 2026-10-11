@@ -9,6 +9,7 @@ import {
 import Link from "next/link";
 import { SectorEvidence } from "./sector-evidence";
 import { DerivativesScanner } from "./derivatives-scanner";
+import { ScannerHistoryMenu } from "./scanner-history-menu";
 import {
   scannerApi,
   initialConfig,
@@ -55,7 +56,9 @@ const resultColumns = [
 
 export function ScannerWorkspace() {
   const [filterOpen, setFilterOpen] = useState(true);
-  const [allHistory, setAllHistory] = useState(false);
+  const [panelView, setPanelView] = useState<
+    "detail" | "saved" | "recent" | "history" | "movers" | null
+  >(null);
   const [editorOpen, setEditorOpen] = useState(false);
   useEffect(() => {
     if (window.innerWidth <= 800) setFilterOpen(false);
@@ -419,6 +422,7 @@ export function ScannerWorkspace() {
       setRun(result);
       if (window.innerWidth <= 800) setFilterOpen(false);
       setSelected(null);
+      setPanelView(null);
       setChecked([]);
       setSort(c.sort);
       await refresh();
@@ -429,10 +433,10 @@ export function ScannerWorkspace() {
   }
   function inspect(row: ScanRow, tab = "Overview") {
     setSelected(row);
+    setPanelView("detail");
     setDetailTab(tab);
     setReference(null);
     setNews([]);
-    if (window.innerWidth < 1200) setModal("detail");
   }
   const activeField = fieldSpec(catalog, field);
   const comparisonOptions = (activeField?.comparison_fields || [])
@@ -516,6 +520,7 @@ export function ScannerWorkspace() {
             aria-label="Clear selection"
             onClick={() => {
               setSelected(null);
+              setPanelView(null);
               setModal(null);
             }}
           >
@@ -899,7 +904,10 @@ export function ScannerWorkspace() {
           <button
             role="tab"
             aria-selected={!derivatives}
-            onClick={() => setDerivatives(false)}
+            onClick={() => {
+              setDerivatives(false);
+              setPanelView(null);
+            }}
           >
             <strong>Equity / Index Scanner</strong>
             <small>Stocks, indices, price & technical scans</small>
@@ -907,12 +915,18 @@ export function ScannerWorkspace() {
           <button
             role="tab"
             aria-selected={derivatives}
-            onClick={() => setDerivatives(true)}
+            onClick={() => {
+              setDerivatives(true);
+              setPanelView(null);
+            }}
           >
             <strong>Derivatives Scanner</strong>
             <small>Single-leg NSE options</small>
           </button>
         </div>
+        {derivatives && (
+          <div id="sc-derivative-toolbar" className="sc-top-actions" />
+        )}
         {!derivatives && (
           <div className="sc-top-actions">
             <select
@@ -925,10 +939,14 @@ export function ScannerWorkspace() {
                 <option key={t.name}>{t.name}</option>
               ))}
             </select>
-            <a href="#sc-saved">My Scans</a>
-            <a href="#sc-history" onClick={() => setAllHistory(true)}>
-              Scan History
-            </a>
+            <button onClick={() => setPanelView("saved")}>My Scans</button>
+            <ScannerHistoryMenu
+              onRecent={() => setPanelView("recent")}
+              onHistory={() => setPanelView("history")}
+            />
+            <button onClick={() => setPanelView("movers")}>
+              Market Movers
+            </button>
             <button onClick={() => setModal("help")}>Help</button>
             <button
               className="wl-primary"
@@ -946,8 +964,70 @@ export function ScannerWorkspace() {
         <DerivativesScanner />
       ) : (
         <div
-          className={`sc-grid conditional-detail-layout${selected ? " has-detail" : ""}`}
+          className={`sc-grid conditional-detail-layout${panelView ? " has-detail" : ""}`}
         >
+          <div className="wl-card sc-chips">
+            <span>
+              Universe:{" "}
+              {config.universe.source === "WATCHLIST"
+                ? lists.find((l) => l.id === config.universe.watchlist_id)
+                    ?.name || "Choose watchlist"
+                : config.universe.source}
+            </span>
+            {config.filters.map((f, i) => (
+              <button
+                title="Remove filter"
+                aria-label={`Remove filter ${i + 1}`}
+                key={i}
+                onClick={() =>
+                  setConfig({
+                    ...config,
+                    filters: config.filters.filter((_, j) => j !== i),
+                  })
+                }
+              >
+                {filterExpression(f, catalog)} ×
+              </button>
+            ))}
+            <span className="sc-context-chip">
+              Context: {(config.context_mode || "RANKING").replaceAll("_", " ")}
+            </span>
+            {(config.context_filters || []).map((item, index) => {
+              const spec = catalog?.context_fields?.find(
+                (field) => field.field === item.field,
+              );
+              return (
+                <button
+                  className="sc-context-chip"
+                  title="Remove Market Context filter"
+                  aria-label={`Remove context filter ${index + 1}`}
+                  key={`${item.field}-${index}`}
+                  onClick={() =>
+                    setConfig({
+                      ...config,
+                      context_filters: config.context_filters.filter(
+                        (_, current) => current !== index,
+                      ),
+                    })
+                  }
+                >
+                  {spec?.label || item.field}{" "}
+                  {item.operator === "equals" ? "=" : "≠"}{" "}
+                  {item.value.replaceAll("_", " ")} ×
+                </button>
+              );
+            })}
+            <button onClick={() => setConfig({ ...config, filters: [] })}>
+              Clear All
+            </button>
+            {!filtersValid && (
+              <p role="alert">
+                This legacy setup contains incompatible filters. Remove or
+                replace them before running.
+              </p>
+            )}
+          </div>
+
           <aside className="wl-card sc-builder">
             <details
               open={filterOpen}
@@ -1398,68 +1478,6 @@ export function ScannerWorkspace() {
             </small>
           </aside>
           <main className="sc-center">
-            <div className="wl-card sc-chips">
-              <span>
-                Universe:{" "}
-                {config.universe.source === "WATCHLIST"
-                  ? lists.find((l) => l.id === config.universe.watchlist_id)
-                      ?.name || "Choose watchlist"
-                  : config.universe.source}
-              </span>
-              {config.filters.map((f, i) => (
-                <button
-                  title="Remove filter"
-                  aria-label={`Remove filter ${i + 1}`}
-                  key={i}
-                  onClick={() =>
-                    setConfig({
-                      ...config,
-                      filters: config.filters.filter((_, j) => j !== i),
-                    })
-                  }
-                >
-                  {filterExpression(f, catalog)} ×
-                </button>
-              ))}
-              <span className="sc-context-chip">
-                Context:{" "}
-                {(config.context_mode || "RANKING").replaceAll("_", " ")}
-              </span>
-              {(config.context_filters || []).map((item, index) => {
-                const spec = catalog?.context_fields?.find(
-                  (field) => field.field === item.field,
-                );
-                return (
-                  <button
-                    className="sc-context-chip"
-                    title="Remove Market Context filter"
-                    aria-label={`Remove context filter ${index + 1}`}
-                    key={`${item.field}-${index}`}
-                    onClick={() =>
-                      setConfig({
-                        ...config,
-                        context_filters: config.context_filters.filter(
-                          (_, current) => current !== index,
-                        ),
-                      })
-                    }
-                  >
-                    {spec?.label || item.field}{" "}
-                    {item.operator === "equals" ? "=" : "≠"}{" "}
-                    {item.value.replaceAll("_", " ")} ×
-                  </button>
-                );
-              })}
-              <button onClick={() => setConfig({ ...config, filters: [] })}>
-                Clear All
-              </button>
-              {!filtersValid && (
-                <p role="alert">
-                  This legacy setup contains incompatible filters. Remove or
-                  replace them before running.
-                </p>
-              )}
-            </div>
             <section className="wl-card sc-results">
               <header>
                 <h2>
@@ -1828,209 +1846,254 @@ export function ScannerWorkspace() {
                 Compare
               </button>
             </div>
-            <div className="sc-bottom">
-              <section className="wl-card" id="sc-saved">
-                <h2>Saved Scans</h2>
-                {!saved.filter((s) => !s.archived).length && (
-                  <p>No saved scans yet.</p>
-                )}
-                {saved
-                  .filter((s) => !s.archived)
-                  .map((s) => (
-                    <article key={s.id}>
-                      <button onClick={() => loadConfig(s.config, s.id)}>
-                        <strong>{s.config.name}</strong>
-                      </button>
-                      <small>
-                        {s.config.filters.length} filters ·{" "}
-                        {s.config.universe.source}
-                      </small>
-                      <button
-                        disabled={busy}
-                        onClick={() => {
-                          setSavedId(s.id);
-                          setName(s.config.name);
-                          loadConfig(s.config, s.id);
-                          setModal("save");
-                        }}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        disabled={busy}
-                        onClick={() =>
-                          void action(async () => {
-                            await scannerApi("saved/" + s.id, "PATCH", {
-                              config: s.config,
-                              archived: true,
-                            });
-                            await refresh();
-                          })
-                        }
-                      >
-                        Archive
-                      </button>
-                    </article>
-                  ))}
-              </section>
-              <section className="wl-card" id="sc-history">
-                <h2>{allHistory ? "Scan History" : "Recent Scans"}</h2>
-                {history.length > 5 && (
-                  <button onClick={() => setAllHistory(!allHistory)}>
-                    {allHistory
-                      ? "Show recent"
-                      : `View all (${history.length})`}
-                  </button>
-                )}
-                {!history.length && (
-                  <p>
-                    No Scanner V2 runs yet. Historical S&D remains in Discovery.
-                  </p>
-                )}
-                {history.slice(0, allHistory ? 50 : 5).map((h) => (
-                  <article key={h.id}>
-                    <strong>{h.config.name}</strong>
-                    <small>
-                      {h.counts.matches} results ·{" "}
-                      {new Date(h.created_at).toLocaleString()}
-                    </small>
-                    <button
-                      onClick={() =>
-                        void action(async () => {
-                          setRun(await scannerApi<Run>("runs/" + h.id));
-                          setSelected(null);
-                          setChecked([]);
-                        })
-                      }
-                    >
-                      View
-                    </button>
-                    <button onClick={() => loadConfig(h.config)}>
-                      Use setup
-                    </button>
-                  </article>
-                ))}
-              </section>
-              <section className="wl-card sc-movers">
+          </main>
+          {panelView && (
+            <aside
+              className="wl-card sc-inspector sc-context-panel"
+              aria-label="Scanner contextual panel"
+            >
+              <header className="sc-context-head">
                 <h2>
-                  Market Movers <small>TapTide</small>
+                  {panelView === "detail"
+                    ? "Instrument Analysis"
+                    : panelView === "saved"
+                      ? "My Scans"
+                      : panelView === "recent"
+                        ? "Recent Scans"
+                        : panelView === "history"
+                          ? "Scan History"
+                          : "Market Movers"}
                 </h2>
                 <button
-                  disabled={busy}
-                  onClick={() =>
-                    void action(async () =>
-                      setMovers(await scannerApi<ProviderResults>("movers")),
-                    )
+                  className="detail-panel-clear"
+                  aria-label={
+                    panelView === "movers"
+                      ? "Close Market Movers"
+                      : "Close panel"
                   }
+                  onClick={() => setPanelView(null)}
                 >
-                  Load movers
+                  ×
                 </button>
-                <button
-                  disabled={busy}
-                  onClick={() =>
-                    void action(async () =>
-                      setMovers(
-                        await scannerApi<ProviderResults>(
-                          "provider-screen",
-                          "POST",
-                          {
-                            ...config,
-                            universe: {
-                              source: "CUSTOM",
-                              symbols: ["NIFTY"],
-                              instrument_ids: [],
-                            },
-                          },
-                        ),
-                      ),
-                    )
-                  }
-                >
-                  TapTide technical screen
-                </button>
-                <div className="sc-periods">
-                  {[
-                    "Top Gainers",
-                    "Top Losers",
-                    "High Volume",
-                    "52W High",
-                    "52W Low",
-                  ].map((t) => (
-                    <button
-                      aria-pressed={moverTab === t}
-                      key={t}
-                      onClick={() => setMoverTab(t)}
-                    >
-                      {t}
-                    </button>
-                  ))}
+              </header>
+              {panelView === "detail" && detail}
+              {panelView === "saved" && (
+                <div className="sc-utility-list">
+                  <h2>Saved Scans</h2>
+                  {!saved.filter((s) => !s.archived).length && (
+                    <p>No saved scans yet.</p>
+                  )}
+                  {saved
+                    .filter((s) => !s.archived)
+                    .map((s) => (
+                      <article key={s.id}>
+                        <button onClick={() => loadConfig(s.config, s.id)}>
+                          <strong>{s.config.name}</strong>
+                        </button>
+                        <small>
+                          {s.config.filters.length} filters ·{" "}
+                          {s.config.universe.source}
+                        </small>
+                        <button
+                          disabled={busy}
+                          onClick={() => {
+                            setSavedId(s.id);
+                            setName(s.config.name);
+                            loadConfig(s.config, s.id);
+                            setModal("save");
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          disabled={busy}
+                          onClick={() =>
+                            void action(async () => {
+                              await scannerApi("saved/" + s.id, "PATCH", {
+                                config: s.config,
+                                archived: true,
+                              });
+                              await refresh();
+                            })
+                          }
+                        >
+                          Archive
+                        </button>
+                      </article>
+                    ))}
                 </div>
-                {!movers ? (
-                  <p>Optional provider-wide evidence. Load on demand.</p>
-                ) : (
-                  <>
-                    <small>
-                      {movers.tool === "screen_stocks_technical"
-                        ? "Technical screen results · "
-                        : ""}
-                      {movers.state} · {movers.coverage} · {movers.freshness}
-                    </small>
-                    {[...movers.rows]
-                      .filter((r) =>
-                        movers.tool === "screen_stocks_technical"
-                          ? true
-                          : moverTab === "52W High"
-                            ? (r.buckets || [r.bucket]).includes(
-                                "near_52w_high",
-                              )
-                            : moverTab === "52W Low"
+              )}
+              {(panelView === "recent" || panelView === "history") && (
+                <div className="sc-utility-list">
+                  <h2>
+                    {panelView === "history" ? "Scan History" : "Recent Scans"}
+                  </h2>
+                  {history.length > 5 && (
+                    <button
+                      onClick={() =>
+                        setPanelView(
+                          panelView === "history" ? "recent" : "history",
+                        )
+                      }
+                    >
+                      {panelView === "history"
+                        ? "Show recent"
+                        : `View all (${history.length})`}
+                    </button>
+                  )}
+                  {!history.length && (
+                    <p>
+                      No Scanner V2 runs yet. Historical S&D remains in
+                      Discovery.
+                    </p>
+                  )}
+                  {history
+                    .slice(0, panelView === "history" ? 50 : 5)
+                    .map((h) => (
+                      <article key={h.id}>
+                        <strong>{h.config.name}</strong>
+                        <small>
+                          {h.counts.matches} results ·{" "}
+                          {new Date(h.created_at).toLocaleString()}
+                        </small>
+                        <button
+                          onClick={() =>
+                            void action(async () => {
+                              setRun(await scannerApi<Run>("runs/" + h.id));
+                              setSelected(null);
+                              setChecked([]);
+                            })
+                          }
+                        >
+                          View
+                        </button>
+                        <button onClick={() => loadConfig(h.config)}>
+                          Use setup
+                        </button>
+                      </article>
+                    ))}
+                </div>
+              )}
+              {panelView === "movers" && (
+                <div className="sc-utility-list sc-movers">
+                  <small>TapTide</small>
+                  <button
+                    disabled={busy}
+                    onClick={() =>
+                      void action(async () =>
+                        setMovers(await scannerApi<ProviderResults>("movers")),
+                      )
+                    }
+                  >
+                    Load movers
+                  </button>
+                  <button
+                    disabled={busy}
+                    onClick={() =>
+                      void action(async () =>
+                        setMovers(
+                          await scannerApi<ProviderResults>(
+                            "provider-screen",
+                            "POST",
+                            {
+                              ...config,
+                              universe: {
+                                source: "CUSTOM",
+                                symbols: ["NIFTY"],
+                                instrument_ids: [],
+                              },
+                            },
+                          ),
+                        ),
+                      )
+                    }
+                  >
+                    TapTide technical screen
+                  </button>
+                  <div className="sc-periods">
+                    {[
+                      "Top Gainers",
+                      "Top Losers",
+                      "High Volume",
+                      "52W High",
+                      "52W Low",
+                    ].map((t) => (
+                      <button
+                        aria-pressed={moverTab === t}
+                        key={t}
+                        onClick={() => setMoverTab(t)}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                  {!movers ? (
+                    <p>Optional provider-wide evidence. Load on demand.</p>
+                  ) : (
+                    <>
+                      <small>
+                        {movers.tool === "screen_stocks_technical"
+                          ? "Technical screen results · "
+                          : ""}
+                        {movers.state} · {movers.coverage} · {movers.freshness}
+                      </small>
+                      {[...movers.rows]
+                        .filter((r) =>
+                          movers.tool === "screen_stocks_technical"
+                            ? true
+                            : moverTab === "52W High"
                               ? (r.buckets || [r.bucket]).includes(
-                                  "near_52w_low",
+                                  "near_52w_high",
                                 )
-                              : moverTab === "Top Gainers"
-                                ? Number(r.metrics.change) > 0
-                                : moverTab === "Top Losers"
-                                  ? Number(r.metrics.change) < 0
-                                  : true,
-                      )
-                      .sort((a, b) =>
-                        moverTab === "High Volume"
-                          ? Number(b.metrics.volume) - Number(a.metrics.volume)
-                          : moverTab === "Top Losers"
-                            ? Number(a.metrics.change) -
-                              Number(b.metrics.change)
-                            : Number(b.metrics.change) -
-                              Number(a.metrics.change),
-                      )
-                      .slice(0, 5)
-                      .map((r) => (
-                        <article key={r.symbol}>
-                          <button
-                            onClick={() => {
-                              source("CUSTOM");
-                              setCustom(r.symbol);
-                              setNotice(
-                                "Symbol loaded. Run the Dhan scan to evaluate your exact filters.",
-                              );
-                            }}
-                          >
-                            {r.symbol}
-                          </button>
-                          <span
-                            className={
-                              Number(r.metrics.change) > 0 ? "up" : "down"
-                            }
-                          >
-                            {changeText(r.metrics.change)}
-                          </span>
-                        </article>
-                      ))}
-                  </>
-                )}
-              </section>
-            </div>
-          </main>
-          {selected && <aside className="wl-card sc-inspector">{detail}</aside>}
+                              : moverTab === "52W Low"
+                                ? (r.buckets || [r.bucket]).includes(
+                                    "near_52w_low",
+                                  )
+                                : moverTab === "Top Gainers"
+                                  ? Number(r.metrics.change) > 0
+                                  : moverTab === "Top Losers"
+                                    ? Number(r.metrics.change) < 0
+                                    : true,
+                        )
+                        .sort((a, b) =>
+                          moverTab === "High Volume"
+                            ? Number(b.metrics.volume) -
+                              Number(a.metrics.volume)
+                            : moverTab === "Top Losers"
+                              ? Number(a.metrics.change) -
+                                Number(b.metrics.change)
+                              : Number(b.metrics.change) -
+                                Number(a.metrics.change),
+                        )
+                        .slice(0, 5)
+                        .map((r) => (
+                          <article key={r.symbol}>
+                            <button
+                              onClick={() => {
+                                source("CUSTOM");
+                                setCustom(r.symbol);
+                                setNotice(
+                                  "Symbol loaded. Run the Dhan scan to evaluate your exact filters.",
+                                );
+                              }}
+                            >
+                              {r.symbol}
+                            </button>
+                            <span
+                              className={
+                                Number(r.metrics.change) > 0 ? "up" : "down"
+                              }
+                            >
+                              {changeText(r.metrics.change)}
+                            </span>
+                          </article>
+                        ))}
+                    </>
+                  )}
+                </div>
+              )}
+            </aside>
+          )}
         </div>
       )}
       {modal && (
