@@ -847,6 +847,72 @@
   }
 }
 
+/* Derivatives share the Equity result actions and keep their own selection bar. */
+.derivative-row-actions a,
+.derivative-bulk a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 8px;
+  border: 1px solid var(--shell-border);
+  border-radius: 4px;
+  color: #1764c3;
+  background: var(--shell-surface);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.derivative-row-actions button:first-child {
+  color: #1764c3;
+  text-decoration: underline;
+}
+.derivative-row-actions .wl-buy,
+.derivative-row-actions .wl-sell {
+  min-width: 28px;
+  color: white;
+}
+.derivative-row-actions .wl-buy,
+.derivative-detail-actions .wl-buy {
+  background: #009b70;
+  border-color: #009b70;
+  color: #fff;
+}
+.derivative-row-actions .wl-sell,
+.derivative-detail-actions .wl-sell {
+  background: #f14352;
+  border-color: #f14352;
+  color: #fff;
+}
+.derivative-row-actions button:disabled,
+.derivative-detail-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.derivative-bulk {
+  margin-top: 0;
+}
+.derivative-mobile-card header label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.derivative-mobile-card .derivative-row-actions {
+  flex-wrap: wrap;
+}
+.derivative-active-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+@media (max-width: 600px) {
+  .derivative-bulk {
+    align-items: stretch;
+  }
+  .derivative-bulk > span {
+    flex-basis: 100%;
+  }
+}
+
 /* Scanner utility views share the conditional result-analysis slot. */
 .sc-history-menu {
   position: relative;

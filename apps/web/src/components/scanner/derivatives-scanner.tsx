@@ -221,6 +221,10 @@ function tradeContract(contract: OptionContract): OptionContractRequest {
   return { exchange, underlying_symbol, expiry, strike, option_type };
 }
 
+function analyticsHref(row: Row): string {
+  return `/options-analytics?underlying=${encodeURIComponent(row.underlying)}&expiry=${encodeURIComponent(row.expiry)}&contract_id=${encodeURIComponent(row.contract.canonical_id)}&strike=${encodeURIComponent(row.strike)}&side=${row.option_type}`;
+}
+
 export function DerivativesScanner() {
   const [catalog, setCatalog] = useState<{
     fields: Field[];
@@ -241,6 +245,7 @@ export function DerivativesScanner() {
   const [history, setHistory] = useState<Run[]>([]);
   const [saved, setSaved] = useState<Saved[]>([]);
   const [selected, setSelected] = useState<Row | null>(null);
+  const [checked, setChecked] = useState<string[]>([]);
   const [panelView, setPanelView] = useState<
     "detail" | "saved" | "recent" | "history" | "movers" | null
   >(null);
@@ -483,6 +488,7 @@ export function DerivativesScanner() {
     setBusy(true);
     setError("");
     setSelected(null);
+    setChecked([]);
     setPanelView(null);
     try {
       const next = await scannerApi<Run>("derivatives/runs", "POST", submitted);
@@ -524,6 +530,7 @@ export function DerivativesScanner() {
     setRaw(savedConfig.universe.symbols.join(", "));
     setRun(null);
     setSelected(null);
+    setChecked([]);
     setNotice("Saved setup loaded. Review it before running.");
   }
   async function view(key: string) {
@@ -531,14 +538,15 @@ export function DerivativesScanner() {
       const next = await scannerApi<Run>(`derivatives/runs/${key}`);
       setRun(next);
       setSelected(null);
+      setChecked([]);
       setShowAll(false);
     } catch (e) {
       setError((e as Error).message);
     }
   }
-  function openTrade(side: Side) {
-    if (!selected || !broker) return;
-    if (expiredContract(selected.contract)) {
+  function openTrade(row: Row, side: Side) {
+    if (!broker) return;
+    if (expiredContract(row.contract)) {
       setError(
         "This historical contract has expired and cannot be sent to Broker V2.",
       );
@@ -546,8 +554,62 @@ export function DerivativesScanner() {
     }
     setTicket({
       account: broker.account,
-      canonical: { contract: tradeContract(selected.contract), side },
+      canonical: { contract: tradeContract(row.contract), side },
     });
+  }
+  const selectedForAction = rows.find(
+    (row) => row.contract.canonical_id === checked[0],
+  );
+  const tradeUnavailable = !broker
+    ? "Select an options-capable broker in Instrument Analysis"
+    : "Expired contracts cannot be traded";
+  function rowActions(row: Row) {
+    return (
+      <div className="sc-row-actions derivative-row-actions">
+        <button
+          aria-label="Why?"
+          onClick={() => {
+            setSelected(row);
+            setPanelView("detail");
+          }}
+        >
+          Why?
+        </button>
+        <Link
+          href={analyticsHref(row)}
+          aria-label={`Open ${row.contract.display_symbol} in Options Analytics`}
+          title="Open exact contract in Options Analytics"
+        >
+          Analytics
+        </Link>
+        <button
+          className="wl-buy"
+          aria-label={`Buy ${row.contract.display_symbol}`}
+          title={
+            !broker || expiredContract(row.contract)
+              ? tradeUnavailable
+              : "Broker V2 preview"
+          }
+          disabled={!broker || expiredContract(row.contract)}
+          onClick={() => openTrade(row, "BUY")}
+        >
+          B
+        </button>
+        <button
+          className="wl-sell"
+          aria-label={`Sell ${row.contract.display_symbol}`}
+          title={
+            !broker || expiredContract(row.contract)
+              ? tradeUnavailable
+              : "Broker V2 preview"
+          }
+          disabled={!broker || expiredContract(row.contract)}
+          onClick={() => openTrade(row, "SELL")}
+        >
+          S
+        </button>
+      </div>
+    );
   }
   return (
     <div
@@ -943,6 +1005,7 @@ export function DerivativesScanner() {
                 editField("");
                 setRun(null);
                 setSelected(null);
+                setChecked([]);
                 setPanelView(null);
               }}
             >
@@ -1052,6 +1115,7 @@ export function DerivativesScanner() {
                     <thead>
                       <tr>
                         {[
+                          "Select",
                           "Underlying",
                           "Spot",
                           "Expiry",
@@ -1090,6 +1154,25 @@ export function DerivativesScanner() {
                               : ""
                           }
                         >
+                          <td>
+                            <input
+                              type="checkbox"
+                              aria-label={`Select ${row.contract.display_symbol}`}
+                              checked={checked.includes(
+                                row.contract.canonical_id,
+                              )}
+                              onChange={(event) =>
+                                setChecked((current) =>
+                                  event.target.checked
+                                    ? [...current, row.contract.canonical_id]
+                                    : current.filter(
+                                        (id) =>
+                                          id !== row.contract.canonical_id,
+                                      ),
+                                )
+                              }
+                            />
+                          </td>
                           <td>{row.underlying}</td>
                           <td>{num(row.spot)}</td>
                           <td>{expiryLabel(row.expiry)}</td>
@@ -1115,16 +1198,7 @@ export function DerivativesScanner() {
                               <td key={key}>{optionalResultValue(row, key)}</td>
                             ))}
                           <td>{row.reason}</td>
-                          <td>
-                            <button
-                              onClick={() => {
-                                setSelected(row);
-                                setPanelView("detail");
-                              }}
-                            >
-                              Why?
-                            </button>
-                          </td>
+                          <td>{rowActions(row)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1145,9 +1219,27 @@ export function DerivativesScanner() {
                       }
                     >
                       <header>
-                        <strong>
-                          {row.underlying} {num(row.strike)} {row.option_type}
-                        </strong>
+                        <label>
+                          <input
+                            type="checkbox"
+                            aria-label={`Select ${row.contract.display_symbol}`}
+                            checked={checked.includes(
+                              row.contract.canonical_id,
+                            )}
+                            onChange={(event) =>
+                              setChecked((current) =>
+                                event.target.checked
+                                  ? [...current, row.contract.canonical_id]
+                                  : current.filter(
+                                      (id) => id !== row.contract.canonical_id,
+                                    ),
+                              )
+                            }
+                          />
+                          <strong>
+                            {row.underlying} {num(row.strike)} {row.option_type}
+                          </strong>
+                        </label>
                         <span>{row.moneyness || "—"}</span>
                       </header>
                       <div className="derivative-mobile-facts">
@@ -1175,14 +1267,7 @@ export function DerivativesScanner() {
                           : `${num(row.volume_oi_percent)}%`}
                       </p>
                       <p>{row.reason}</p>
-                      <button
-                        onClick={() => {
-                          setSelected(row);
-                          setPanelView("detail");
-                        }}
-                      >
-                        Why?
-                      </button>
+                      {rowActions(row)}
                     </article>
                   ))}
                 </div>
@@ -1221,6 +1306,34 @@ export function DerivativesScanner() {
               </p>
             )}
           </section>
+          <div
+            className="wl-card sc-bulk derivative-bulk"
+            aria-label="Derivatives selection actions"
+          >
+            <span>{checked.length} selected</span>
+            <button
+              disabled
+              title="Option-contract watchlist mapping is unavailable"
+            >
+              ＋ Add Selected to Watchlist
+            </button>
+            <button disabled title="Derivatives CSV export is unavailable">
+              Export CSV
+            </button>
+            {checked.length === 1 && selectedForAction ? (
+              <Link href={analyticsHref(selectedForAction)}>
+                Open in Options Analytics
+              </Link>
+            ) : (
+              <button disabled>Open in Options Analytics</button>
+            )}
+            <button disabled title="Exact option charts are unavailable">
+              Open in Chart
+            </button>
+            <button disabled title="Derivatives comparison is unavailable">
+              Compare
+            </button>
+          </div>
         </main>
         {panelView && (
           <aside
@@ -1535,9 +1648,7 @@ export function DerivativesScanner() {
                   Retrieved: {selected.provenance.received_at}
                 </small>
                 <div className="derivative-detail-actions">
-                  <Link
-                    href={`/options-analytics?underlying=${encodeURIComponent(selected.underlying)}&expiry=${encodeURIComponent(selected.expiry)}&contract_id=${encodeURIComponent(selected.contract.canonical_id)}&strike=${encodeURIComponent(selected.strike)}&side=${selected.option_type}`}
-                  >
+                  <Link href={analyticsHref(selected)}>
                     Open in Options Analytics
                   </Link>
                   <label>
@@ -1555,14 +1666,16 @@ export function DerivativesScanner() {
                     </select>
                   </label>
                   <button
+                    className="wl-buy"
                     disabled={!broker || expiredContract(selected.contract)}
-                    onClick={() => openTrade("BUY")}
+                    onClick={() => openTrade(selected, "BUY")}
                   >
                     Buy · Broker V2 preview
                   </button>
                   <button
+                    className="wl-sell"
                     disabled={!broker || expiredContract(selected.contract)}
-                    onClick={() => openTrade("SELL")}
+                    onClick={() => openTrade(selected, "SELL")}
                   >
                     Sell · Broker V2 preview
                   </button>

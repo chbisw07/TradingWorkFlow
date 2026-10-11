@@ -178,6 +178,19 @@ test("O4 bounded scanner, explanation and exact Analytics handoff", async ({
   await expect(
     page.getByRole("tabpanel", { name: "Derivatives Scanner" }),
   ).toBeVisible();
+  await expect(page.getByLabel("Derivatives selection actions")).toContainText(
+    "0 selected",
+  );
+  await expect(page.locator(".derivative-scanner .sc-grid")).not.toHaveClass(
+    /has-detail/,
+  );
+  await expect(
+    page.locator(".derivative-scanner .sc-context-panel"),
+  ).toHaveCount(0);
+  await page.screenshot({
+    path: info.outputPath("derivatives-clean-builder.png"),
+    fullPage: true,
+  });
   await page.getByRole("button", { name: "Market Movers" }).click();
   await expect(page.locator(".sc-context-panel")).toContainText("TapTide");
   await page.screenshot({
@@ -185,6 +198,9 @@ test("O4 bounded scanner, explanation and exact Analytics handoff", async ({
     fullPage: true,
   });
   await page.getByLabel("Close panel").click();
+  await expect(page.locator(".derivative-scanner .sc-grid")).not.toHaveClass(
+    /has-detail/,
+  );
   const fieldOptions = page
     .getByRole("combobox", { name: "Field" })
     .locator("option");
@@ -234,6 +250,37 @@ test("O4 bounded scanner, explanation and exact Analytics handoff", async ({
     compact ? ".derivative-mobile-cards" : ".derivative-table-wrap",
   );
   await expect(results).toContainText("1/1 active filters matched");
+  await expect(page.getByLabel("Derivatives selection actions")).toContainText(
+    "0 selected",
+  );
+  await expect(
+    page.locator(".derivative-scanner .sc-center").locator(".derivative-bulk"),
+  ).toBeVisible();
+  await expect(
+    page.locator(".derivative-scanner .sc-center").locator(".derivative-bulk"),
+  ).toHaveCount(1);
+  await expect(page.locator(".derivative-scanner .sc-grid")).not.toHaveClass(
+    /has-detail/,
+  );
+  await expect(
+    page.locator(".derivative-scanner .sc-center"),
+  ).not.toContainText("Saved Scans");
+  await page.screenshot({
+    path: info.outputPath("derivatives-results-full-width.png"),
+    fullPage: true,
+  });
+  await page
+    .getByRole("checkbox", { name: `Select ${contract.display_symbol}` })
+    .first()
+    .check();
+  await expect(page.getByLabel("Derivatives selection actions")).toContainText(
+    "1 selected",
+  );
+  await expect(
+    page
+      .getByLabel("Derivatives selection actions")
+      .getByRole("link", { name: "Open in Options Analytics" }),
+  ).toHaveAttribute("href", /contract_id=NFO%3ANIFTY/);
   if (compact) await expect(results).toContainText("NIFTY 25,000 CE");
   await page.locator(".derivative-columns summary").click();
   await page.getByRole("checkbox", { name: "Bid", exact: true }).check();
@@ -260,6 +307,9 @@ test("O4 bounded scanner, explanation and exact Analytics handoff", async ({
   await page.keyboard.press("Enter");
   const detail = page.getByLabel("Selected option contract");
   await expect(detail).toContainText(id);
+  await expect(page.locator(".derivative-scanner .sc-grid")).toHaveClass(
+    /has-detail/,
+  );
   await expect(detail).toContainText("Liquidity / Activity");
   for (const [label, expected] of [
     ["Volume percentile", "92"],
@@ -439,12 +489,13 @@ test("O4 exact canonical contract reaches Broker V2 Buy and Sell previews", asyn
   await page.getByRole("combobox", { name: "Value" }).selectOption("PE");
   await page.getByRole("button", { name: "Add / update filter" }).click();
   await page.getByRole("button", { name: "Run Scan" }).click();
-  await page.getByRole("button", { name: "Why?" }).click();
+  const resultActions = page
+    .locator(".derivative-scanner .derivative-row-actions:visible")
+    .first();
   const detail = page.getByLabel("Selected option contract");
-  await expect(detail).toContainText(canonical.canonical_id);
   for (const side of ["Buy", "Sell"] as const) {
-    const action = detail.getByRole("button", {
-      name: `${side} · Broker V2 preview`,
+    const action = resultActions.getByRole("button", {
+      name: `${side} ${canonical.display_symbol}`,
     });
     await expect(action).toBeEnabled();
     await action.click();
@@ -482,6 +533,8 @@ test("O4 exact canonical contract reaches Broker V2 Buy and Sell previews", asyn
     });
     await dialog.getByRole("button", { name: "Close order ticket" }).click();
   }
+  await resultActions.getByRole("button", { name: "Why?" }).click();
+  await expect(detail).toContainText(canonical.canonical_id);
   historical = true;
   await page.getByRole("button", { name: "Run Scan" }).click();
   await page.getByRole("button", { name: "Why?" }).click();
@@ -648,6 +701,20 @@ test("O4 real catalog drives typed filters, saved setup, and scan payload", asyn
   });
   await page.getByRole("button", { name: /Scan History ▾/ }).click();
   await page.getByRole("menuitem", { name: "Recent Scans" }).click();
+  await expect(page.locator(".sc-context-panel")).toContainText("Recent Scans");
+  await page.screenshot({
+    path: info.outputPath("derivatives-recent-scans-panel.png"),
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: /Scan History ▾/ }).click();
+  await page
+    .getByRole("menuitem", { name: "Scan History", exact: true })
+    .click();
+  await expect(page.locator(".sc-context-panel")).toContainText("Scan History");
+  await page.screenshot({
+    path: info.outputPath("derivatives-scan-history-panel.png"),
+    fullPage: true,
+  });
   await page
     .locator(".sc-context-panel")
     .getByRole("button", { name: "View", exact: true })
@@ -685,6 +752,13 @@ test("O4 real catalog drives typed filters, saved setup, and scan payload", asyn
   await expect(
     page.getByRole("button", { name: "Remove DTE >= 3" }),
   ).toHaveCount(0);
+  await page.getByRole("tab", { name: /Equity \/ Index Scanner/ }).click();
+  await expect(page.locator(".derivative-active-bar")).toHaveCount(0);
+  await expect(page.locator(".sc-context-panel")).toHaveCount(0);
+  await page.getByRole("tab", { name: /Derivatives Scanner/ }).click();
+  await expect(page.locator(".derivative-active-bar")).not.toContainText(
+    "Volume Percentile >= 70",
+  );
 });
 
 test("O4 catalog failure shows a retryable error without empty controls", async ({
