@@ -318,9 +318,9 @@ test("Scanner V2 editable filters, durable runs, Watchlist handoff and responsiv
     .getByRole("tab", { name: "Derivatives Scanner", exact: false })
     .click();
   await expect(
-    page.getByText("Derivative analytics are not available in this version.", {
-      exact: false,
-    }),
-  ).toBeVisible();
+    page.getByRole("tabpanel", { name: "Derivatives Scanner" }),
+  ).toContainText("Select underlyings, expiry and at least one filter");
+  await page.getByRole("tab", { name: /Equity \/ Index Scanner/ }).click();
+  await expect(page.locator(".sc-table")).toContainText("RELIANCE");
   expect(dispatches).toBe(0);
 });

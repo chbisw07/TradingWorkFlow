@@ -205,7 +205,7 @@ This roadmap describes intent and does not commit later implementation details:
 O2 adds one read-only `OptionChainService` for future Broker, Scanner, Analytics,
 Watchlist, Strategy Builder and Discovery consumers. It reuses the O1 `OptionContract`
 and structural identity; it does not create another execution path. O3 supplies the
-chain workspace described below; Derivatives Scanner remains planned. Shared frontend types live in
+chain workspace described below; Derivatives Scanner O4 is implemented for bounded single-leg filtering. Shared frontend types live in
 `apps/web/src/lib/options.ts` and reuse the O1 contract type. The existing Broker picker
 continues to discover directly executable broker contracts, so Dhan outages cannot
 prevent manual Broker V2 contract discovery.
@@ -356,7 +356,7 @@ Broker connection state, Watchlist data, Scanner results, or Instrument Metadata
 
 ### O3+ consumers
 
-Future Derivatives Scanner can consume raw volume/OI/OI-change/IV/spread/DTE/moneyness
+O4 Derivatives Scanner consumes canonical volume/OI/OI-change/IV/spread/DTE/moneyness
 without inventing unavailable fields. Analytics, Watchlists, Strategy Builder and
 Discovery should use this same service and canonical leg identity. Ranking, option-chain
 UI, Greeks calculations, historical snapshots, multi-leg execution and strategy authority
@@ -446,7 +446,7 @@ widths. Fixture timings measure UI/preview behavior, not authenticated Dhan late
 Add to Watchlist is explicitly deferred: the existing Watchlist identity requires a
 provider-native instrument reference that the public canonical chain intentionally does
 not expose. O3 does not invent an ID or add a second resolver. Auto-refresh, a columns
-editor, ranking, Derivatives Scanner, strategy/P&L/payoff tools, multi-leg execution,
+editor, ranking, strategy/P&L/payoff tools, multi-leg execution,
 computed IV/Greeks and historical chain persistence remain outside this phase.
 
 O3 automated validation completed with 1,208 backend tests and 247 frontend tests
@@ -460,3 +460,44 @@ and desktop widths. Median fixture timings across the six widths: initial chain
 These are isolated fixture timings, not live Dhan latency. The running development
 API also exposes the new capability endpoint after reload; authenticated live checks
 still require an accessible signed-in browser session. No live order was placed.
+
+## O4 — Derivatives Scanner V1
+
+O4 activates the Scanner V2 Derivatives tab for single-leg NSE options. The backend accepts a
+separate `DERIVATIVES` typed configuration. The custom or selected Watchlist underlying set is
+limited to five; duplicate symbols are normalized and deduplicated before provider access.
+Only active contracts from the O2 instrument master establish optionability. A missing exact
+expiry is reported per underlying and does not discard successful chains.
+
+Nearest active or exact expiry and ±5/10/15/20 strikes around O2 ATM bound each request.
+There is one O2 chain acquisition per selected underlying and no per-leg market request or
+scanner retry loop. Optional underlying technical predicates reuse Scanner V2's Dhan
+completed-daily history cache and indicator engine. Metadata is read from the local DB in
+one bulk lookup. O2 alone determines spot, ATM, moneyness, DTE, quote values and chain
+provenance; O4 does not recalculate or synthesize them.
+
+The typed filter catalog separates contract fields (side, moneyness, DTE and strike
+distance), price/liquidity (LTP, volume and spread), open interest and signed change,
+provider-dependent IV/Greeks, and underlying daily-bar technicals (SMA20 trend, RSI,
+supertrend, 1D change and 10-day momentum). Only added filter chips execute; draft
+editor values do not. The default side choice is Both. Optional IV/Greek values remain
+unavailable when O2 does not supply them.
+
+Every active filter is an AND predicate. Missing active evidence yields `NOT_EVALUATED`, not a
+zero or a match; unavailable inactive fields do not block a match. The run archives the
+canonical `OptionContract`, selected chain quote, each observed value and predicate result,
+underlying technical values, warnings and source/receipt/freshness. No suitability or
+liquidity score is added. Results sort canonically by underlying, expiry, strike and CE
+before PE unless the user explicitly sorts another visible field. Scan counts separate
+requested and resolved underlyings, acquired chains, evaluated contracts, missing inputs
+and matches. The desktop result table offers optional columns; at 390px the essential
+contract facts and reason appear together on compact cards. Selecting Why shows every
+active predicate with the observed value and preserves missing/non-match diagnostics.
+
+A selected result links to Options Analytics with exact underlying, expiry, strike, side and
+canonical ID. The chain workspace selects only the matching canonical ID. Buy/Sell passes
+that structural identity to the existing Broker V2 `OrderTicket` preview; confirmation
+remains separate. Expired historical contracts remain inspectable and cannot open a ticket.
+O4 does not add option Watchlist storage, multi-leg execution, automated orders or ranking.
+Authenticated live Dhan acceptance is still required; deterministic tests do not constitute
+live-provider proof.

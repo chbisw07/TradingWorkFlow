@@ -19,7 +19,7 @@ Work began on `main`, HEAD `d2a35176fd01efa095871ac6f5347af314dc7b33`, with a cl
 
 Scanner performs explicit candidate generation. Discovery performs downstream interpretation and temporal tracking. Scanner V2 does not automatically create Discovery candidates or authorize orders. A persisted match contains canonical instrument identity, versioned filters, predicate diagnostics, observed metrics, provider lineage, source/received timestamps and archived bars for a future explicit Discovery handoff.
 
-Equity/Index is functional. Derivatives has a separate truthful shell: no IV, Greeks, option-chain filters or synthetic derivative analytics. Futures/options in a mixed Watchlist receive `NOT_EVALUATED / DERIVATIVES_UNSUPPORTED`.
+Equity/Index is functional. O4 activates the separate Derivatives tab for bounded single-leg option-chain filtering; provider-dependent IV/Greeks remain unavailable where O2 does not provide them. Futures/options in a mixed Equity/Index Watchlist scan still receive `NOT_EVALUATED / DERIVATIVES_UNSUPPORTED`.
 
 The internal scanner evaluates Dhan data. TapTide technical screening is a separate bounded provider capability, not a MarketIntelligenceProvider policy gate. Its provider-wide suggestions remain separately identified and can be loaded into a Custom universe for canonical Dhan verification. Unresolved external suggestions are not silently merged into Dhan results, given a Dhan identity, or added to Watchlists. There is no claim of cross-provider agreement scoring.
 
@@ -569,3 +569,21 @@ No fixed bullish/bearish result is asserted against live data in CI.
 Status: **READY_FOR_USER_VALIDATION**, with the pre-existing full-test mypy debt
 explicitly retained. Existing historical runs retain their original evidence;
 run a new scan with the updated API to exercise the resolved benchmark names.
+
+## O4 derivatives addendum
+
+The Derivatives tab uses the existing Scanner workspace and storage tables with an explicit
+`scanner_type=DERIVATIVES` discriminator. Saved/history lists filter by type before
+applying their limits. Equity saved scans and history exclude these records;
+owner checks also prevent a derivative ID from being read through equity endpoints. O4
+configuration and rows use separate typed contracts so option predicates cannot enter the
+Equity/Index daily-bar engine. Historical runs are immutable JSON snapshots. Saved setup
+changes do not re-evaluate historical quotes.
+
+The five-underlying cap, O2 ±20 maximum strike window and one canonical chain call per
+underlying bound provider load. Underlying technicals use the owner/generation Dhan daily
+history cache only when active technical filters require them. Failure on one underlying or
+one active optional field becomes explicit `NOT_EVALUATED`; the other underlying chains
+continue. Counts distinguish requested/resolved underlyings, acquired chains, evaluated
+contracts, not-evaluated inputs and matches. There is no derivatives relevance score or
+option strategy inference. O4 needs authenticated live user validation before acceptance.

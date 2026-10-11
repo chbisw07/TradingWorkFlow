@@ -29,6 +29,14 @@ from twf.scanner_v2.contracts import (
     ScanConfig,
     compatible_comparison_fields,
 )
+from twf.scanner_v2.derivatives import (
+    DerivativeScanConfig,
+    DerivativeScannerService,
+    SavedDerivativeInput,
+)
+from twf.scanner_v2.derivatives import (
+    catalog as derivative_catalog,
+)
 from twf.scanner_v2.service import ScannerService
 from twf.scanner_v2.tapetide import TapTideScanner
 from twf.scanner_v2.templates import templates
@@ -136,6 +144,69 @@ def market(request: Request, who: Who) -> DhanCredentialCapture:
 
 
 Market = Annotated[DhanCredentialCapture, Depends(market)]
+
+
+def derivative_service(request: Request, who: Who) -> DerivativeScannerService:
+    return DerivativeScannerService(
+        request.app.state.session_factory, who.owner_id, request.app.state.system_universes
+    )
+
+
+@router.get("/derivatives/catalog")
+def derivatives_catalog(who: Who) -> dict[str, Any]:
+    return derivative_catalog()
+
+
+@router.get("/derivatives/saved")
+def derivatives_saved(request: Request, who: Who) -> list[dict[str, Any]]:
+    return derivative_service(request, who).saved()
+
+
+@router.post("/derivatives/saved", dependencies=[Depends(require_origin)])
+def derivatives_save(payload: SavedDerivativeInput, request: Request, who: Who) -> dict[str, Any]:
+    return derivative_service(request, who).save(payload)
+
+
+@router.patch("/derivatives/saved/{key}", dependencies=[Depends(require_origin)])
+def derivatives_update(
+    key: UUID, payload: SavedDerivativeInput, request: Request, who: Who
+) -> dict[str, Any]:
+    return derivative_service(request, who).save(payload, key)
+
+
+@router.get("/derivatives/runs")
+def derivatives_history(request: Request, who: Who) -> list[dict[str, Any]]:
+    return derivative_service(request, who).history()
+
+
+@router.get("/derivatives/runs/{key}")
+def derivatives_run(key: UUID, request: Request, who: Who) -> dict[str, Any]:
+    return derivative_service(request, who).run(key)
+
+
+@router.post("/derivatives/runs", dependencies=[Depends(require_origin)])
+async def derivatives_execute(
+    payload: DerivativeScanConfig, request: Request, who: Who, capture: Market
+) -> dict[str, Any]:
+    from twf.discovery.market_data import DhanMarketDataProvider
+    from twf.options.chain_service import OptionChainService
+    from twf.watchlists.service import WatchlistFailure
+
+    if not isinstance(capture.provider, DhanMarketDataProvider):
+        raise WatchlistFailure("DHAN_AUTH_REQUIRED", 503)
+    source = request.app.state.option_chains.get(
+        who.owner_id,
+        capture.status.generation,
+        capture.provider,
+        request.app.state.watchlist_quotes,
+    )
+    return await derivative_service(request, who).execute(
+        payload,
+        capture.provider,
+        capture.status.generation,
+        OptionChainService(source),
+        request.app.state.scanner_history,
+    )
 
 
 @router.post("/runs", dependencies=[Depends(require_origin)])

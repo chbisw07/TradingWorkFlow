@@ -11,14 +11,20 @@ async function forward(
   const id = "[0-9a-fA-F-]{36}";
   const allowed =
     request.method === "GET"
-      ? /^(catalog|saved|runs|movers)$/.test(route) ||
+      ? /^(catalog|saved|runs|movers|derivatives\/(catalog|saved|runs))$/.test(
+          route,
+        ) ||
+        new RegExp(`^derivatives/runs/${id}$`).test(route) ||
         new RegExp(
           `^runs/${id}(/items/${id}/(reference|news|broker-instrument))?$`,
         ).test(route)
       : request.method === "POST"
-        ? /^(saved|runs|provider-screen)$/.test(route) ||
-          new RegExp(`^runs/${id}/watchlists/${id}$`).test(route)
-        : request.method === "PATCH" && new RegExp(`^saved/${id}$`).test(route);
+        ? /^(saved|runs|provider-screen|derivatives\/(saved|runs))$/.test(
+            route,
+          ) || new RegExp(`^runs/${id}/watchlists/${id}$`).test(route)
+        : request.method === "PATCH" &&
+          (new RegExp(`^saved/${id}$`).test(route) ||
+            new RegExp(`^derivatives/saved/${id}$`).test(route));
   const output = {
     "Content-Type": "application/json",
     "Cache-Control": "no-store",

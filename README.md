@@ -43,7 +43,7 @@ user validation; Sprint 2 as a whole is not accepted or frozen.
 | Market breadth                | **NEXT**                              | Planned deterministic Market Context dimension                                                              |
 | Institutional flows / events  | **PARTIAL**                           | Available evidence is normalized without inventing unavailable history or sentiment                         |
 | Scanner LLM narrative         | **PLANNED / OPTIONAL**                | Future natural-language synthesis only; deterministic scores remain authoritative                           |
-| Derivatives Scanner           | **PLANNED**                           | Product shell only; not an implemented scanner                                                              |
+| Derivatives Scanner O4        | **IMPLEMENTED / USER VALIDATION PENDING** | Bounded single-leg NSE options scanning over canonical O2 chains; exact O1/O3 handoffs |
 
 The accepted Broker capability is TWF's execution substrate. It is not intended
 to recreate a complete broker terminal.
@@ -58,7 +58,7 @@ idempotency, reconciliation, ownership, and audit controls remain the authority
 for order submission. Options O1 extends this same path with provider-neutral
 contract identity, exact Zerodha mapping, lot validation, MARKET/LIMIT option
 preview, risk information, and explicit confirmation. It does not implement a
-Derivatives Scanner or multi-leg strategies. See the
+multi-leg strategies. See the
 [Broker V2 manual-order foundation](docs/TWF_BROKER_V2_MANUAL_ORDER_ENTRY.md) and
 [Options architecture](docs/TWF_OPTIONS_ARCHITECTURE.md).
 
@@ -94,8 +94,7 @@ Scanner V2 is operational for Equity/Index daily technical scans. It provides:
 - selected-result handoff to Watchlists; and
 - a current validation limit of 20 instruments per scan.
 
-The Equity/Index scanner is implemented. The Derivatives Scanner remains a
-future-facing shell. See the
+The Equity/Index scanner and bounded O4 single-leg Derivatives Scanner are implemented. The O4 scanner is pending live user validation. See the
 [Scanner V2 architecture and validation record](docs/TWF_SCANNER_V2_ARCHITECTURE.md).
 
 ### Discovery
@@ -223,7 +222,7 @@ subject to TWF's one-active-LLM policy.
 5. Deepen institutional-flow and event/news context where source contracts support
    it.
 6. Add optional evidence-bound LLM narrative synthesis.
-7. Implement the Derivatives Scanner after its contracts are approved.
+7. Validate O4 single-leg Derivatives Scanner with a connected Dhan account and exact Broker V2 preview; do not place test orders.
 8. Evolve Discovery without collapsing its boundary with Scanner.
 
 Broader user validation remains open for recent Watchlist, Scanner V2, metadata,

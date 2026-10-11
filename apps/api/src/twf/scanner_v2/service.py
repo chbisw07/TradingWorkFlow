@@ -7,7 +7,7 @@ from time import monotonic
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from twf.discovery.domain import InstrumentIdentity, SourceMode
@@ -112,10 +112,17 @@ class ScannerService:
                 self.saved_view(r)
                 for r in db.scalars(
                     select(SavedScannerRow)
-                    .where(SavedScannerRow.owner_id == self.owner)
+                    .where(
+                        SavedScannerRow.owner_id == self.owner,
+                        or_(
+                            SavedScannerRow.config["scanner_type"].as_string().is_(None),
+                            SavedScannerRow.config["scanner_type"].as_string() == "EQUITY_INDEX",
+                        ),
+                    )
                     .order_by(SavedScannerRow.updated_at.desc())
                     .limit(100)
                 )
+                if r.config.get("scanner_type", "EQUITY_INDEX") == "EQUITY_INDEX"
             ]
 
     @staticmethod
@@ -132,7 +139,11 @@ class ScannerService:
         with self.factory.begin() as db:
             if key:
                 row = db.get(SavedScannerRow, key)
-                if row is None or row.owner_id != self.owner:
+                if (
+                    row is None
+                    or row.owner_id != self.owner
+                    or row.config.get("scanner_type", "EQUITY_INDEX") != "EQUITY_INDEX"
+                ):
                     raise WatchlistFailure("SAVED_SCAN_NOT_FOUND", 404)
                 row.config, row.archived, row.updated_at = (
                     payload.config.model_dump(mode="json"),
@@ -157,16 +168,29 @@ class ScannerService:
                 {k: v for k, v in r.payload.items() if k != "rows"}
                 for r in db.scalars(
                     select(ScannerRunRow)
-                    .where(ScannerRunRow.owner_id == self.owner)
+                    .where(
+                        ScannerRunRow.owner_id == self.owner,
+                        or_(
+                            ScannerRunRow.payload["config"]["scanner_type"].as_string().is_(None),
+                            ScannerRunRow.payload["config"]["scanner_type"].as_string()
+                            == "EQUITY_INDEX",
+                        ),
+                    )
                     .order_by(ScannerRunRow.created_at.desc())
                     .limit(50)
                 )
+                if r.payload.get("config", {}).get("scanner_type", "EQUITY_INDEX") == "EQUITY_INDEX"
             ]
 
     def run(self, key: UUID) -> dict[str, Any]:
         with self.factory() as db:
             row = db.get(ScannerRunRow, key)
-            if row is None or row.owner_id != self.owner:
+            if (
+                row is None
+                or row.owner_id != self.owner
+                or row.payload.get("config", {}).get("scanner_type", "EQUITY_INDEX")
+                != "EQUITY_INDEX"
+            ):
                 raise WatchlistFailure("SCAN_NOT_FOUND", 404)
             return dict(row.payload)
 

@@ -104,6 +104,18 @@ export function OptionsWorkspace() {
     !error;
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const target = params.get("underlying")?.trim().toUpperCase();
+    if (!target) return;
+    const timer = window.setTimeout(() => {
+      setUnderlying(target);
+      setSearch(target);
+      setWindowSize(20);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
     const c = new AbortController();
     const timer = setTimeout(() => {
       setSearching(true);
@@ -140,7 +152,14 @@ export function OptionsWorkspace() {
       .then((items) => {
         if (c.signal.aborted) return;
         setExpiries(items);
-        setExpiry(items[0] || "");
+        const params = new URLSearchParams(window.location.search);
+        const requested =
+          params.get("underlying")?.trim().toUpperCase() === underlying
+            ? params.get("expiry")
+            : null;
+        setExpiry(
+          requested && items.includes(requested) ? requested : items[0] || "",
+        );
         if (!items.length) setExpiryError(chainMessages.no_option_contracts);
       })
       .catch((e: Error) => {
@@ -159,10 +178,31 @@ export function OptionsWorkspace() {
       expiry,
       around_atm: String(windowSize),
     });
+    const params = new URLSearchParams(window.location.search);
+    const exact =
+      params.get("underlying")?.trim().toUpperCase() === underlying &&
+      params.get("expiry") === expiry;
+    const targetStrike = exact ? params.get("strike") : null;
+    if (targetStrike && Number(targetStrike) > 0) {
+      query.set("strike_min", targetStrike);
+      query.set("strike_max", targetStrike);
+    }
     void chainApi<OptionChainSnapshot>(`chain?${query}`, c.signal)
       .then((next) => {
         if (c.signal.aborted) return;
         setSnapshot({ key, data: next });
+        if (exact) {
+          const targetId = params.get("contract_id");
+          const targetSide = params.get("side");
+          const leg = next.rows
+            .flatMap((row) => [row.ce, row.pe])
+            .find(
+              (item) =>
+                item?.contract.canonical_id === targetId &&
+                item.contract.option_type === targetSide,
+            );
+          if (leg) setSelection(leg.contract.canonical_id);
+        }
         setFetchState({ key: requestKey, done: true, error: "" });
       })
       .catch((e: Error) => {

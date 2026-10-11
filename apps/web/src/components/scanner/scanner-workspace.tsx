@@ -8,6 +8,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { SectorEvidence } from "./sector-evidence";
+import { DerivativesScanner } from "./derivatives-scanner";
 import {
   scannerApi,
   initialConfig,
@@ -909,47 +910,40 @@ export function ScannerWorkspace() {
             onClick={() => setDerivatives(true)}
           >
             <strong>Derivatives Scanner</strong>
-            <small>Futures, options · planned</small>
+            <small>Single-leg NSE options</small>
           </button>
         </div>
-        <div className="sc-top-actions">
-          <select
-            aria-label="Scan Templates"
-            value=""
-            onChange={(e) => loadTemplate(e.target.value)}
-          >
-            <option value="">Scan Templates</option>
-            {catalog?.templates.map((t) => (
-              <option key={t.name}>{t.name}</option>
-            ))}
-          </select>
-          <a href="#sc-saved">My Scans</a>
-          <a href="#sc-history" onClick={() => setAllHistory(true)}>
-            Scan History
-          </a>
-          <button onClick={() => setModal("help")}>Help</button>
-          <button
-            className="wl-primary"
-            onClick={() => {
-              setName(config.name);
-              setModal("save");
-            }}
-          >
-            ＋ Save Scan
-          </button>
-        </div>
+        {!derivatives && (
+          <div className="sc-top-actions">
+            <select
+              aria-label="Scan Templates"
+              value=""
+              onChange={(e) => loadTemplate(e.target.value)}
+            >
+              <option value="">Scan Templates</option>
+              {catalog?.templates.map((t) => (
+                <option key={t.name}>{t.name}</option>
+              ))}
+            </select>
+            <a href="#sc-saved">My Scans</a>
+            <a href="#sc-history" onClick={() => setAllHistory(true)}>
+              Scan History
+            </a>
+            <button onClick={() => setModal("help")}>Help</button>
+            <button
+              className="wl-primary"
+              onClick={() => {
+                setName(config.name);
+                setModal("save");
+              }}
+            >
+              ＋ Save Scan
+            </button>
+          </div>
+        )}
       </div>
       {derivatives ? (
-        <div className="wl-card sc-empty">
-          <h2>Derivatives Scanner</h2>
-          <p>
-            Expiry, liquidity, OI, IV and Greeks need a separate verified scan
-            contract. Derivative analytics are not available in this version.
-          </p>
-          <button onClick={() => setDerivatives(false)}>
-            Return to Equity / Index Scanner
-          </button>
-        </div>
+        <DerivativesScanner />
       ) : (
         <div
           className={`sc-grid conditional-detail-layout${selected ? " has-detail" : ""}`}

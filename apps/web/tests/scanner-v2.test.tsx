@@ -197,7 +197,7 @@ function mockFetch() {
     return Response.json([]);
   });
 }
-test("fresh Scanner UI separates derivatives and gates unsupported capabilities", async () => {
+test("fresh Scanner UI separates equity and active derivatives workspace", async () => {
   mockFetch();
   render(<ScannerWorkspace />);
   fireEvent.click(screen.getByText("＋ Add / edit filter"));
@@ -208,7 +208,10 @@ test("fresh Scanner UI separates derivatives and gates unsupported capabilities"
   expect(screen.getByRole("button", { name: "Run Scan" })).toBeDisabled();
   fireEvent.click(screen.getByRole("tab", { name: /Derivatives Scanner/ }));
   expect(
-    screen.getByText(/Derivative analytics are not available/),
+    screen.getByRole("heading", { name: "Build an options scan" }),
+  ).toBeVisible();
+  expect(
+    screen.getByText("No active filters. Draft values do not run."),
   ).toBeVisible();
   expect(
     screen.queryByText("Candidates requiring review"),
