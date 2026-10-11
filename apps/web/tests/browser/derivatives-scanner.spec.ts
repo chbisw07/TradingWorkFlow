@@ -204,15 +204,25 @@ test("O4 bounded scanner, explanation and exact Analytics handoff", async ({
   const fieldOptions = page
     .getByRole("combobox", { name: "Field" })
     .locator("option");
-  await expect(fieldOptions).toHaveCount(21);
+  await expect(fieldOptions).toHaveCount(20);
   await expect(page.getByRole("combobox", { name: "Field" })).toHaveValue("");
+  await expect(page.getByRole("radio", { name: "Both" })).toBeChecked();
+  await page.getByRole("radio", { name: "Both" }).focus();
+  await page.keyboard.press("ArrowLeft");
+  await expect(page.getByRole("radio", { name: "PE" })).toBeChecked();
+  await expect(
+    page
+      .getByRole("combobox", { name: "Field" })
+      .locator('option[value="option_type"]'),
+  ).toHaveCount(0);
+  await expect(page.locator(".derivative-active-bar")).not.toContainText(
+    "Single-leg NSE options · Dhan market data",
+  );
   await expect(
     page.getByRole("button", { name: "Add / update filter" }),
   ).toBeDisabled();
-  await page
-    .getByRole("combobox", { name: "Field" })
-    .selectOption("option_type");
-  for (const label of ["Field", "Comparison", "Value"]) {
+  await page.getByRole("radio", { name: "CE" }).check();
+  for (const label of ["Field", "Comparison"]) {
     const bounds = await page
       .getByRole("combobox", { name: label })
       .boundingBox();
@@ -223,8 +233,9 @@ test("O4 bounded scanner, explanation and exact Analytics handoff", async ({
       `${label} right edge`,
     ).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
   }
-  await expect(page.getByRole("combobox", { name: "Comparison" })).toHaveValue(
-    "equals",
+  await expect(page.getByRole("radio", { name: "CE" })).toBeChecked();
+  await expect(page.locator(".derivative-active-bar")).toContainText(
+    "Option Type: CE",
   );
   await expect(
     page.getByText("Derivatives filter catalog could not be loaded."),
@@ -237,12 +248,7 @@ test("O4 bounded scanner, explanation and exact Analytics handoff", async ({
   );
   await page.getByLabel("NSE underlyings").fill("NIFTY, NIFTY");
   await expect(
-    page.getByRole("button", { name: "Add / update filter" }),
-  ).toBeEnabled();
-  await page.getByRole("combobox", { name: "Value" }).selectOption("CE");
-  await page.getByRole("button", { name: "Add / update filter" }).click();
-  await expect(
-    page.getByRole("button", { name: "Remove Option Type equals CE" }),
+    page.getByRole("button", { name: "Reset Option Type CE to Both" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Run Scan" }).click();
   const compact = info.project.use.viewport!.width <= 600;
@@ -250,6 +256,9 @@ test("O4 bounded scanner, explanation and exact Analytics handoff", async ({
     compact ? ".derivative-mobile-cards" : ".derivative-table-wrap",
   );
   await expect(results).toContainText("1/1 active filters matched");
+  await expect(
+    results.getByRole("link", { name: "Open NIFTY in Options Analytics" }),
+  ).toHaveAttribute("href", "/options-analytics?underlying=NIFTY");
   await expect(page.getByLabel("Derivatives selection actions")).toContainText(
     "0 selected",
   );
@@ -482,12 +491,10 @@ test("O4 exact canonical contract reaches Broker V2 Buy and Sell previews", asyn
   await page.goto("/scanners");
   await page.getByRole("tab", { name: /Derivatives Scanner/ }).click();
   await page.getByLabel("NSE underlyings").fill("NIFTY");
-  await page
-    .getByRole("combobox", { name: "Field" })
-    .selectOption("option_type");
-  await expect(page.getByRole("combobox", { name: "Value" })).toBeVisible();
-  await page.getByRole("combobox", { name: "Value" }).selectOption("PE");
-  await page.getByRole("button", { name: "Add / update filter" }).click();
+  await page.getByRole("radio", { name: "PE" }).check();
+  await expect(page.locator(".derivative-active-bar")).toContainText(
+    "Option Type: PE",
+  );
   await page.getByRole("button", { name: "Run Scan" }).click();
   const resultActions = page
     .locator(".derivative-scanner .derivative-row-actions:visible")
@@ -611,7 +618,7 @@ test("O4 real catalog drives typed filters, saved setup, and scan payload", asyn
   await page.getByRole("tab", { name: /Derivatives Scanner/ }).click();
   const field = page.getByRole("combobox", { name: "Field" });
   const comparison = page.getByRole("combobox", { name: "Comparison" });
-  await expect(field.locator("option")).toHaveCount(21);
+  await expect(field.locator("option")).toHaveCount(20);
   await field.selectOption("moneyness");
   await expect(comparison).toHaveValue("equals");
   await page.getByRole("checkbox", { name: "ITM" }).uncheck();
@@ -674,6 +681,11 @@ test("O4 real catalog drives typed filters, saved setup, and scan payload", asyn
   await expect(page.locator(".derivative-builder")).not.toContainText(
     "Active filters",
   );
+  await page.getByRole("radio", { name: "CE" }).check();
+  await page.getByRole("radio", { name: "Both" }).check();
+  await expect(page.locator(".derivative-active-bar")).toContainText(
+    "Option Type: Both",
+  );
   await page.screenshot({
     path: info.outputPath("derivatives-horizontal-active-chips.png"),
     fullPage: true,
@@ -697,6 +709,7 @@ test("O4 real catalog drives typed filters, saved setup, and scan payload", asyn
       { field: "volume_vs_chain_median", operator: ">=", value: 1.5 },
       { field: "volume_oi_percent", operator: ">=", value: 20 },
       { field: "underlying_trend", operator: "equals", value: "Up" },
+      { field: "option_type", operator: "equals", value: "BOTH" },
     ],
   });
   await page.getByRole("button", { name: /Scan History ▾/ }).click();
@@ -724,16 +737,26 @@ test("O4 real catalog drives typed filters, saved setup, and scan payload", asyn
       "No contracts matched these filters. No result was invented.",
     ),
   ).toBeVisible();
+  await page.getByRole("radio", { name: "CE" }).check();
   page.once("dialog", (dialog) => void dialog.accept("Typed O4"));
   await page.getByRole("button", { name: "Save Scan" }).click();
+  expect(savedConfig).toMatchObject({
+    filters: expect.arrayContaining([
+      { field: "option_type", operator: "equals", value: "CE" },
+    ]),
+  });
   await page.getByRole("button", { name: "My Scans" }).click();
   await expect(page.getByRole("button", { name: "Use setup" })).toBeVisible();
-  await page.getByRole("button", { name: "Reset" }).click();
+  await page.getByRole("button", { name: "Reset", exact: true }).click();
   await expect(page.locator(".derivative-active-bar")).not.toContainText(
     "Moneyness",
   );
   await page.getByRole("button", { name: "My Scans" }).click();
   await page.getByRole("button", { name: "Use setup" }).click();
+  await expect(page.getByRole("radio", { name: "CE" })).toBeChecked();
+  await expect(page.locator(".derivative-active-bar")).toContainText(
+    "Option Type: CE",
+  );
   await expect(
     page.getByRole("button", { name: "Remove DTE >= 3" }),
   ).toBeVisible();
@@ -759,6 +782,183 @@ test("O4 real catalog drives typed filters, saved setup, and scan payload", asyn
   await expect(page.locator(".derivative-active-bar")).not.toContainText(
     "Volume Percentile >= 70",
   );
+});
+
+test("legacy Option Type setup, two-row selection and canonical underlying links", async ({
+  page,
+  baseURL,
+}, info) => {
+  const login = await page.request.post("/api/v1/auth/login", {
+    headers: { Origin: baseURL! },
+    data: {
+      username: "browser-user",
+      password: "test-only-browser-password",
+    },
+  });
+  expect(login.ok()).toBe(true);
+  const legacyConfig = {
+    name: "Legacy puts",
+    scanner_type: "DERIVATIVES",
+    data_mode: "REAL",
+    provider: "dhan",
+    universe: { source: "CUSTOM", symbols: ["NIFTY", "HDFCBANK"] },
+    expiry_mode: "NEAREST",
+    exact_expiry: null,
+    strike_window: 10,
+    filters: [{ field: "option_type", operator: "not_equals", value: "CE" }],
+    version: "1",
+  };
+  const makeRow = (underlying: string, strike: string) => {
+    const exact = {
+      ...contract,
+      canonical_id: `NFO:${underlying}:${expiry}:${strike}:PE`,
+      underlying_symbol: underlying,
+      strike,
+      option_type: "PE",
+      display_symbol: `${underlying} 30 Dec 2099 ${strike} PE`,
+    };
+    return {
+      contract: exact,
+      underlying,
+      spot: strike,
+      expiry,
+      dte: 7,
+      strike,
+      option_type: "PE",
+      moneyness: "ATM",
+      strike_distance_percent: 0,
+      market,
+      volume_percentile: 92,
+      volume_chain_median: 20000,
+      volume_vs_chain_median: 5,
+      volume_oi_percent: 20,
+      relative_volume_cohort_size: 22,
+      technical: {},
+      instrument_metadata: null,
+      observed: { option_type: "PE" },
+      provenance,
+      outcome: "MATCH",
+      diagnostics: [
+        {
+          filter: legacyConfig.filters[0],
+          observed: "PE",
+          threshold: "CE",
+          passed: true,
+          reason: "Option Type not_equals CE",
+        },
+      ],
+      missing_evidence: [],
+      warnings: [],
+      reason: "1/1 active filters matched",
+    };
+  };
+  let posted: Record<string, unknown> | null = null;
+  await page.route("**/api/v1/scanner/derivatives/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/catalog")) return route.continue();
+    if (path.endsWith("/saved"))
+      return route.fulfill({
+        json: [
+          {
+            id: "33333333-3333-4333-8333-333333333333",
+            config: legacyConfig,
+            archived: false,
+            updated_at: "2026-10-11T10:00:00Z",
+          },
+        ],
+      });
+    if (path.endsWith("/runs") && route.request().method() === "GET")
+      return route.fulfill({ json: [] });
+    if (path.endsWith("/runs") && route.request().method() === "POST") {
+      posted = route.request().postDataJSON();
+      return route.fulfill({
+        json: {
+          id: "44444444-4444-4444-8444-444444444444",
+          created_at: "2026-10-11T10:00:00Z",
+          config: posted,
+          counts: {
+            requested: 2,
+            resolved: 2,
+            chains_evaluated: 2,
+            contracts_evaluated: 2,
+            not_evaluated: 0,
+            matches: 2,
+          },
+          underlyings: [
+            { symbol: "NIFTY", outcome: "EVALUATED", failure: null },
+            { symbol: "HDFCBANK", outcome: "EVALUATED", failure: null },
+          ],
+          rows: [makeRow("NIFTY", "25000"), makeRow("HDFCBANK", "700")],
+        },
+      });
+    }
+    return route.continue();
+  });
+  await page.goto("/scanners");
+  await page.getByRole("tab", { name: /Derivatives Scanner/ }).click();
+  await page.getByRole("button", { name: "My Scans" }).click();
+  await page.getByRole("button", { name: "Use setup" }).click();
+  await expect(page.getByRole("radio", { name: "PE" })).toBeChecked();
+  await expect(page.locator(".derivative-active-bar")).toContainText(
+    "Option Type: PE",
+  );
+  await expect(
+    page
+      .getByRole("combobox", { name: "Field" })
+      .locator('option[value="option_type"]'),
+  ).toHaveCount(0);
+  await page.screenshot({
+    path: info.outputPath("derivatives-builder-option-type.png"),
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Run Scan" }).click();
+  expect(posted).toMatchObject({
+    filters: [{ field: "option_type", operator: "not_equals", value: "CE" }],
+  });
+  const compact = info.project.use.viewport!.width <= 600;
+  const results = page.locator(
+    compact ? ".derivative-mobile-cards" : ".derivative-table-wrap",
+  );
+  for (const underlying of ["NIFTY", "HDFCBANK"]) {
+    await expect(
+      results.getByRole("link", {
+        name: `Open ${underlying} in Options Analytics`,
+      }),
+    ).toHaveAttribute("href", `/options-analytics?underlying=${underlying}`);
+  }
+  await page
+    .getByRole("checkbox", { name: "Select NIFTY 30 Dec 2099 25000 PE" })
+    .first()
+    .check();
+  await page
+    .getByRole("checkbox", { name: "Select HDFCBANK 30 Dec 2099 700 PE" })
+    .first()
+    .check();
+  await expect(page.getByLabel("Derivatives selection actions")).toContainText(
+    "2 selected",
+  );
+  await page.screenshot({
+    path: info.outputPath("derivatives-two-selected-action-bar.png"),
+    fullPage: true,
+  });
+  await results.getByRole("button", { name: "Why?" }).first().click();
+  await expect(page.getByLabel("Derivatives selection actions")).toContainText(
+    "2 selected",
+  );
+  await page.getByLabel("Close panel").click();
+  await page
+    .getByRole("checkbox", { name: "Select NIFTY 30 Dec 2099 25000 PE" })
+    .first()
+    .uncheck();
+  await expect(page.getByLabel("Derivatives selection actions")).toContainText(
+    "1 selected",
+  );
+  await results
+    .getByRole("link", {
+      name: "Open HDFCBANK in Options Analytics",
+    })
+    .click();
+  await expect(page).toHaveURL(/\/options-analytics\?underlying=HDFCBANK$/);
 });
 
 test("O4 catalog failure shows a retryable error without empty controls", async ({
@@ -802,7 +1002,7 @@ test("O4 catalog failure shows a retryable error without empty controls", async 
   ).toBeVisible();
   await expect(field).toBeDisabled();
   await page.getByRole("button", { name: "Retry" }).click();
-  await expect(field.locator("option")).toHaveCount(21);
+  await expect(field.locator("option")).toHaveCount(20);
   await expect(field).toBeEnabled();
   await expect(
     page.getByText("Derivatives filter catalog could not be loaded."),

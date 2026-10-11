@@ -221,6 +221,23 @@ function tradeContract(contract: OptionContract): OptionContractRequest {
   return { exchange, underlying_symbol, expiry, strike, option_type };
 }
 
+type OptionTypeSelection = "CE" | "PE" | "BOTH";
+
+function optionTypeFromFilters(filters: Filter[]): OptionTypeSelection {
+  const filter = filters.find((item) => item.field === "option_type");
+  if (!filter) return "BOTH";
+  const value = Array.isArray(filter.value) ? filter.value[0] : filter.value;
+  if (filter.operator === "not_equals") {
+    if (value === "CE") return "PE";
+    if (value === "PE") return "CE";
+  }
+  return value === "CE" || value === "PE" ? value : "BOTH";
+}
+
+function underlyingHref(row: Row): string {
+  return `/options-analytics?underlying=${encodeURIComponent(row.contract.underlying_symbol)}`;
+}
+
 function analyticsHref(row: Row): string {
   return `/options-analytics?underlying=${encodeURIComponent(row.underlying)}&expiry=${encodeURIComponent(row.expiry)}&contract_id=${encodeURIComponent(row.contract.canonical_id)}&strike=${encodeURIComponent(row.strike)}&side=${row.option_type}`;
 }
@@ -274,6 +291,7 @@ export function DerivativesScanner() {
     canonical: { contract: OptionContractRequest; side: Side };
   } | null>(null);
   const spec = catalog?.fields.find((f) => f.field === field);
+  const optionType = optionTypeFromFilters(config.filters);
   const broker = brokers.find((b) => b.account.id === brokerId);
   const activeRows =
     run?.rows.filter((r) => showAll || r.outcome === "MATCH") || [];
@@ -418,6 +436,17 @@ export function DerivativesScanner() {
     setUpper("");
     setSelectedEnums(info?.values ? [info.values[0]] : []);
   }
+  function selectOptionType(next: OptionTypeSelection) {
+    setConfig((current) => ({
+      ...current,
+      filters: [
+        ...current.filters.filter((item) => item.field !== "option_type"),
+        { field: "option_type", operator: "equals", value: next },
+      ],
+    }));
+    editField("");
+    setError("");
+  }
   function addFilter() {
     if (!spec) return;
     let next: Filter;
@@ -531,6 +560,7 @@ export function DerivativesScanner() {
     setRun(null);
     setSelected(null);
     setChecked([]);
+    editField("");
     setNotice("Saved setup loaded. Review it before running.");
   }
   async function view(key: string) {
@@ -654,9 +684,6 @@ export function DerivativesScanner() {
         className="wl-card sc-chips derivative-active-bar"
         aria-label="Active derivatives scan configuration"
       >
-        <span className="derivative-mode-label">
-          Single-leg NSE options · Dhan market data
-        </span>
         <button
           aria-label="Remove selected underlyings"
           onClick={() => {
@@ -691,20 +718,32 @@ export function DerivativesScanner() {
           <span>Expiry: Nearest active</span>
         )}
         <span>±{config.strike_window} strikes</span>
-        {config.filters.map((f) => (
+        {optionType === "BOTH" ? (
+          <span>Option Type: Both</span>
+        ) : (
           <button
-            key={f.field}
-            aria-label={`Remove ${filterText(f, catalog?.fields || [])} filter`}
-            onClick={() =>
-              setConfig((c) => ({
-                ...c,
-                filters: c.filters.filter((item) => item.field !== f.field),
-              }))
-            }
+            aria-label={`Reset Option Type ${optionType} to Both`}
+            onClick={() => selectOptionType("BOTH")}
           >
-            {filterText(f, catalog?.fields || [])} ×
+            Option Type: {optionType} ×
           </button>
-        ))}
+        )}
+        {config.filters
+          .filter((f) => f.field !== "option_type")
+          .map((f) => (
+            <button
+              key={f.field}
+              aria-label={`Remove ${filterText(f, catalog?.fields || [])} filter`}
+              onClick={() =>
+                setConfig((c) => ({
+                  ...c,
+                  filters: c.filters.filter((item) => item.field !== f.field),
+                }))
+              }
+            >
+              {filterText(f, catalog?.fields || [])} ×
+            </button>
+          ))}
         {config.filters.length > 0 && (
           <button onClick={() => setConfig((c) => ({ ...c, filters: [] }))}>
             Clear All
@@ -863,7 +902,23 @@ export function DerivativesScanner() {
               ))}
             </select>
           </label>
-          <h3>Add / edit filter</h3>
+          <fieldset className="derivative-option-type">
+            <legend>Option Type</legend>
+            {(["CE", "PE", "BOTH"] as const).map((side) => (
+              <label key={side}>
+                <input
+                  type="radio"
+                  name="derivative-option-type"
+                  value={side}
+                  checked={optionType === side}
+                  onChange={() => selectOptionType(side)}
+                />
+                <span>{side === "BOTH" ? "Both" : side}</span>
+              </label>
+            ))}
+          </fieldset>
+          <h3>Additional Filters</h3>
+          <h4>Add / edit filter</h4>
           {catalogError && (
             <div className="wl-error" role="alert">
               {catalogError}{" "}
@@ -887,7 +942,11 @@ export function DerivativesScanner() {
                   (category) => (
                     <optgroup key={category} label={category}>
                       {catalog.fields
-                        .filter((f) => f.category === category)
+                        .filter(
+                          (f) =>
+                            f.category === category &&
+                            f.field !== "option_type",
+                        )
                         .map((f) => (
                           <option key={f.field} value={f.field}>
                             {f.label}
@@ -1173,7 +1232,15 @@ export function DerivativesScanner() {
                               }
                             />
                           </td>
-                          <td>{row.underlying}</td>
+                          <td>
+                            <Link
+                              className="derivative-underlying-link"
+                              href={underlyingHref(row)}
+                              aria-label={`Open ${row.contract.underlying_symbol} in Options Analytics`}
+                            >
+                              {row.underlying}
+                            </Link>
+                          </td>
                           <td>{num(row.spot)}</td>
                           <td>{expiryLabel(row.expiry)}</td>
                           <td>{row.dte}</td>
@@ -1237,7 +1304,14 @@ export function DerivativesScanner() {
                             }
                           />
                           <strong>
-                            {row.underlying} {num(row.strike)} {row.option_type}
+                            <Link
+                              className="derivative-underlying-link"
+                              href={underlyingHref(row)}
+                              aria-label={`Open ${row.contract.underlying_symbol} in Options Analytics`}
+                            >
+                              {row.underlying}
+                            </Link>{" "}
+                            {num(row.strike)} {row.option_type}
                           </strong>
                         </label>
                         <span>{row.moneyness || "—"}</span>

@@ -588,6 +588,24 @@ continue. Counts distinguish requested/resolved underlyings, acquired chains, ev
 contracts, not-evaluated inputs and matches. There is no derivatives relevance score or
 option strategy inference. O4 needs authenticated live user validation before acceptance.
 
+### Derivatives workspace controls and handoffs
+
+The left builder exposes CE, PE and Both as a segmented Option Type choice. It writes the
+existing O4 typed `option_type` predicate; Both is the default when no side predicate is
+present. The normal Add/edit filter picker hides Option Type to avoid duplicate controls,
+but saved configurations with an older side predicate still load into the dedicated control.
+Clear All removes explicit predicates and returns the side to Both. Historical scan snapshots
+are not rewritten.
+
+The horizontal bar shows the selected side and filters. Provider-description text is omitted
+there; Dhan provenance remains in run and result evidence. A result's Underlying link uses
+the canonical `OptionContract.underlying_symbol` to open the existing Options Analytics
+workspace for that underlying. Its separate exact-contract Analytics action retains expiry,
+strike and CE/PE. Result Buy/Sell actions and the detail panel converge on the existing
+Broker V2 exact-contract ticket with preview and explicit confirmation; neither places an
+order directly. The selection/action bar stays immediately below results. Option Watchlist
+handoff and other unsupported bulk actions remain visibly disabled until supported.
+
 ### O4 relative option activity
 
 O4 keeps raw Volume and adds Volume Percentile, Volume vs Chain Median and Volume / OI %

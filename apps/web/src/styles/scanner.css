@@ -635,6 +635,57 @@
   gap: 4px;
   align-items: center;
 }
+/* The option side is a primary scan choice, backed by the O4 typed predicate. */
+.derivative-builder .derivative-option-type {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin: 14px 0;
+  padding: 0;
+  border: 0;
+}
+.derivative-option-type legend {
+  margin-bottom: 7px;
+  font-weight: 600;
+}
+.derivative-option-type label {
+  position: relative;
+  display: block !important;
+  min-width: 0;
+}
+.derivative-option-type input {
+  position: absolute;
+  opacity: 0;
+}
+.derivative-option-type span {
+  display: block;
+  padding: 8px 4px;
+  border: 1px solid var(--shell-border);
+  border-radius: 4px;
+  background: var(--shell-surface);
+  text-align: center;
+  cursor: pointer;
+}
+.derivative-option-type input:checked + span {
+  background: #2477f2;
+  border-color: #2477f2;
+  color: #fff;
+  font-weight: 700;
+}
+.derivative-option-type input:focus-visible + span {
+  outline: 2px solid #2477f2;
+  outline-offset: 2px;
+}
+.derivative-underlying-link {
+  color: #1764c3;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.derivative-underlying-link:focus-visible {
+  outline: 2px solid #2477f2;
+  outline-offset: 2px;
+}
 .derivative-run {
   display: flex;
   gap: 8px;
@@ -797,6 +848,17 @@
   box-shadow: 1px 0 var(--shell-border);
 }
 .derivative-table-wrap th:first-child {
+  background: var(--shell-surface);
+}
+.derivative-table-wrap th:last-child,
+.derivative-table-wrap td:last-child {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  background: var(--shell-surface);
+  box-shadow: -1px 0 var(--shell-border);
+}
+.derivative-table-wrap th:last-child {
   background: var(--shell-surface);
 }
 
