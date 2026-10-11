@@ -221,6 +221,19 @@ test("O4 bounded scanner, explanation and exact Analytics handoff", async ({
   await expect(
     page.getByRole("button", { name: "Add / update filter" }),
   ).toBeDisabled();
+  const chipStyle = await page
+    .locator(".derivative-active-bar > button")
+    .first()
+    .evaluate((node) => ({
+      background: getComputedStyle(node).backgroundColor,
+      border: getComputedStyle(node).borderColor,
+      color: getComputedStyle(node).color,
+    }));
+  expect(chipStyle).toEqual({
+    background: "rgb(234, 244, 255)",
+    border: "rgb(138, 184, 230)",
+    color: "rgb(23, 63, 104)",
+  });
   await page.getByRole("radio", { name: "CE" }).check();
   for (const label of ["Field", "Comparison"]) {
     const bounds = await page
@@ -291,7 +304,58 @@ test("O4 bounded scanner, explanation and exact Analytics handoff", async ({
       .getByRole("link", { name: "Open in Options Analytics" }),
   ).toHaveAttribute("href", /contract_id=NFO%3ANIFTY/);
   if (compact) await expect(results).toContainText("NIFTY 25,000 CE");
-  await page.locator(".derivative-columns summary").click();
+  const resultCard = page.locator(".derivative-results");
+  const layout = async () =>
+    page.evaluate(() => {
+      const card = document.querySelector(".derivative-results")!;
+      const bar = document.querySelector(".derivative-bulk")!;
+      const cardRect = card.getBoundingClientRect();
+      const barRect = bar.getBoundingClientRect();
+      return {
+        resultHeight: cardRect.height,
+        barTop: barRect.top + window.scrollY,
+      };
+    });
+  const beforeColumns = await layout();
+  const columnsButton = resultCard.getByRole("button", { name: "Columns" });
+  await columnsButton.click();
+  await expect(columnsButton).toHaveAttribute("aria-expanded", "true");
+  const columnsPopup = page.getByRole("group", {
+    name: "Visible result columns",
+  });
+  await expect(columnsPopup).toBeVisible();
+  const popupBox = await columnsPopup.boundingBox();
+  expect(popupBox).not.toBeNull();
+  expect(popupBox!.x).toBeGreaterThanOrEqual(0);
+  expect(popupBox!.x + popupBox!.width).toBeLessThanOrEqual(
+    page.viewportSize()!.width + 1,
+  );
+  expect(popupBox!.y).toBeGreaterThanOrEqual(0);
+  expect(popupBox!.y + popupBox!.height).toBeLessThanOrEqual(
+    page.viewportSize()!.height + 1,
+  );
+  const openedColumns = await layout();
+  expect(openedColumns.resultHeight).toBeCloseTo(beforeColumns.resultHeight, 0);
+  expect(openedColumns.barTop).toBeCloseTo(beforeColumns.barTop, 0);
+  await page.screenshot({
+    path: info.outputPath("derivatives-columns-popup.png"),
+    fullPage: true,
+  });
+  if (compact) {
+    const viewport = page.viewportSize()!;
+    await page.setViewportSize({ width: viewport.width, height: 360 });
+    await expect
+      .poll(() =>
+        columnsPopup.evaluate(
+          (element) => element.scrollHeight > element.clientHeight,
+        ),
+      )
+      .toBe(true);
+    const shortBox = await columnsPopup.boundingBox();
+    expect(shortBox!.y).toBeGreaterThanOrEqual(0);
+    expect(shortBox!.y + shortBox!.height).toBeLessThanOrEqual(361);
+    await page.setViewportSize(viewport);
+  }
   await page.getByRole("checkbox", { name: "Bid", exact: true }).check();
   if (!compact)
     await expect(page.getByRole("columnheader", { name: "Bid" })).toBeVisible();
@@ -309,7 +373,17 @@ test("O4 bounded scanner, explanation and exact Analytics handoff", async ({
       page.getByRole("columnheader", { name: "Vol/OI %" }),
     ).toBeVisible();
   }
-  await page.locator(".derivative-columns summary").click();
+  await page.keyboard.press("Escape");
+  await expect(columnsButton).toHaveAttribute("aria-expanded", "false");
+  await expect(columnsPopup).toHaveCount(0);
+  await expect(columnsButton).toBeFocused();
+  await columnsButton.click();
+  await expect(
+    page.getByRole("checkbox", { name: "Vol/Median" }),
+  ).toBeChecked();
+  await page.locator(".derivative-builder h2").click();
+  await expect(columnsButton).toHaveAttribute("aria-expanded", "false");
+  await expect(await layout()).toEqual(beforeColumns);
   await expect(page.getByLabel("Selected option contract")).toHaveCount(0);
   const why = page.getByRole("button", { name: "Why?" });
   await why.focus();
@@ -335,6 +409,17 @@ test("O4 bounded scanner, explanation and exact Analytics handoff", async ({
   }
   await expect(detail).toContainText("22 valid CE + PE volumes");
   await expect(detail).toContainText("Observed: CE");
+  const withPanel = await layout();
+  await columnsButton.click();
+  await expect(columnsPopup).toBeVisible();
+  const withPanelOpen = await layout();
+  expect(withPanelOpen.resultHeight).toBeCloseTo(withPanel.resultHeight, 0);
+  expect(withPanelOpen.barTop).toBeCloseTo(withPanel.barTop, 0);
+  await page.screenshot({
+    path: info.outputPath("derivatives-columns-with-panel.png"),
+    fullPage: true,
+  });
+  await page.keyboard.press("Escape");
   await page.screenshot({
     path: info.outputPath(`o4-${info.project.name}.png`),
     fullPage: true,
@@ -650,6 +735,9 @@ test("O4 real catalog drives typed filters, saved setup, and scan payload", asyn
   await expect(
     page.getByRole("button", { name: "Remove Volume Percentile >= 70" }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Remove Volume Percentile >= 70" }),
+  ).toHaveCSS("background-color", "rgb(220, 238, 255)");
   await field.selectOption("volume_vs_chain_median");
   await page.getByRole("spinbutton", { name: "Value" }).fill("1.5");
   await page.getByRole("button", { name: "Add / update filter" }).click();
@@ -686,6 +774,9 @@ test("O4 real catalog drives typed filters, saved setup, and scan payload", asyn
   await expect(page.locator(".derivative-active-bar")).toContainText(
     "Option Type: Both",
   );
+  const clearAll = page.getByRole("button", { name: "Clear All" });
+  await expect(clearAll).toHaveCSS("background-color", "rgb(255, 241, 242)");
+  await expect(clearAll).toHaveCSS("color", "rgb(147, 37, 53)");
   await page.screenshot({
     path: info.outputPath("derivatives-horizontal-active-chips.png"),
     fullPage: true,
@@ -775,6 +866,20 @@ test("O4 real catalog drives typed filters, saved setup, and scan payload", asyn
   await expect(
     page.getByRole("button", { name: "Remove DTE >= 3" }),
   ).toHaveCount(0);
+  await page.getByRole("button", { name: "Clear All" }).click();
+  await expect(page.getByRole("radio", { name: "Both" })).toBeChecked();
+  await expect(page.locator(".derivative-active-bar")).toContainText(
+    "Underlyings: NIFTY",
+  );
+  await expect(page.locator(".derivative-active-bar")).toContainText(
+    "Expiry: Nearest active",
+  );
+  await expect(page.locator(".derivative-active-bar")).toContainText(
+    "±10 strikes",
+  );
+  await expect(page.locator(".derivative-active-bar")).not.toContainText(
+    "Volume vs Chain Median",
+  );
   await page.getByRole("tab", { name: /Equity \/ Index Scanner/ }).click();
   await expect(page.locator(".derivative-active-bar")).toHaveCount(0);
   await expect(page.locator(".sc-context-panel")).toHaveCount(0);

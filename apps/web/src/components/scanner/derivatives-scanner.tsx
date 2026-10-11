@@ -18,6 +18,7 @@ import {
   type ProviderResults,
 } from "../../lib/scanner";
 import { ScannerHistoryMenu } from "./scanner-history-menu";
+import { ScannerColumnsMenu } from "./scanner-columns-menu";
 import {
   watchApi,
   changeText,
@@ -733,6 +734,7 @@ export function DerivativesScanner() {
           .map((f) => (
             <button
               key={f.field}
+              className="derivative-predicate-chip"
               aria-label={`Remove ${filterText(f, catalog?.fields || [])} filter`}
               onClick={() =>
                 setConfig((c) => ({
@@ -745,7 +747,10 @@ export function DerivativesScanner() {
             </button>
           ))}
         {config.filters.length > 0 && (
-          <button onClick={() => setConfig((c) => ({ ...c, filters: [] }))}>
+          <button
+            className="derivative-clear-all"
+            onClick={() => setConfig((c) => ({ ...c, filters: [] }))}
+          >
             Clear All
           </button>
         )}
@@ -1097,25 +1102,17 @@ export function DerivativesScanner() {
                     />{" "}
                     Show non-matches / not evaluated
                   </label>
-                  <details className="derivative-columns">
-                    <summary>Columns</summary>
-                    {optionalResultColumns.map(([key, label]) => (
-                      <label key={key}>
-                        <input
-                          type="checkbox"
-                          checked={optionalColumns.includes(key)}
-                          onChange={(e) =>
-                            setOptionalColumns((current) =>
-                              e.target.checked
-                                ? [...current, key]
-                                : current.filter((column) => column !== key),
-                            )
-                          }
-                        />
-                        {label}
-                      </label>
-                    ))}
-                  </details>
+                  <ScannerColumnsMenu
+                    options={optionalResultColumns}
+                    selected={optionalColumns}
+                    onChange={(key, checked) =>
+                      setOptionalColumns((current) =>
+                        checked
+                          ? [...current, key as OptionalResultColumn]
+                          : current.filter((column) => column !== key),
+                      )
+                    }
+                  />
                   <label>
                     {" "}
                     Sort{" "}

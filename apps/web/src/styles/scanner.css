@@ -710,21 +710,6 @@
   gap: 12px;
   flex-wrap: wrap;
 }
-.derivative-columns {
-  border: 1px solid var(--shell-border);
-  border-radius: 4px;
-  padding: 6px 8px;
-  color: var(--shell-text);
-  background: var(--shell-surface, #fff);
-}
-.derivative-columns summary {
-  cursor: pointer;
-}
-.derivative-columns > label {
-  display: block;
-  margin-top: 7px;
-  white-space: nowrap;
-}
 .derivative-counts {
   display: grid;
   grid-template-columns: repeat(6, minmax(85px, 1fr));
@@ -966,6 +951,39 @@
   align-items: center;
   gap: 6px;
 }
+.derivative-active-bar > button:not(.derivative-clear-all),
+.derivative-active-bar > span {
+  background: #eaf4ff;
+  border-color: #8ab8e6;
+  color: #173f68;
+  font-weight: 600;
+}
+.derivative-active-bar > button.derivative-predicate-chip {
+  background: #dceeff;
+  border-color: #6ea8de;
+  color: #123d69;
+}
+.derivative-active-bar > button:not(.derivative-clear-all):hover {
+  background: #d2e9ff;
+  border-color: #428aca;
+}
+.derivative-active-bar > button:focus-visible {
+  outline: 2px solid #1764c3;
+  outline-offset: 2px;
+}
+.derivative-active-bar > .derivative-clear-all {
+  background: #fff1f2;
+  border-color: #d77c87;
+  color: #932535;
+  font-weight: 700;
+}
+.derivative-active-bar > .derivative-clear-all:hover {
+  background: #ffe2e5;
+  border-color: #b84d5b;
+}
+.derivative-active-bar > .derivative-clear-all:focus-visible {
+  outline-color: #a42a3a;
+}
 @media (max-width: 600px) {
   .derivative-bulk {
     align-items: stretch;
@@ -976,6 +994,48 @@
 }
 
 /* Scanner utility views share the conditional result-analysis slot. */
+.sc-columns-menu {
+  position: relative;
+  z-index: 30;
+  flex: none;
+}
+.sc-columns-menu > button {
+  white-space: nowrap;
+}
+.sc-columns-menu > button:focus-visible {
+  outline: 2px solid #1764c3;
+  outline-offset: 2px;
+}
+.sc-columns-options {
+  position: absolute;
+  top: calc(100% + 5px);
+  right: 0;
+  z-index: 31;
+  width: min(230px, calc(100vw - 24px));
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid var(--shell-border);
+  border-radius: 5px;
+  background: var(--shell-surface);
+  box-shadow: 0 8px 24px rgb(20 48 78 / 18%);
+}
+.sc-columns-menu[data-placement="above"] .sc-columns-options {
+  top: auto;
+  bottom: calc(100% + 5px);
+}
+.sc-columns-options label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  white-space: nowrap;
+  color: var(--shell-text);
+  cursor: pointer;
+}
+.sc-columns-options label:hover,
+.sc-columns-options label:focus-within {
+  background: var(--shell-bg);
+}
 .sc-history-menu {
   position: relative;
 }

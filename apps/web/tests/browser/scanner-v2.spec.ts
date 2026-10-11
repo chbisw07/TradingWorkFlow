@@ -184,6 +184,23 @@ test("Scanner V2 editable filters, durable runs, Watchlist handoff and responsiv
   await expect(page.locator(".sc-reason").first()).toContainText(
     "1/1 technical · Context +0 Mixed · Final 80",
   );
+  const equityResults = page.locator(".sc-results");
+  const equityHeight = await equityResults.evaluate(
+    (element) => element.getBoundingClientRect().height,
+  );
+  const equityColumns = equityResults.getByRole("button", { name: "Columns" });
+  await equityColumns.click();
+  await expect(equityColumns).toHaveAttribute("aria-expanded", "true");
+  await expect(
+    page.getByRole("group", { name: "Visible result columns" }),
+  ).toBeVisible();
+  expect(
+    await equityResults.evaluate(
+      (element) => element.getBoundingClientRect().height,
+    ),
+  ).toBeCloseTo(equityHeight, 0);
+  await page.keyboard.press("Escape");
+  await expect(equityColumns).toHaveAttribute("aria-expanded", "false");
   const relianceRow = page
     .locator(".sc-table tbody tr")
     .filter({ hasText: "RELIANCE" });

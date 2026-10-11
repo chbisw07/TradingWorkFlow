@@ -10,6 +10,7 @@ import Link from "next/link";
 import { SectorEvidence } from "./sector-evidence";
 import { DerivativesScanner } from "./derivatives-scanner";
 import { ScannerHistoryMenu } from "./scanner-history-menu";
+import { ScannerColumnsMenu } from "./scanner-columns-menu";
 import {
   scannerApi,
   initialConfig,
@@ -1545,25 +1546,17 @@ export function ScannerWorkspace() {
                 <h2>
                   Scan Results <small>{matches.length} results</small>
                 </h2>
-                <details>
-                  <summary>Columns</summary>
-                  {resultColumns.map(([c, label]) => (
-                    <label key={c}>
-                      <input
-                        type="checkbox"
-                        checked={columns.includes(c)}
-                        onChange={(e) =>
-                          setColumns(
-                            e.target.checked
-                              ? [...columns, c]
-                              : columns.filter((x) => x !== c),
-                          )
-                        }
-                      />
-                      {label}
-                    </label>
-                  ))}
-                </details>
+                <ScannerColumnsMenu
+                  options={resultColumns}
+                  selected={columns}
+                  onChange={(key, checked) =>
+                    setColumns((current) =>
+                      checked
+                        ? [...current, key]
+                        : current.filter((column) => column !== key),
+                    )
+                  }
+                />
                 <select
                   aria-label="Sort results"
                   value={sort}
