@@ -218,10 +218,34 @@
 }
 .sc-symbol {
   color: #0878ef;
+  cursor: pointer;
   border: 0 !important;
   padding: 0 !important;
   background: transparent !important;
   font-weight: 600;
+}
+.sc-symbol:hover,
+.sc-symbol:focus-visible {
+  text-decoration: underline;
+}
+.sc-symbol:focus-visible {
+  outline: 2px solid #0878ef;
+  outline-offset: 3px;
+}
+.sc-source-badge {
+  margin-left: auto;
+  color: var(--shell-secondary);
+  text-transform: none;
+}
+.sc-run-evidence section {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--shell-border);
+}
+.sc-run-evidence h3 {
+  margin: 0 0 6px;
+}
+.sc-run-evidence p {
+  overflow-wrap: anywhere;
 }
 .sc-trend {
   border-radius: 4px;
@@ -478,7 +502,9 @@
   .sc-table td:has(ul) {
     grid-column: 2 / -1;
   }
-  .sc-table td:has(.sc-row-actions) {
+  .sc-table td:has(.sc-row-actions),
+  .sc-table td[data-label="Reason"],
+  .sc-table td.sc-optional-score {
     grid-column: 2 / -1;
   }
   .sc-chart-grid {

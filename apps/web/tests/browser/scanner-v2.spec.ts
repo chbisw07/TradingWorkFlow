@@ -186,8 +186,16 @@ test("Scanner V2 editable filters, durable runs, Watchlist handoff and responsiv
     timeout: 30000,
   });
   await expect(page.locator(".sc-reason").first()).toContainText(
-    "1/1 technical · Context +0 Mixed · Final 80",
+    "RSI (14) > 0",
   );
+  await page.getByRole("button", { name: "Run Evidence" }).click();
+  const runEvidence = page.getByLabel("Scanner contextual panel");
+  await expect(runEvidence).toContainText("Data source & mode");
+  await expect(runEvidence).toContainText("Evaluation diagnostics");
+  await runEvidence.getByText(/Per-symbol diagnostics/).click();
+  await expect(runEvidence).toContainText("RELIANCE");
+  await page.screenshot({ path: info.outputPath("scanner-run-evidence.png") });
+  await runEvidence.getByRole("button", { name: "Close panel" }).click();
   const equityResults = page.locator(".sc-results");
   const equityHeight = await equityResults.evaluate(
     (element) => element.getBoundingClientRect().height,
@@ -195,9 +203,21 @@ test("Scanner V2 editable filters, durable runs, Watchlist handoff and responsiv
   const equityColumns = equityResults.getByRole("button", { name: "Columns" });
   await equityColumns.click();
   await expect(equityColumns).toHaveAttribute("aria-expanded", "true");
-  await expect(
-    page.getByRole("group", { name: "Visible result columns" }),
-  ).toBeVisible();
+  const optionalColumns = page.getByRole("group", {
+    name: "Visible result columns",
+  });
+  await expect(optionalColumns).toBeVisible();
+  await optionalColumns.getByRole("checkbox", { name: "Relevance" }).check();
+  if (page.viewportSize()!.width > 600) {
+    await expect(
+      equityResults.getByRole("columnheader", { name: "Relevance" }),
+    ).toBeVisible();
+  } else {
+    await expect(
+      equityResults.locator('td[data-label="Relevance"]'),
+    ).toHaveCount(3);
+  }
+  await optionalColumns.getByRole("checkbox", { name: "Relevance" }).uncheck();
   expect(
     await equityResults.evaluate(
       (element) => element.getBoundingClientRect().height,
@@ -263,6 +283,10 @@ test("Scanner V2 editable filters, durable runs, Watchlist handoff and responsiv
   }
   expect(dispatches).toBe(0);
   await expect(page.locator(".sc-table thead")).toContainText("Sector");
+  await expect(page.locator(".sc-table thead")).toContainText("Reason");
+  await expect(page.locator(".sc-reason").first()).not.toContainText(
+    "Final 80",
+  );
   await expect(page.locator(".sc-table tbody")).toContainText("Energy");
   await expect(page.locator(".sc-table tbody")).toContainText("Technology");
   await expect(page.locator(".sc-inspector")).toHaveCount(0);

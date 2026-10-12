@@ -248,15 +248,10 @@ test("without a capable broker, row actions explain unavailability", async () =>
     ),
   );
   expect(buy).toBeDisabled();
-  expect(
-    screen
-      .getAllByRole("status")
-      .some((element) =>
-        element.textContent?.includes(
-          "Connect/select an equity-capable broker to preview a trade.",
-        ),
-      ),
-  ).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: "Run Evidence" }));
+  expect(screen.getByLabelText("Scanner contextual panel")).toHaveTextContent(
+    "No equity-capable broker connected",
+  );
   expect(screen.getByRole("button", { name: "Sell RELIANCE" })).toBeDisabled();
   expect(
     fetch.mock.calls.some(([url]) =>

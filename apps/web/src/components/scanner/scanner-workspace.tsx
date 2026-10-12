@@ -45,6 +45,7 @@ import { MarketChart } from "../watchlists/market-chart";
 import { WatchDialog } from "../watchlists/dialog";
 import { Icon } from "../shell/icon";
 import { InstrumentMetadataPanel } from "../instrument-metadata-panel";
+import { conciseMatchReason } from "../../lib/scanner-presentation";
 
 const resultColumns = [
   ["volume", "Volume"],
@@ -55,13 +56,17 @@ const resultColumns = [
   ["capCategory", "Cap Category"],
   ["twfTier", "TWF Tier"],
   ["chart", "Quick Chart (1M)"],
+  ["relevance", "Relevance"],
+  ["technicalScore", "Technical score"],
+  ["contextAdjustment", "Context adjustment"],
+  ["contextClassification", "Context classification"],
 ] as const;
 
 export function ScannerWorkspace() {
   const [filterOpen, setFilterOpen] = useState(true);
   const [customOpen, setCustomOpen] = useState(false);
   const [panelView, setPanelView] = useState<
-    "detail" | "saved" | "recent" | "history" | "movers" | null
+    "detail" | "runEvidence" | "saved" | "recent" | "history" | "movers" | null
   >(null);
   const [editorOpen, setEditorOpen] = useState(false);
   useEffect(() => {
@@ -546,8 +551,7 @@ export function ScannerWorkspace() {
           "dhan",
           r.metrics?.price,
           r.metrics?.change,
-          r.analysis?.short_reason ||
-            r.diagnostics?.map((d) => d.reason).join("; "),
+          conciseMatchReason(r, catalog),
         ]
           .map((v) => '"' + String(v ?? "").replaceAll('"', '""') + '"')
           .join(","),
@@ -707,6 +711,14 @@ export function ScannerWorkspace() {
               aria-label="Deterministic candidate analysis"
             >
               <section>
+                <h3>Why matched</h3>
+                <p>{conciseMatchReason(selected, catalog)}</p>
+                <small>
+                  Technical predicates determine the match. Market context
+                  adjusts relevance separately.
+                </small>
+              </section>
+              <section>
                 <h3>Ranking</h3>
                 <dl className="sc-metrics">
                   <div>
@@ -748,6 +760,7 @@ export function ScannerWorkspace() {
                   Technical score is the V1 deterministic match baseline, not a
                   probability.
                 </small>
+                <p>{selected.analysis.short_reason}</p>
               </section>
               <section>
                 <h3>Technical setup</h3>
@@ -845,13 +858,23 @@ export function ScannerWorkspace() {
               )}
               <details>
                 <summary>Provenance and freshness</summary>
+                <p>
+                  Market data: {run?.market_data_provider || "Unavailable"} ·{" "}
+                  {selected.basis || "Basis unavailable"}
+                </p>
+                <p>
+                  Market source time: {selected.source_time || "Unavailable"}
+                </p>
+                <p>Market received: {selected.received_at || "Unavailable"}</p>
                 {selected.analysis.provenance.map((item) => (
                   <p key={item.dimension}>
                     {item.dimension.replaceAll("_", " ")} ·{" "}
                     {item.provider || "unavailable"}
                     {item.provider_tool
                       ? ` / ${item.provider_tool}`
-                      : ""} · {item.freshness}
+                      : ""} · {item.freshness} · Source time:{" "}
+                    {item.source_time || "Unavailable"} · Received:{" "}
+                    {item.received_at || "Unavailable"}
                   </p>
                 ))}
               </details>
@@ -1554,6 +1577,15 @@ export function ScannerWorkspace() {
                 <h2>
                   Scan Results <small>{matches.length} results</small>
                 </h2>
+                {run && (
+                  <button
+                    type="button"
+                    aria-pressed={panelView === "runEvidence"}
+                    onClick={() => setPanelView("runEvidence")}
+                  >
+                    Run Evidence
+                  </button>
+                )}
                 <ScannerColumnsMenu
                   options={resultColumns}
                   selected={columns}
@@ -1593,30 +1625,28 @@ export function ScannerWorkspace() {
               </header>
               {run && (
                 <>
-                  <div className="sc-counts">
-                    {Object.entries(run.counts).map(([k, v]) => (
-                      <span key={k}>
-                        {k.replaceAll("_", " ")} <strong>{v}</strong>
+                  <div className="sc-counts" aria-label="Scan run counts">
+                    {(
+                      [
+                        "requested",
+                        "resolved",
+                        "evaluated",
+                        "not_evaluated",
+                        "matches",
+                      ] as const
+                    ).map((key) => (
+                      <span key={key}>
+                        {key.replaceAll("_", " ")}{" "}
+                        <strong>{run.counts[key] ?? 0}</strong>
                       </span>
                     ))}
+                    <span className="sc-source-badge">
+                      {run.market_data_provider === "dhan" &&
+                      run.data_mode === "REAL"
+                        ? "Dhan · Completed daily bars"
+                        : `${run.market_data_provider || "Provider unavailable"} · ${run.data_mode || "Mode unavailable"}`}
+                    </span>
                   </div>
-                  <p className="sc-basis">
-                    Dhan · Real · {new Date(run.created_at).toLocaleString()} ·{" "}
-                    {run.config.name} · Indicators / 1D change: completed daily
-                    bars · LTP: separate Dhan quote snapshot
-                  </p>
-                  {run.context_snapshot && (
-                    <p className="sc-context-summary">
-                      Shared market intelligence ·{" "}
-                      {run.config.context_mode || "RANKING"} ·{" "}
-                      {run.context_snapshot.status} · coverage{" "}
-                      {run.context_snapshot.coverage_count}/
-                      {run.context_snapshot.dimension_count} ·{" "}
-                      {run.context_snapshot.provider || "provider unavailable"}.
-                      Dhan sector context and combined coverage are shown per
-                      result in Evidence.
-                    </p>
-                  )}
                   {(JSON.stringify(run.config.filters) !==
                     JSON.stringify(config.filters) ||
                     (run.config.context_mode || "RANKING") !==
@@ -1639,20 +1669,10 @@ export function ScannerWorkspace() {
                           .split(/[\s,]+/)
                           .filter(Boolean)
                           .join(","))) && (
-                    <p role="status">
-                      Showing the previous scan. Current setup has not been run.
-                    </p>
+                    <p role="status">Previous scan · current setup not run</p>
                   )}
                 </>
               )}
-              {matches.some(equityIdentity) &&
-                accountsLoaded &&
-                !accounts.length && (
-                  <p className="sc-broker-unavailable" role="status">
-                    Connect/select an equity-capable broker to preview a trade.{" "}
-                    <Link href="/brokers">Manage Brokers</Link>
-                  </p>
-                )}
               {!run ? (
                 <div className="sc-empty">
                   <Icon name="scanners" />
@@ -1664,11 +1684,17 @@ export function ScannerWorkspace() {
                 </div>
               ) : !matches.length ? (
                 <div className="sc-empty">
-                  <h3>No matches recorded</h3>
+                  <h3>
+                    {run.counts.evaluated > 0
+                      ? "No instruments matched the active filters."
+                      : run.counts.not_evaluated > 0
+                        ? "No instruments could be evaluated."
+                        : "No instruments were evaluated."}
+                  </h3>
                   <p>
-                    {run.counts.not_evaluated
-                      ? "Some instruments could not be evaluated. Review diagnostics below."
-                      : "All evaluated instruments failed at least one condition."}
+                    {run.counts.not_evaluated > 0
+                      ? "Review Run Evidence for not-evaluated instruments."
+                      : "Try another universe or filter."}
                   </p>
                 </div>
               ) : view === "charts" ? (
@@ -1677,10 +1703,7 @@ export function ScannerWorkspace() {
                     <button key={identity(r)} onClick={() => inspect(r)}>
                       <strong>{r.symbol}</strong>
                       <MarketChart bars={(r.bars || []).slice(-22)} />
-                      <small>
-                        {r.analysis?.short_reason ||
-                          r.diagnostics?.map((d) => d.reason).join(" · ")}
-                      </small>
+                      <small>{conciseMatchReason(r, catalog)}</small>
                     </button>
                   ))}
                 </div>
@@ -1718,7 +1741,17 @@ export function ScannerWorkspace() {
                         )}
                         {columns.includes("twfTier") && <th>TWF Tier</th>}
                         {columns.includes("chart") && <th>Quick Chart (1M)</th>}
-                        <th>Reason (Why Matched)</th>
+                        {columns.includes("relevance") && <th>Relevance</th>}
+                        {columns.includes("technicalScore") && (
+                          <th>Technical score</th>
+                        )}
+                        {columns.includes("contextAdjustment") && (
+                          <th>Context adjustment</th>
+                        )}
+                        {columns.includes("contextClassification") && (
+                          <th>Context classification</th>
+                        )}
+                        <th>Reason</th>
                         <th>Actions</th>
                       </tr>
                     </thead>
@@ -1822,14 +1855,43 @@ export function ScannerWorkspace() {
                               />
                             </td>
                           )}
-                          <td>
+                          {columns.includes("relevance") && (
+                            <td
+                              data-label="Relevance"
+                              className="sc-optional-score"
+                            >
+                              {r.analysis?.final_relevance ?? "—"}
+                            </td>
+                          )}
+                          {columns.includes("technicalScore") && (
+                            <td
+                              data-label="Technical score"
+                              className="sc-optional-score"
+                            >
+                              {r.analysis?.technical_score ?? "—"}
+                            </td>
+                          )}
+                          {columns.includes("contextAdjustment") && (
+                            <td
+                              data-label="Context adjustment"
+                              className="sc-optional-score"
+                            >
+                              {r.analysis
+                                ? `${r.analysis.context_adjustment > 0 ? "+" : ""}${r.analysis.context_adjustment}`
+                                : "—"}
+                            </td>
+                          )}
+                          {columns.includes("contextClassification") && (
+                            <td
+                              data-label="Context classification"
+                              className="sc-optional-score"
+                            >
+                              {r.analysis?.context_classification ?? "—"}
+                            </td>
+                          )}
+                          <td data-label="Reason">
                             <div className="sc-reason">
-                              <span>
-                                {r.analysis?.short_reason ||
-                                  r.diagnostics
-                                    ?.map((item) => item.reason)
-                                    .join(" · ")}
-                              </span>
+                              <span>{conciseMatchReason(r, catalog)}</span>
                               <button
                                 type="button"
                                 onClick={() => inspect(r, "Evidence")}
@@ -1838,7 +1900,7 @@ export function ScannerWorkspace() {
                               </button>
                             </div>
                           </td>
-                          <td>
+                          <td data-label="Actions">
                             <div className="sc-row-actions">
                               <button
                                 title="Add to Watchlist"
@@ -1895,32 +1957,6 @@ export function ScannerWorkspace() {
                   </table>
                 </div>
               )}
-              {run && (
-                <details className="sc-diagnostics">
-                  <summary>
-                    Per-symbol diagnostics · {run.rows.length} records
-                  </summary>
-                  {run.rows.map((r) => (
-                    <div key={r.symbol}>
-                      <strong>
-                        {r.symbol} · {r.outcome.replaceAll("_", " ")}
-                      </strong>
-                      {r.failure && <p>{r.failure.replaceAll("_", " ")}</p>}
-                      {r.diagnostics?.map((d, i) => (
-                        <p key={i}>
-                          {d.reason} · observed{" "}
-                          {String(d.observed ?? "unavailable")} ·{" "}
-                          {d.passed === null
-                            ? "Not evaluated"
-                            : d.passed
-                              ? "Pass"
-                              : "Fail"}
-                        </p>
-                      ))}
-                    </div>
-                  ))}
-                </details>
-              )}
             </section>
             <div className="wl-card sc-bulk">
               <span>{checked.length} selected</span>
@@ -1961,13 +1997,15 @@ export function ScannerWorkspace() {
                 <h2>
                   {panelView === "detail"
                     ? "Instrument Analysis"
-                    : panelView === "saved"
-                      ? "My Scans"
-                      : panelView === "recent"
-                        ? "Recent Scans"
-                        : panelView === "history"
-                          ? "Scan History"
-                          : "Market Movers"}
+                    : panelView === "runEvidence"
+                      ? "Run Evidence"
+                      : panelView === "saved"
+                        ? "My Scans"
+                        : panelView === "recent"
+                          ? "Recent Scans"
+                          : panelView === "history"
+                            ? "Scan History"
+                            : "Market Movers"}
                 </h2>
                 <button
                   className="detail-panel-clear"
@@ -1981,6 +2019,128 @@ export function ScannerWorkspace() {
                   ×
                 </button>
               </header>
+              {panelView === "runEvidence" && run && (
+                <div className="sc-run-evidence">
+                  <section>
+                    <h3>Data source & mode</h3>
+                    <p>
+                      {run.market_data_provider} · {run.data_mode}
+                    </p>
+                    <p>
+                      {run.market_data_provider === "dhan" &&
+                      run.data_mode === "REAL"
+                        ? "Indicators / 1D change: completed daily bars. LTP: separate Dhan quote snapshot."
+                        : "See each instrument's archived data basis and provider timestamps."}
+                    </p>
+                    <p>
+                      Run {run.id} · {run.config.name}
+                    </p>
+                  </section>
+                  <section>
+                    <h3>Snapshot & freshness</h3>
+                    <p>
+                      Run created: {new Date(run.created_at).toLocaleString()}
+                    </p>
+                    <p>
+                      Market source times and received times are shown per
+                      instrument in Instrument Evidence.
+                    </p>
+                  </section>
+                  <section>
+                    <h3>Market intelligence</h3>
+                    <p>Mode: {run.config.context_mode || "RANKING"}</p>
+                    {run.context_snapshot ? (
+                      <>
+                        <p>
+                          {run.context_snapshot.provider ||
+                            "Provider unavailable"}{" "}
+                          · {run.context_snapshot.status} · coverage{" "}
+                          {run.context_snapshot.coverage_count}/
+                          {run.context_snapshot.dimension_count}
+                        </p>
+                        <p>
+                          Health: {run.context_snapshot.source_health} ·
+                          Snapshot:{" "}
+                          {run.context_snapshot.as_of || "Unavailable"}
+                        </p>
+                        <p>
+                          Missing:{" "}
+                          {run.context_snapshot.missing_dimensions.join(", ") ||
+                            "None reported"}
+                        </p>
+                        {run.context_snapshot.warnings.map((warning, index) => (
+                          <p key={index}>{warning}</p>
+                        ))}
+                      </>
+                    ) : (
+                      <p>Market intelligence unavailable for this run.</p>
+                    )}
+                    <p>
+                      Sector context statuses:{" "}
+                      {[
+                        ...new Set(
+                          run.rows
+                            .map((row) => row.analysis?.sector_context?.status)
+                            .filter(Boolean),
+                        ),
+                      ].join(", ") || "Unavailable"}
+                      . Per-result coverage is shown in Instrument Evidence.
+                    </p>
+                  </section>
+                  <section>
+                    <h3>Broker readiness</h3>
+                    <p>
+                      {!accountsLoaded
+                        ? "Checking equity-capable brokers"
+                        : accounts.length
+                          ? `${accounts.length} equity-capable broker account(s) available`
+                          : "No equity-capable broker connected"}
+                    </p>
+                    {!accounts.length && accountsLoaded && (
+                      <Link href="/brokers">Manage Brokers</Link>
+                    )}
+                  </section>
+                  <section>
+                    <h3>Evaluation diagnostics</h3>
+                    <dl className="sc-metrics">
+                      {Object.entries(run.counts).map(([key, value]) => (
+                        <div key={key}>
+                          <dt>{key.replaceAll("_", " ")}</dt>
+                          <dd>{value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                    {run && (
+                      <details className="sc-diagnostics">
+                        <summary>
+                          Per-symbol diagnostics · {run.rows.length} records
+                        </summary>
+                        {run.rows.map((r) => (
+                          <div key={r.symbol}>
+                            <strong>
+                              {r.symbol} · {r.outcome.replaceAll("_", " ")}
+                            </strong>
+                            {r.failure && (
+                              <p>{r.failure.replaceAll("_", " ")}</p>
+                            )}
+                            {r.diagnostics?.map((d, i) => (
+                              <p key={i}>
+                                {d.reason} · observed{" "}
+                                {String(d.observed ?? "unavailable")} ·{" "}
+                                {d.passed === null
+                                  ? "Not evaluated"
+                                  : d.passed
+                                    ? "Pass"
+                                    : "Fail"}
+                              </p>
+                            ))}
+                          </div>
+                        ))}
+                      </details>
+                    )}
+                  </section>
+                </div>
+              )}
               {panelView === "detail" && detail}
               {panelView === "saved" && (
                 <div className="sc-utility-list">

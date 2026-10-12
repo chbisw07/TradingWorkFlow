@@ -250,7 +250,7 @@ test("explicit real Dhan payload and acquisition failures never become no-match"
     target: { value: "INFY" },
   });
   fireEvent.click(screen.getByRole("button", { name: "Run Scan" }));
-  await screen.findByText(/Some instruments could not be evaluated/);
+  await screen.findByText("No instruments could be evaluated.");
   const call = fetch.mock.calls.find(
     ([url, init]) => String(url).endsWith("/runs") && init?.method === "POST",
   )!;
@@ -260,6 +260,61 @@ test("explicit real Dhan payload and acquisition failures never become no-match"
   expect(body.universe.symbols).toEqual(["INFY"]);
   expect(body.filters[0]).toEqual(catalog.templates[0].filters[0]);
 });
+test("evaluated non-match is distinct from an acquisition failure", async () => {
+  vi.spyOn(global, "fetch").mockImplementation(async (url, init) => {
+    const path = String(url);
+    if (path.endsWith("/catalog")) return Response.json(catalog);
+    if (path.endsWith("/runs") && init?.method === "POST")
+      return Response.json({
+        id: "non-match-run",
+        created_at: "2026-10-12T10:00:00Z",
+        config: JSON.parse(String(init.body)),
+        data_mode: "REAL",
+        market_data_provider: "dhan",
+        counts: {
+          requested: 1,
+          resolved: 1,
+          evaluated: 1,
+          not_evaluated: 0,
+          matches: 0,
+        },
+        rows: [
+          {
+            symbol: "INFY",
+            outcome: "NON_MATCH",
+            diagnostics: [
+              {
+                filter: catalog.templates[0].filters[0],
+                observed: 55,
+                threshold: 30,
+                passed: false,
+                reason: "RSI (14) < 30",
+              },
+            ],
+          },
+        ],
+      });
+    return Response.json([]);
+  });
+  render(<ScannerWorkspace />);
+  fireEvent.click(screen.getByText("＋ Add / edit filter"));
+  await screen.findByRole("option", { name: "RSI (14)" });
+  fireEvent.click(screen.getByRole("button", { name: /Add Filter/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Custom symbols" }));
+  fireEvent.change(screen.getByLabelText("NSE symbols"), {
+    target: { value: "INFY" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Run Scan" }));
+  expect(
+    await screen.findByText("No instruments matched the active filters."),
+  ).toBeVisible();
+  expect(
+    screen.queryByText("No instruments could be evaluated."),
+  ).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Run Evidence" }));
+  expect(screen.getByText(/Per-symbol diagnostics/)).toBeVisible();
+});
+
 test("filter chips edit conditions and clear all disables execution", async () => {
   mockFetch();
   render(<ScannerWorkspace />);
@@ -622,7 +677,7 @@ test("Market Context defaults to ranking and hard filters use typed enum control
     target: { value: "INFY" },
   });
   fireEvent.click(screen.getByRole("button", { name: "Run Scan" }));
-  await screen.findByText(/Some instruments could not be evaluated/);
+  await screen.findByText("No instruments could be evaluated.");
   const call = fetch.mock.calls.find(
     ([url, init]) => String(url).endsWith("/runs") && init?.method === "POST",
   )!;
@@ -789,9 +844,19 @@ test("stored deterministic Reason opens complete no-LLM Evidence analysis", asyn
     target: { value: "RELIANCE" },
   });
   fireEvent.click(screen.getByRole("button", { name: "Run Scan" }));
+  expect(await screen.findByText("RSI (14) < 30")).toBeVisible();
+  expect(screen.getByRole("columnheader", { name: "Reason" })).toBeVisible();
   expect(
-    await screen.findByText("1/1 technical · Context +1 Mixed · Final 81"),
-  ).toBeVisible();
+    screen.queryByText("1/1 technical · Context +1 Mixed · Final 81"),
+  ).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Run Evidence" }));
+  const runEvidence = screen.getByLabelText("Scanner contextual panel");
+  expect(within(runEvidence).getByText("Data source & mode")).toBeVisible();
+  expect(within(runEvidence).getByText("Evaluation diagnostics")).toBeVisible();
+  expect(within(runEvidence).getByText(/Per-symbol diagnostics/)).toBeVisible();
+  fireEvent.click(
+    within(runEvidence).getByRole("button", { name: "Close panel" }),
+  );
   expect(screen.getByRole("columnheader", { name: "Sector" })).toBeVisible();
   expect(screen.getByText("Energy")).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "RELIANCE" }));
@@ -826,9 +891,7 @@ test("stored deterministic Reason opens complete no-LLM Evidence analysis", asyn
   );
   expect(document.querySelector(".sc-inspector")).not.toBeInTheDocument();
   expect(document.querySelector(".sc-grid")).not.toHaveClass("has-detail");
-  expect(
-    screen.getByText("1/1 technical · Context +1 Mixed · Final 81"),
-  ).toBeInTheDocument();
+  expect(screen.getByText("RSI (14) < 30")).toBeInTheDocument();
 });
 
 test("derivatives uses the same top selector and only O2-optionable watchlist underlyings", async () => {
