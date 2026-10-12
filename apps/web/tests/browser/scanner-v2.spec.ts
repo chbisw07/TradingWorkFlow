@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { writeFile } from "node:fs/promises";
 
 test("Scanner V2 editable filters, durable runs, Watchlist handoff and responsive review", async ({
   page,
@@ -490,6 +491,97 @@ test("Scanner V2 editable filters, durable runs, Watchlist handoff and responsiv
     page.getByRole("tabpanel", { name: "Derivatives Scanner" }),
   ).toContainText("Select an underlying watchlist or enter Custom underlyings");
   await page.getByRole("tab", { name: /Equity \/ Index Scanner/ }).click();
+  await expect(page.locator(".sc-table")).toContainText("RELIANCE");
+  const chartApiRequests: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes("/api/v1/scanner/"))
+      chartApiRequests.push(request.url());
+  });
+  const renderStart = Date.now();
+  await page.getByRole("button", { name: "Charts", exact: true }).click();
+  const chartCards = page.locator(".sc-chart-card");
+  await expect(chartCards).toHaveCount(3);
+  const initialRenderMs = Date.now() - renderStart;
+  await expect(
+    chartCards.first().locator(".sc-candle-chart svg"),
+  ).toBeVisible();
+  const columns = await page
+    .locator(".sc-chart-grid")
+    .evaluate(
+      (element) =>
+        getComputedStyle(element).gridTemplateColumns.split(" ").length,
+    );
+  expect(columns).toBe(width >= 1920 ? 3 : width >= 1200 ? 2 : 1);
+  await page.screenshot({
+    path: info.outputPath(`scanner-charts-${width}.png`),
+    fullPage: width >= 1024,
+  });
+  await page.evaluate(() => {
+    document.documentElement.dataset.theme = "dark";
+  });
+  await expect(chartCards.first()).toHaveCSS(
+    "background-color",
+    "rgb(18, 29, 41)",
+  );
+  await page.screenshot({
+    path: info.outputPath(`scanner-charts-dark-${width}.png`),
+  });
+  await page.evaluate(() => {
+    document.documentElement.dataset.theme = "light";
+  });
+  const relianceCard = chartCards.filter({ hasText: "RELIANCE" });
+  const rangeStart = Date.now();
+  await relianceCard
+    .getByRole("button", { name: "RELIANCE 6M chart range" })
+    .click();
+  await expect(
+    relianceCard.getByRole("img", { name: /RELIANCE 6M candlestick/ }),
+  ).toBeVisible();
+  const rangeSwitchMs = Date.now() - rangeStart;
+  await page.screenshot({
+    path: info.outputPath(`scanner-charts-range-${width}.png`),
+  });
+  const selectionStart = Date.now();
+  await relianceCard.getByRole("button", { name: "Why?" }).click();
+  await expect(page.locator(".sc-context-panel")).toContainText("RELIANCE");
+  const selectionMs = Date.now() - selectionStart;
+  expect(chartApiRequests).toHaveLength(0);
+  await writeFile(
+    info.outputPath("scanner-chart-performance.json"),
+    JSON.stringify(
+      {
+        width,
+        initialRenderMs,
+        rangeSwitchMs,
+        selectionMs,
+        scannerRequests: chartApiRequests.length,
+      },
+      null,
+      2,
+    ),
+  );
+  await page.screenshot({
+    path: info.outputPath(`scanner-charts-selected-${width}.png`),
+  });
+  await page.getByRole("tab", { name: "Overview" }).click();
+  await expect(
+    page.locator(".sc-context-panel .sc-candle-chart svg"),
+  ).toBeVisible();
+  await page.screenshot({
+    path: info.outputPath(`scanner-charts-analysis-${width}.png`),
+  });
+  await page.getByLabel("Close panel").click();
+  await relianceCard.getByRole("button", { name: "Buy RELIANCE" }).click();
+  const chartTicket = page.getByRole("dialog");
+  await expect(
+    chartTicket.getByRole("heading", { name: "Order Ticket" }),
+  ).toBeVisible();
+  await chartTicket.getByRole("button", { name: "Preview Buy" }).click();
+  await page.screenshot({
+    path: info.outputPath(`scanner-charts-broker-preview-${width}.png`),
+  });
+  await chartTicket.getByLabel("Close order ticket").click();
+  await page.getByRole("button", { name: "Table", exact: true }).click();
   await expect(page.locator(".sc-table")).toContainText("RELIANCE");
   expect(dispatches).toBe(0);
 });

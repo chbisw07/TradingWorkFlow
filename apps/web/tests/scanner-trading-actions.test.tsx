@@ -84,7 +84,29 @@ const rows = [
       segment: "EQ",
       instrument_type: "EQUITY",
     },
-    metrics: { rsi: 24, change: 1, volume: 1000 },
+    metrics: {
+      rsi: 24,
+      change: 1,
+      volume: 1000,
+      trend: "Up",
+      sma20: 109.5,
+      sma50: 94.5,
+    },
+    instrument_metadata: { sector: "Energy" },
+    quote: {
+      last_price: "120",
+      provider: "dhan",
+      received_at: "2026-10-11T09:00:00Z",
+      provider_source_time: null,
+    },
+    bars: Array.from({ length: 70 }, (_, index) => ({
+      timestamp: new Date(Date.UTC(2026, 0, index + 1)).toISOString(),
+      open: 100 + index - 1,
+      high: 100 + index + 2,
+      low: 100 + index - 2,
+      close: 100 + index,
+      volume: 1000 + index,
+    })),
   },
   {
     symbol: "NIFTY",
@@ -307,4 +329,85 @@ test("multiple capable brokers use the existing detail-panel selection before ti
       String(url).includes("account_id=66666666-6666-4666-8666-666666666666"),
     ),
   ).toBe(true);
+});
+
+test("Charts share range, preserve table state, select exact row and reuse Broker V2 handoff", async () => {
+  const fetch = mockApi();
+  await runScan();
+  fireEvent.click(screen.getByRole("button", { name: "Charts" }));
+  const cards = screen.getByLabelText("Scan result charts");
+  expect(within(cards).getByText("Energy")).toBeInTheDocument();
+  expect(within(cards).getAllByText(/Chart unavailable/)).toHaveLength(2);
+  expect(
+    within(cards).getByRole("button", { name: "Open chart for NIFTY" }),
+  ).toBeEnabled();
+  expect(within(cards).getByText("₹120")).toBeInTheDocument();
+  expect(
+    within(cards).getByRole("img", { name: /RELIANCE 3M candlestick/ }),
+  ).toBeInTheDocument();
+  const requestsBeforeRange = fetch.mock.calls.length;
+  fireEvent.click(
+    within(cards).getByRole("button", { name: "RELIANCE 6M chart range" }),
+  );
+  expect(fetch.mock.calls).toHaveLength(requestsBeforeRange);
+  expect(
+    within(cards).getByRole("img", { name: /RELIANCE 6M candlestick/ }),
+  ).toBeInTheDocument();
+  expect(
+    within(cards).getByRole("button", { name: "NIFTY 6M chart range" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  fireEvent.click(
+    within(cards).getByRole("checkbox", { name: "Select RELIANCE" }),
+  );
+  expect(screen.getByText("1 selected")).toBeInTheDocument();
+  expect(document.querySelector(".sc-context-panel")).not.toBeInTheDocument();
+  const keyboardCard = within(cards)
+    .getByRole("button", { name: "Open chart for RELIANCE" })
+    .closest("article")!;
+  fireEvent.keyDown(keyboardCard, { key: "Enter" });
+  expect(screen.getByLabelText("Scanner contextual panel")).toHaveTextContent(
+    "RELIANCE",
+  );
+  fireEvent.click(screen.getByLabelText("Close panel"));
+  fireEvent.click(
+    within(cards).getByRole("button", { name: "Open chart for RELIANCE" }),
+  );
+  expect(screen.getByLabelText("Scanner contextual panel")).toHaveTextContent(
+    "RELIANCE",
+  );
+  expect(screen.getByLabelText("Scanner contextual panel")).toHaveTextContent(
+    "As scanned · completed daily bars",
+  );
+  const relianceCard = within(cards)
+    .getByRole("button", { name: "Open chart for RELIANCE" })
+    .closest("article")!;
+  fireEvent.click(
+    within(relianceCard as HTMLElement).getByRole("button", { name: "Why?" }),
+  );
+  expect(
+    screen.getByRole("tabpanel", { name: "Evidence" }),
+  ).toBeInTheDocument();
+  fireEvent.click(within(cards).getByRole("button", { name: "Buy RELIANCE" }));
+  expect(
+    await screen.findByRole("dialog", { name: "Broker V2 ticket" }),
+  ).toHaveTextContent("ZERODHA:NSE:RELIANCE · BUY");
+  fireEvent.click(screen.getByRole("button", { name: "Close ticket" }));
+  fireEvent.click(within(cards).getByRole("button", { name: "Sell RELIANCE" }));
+  expect(
+    await screen.findByRole("dialog", { name: "Broker V2 ticket" }),
+  ).toHaveTextContent("ZERODHA:NSE:RELIANCE · SELL");
+  fireEvent.click(screen.getByRole("button", { name: "Close ticket" }));
+  fireEvent.click(screen.getByRole("button", { name: "Table" }));
+  expect(
+    screen.getByRole("button", { name: "Buy RELIANCE" }),
+  ).toBeInTheDocument();
+  expect(screen.getByLabelText("NSE symbols")).toHaveValue(
+    "RELIANCE,NIFTY,UNRESOLVED",
+  );
+  expect(
+    fetch.mock.calls.filter(
+      ([url, init]) =>
+        String(url).endsWith("/api/v1/scanner/runs") && init?.method === "POST",
+    ),
+  ).toHaveLength(1);
 });

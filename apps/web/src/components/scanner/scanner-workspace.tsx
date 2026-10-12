@@ -42,6 +42,8 @@ import { brokerApi, type Account, type Instrument } from "../../lib/brokers";
 import { canOrder, type Capability } from "../../lib/broker-orders";
 import { OrderTicket } from "../brokers/order-ticket";
 import { MarketChart } from "../watchlists/market-chart";
+import { ScannerPriceChart } from "./scanner-price-chart";
+import { chartRanges, type ChartRange } from "../../lib/scanner-chart";
 import { WatchDialog } from "../watchlists/dialog";
 import { Icon } from "../shell/icon";
 import { InstrumentMetadataPanel } from "../instrument-metadata-panel";
@@ -114,7 +116,7 @@ export function ScannerWorkspace() {
     [columns, setColumns] = useState(["volume", "rsi", "trend", "chart"]);
   const [sort, setSort] = useState("relevance"),
     [detailTab, setDetailTab] = useState("Overview"),
-    [period, setPeriod] = useState("1M");
+    [period, setPeriod] = useState<ChartRange>("3M");
   const [reference, setReference] = useState<WatchReference | null>(null),
     [news, setNews] = useState<string[]>([]);
   const [movers, setMovers] = useState<ProviderResults | null>(null),
@@ -640,10 +642,11 @@ export function ScannerWorkspace() {
       <div role="tabpanel" aria-label={detailTab}>
         {detailTab === "Overview" ? (
           <>
-            <div className="sc-periods">
-              {["1W", "1M", "3M", "1Y"].map((p) => (
+            <div className="sc-periods" aria-label="Instrument chart range">
+              {chartRanges.map((p) => (
                 <button
                   key={p}
+                  aria-label={`${selected.symbol} ${p} chart range`}
                   aria-pressed={period === p}
                   onClick={() => setPeriod(p)}
                 >
@@ -651,10 +654,10 @@ export function ScannerWorkspace() {
                 </button>
               ))}
             </div>
-            <MarketChart
-              bars={(selected.bars || []).slice(
-                -({ "1W": 5, "1M": 22, "3M": 66, "1Y": 252 }[period] || 22),
-              )}
+            <ScannerPriceChart
+              bars={selected.bars || []}
+              range={period}
+              symbol={selected.symbol}
             />
             <small>As scanned · completed daily bars</small>
             <h3>Key data & technicals</h3>
@@ -1698,14 +1701,175 @@ export function ScannerWorkspace() {
                   </p>
                 </div>
               ) : view === "charts" ? (
-                <div className="sc-chart-grid">
-                  {rows.map((r) => (
-                    <button key={identity(r)} onClick={() => inspect(r)}>
-                      <strong>{r.symbol}</strong>
-                      <MarketChart bars={(r.bars || []).slice(-22)} />
-                      <small>{conciseMatchReason(r, catalog)}</small>
-                    </button>
-                  ))}
+                <div className="sc-chart-grid" aria-label="Scan result charts">
+                  {rows.map((r) => {
+                    const rowId = identity(r);
+                    const trend = String(r.metrics?.trend ?? "—");
+                    const trendTone =
+                      trend.toLowerCase() === "up"
+                        ? "up"
+                        : trend.toLowerCase() === "down"
+                          ? "down"
+                          : "";
+                    const change =
+                      typeof r.metrics?.change === "number"
+                        ? r.metrics.change
+                        : null;
+                    const ltp = r.quote ? Number(r.quote.last_price) : null;
+                    return (
+                      <article
+                        key={rowId}
+                        className={`sc-chart-card${selected && identity(selected) === rowId && panelView === "detail" ? " is-selected" : ""}`}
+                        tabIndex={0}
+                        aria-label={`${r.symbol}, ${r.instrument_metadata?.sector || "sector unavailable"}, ${ltp !== null && Number.isFinite(ltp) ? `₹${numberText(ltp)}` : "LTP unavailable"}, ${change === null ? "daily change unavailable" : changeText(change)}, trend ${trend}, RSI ${numberText(r.metrics?.rsi as number)}`}
+                        onClick={(event) => {
+                          if (
+                            !(event.target as HTMLElement).closest(
+                              "button, input",
+                            )
+                          )
+                            inspect(r);
+                        }}
+                        onKeyDown={(event) => {
+                          if (
+                            event.target === event.currentTarget &&
+                            (event.key === "Enter" || event.key === " ")
+                          ) {
+                            event.preventDefault();
+                            inspect(r);
+                          }
+                        }}
+                      >
+                        <div className="sc-chart-card-head">
+                          <label
+                            className="sc-chart-card-check"
+                            title={`Select ${r.symbol} for bulk actions`}
+                          >
+                            <input
+                              aria-label={`Select ${r.symbol}`}
+                              type="checkbox"
+                              checked={checked.includes(rowId)}
+                              onChange={(event) =>
+                                setChecked(
+                                  event.target.checked
+                                    ? [...checked, rowId]
+                                    : checked.filter((id) => id !== rowId),
+                                )
+                              }
+                            />
+                          </label>
+                          <div className="sc-chart-card-name">
+                            <button
+                              className="sc-symbol"
+                              onClick={() => inspect(r)}
+                            >
+                              {r.symbol}
+                            </button>
+                            <small>
+                              {r.instrument_metadata?.sector ||
+                                "Sector unavailable"}
+                            </small>
+                          </div>
+                          <div className="sc-chart-card-quote">
+                            <strong>
+                              {ltp !== null && Number.isFinite(ltp)
+                                ? `₹${numberText(ltp)}`
+                                : "LTP —"}
+                            </strong>
+                            <span
+                              className={
+                                change === null
+                                  ? ""
+                                  : change > 0
+                                    ? "up"
+                                    : change < 0
+                                      ? "down"
+                                      : ""
+                              }
+                            >
+                              {change === null ? "1D —" : changeText(change)}
+                            </span>
+                          </div>
+                          <div className="sc-chart-card-badges">
+                            <span className={trendTone}>
+                              Trend{" "}
+                              {trendTone === "up"
+                                ? "↑"
+                                : trendTone === "down"
+                                  ? "↓"
+                                  : "→"}
+                            </span>
+                            <span>
+                              RSI {numberText(r.metrics?.rsi as number)}
+                            </span>
+                          </div>
+                        </div>
+                        <ScannerPriceChart
+                          bars={r.bars || []}
+                          range={period}
+                          symbol={r.symbol}
+                        />
+                        <div className="sc-chart-card-actions">
+                          <div
+                            className="sc-periods"
+                            aria-label={`${r.symbol} chart range`}
+                          >
+                            {chartRanges.map((range) => (
+                              <button
+                                key={range}
+                                aria-label={`${r.symbol} ${range} chart range`}
+                                aria-pressed={period === range}
+                                onClick={() => setPeriod(range)}
+                              >
+                                {range}
+                              </button>
+                            ))}
+                          </div>
+                          <button
+                            className="sc-chart-text-action"
+                            onClick={() => inspect(r, "Evidence")}
+                          >
+                            Why?
+                          </button>
+                          <button
+                            className="sc-chart-text-action"
+                            aria-label={`Open chart for ${r.symbol}`}
+                            onClick={() => inspect(r)}
+                          >
+                            Open chart ↗
+                          </button>
+                          <button
+                            className="wl-buy"
+                            aria-label={`Buy ${r.symbol}`}
+                            title={tradeAvailability(r)}
+                            disabled={
+                              busy ||
+                              !equityIdentity(r) ||
+                              !accounts.length ||
+                              !accountsLoaded
+                            }
+                            onClick={() => void trade(r, "BUY")}
+                          >
+                            B
+                          </button>
+                          <button
+                            className="wl-sell"
+                            aria-label={`Sell ${r.symbol}`}
+                            title={tradeAvailability(r)}
+                            disabled={
+                              busy ||
+                              !equityIdentity(r) ||
+                              !accounts.length ||
+                              !accountsLoaded
+                            }
+                            onClick={() => void trade(r, "SELL")}
+                          >
+                            S
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="sc-table-wrap">

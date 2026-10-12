@@ -391,14 +391,6 @@
 .sc-diagnostics p {
   margin: 4px 0;
 }
-.sc-chart-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-.sc-chart-grid button {
-  min-width: 0;
-}
 @media (min-width: 1800px) {
   .sc-grid {
     grid-template-columns: 280px minmax(0, 1fr);
@@ -506,9 +498,6 @@
   .sc-table td[data-label="Reason"],
   .sc-table td.sc-optional-score {
     grid-column: 2 / -1;
-  }
-  .sc-chart-grid {
-    grid-template-columns: 1fr;
   }
   .sc-bulk button {
     flex-grow: 1;
@@ -1376,4 +1365,234 @@
 .derivative-filter-editor > summary:hover,
 .derivative-filter-editor > summary:focus-visible {
   background: #e9f3ff;
+}
+
+/* Scanner Charts: archived completed-bar comparison cards. */
+.sc-chart-grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  align-content: start;
+}
+.sc-chart-card {
+  min-width: 0;
+  padding: 11px;
+  border: 1px solid var(--shell-border);
+  border-radius: 7px;
+  background: var(--shell-surface);
+  color: var(--shell-text);
+  cursor: pointer;
+}
+.sc-chart-card.is-selected {
+  border-color: #2477f2;
+  box-shadow: 0 0 0 1px #2477f2;
+}
+.sc-chart-card:focus-visible {
+  outline: 2px solid #2477f2;
+  outline-offset: 2px;
+}
+.sc-chart-card-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  column-gap: 8px;
+  align-items: start;
+}
+.sc-chart-card-check {
+  padding-top: 2px;
+  cursor: pointer;
+}
+.sc-chart-card-check input {
+  margin: 0;
+}
+.sc-chart-card-name,
+.sc-chart-card-quote,
+.sc-chart-card-badges {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.sc-chart-card-name {
+  align-items: flex-start;
+}
+.sc-chart-card-name small {
+  color: var(--shell-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sc-chart-card-quote {
+  align-items: flex-end;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.sc-chart-card-quote strong {
+  color: var(--shell-text);
+  font-size: 15px;
+}
+.sc-chart-card-badges {
+  grid-column: 2 / -1;
+  flex-direction: row;
+  justify-content: flex-end;
+  gap: 4px;
+  padding-top: 3px;
+  font-size: 10px;
+}
+.sc-chart-card-badges span {
+  border-radius: 3px;
+  background: var(--shell-hover);
+  padding: 2px 5px;
+}
+.sc-chart-card-badges .up {
+  background: color-mix(in srgb, #078a57 16%, var(--shell-surface));
+}
+.sc-chart-card-badges .down {
+  background: color-mix(in srgb, #d8414c 16%, var(--shell-surface));
+}
+.sc-candle-chart {
+  width: 100%;
+  min-width: 0;
+  margin-top: 8px;
+}
+.sc-candle-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.sc-chart-legend {
+  display: flex;
+  gap: 12px;
+  color: var(--shell-secondary);
+  font-size: 10px;
+}
+.sc-chart-legend span::before {
+  content: "";
+  display: inline-block;
+  width: 12px;
+  height: 2px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+.sc-chart-legend .sma20::before {
+  background: #2477f2;
+}
+.sc-chart-legend .sma50::before {
+  background: #ed8d22;
+}
+.sc-chart-gridline {
+  stroke: var(--shell-border);
+  stroke-width: 1;
+}
+.sc-chart-axis {
+  fill: #718198;
+  font-size: 9px;
+}
+.sc-candle-up line {
+  stroke: #078a57;
+  stroke-width: 1;
+}
+.sc-candle-up rect {
+  fill: #078a57;
+}
+.sc-candle-down line {
+  stroke: #d8414c;
+  stroke-width: 1;
+}
+.sc-candle-down rect {
+  fill: #d8414c;
+}
+.sc-close-line {
+  stroke: #2477f2;
+  stroke-width: 1.7;
+  fill: none;
+}
+.sc-sma20-line {
+  stroke: #2477f2;
+  stroke-width: 1.5;
+  fill: none;
+}
+.sc-sma50-line {
+  stroke: #ed8d22;
+  stroke-width: 1.5;
+  fill: none;
+}
+.sc-volume-up {
+  fill: #9ed9bd;
+}
+.sc-volume-down {
+  fill: #e8b6ba;
+}
+.sc-chart-note {
+  color: var(--shell-secondary);
+  font-size: 10px;
+}
+.sc-chart-unavailable {
+  display: grid;
+  place-items: center;
+  min-height: 150px;
+  color: var(--shell-secondary);
+  font-size: 11px;
+}
+.sc-chart-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  border-top: 1px solid var(--shell-border);
+  padding-top: 8px;
+}
+.sc-chart-card-actions .sc-periods {
+  margin: 0 auto 0 0;
+}
+.sc-chart-card-actions button {
+  min-width: 0;
+  padding: 4px 6px;
+  font-size: 10px;
+}
+.sc-chart-card-actions .sc-chart-text-action {
+  border: 0;
+  background: transparent;
+  color: #0862c1;
+  white-space: nowrap;
+}
+.sc-chart-card-actions .wl-buy,
+.sc-chart-card-actions .wl-sell {
+  min-width: 25px;
+  font-weight: 700;
+}
+.sc-detail .sc-candle-chart {
+  margin-top: 8px;
+}
+@media (max-width: 600px) {
+  .sc-chart-card {
+    padding: 9px;
+  }
+  .sc-chart-card-actions {
+    gap: 2px;
+  }
+  .sc-chart-card-actions button {
+    padding: 4px;
+  }
+}
+
+/* Count columns from actual results width, including the conditional side panel. */
+.sc-results {
+  container: scanner-results / inline-size;
+}
+@container scanner-results (min-width: 800px) {
+  .sc-chart-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@container scanner-results (min-width: 1220px) {
+  .sc-chart-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.sc-chart-card-actions .sc-periods button:not([aria-pressed="true"]) {
+  background: var(--shell-surface);
+  color: var(--shell-text);
+  border-color: var(--shell-border);
+}
+[data-theme="dark"] .sc-chart-card-actions .sc-chart-text-action {
+  color: #83bdff;
 }
