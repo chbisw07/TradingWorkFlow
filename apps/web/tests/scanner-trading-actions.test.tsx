@@ -159,6 +159,9 @@ afterEach(() => vi.restoreAllMocks());
 async function runScan() {
   render(<ScannerWorkspace />);
   await screen.findByRole("option", { name: "RSI (14)" });
+  fireEvent.click(screen.getByText("＋ Add / edit filter"));
+  fireEvent.click(screen.getByRole("button", { name: /Add Filter/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Custom symbols" }));
   fireEvent.change(screen.getByLabelText("NSE symbols"), {
     target: { value: "RELIANCE,NIFTY,UNRESOLVED" },
   });

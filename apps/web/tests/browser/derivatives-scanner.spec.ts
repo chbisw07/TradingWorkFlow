@@ -221,6 +221,7 @@ test("O4 bounded scanner, explanation and exact Analytics handoff", async ({
   await expect(page.locator(".derivative-scanner .sc-grid")).not.toHaveClass(
     /has-detail/,
   );
+  await page.locator(".derivative-filter-editor > summary").click();
   const fieldOptions = page
     .getByRole("combobox", { name: "Field" })
     .locator("option");
@@ -279,6 +280,7 @@ test("O4 bounded scanner, explanation and exact Analytics handoff", async ({
   await expect(page.locator(".derivative-active-bar")).not.toContainText(
     "Moneyness",
   );
+  await page.getByRole("button", { name: "Custom underlyings" }).click();
   await page.getByLabel("NSE underlyings").fill("NIFTY, NIFTY");
   await expect(
     page.getByRole("button", { name: "Reset Option Type CE to Both" }),
@@ -636,6 +638,7 @@ test("O4 exact canonical contract reaches Broker V2 Buy and Sell previews", asyn
   });
   await page.goto("/scanners");
   await page.getByRole("tab", { name: /Derivatives Scanner/ }).click();
+  await page.getByRole("button", { name: "Custom underlyings" }).click();
   await page.getByLabel("NSE underlyings").fill("NIFTY");
   await page.getByRole("radio", { name: "PE" }).check();
   await expect(page.locator(".derivative-active-bar")).toContainText(
@@ -762,6 +765,7 @@ test("O4 real catalog drives typed filters, saved setup, and scan payload", asyn
   });
   await page.goto("/scanners");
   await page.getByRole("tab", { name: /Derivatives Scanner/ }).click();
+  await page.locator(".derivative-filter-editor > summary").click();
   const field = page.getByRole("combobox", { name: "Field" });
   const comparison = page.getByRole("combobox", { name: "Comparison" });
   await expect(field.locator("option")).toHaveCount(24);
@@ -842,6 +846,7 @@ test("O4 real catalog drives typed filters, saved setup, and scan payload", asyn
       name: "Remove Underlying Trend vs SMA20 equals Up",
     }),
   ).toBeVisible();
+  await page.getByRole("button", { name: "Custom underlyings" }).click();
   await page.getByLabel("NSE underlyings").fill("NIFTY");
   await expect(page.locator(".derivative-active-bar")).toContainText(
     "Moneyness",
@@ -1094,6 +1099,7 @@ test("legacy Option Type setup, two-row selection and canonical underlying links
   await page.getByRole("tab", { name: /Derivatives Scanner/ }).click();
   await page.getByRole("button", { name: "My Scans" }).click();
   await page.getByRole("button", { name: "Use setup" }).click();
+  await page.locator(".derivative-filter-editor > summary").click();
   await expect(page.getByRole("radio", { name: "PE" })).toBeChecked();
   await expect(page.locator(".derivative-active-bar")).toContainText(
     "Option Type: PE",
@@ -1185,6 +1191,7 @@ test("O4 catalog failure shows a retryable error without empty controls", async 
   });
   await page.goto("/scanners");
   await page.getByRole("tab", { name: /Derivatives Scanner/ }).click();
+  await page.locator(".derivative-filter-editor > summary").click();
   await expect(
     page.getByText("Derivatives filter catalog could not be loaded."),
   ).toBeVisible();

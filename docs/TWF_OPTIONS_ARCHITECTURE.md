@@ -559,3 +559,7 @@ Every label and its evidence/window/freshness are archived and shown as
 "Inferred." It neither changes MATCH nor sort relevance or Broker V2 actions.
 O5 may consume these facts for future suitability ranking; O4 does not score or
 rank them.
+
+## Derivatives Scanner watchlist optionability (October 2026)
+
+The shared Scanner watchlist selector can feed O4. The owner-scoped read-only projection `/api/v1/scanner/derivatives/watchlists/{id}/optionable` intersects the current Watchlists snapshot with active O2 option contracts. It returns watchlist member count, optionable count, eligible underlying symbols, and the unchanged O4 limit of five. The UI shows all three counts, initially selects up to five optionable members in watchlist order, and lets the user adjust the selection. Non-optionable members are not claimed as scannable; O2 master failures return a typed unavailable state. O4 still validates the submitted subset against current membership and archives the exact selected underlyings in each immutable run. One-off Custom underlyings remain available.

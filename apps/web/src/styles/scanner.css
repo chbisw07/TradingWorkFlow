@@ -1211,3 +1211,143 @@
 .derivative-oi-evidence dl {
   margin: 10px 0;
 }
+
+/* Shared watchlist-first selector for both Scanner modes. */
+.sc-watchlist-selector {
+  position: relative;
+  flex: none;
+}
+.sc-watchlist-trigger {
+  border-color: #9dc3ff;
+  color: #075ac3;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.sc-watchlist-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 50;
+  width: min(340px, calc(100vw - 32px));
+  max-height: min(72vh, 540px);
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid #bfd4f3;
+  border-radius: 8px;
+  background: var(--shell-surface, #fff);
+  box-shadow: 0 12px 32px rgb(16 53 110 / 18%);
+  color: var(--shell-primary, #10284c);
+}
+.sc-watchlist-popover > strong {
+  display: block;
+  margin-bottom: 8px;
+}
+.sc-watchlist-popover > input {
+  width: 100%;
+  min-width: 0;
+}
+.sc-watchlist-scroll {
+  max-height: min(44vh, 350px);
+  overflow-y: auto;
+  margin-top: 8px;
+}
+.sc-watchlist-group-label {
+  display: flex;
+  justify-content: space-between;
+  padding: 9px 4px 5px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #486b9b;
+  border-top: 1px solid #dce8f9;
+}
+.sc-watchlist-row {
+  display: flex;
+  align-items: center;
+}
+.sc-watchlist-item {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  border: 0;
+  border-radius: 5px;
+  padding: 8px;
+  text-align: left;
+  background: transparent;
+  color: inherit;
+}
+.sc-watchlist-item:hover,
+.sc-watchlist-item:focus-visible,
+.sc-watchlist-item[aria-current="true"] {
+  background: #e9f3ff;
+}
+.sc-watchlist-system {
+  color: #79532c;
+  background: #fff9ee;
+  margin: 2px 0;
+}
+.sc-watchlist-system:hover,
+.sc-watchlist-system:focus-visible,
+.sc-watchlist-system[aria-current="true"] {
+  background: #f3e6ce;
+}
+.sc-universe-summary {
+  display: grid;
+  gap: 5px;
+  padding: 8px;
+  margin: 10px 0;
+  border: 1px solid #dce8f9;
+  border-radius: 5px;
+  background: #f4f9ff;
+}
+.sc-universe-summary small {
+  color: #4e678d;
+  line-height: 1.4;
+}
+.sc-custom-action {
+  width: 100%;
+  margin: 8px 0;
+  color: #075ac3;
+}
+@media (max-width: 800px) {
+  .sc-watchlist-selector {
+    width: 100%;
+  }
+  .sc-watchlist-trigger {
+    width: 100%;
+  }
+  .sc-watchlist-popover {
+    position: fixed;
+    top: auto;
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    width: auto;
+    max-height: 80dvh;
+  }
+}
+
+.derivative-filter-editor {
+  margin: 12px 0;
+  border-top: 1px solid var(--shell-border);
+}
+.derivative-filter-editor > summary {
+  display: block;
+  cursor: pointer;
+  margin-top: 12px;
+  padding: 9px;
+  border: 1px solid #9dc3ff;
+  border-radius: 5px;
+  color: #075ac3;
+  font-weight: 700;
+  text-align: center;
+  list-style: none;
+}
+.derivative-filter-editor > summary::-webkit-details-marker {
+  display: none;
+}
+.derivative-filter-editor > summary:hover,
+.derivative-filter-editor > summary:focus-visible {
+  background: #e9f3ff;
+}

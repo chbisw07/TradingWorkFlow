@@ -112,6 +112,7 @@ def test_lifecycle_and_contracts(settings: Settings) -> None:
             "/api/v1/scanner/derivatives/saved/{key}",
             "/api/v1/scanner/derivatives/runs",
             "/api/v1/scanner/derivatives/runs/{key}",
+            "/api/v1/scanner/derivatives/watchlists/{key}/optionable",
             "/api/v1/scanner/saved",
             "/api/v1/scanner/saved/{key}",
             "/api/v1/scanner/runs",

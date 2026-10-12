@@ -115,9 +115,13 @@ test("Scanner V2 editable filters, durable runs, Watchlist handoff and responsiv
   await expect(page.locator(".sc-grid")).not.toHaveClass(/has-detail/);
   if (page.viewportSize()!.width <= 800)
     await page.locator(".sc-builder > details > summary").click();
-  await page.getByRole("button", { name: "Watchlist", exact: true }).click();
-  await page.getByLabel("Watchlist", { exact: true }).selectOption(list.id);
-  await expect(page.locator(".sc-members")).toContainText("RELIANCE");
+  await page
+    .getByRole("button", { name: "Watchlist: Choose watchlist" })
+    .click();
+  await page.getByRole("button", { name: "Scanner Core (3)" }).click();
+  await expect(page.locator(".sc-universe-summary")).toContainText(
+    "Scanner Core",
+  );
   await page.locator(".sc-context-builder > summary").click();
   await expect(
     page.getByRole("button", { name: "Ranking", exact: true }),
@@ -249,9 +253,9 @@ test("Scanner V2 editable filters, durable runs, Watchlist handoff and responsiv
     });
     await ticket.getByLabel("Close order ticket").click();
     await expect(ticket).toHaveCount(0);
-    await expect(page.getByLabel("Watchlist", { exact: true })).toHaveValue(
-      list.id,
-    );
+    await expect(
+      page.getByRole("button", { name: "Watchlist: Scanner Core" }),
+    ).toBeVisible();
     await expect(page.locator(".sc-grid")).not.toHaveClass(/has-detail/);
     await expect(
       page.getByRole("button", { name: "Remove filter 1" }),
@@ -460,7 +464,7 @@ test("Scanner V2 editable filters, durable runs, Watchlist handoff and responsiv
     .click();
   await expect(
     page.getByRole("tabpanel", { name: "Derivatives Scanner" }),
-  ).toContainText("Select underlyings, expiry and at least one filter");
+  ).toContainText("Select an underlying watchlist or enter Custom underlyings");
   await page.getByRole("tab", { name: /Equity \/ Index Scanner/ }).click();
   await expect(page.locator(".sc-table")).toContainText("RELIANCE");
   expect(dispatches).toBe(0);

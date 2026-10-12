@@ -272,6 +272,67 @@ def test_relative_volume_filters_archive_exact_metrics_without_extra_chain_calls
     assert source.calls == 1
 
 
+def test_watchlist_optionability_uses_active_o2_master_and_preserves_snapshot(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from test_watchlists import add, create
+
+    install_market(client, monkeypatch)
+    source = Source()
+    monkeypatch.setattr(cast(Any, client.app).state.option_chains, "get", lambda *args: source)
+    key = create(client, "O4 optionability")
+    add(client, key)
+    projection = client.get(BASE + f"/watchlists/{key}/optionable")
+    assert projection.status_code == 200, projection.text
+    assert projection.json() == {
+        "watchlist_id": key,
+        "members": 5,
+        "optionable": 1,
+        "symbols": ["NIFTY"],
+        "max_underlyings": 5,
+    }
+    run = client.post(
+        BASE + "/runs",
+        json=config(universe={"source": "WATCHLIST", "watchlist_id": key, "symbols": ["NIFTY"]}),
+        headers=HEADERS,
+    )
+    assert run.status_code == 200, run.text
+    assert run.json()["config"]["universe"]["symbols"] == ["NIFTY"]
+    assert run.json()["counts"]["requested"] == 1
+    archived = client.get(BASE + "/runs/" + run.json()["id"]).json()
+    assert archived["config"]["universe"] == run.json()["config"]["universe"]
+    auto = client.post(
+        BASE + "/runs",
+        json=config(universe={"source": "WATCHLIST", "watchlist_id": key, "symbols": []}),
+        headers=HEADERS,
+    )
+    assert auto.status_code == 200, auto.text
+    assert auto.json()["counts"]["requested"] == 1
+    assert auto.json()["config"]["universe"]["symbols"] == ["NIFTY"]
+    saved = client.post(
+        BASE + "/saved",
+        json={
+            "config": config(universe={"source": "WATCHLIST", "watchlist_id": key, "symbols": []})
+        },
+        headers=HEADERS,
+    )
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["config"]["universe"]["watchlist_id"] == key
+    assert client.get(BASE + "/saved").json()[0]["config"]["universe"]["watchlist_id"] == key
+
+    from test_watchlists import instruments
+
+    nifty_id = next(str(item.instrument_id) for item in instruments() if item.symbol == "NIFTY")
+    removed = client.delete(f"/api/v1/watchlists/{key}/items/{nifty_id}", headers=HEADERS)
+    assert removed.status_code == 200, removed.text
+    current = client.get(BASE + f"/watchlists/{key}/optionable")
+    assert current.status_code == 200
+    assert current.json()["optionable"] == 0
+    archived_after_mutation = client.get(BASE + "/runs/" + run.json()["id"]).json()
+    assert archived_after_mutation["config"]["universe"]["symbols"] == ["NIFTY"]
+    assert archived_after_mutation["rows"] == archived["rows"]
+
+
 def test_watchlist_selection_reuses_only_selected_optionable_underlying(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:

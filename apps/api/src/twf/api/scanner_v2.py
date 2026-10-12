@@ -184,6 +184,27 @@ def derivatives_run(key: UUID, request: Request, who: Who) -> dict[str, Any]:
     return derivative_service(request, who).run(key)
 
 
+@router.get("/derivatives/watchlists/{key}/optionable")
+async def derivatives_watchlist_optionability(
+    key: UUID, request: Request, who: Who, capture: Market
+) -> dict[str, Any]:
+    from twf.discovery.market_data import DhanMarketDataProvider
+    from twf.options.chain_service import OptionChainService
+    from twf.watchlists.service import WatchlistFailure
+
+    if not isinstance(capture.provider, DhanMarketDataProvider):
+        raise WatchlistFailure("DHAN_AUTH_REQUIRED", 503)
+    source = request.app.state.option_chains.get(
+        who.owner_id,
+        capture.status.generation,
+        capture.provider,
+        request.app.state.watchlist_quotes,
+    )
+    return await derivative_service(request, who).watchlist_optionability(
+        key, capture.provider, OptionChainService(source)
+    )
+
+
 @router.post("/derivatives/runs", dependencies=[Depends(require_origin)])
 async def derivatives_execute(
     payload: DerivativeScanConfig, request: Request, who: Who, capture: Market

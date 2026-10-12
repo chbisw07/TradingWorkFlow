@@ -19,12 +19,8 @@ import {
 } from "../../lib/scanner";
 import { ScannerHistoryMenu } from "./scanner-history-menu";
 import { ScannerColumnsMenu } from "./scanner-columns-menu";
-import {
-  watchApi,
-  changeText,
-  type Watchlist,
-  type WatchDetail,
-} from "../../lib/watchlists";
+import { ScannerWatchlistSelector } from "./watchlist-selector";
+import { watchApi, changeText, type Watchlist } from "../../lib/watchlists";
 
 type Field = {
   field: string;
@@ -329,7 +325,13 @@ export function DerivativesScanner() {
   const [config, setConfig] = useState<Config>(initial);
   const [raw, setRaw] = useState("");
   const [lists, setLists] = useState<Watchlist[]>([]);
-  const [members, setMembers] = useState<WatchDetail | null>(null);
+  const [optionability, setOptionability] = useState<{
+    members: number;
+    optionable: number;
+    symbols: string[];
+    max_underlyings: number;
+  } | null>(null);
+  const [customOpen, setCustomOpen] = useState(false);
   const [field, setField] = useState("");
   const [operator, setOperator] = useState("");
   const [value, setValue] = useState("");
@@ -502,12 +504,35 @@ export function DerivativesScanner() {
     if (config.universe.source !== "WATCHLIST" || !config.universe.watchlist_id)
       return;
     let active = true;
-    void watchApi<WatchDetail>(`/${config.universe.watchlist_id}`)
-      .then((detail) => {
-        if (active) setMembers(detail);
+    const id = config.universe.watchlist_id;
+    void scannerApi<{
+      members: number;
+      optionable: number;
+      symbols: string[];
+      max_underlyings: number;
+    }>(`derivatives/watchlists/${id}/optionable`)
+      .then((projection) => {
+        if (!active) return;
+        setOptionability(projection);
+        setConfig((current) =>
+          current.universe.source === "WATCHLIST" &&
+          current.universe.watchlist_id === id &&
+          !current.universe.symbols.length
+            ? {
+                ...current,
+                universe: {
+                  ...current.universe,
+                  symbols: projection.symbols.slice(0, 5),
+                },
+              }
+            : current,
+        );
       })
-      .catch((e: Error) => {
-        if (active) setError(e.message);
+      .catch((reason: Error) => {
+        if (active) {
+          setOptionability(null);
+          setError(`Watchlist optionability unavailable: ${reason.message}`);
+        }
       });
     return () => {
       active = false;
@@ -643,6 +668,7 @@ export function DerivativesScanner() {
     }
   }
   function load(savedConfig: Config) {
+    setOptionability(null);
     setConfig(savedConfig);
     setRaw(savedConfig.universe.symbols.join(", "));
     setRun(null);
@@ -845,6 +871,31 @@ export function DerivativesScanner() {
       {toolbarHost &&
         createPortal(
           <>
+            <ScannerWatchlistSelector
+              lists={lists}
+              selectedId={
+                config.universe.source === "WATCHLIST"
+                  ? config.universe.watchlist_id
+                  : undefined
+              }
+              onSelect={(id) => {
+                setOptionability(null);
+                setConfig((current) => ({
+                  ...current,
+                  universe: {
+                    source: "WATCHLIST",
+                    watchlist_id: id,
+                    symbols: [],
+                  },
+                }));
+              }}
+            />
+            <button
+              disabled
+              title="Derivatives scan templates are not available"
+            >
+              Scan Templates ▾
+            </button>
             <button onClick={() => setPanelView("saved")}>My Scans</button>
             <ScannerHistoryMenu
               onRecent={() => setPanelView("recent")}
@@ -863,23 +914,37 @@ export function DerivativesScanner() {
         className="wl-card sc-chips derivative-active-bar"
         aria-label="Active derivatives scan configuration"
       >
-        <button
-          aria-label="Remove selected underlyings"
-          onClick={() => {
-            setConfig((c) => ({
-              ...c,
-              universe: { ...c.universe, symbols: [] },
-            }));
-            setRaw("");
-          }}
-        >
-          Underlyings:{" "}
-          {(config.universe.source === "CUSTOM"
-            ? parseSymbols(raw)
-            : config.universe.symbols
-          ).join(", ") || "None selected"}{" "}
-          ×
-        </button>
+        {(config.universe.source === "WATCHLIST" ||
+          parseSymbols(raw).length > 0) && (
+          <button
+            aria-label="Remove selected underlyings"
+            onClick={() => {
+              setConfig((c) => ({
+                ...c,
+                universe: { source: "CUSTOM", symbols: [] },
+              }));
+              setRaw("");
+            }}
+          >
+            Underlyings:{" "}
+            {(config.universe.source === "CUSTOM"
+              ? parseSymbols(raw)
+              : config.universe.source === "WATCHLIST"
+                ? [
+                    lists.find(
+                      (list) => list.id === config.universe.watchlist_id,
+                    )?.name || "Unavailable watchlist",
+                  ]
+                : config.universe.symbols
+            ).join(", ") || "None selected"}{" "}
+            {config.universe.source === "WATCHLIST" &&
+            lists.find((list) => list.id === config.universe.watchlist_id)
+              ?.read_only
+              ? "🔒"
+              : ""}{" "}
+            ×
+          </button>
+        )}
         {config.expiry_mode === "EXACT" ? (
           <button
             aria-label="Remove exact expiry"
@@ -942,93 +1007,91 @@ export function DerivativesScanner() {
             Select up to 5 optionable underlyings, choose expiry and add
             explicit filters.
           </p>
-          <div className="sc-universe-tabs">
-            <button
-              aria-pressed={config.universe.source === "CUSTOM"}
-              onClick={() =>
-                setConfig((c) => ({
-                  ...c,
-                  universe: { source: "CUSTOM", symbols: [] },
-                }))
-              }
-            >
-              Custom
-            </button>
-            <button
-              aria-pressed={config.universe.source === "WATCHLIST"}
-              onClick={() =>
-                setConfig((c) => ({
-                  ...c,
-                  universe: { source: "WATCHLIST", symbols: [] },
-                }))
-              }
-            >
-              Watchlist
-            </button>
-          </div>
-          {config.universe.source === "CUSTOM" ? (
+          {config.universe.source === "WATCHLIST" ? (
+            <div className="sc-universe-summary">
+              <strong>
+                {lists.find((list) => list.id === config.universe.watchlist_id)
+                  ?.name || "Selected watchlist unavailable"}
+              </strong>
+              {lists.find((list) => list.id === config.universe.watchlist_id)
+                ?.read_only && <span> 🔒 Built-in · read-only</span>}
+              {optionability ? (
+                <small>
+                  {optionability.members} watchlist members ·{" "}
+                  {optionability.optionable} optionable ·{" "}
+                  {config.universe.symbols.length} selected (maximum 5).
+                  Non-optionable members are not scanned.
+                </small>
+              ) : (
+                <small>
+                  Checking optionability against the active O2 instrument
+                  master…
+                </small>
+              )}
+              {optionability && (
+                <details>
+                  <summary>Choose optionable underlyings</summary>
+                  <div className="sc-members">
+                    {optionability.symbols.map((symbol) => (
+                      <label key={symbol}>
+                        <input
+                          type="checkbox"
+                          checked={config.universe.symbols.includes(symbol)}
+                          onChange={(event) => {
+                            const current = config.universe.symbols;
+                            if (event.target.checked && current.length >= 5) {
+                              setError("Select no more than 5 underlyings.");
+                              return;
+                            }
+                            if (!event.target.checked && current.length === 1) {
+                              setError(
+                                "Keep at least one underlying selected.",
+                              );
+                              return;
+                            }
+                            setConfig((configuration) => ({
+                              ...configuration,
+                              universe: {
+                                ...configuration.universe,
+                                symbols: event.target.checked
+                                  ? [...current, symbol]
+                                  : current.filter((item) => item !== symbol),
+                              },
+                            }));
+                          }}
+                        />
+                        {symbol}
+                      </label>
+                    ))}
+                  </div>
+                </details>
+              )}
+            </div>
+          ) : customOpen || raw ? (
             <label className="sc-label">
               NSE underlyings
               <textarea
                 rows={3}
                 value={raw}
-                onChange={(e) => setRaw(e.target.value)}
+                onChange={(event) => setRaw(event.target.value)}
                 placeholder="NIFTY, BANKNIFTY, RELIANCE"
               />
             </label>
-          ) : (
-            <>
-              <label className="sc-label">
-                Watchlist
-                <select
-                  value={config.universe.watchlist_id || ""}
-                  onChange={(e) => {
-                    setMembers(null);
-                    setConfig((c) => ({
-                      ...c,
-                      universe: {
-                        source: "WATCHLIST",
-                        watchlist_id: e.target.value,
-                        symbols: [],
-                      },
-                    }));
-                  }}
-                >
-                  <option value="">Choose watchlist</option>
-                  {lists.map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {l.name} ({l.count})
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="sc-members">
-                {members?.items.map((item) => (
-                  <label key={item.instrument.instrument_id}>
-                    <input
-                      type="checkbox"
-                      checked={config.universe.symbols.includes(
-                        item.instrument.symbol,
-                      )}
-                      onChange={(e) => {
-                        const symbol = item.instrument.symbol;
-                        setConfig((c) => ({
-                          ...c,
-                          universe: {
-                            ...c.universe,
-                            symbols: e.target.checked
-                              ? [...c.universe.symbols, symbol]
-                              : c.universe.symbols.filter((s) => s !== symbol),
-                          },
-                        }));
-                      }}
-                    />
-                    {item.instrument.symbol}
-                  </label>
-                ))}
-              </div>
-            </>
-          )}
+          ) : null}
+          <button
+            type="button"
+            className="sc-custom-action"
+            onClick={() => {
+              setConfig((current) => ({
+                ...current,
+                universe: { source: "CUSTOM", symbols: [] },
+              }));
+              setCustomOpen(true);
+              setOptionability(null);
+            }}
+          >
+            Custom underlyings
+          </button>
           <small>
             {config.universe.source === "CUSTOM"
               ? parseSymbols(raw).length
@@ -1100,142 +1163,150 @@ export function DerivativesScanner() {
               </label>
             ))}
           </fieldset>
-          <h3>Additional Filters</h3>
-          <h4>Add / edit filter</h4>
-          {catalogError && (
-            <div className="wl-error" role="alert">
-              {catalogError}{" "}
-              <button onClick={() => setCatalogRetry((attempt) => attempt + 1)}>
-                Retry
-              </button>
-            </div>
-          )}
-          <label className="sc-label">
-            Field
-            <select
-              value={spec ? field : ""}
-              disabled={!catalog}
-              onChange={(e) => editField(e.target.value)}
-            >
-              <option value="">
-                {catalog ? "Select field" : "Filters unavailable"}
-              </option>
-              {catalog &&
-                [...new Set(catalog.fields.map((f) => f.category))].map(
-                  (category) => (
-                    <optgroup key={category} label={category}>
-                      {catalog.fields
-                        .filter(
-                          (f) =>
-                            f.category === category &&
-                            f.field !== "option_type",
-                        )
-                        .map((f) => (
-                          <option key={f.field} value={f.field}>
-                            {f.label}
-                            {f.provider_dependent
-                              ? " (provider-dependent)"
-                              : ""}
-                          </option>
-                        ))}
-                    </optgroup>
-                  ),
-                )}
-            </select>
-          </label>
-          <label className="sc-label">
-            Comparison
-            <select
-              value={spec?.operators.includes(operator) ? operator : ""}
-              disabled={!spec}
-              onChange={(e) => setOperator(e.target.value)}
-            >
-              {!spec && <option value="">Choose a field first</option>}
-              {spec?.operators.map((op) => (
-                <option key={op} value={op}>
-                  {op}
-                </option>
-              ))}
-            </select>
-          </label>
-          {spec?.kind === "multi" ? (
-            <fieldset>
-              <legend>Moneyness</legend>
-              {spec.values?.map((v) => (
-                <label key={v}>
-                  <input
-                    type="checkbox"
-                    checked={selectedEnums.includes(v)}
-                    onChange={(e) =>
-                      setSelectedEnums((xs) =>
-                        e.target.checked
-                          ? [...xs, v]
-                          : xs.filter((x) => x !== v),
-                      )
-                    }
-                  />
-                  {v}
-                </label>
-              ))}
-            </fieldset>
-          ) : spec?.kind === "enum" ? (
+          <details className="derivative-filter-editor">
+            <summary>＋ Add Filter</summary>
+            <h3>Additional Filters</h3>
+            <h4>Add / edit filter</h4>
+            {catalogError && (
+              <div className="wl-error" role="alert">
+                {catalogError}{" "}
+                <button
+                  onClick={() => setCatalogRetry((attempt) => attempt + 1)}
+                >
+                  Retry
+                </button>
+              </div>
+            )}
             <label className="sc-label">
-              Value
-              <select value={value} onChange={(e) => setValue(e.target.value)}>
-                {spec.values?.map((v) => (
-                  <option key={v}>{v}</option>
+              Field
+              <select
+                value={spec ? field : ""}
+                disabled={!catalog}
+                onChange={(e) => editField(e.target.value)}
+              >
+                <option value="">
+                  {catalog ? "Select field" : "Filters unavailable"}
+                </option>
+                {catalog &&
+                  [...new Set(catalog.fields.map((f) => f.category))].map(
+                    (category) => (
+                      <optgroup key={category} label={category}>
+                        {catalog.fields
+                          .filter(
+                            (f) =>
+                              f.category === category &&
+                              f.field !== "option_type",
+                          )
+                          .map((f) => (
+                            <option key={f.field} value={f.field}>
+                              {f.label}
+                              {f.provider_dependent
+                                ? " (provider-dependent)"
+                                : ""}
+                            </option>
+                          ))}
+                      </optgroup>
+                    ),
+                  )}
+              </select>
+            </label>
+            <label className="sc-label">
+              Comparison
+              <select
+                value={spec?.operators.includes(operator) ? operator : ""}
+                disabled={!spec}
+                onChange={(e) => setOperator(e.target.value)}
+              >
+                {!spec && <option value="">Choose a field first</option>}
+                {spec?.operators.map((op) => (
+                  <option key={op} value={op}>
+                    {op}
+                  </option>
                 ))}
               </select>
             </label>
-          ) : (
-            <>
+            {spec?.kind === "multi" ? (
+              <fieldset>
+                <legend>Moneyness</legend>
+                {spec.values?.map((v) => (
+                  <label key={v}>
+                    <input
+                      type="checkbox"
+                      checked={selectedEnums.includes(v)}
+                      onChange={(e) =>
+                        setSelectedEnums((xs) =>
+                          e.target.checked
+                            ? [...xs, v]
+                            : xs.filter((x) => x !== v),
+                        )
+                      }
+                    />
+                    {v}
+                  </label>
+                ))}
+              </fieldset>
+            ) : spec?.kind === "enum" ? (
               <label className="sc-label">
-                {operator === "between" ? "Lower bound" : "Value"}
-                <input
-                  type="number"
-                  step={spec?.kind === "integer" ? "1" : "any"}
+                Value
+                <select
                   value={value}
                   onChange={(e) => setValue(e.target.value)}
-                />
+                >
+                  {spec.values?.map((v) => (
+                    <option key={v}>{v}</option>
+                  ))}
+                </select>
               </label>
-              {operator === "between" && (
+            ) : (
+              <>
                 <label className="sc-label">
-                  Upper bound
+                  {operator === "between" ? "Lower bound" : "Value"}
                   <input
                     type="number"
                     step={spec?.kind === "integer" ? "1" : "any"}
-                    value={upper}
-                    onChange={(e) => setUpper(e.target.value)}
+                    value={value}
+                    onChange={(e) => setValue(e.target.value)}
                   />
                 </label>
+                {operator === "between" && (
+                  <label className="sc-label">
+                    Upper bound
+                    <input
+                      type="number"
+                      step={spec?.kind === "integer" ? "1" : "any"}
+                      value={upper}
+                      onChange={(e) => setUpper(e.target.value)}
+                    />
+                  </label>
+                )}
+              </>
+            )}
+            {spec &&
+              [
+                "volume_percentile",
+                "volume_vs_chain_median",
+                "volume_oi_percent",
+                "oi_percentile",
+                "oi_vs_chain_median",
+                "oi_change_percentile",
+              ].includes(spec.field) && (
+                <small>
+                  Relative volume and OI use CE and PE contracts from this
+                  underlying and expiry&apos;s bounded chain. ΔOI percentile
+                  ranks absolute change magnitude; direction remains in ΔOI and
+                  ΔOI %. Missing observations cannot pass an active filter.
+                </small>
               )}
-            </>
-          )}
-          {spec &&
-            [
-              "volume_percentile",
-              "volume_vs_chain_median",
-              "volume_oi_percent",
-              "oi_percentile",
-              "oi_vs_chain_median",
-              "oi_change_percentile",
-            ].includes(spec.field) && (
+            {spec?.provider_dependent && (
               <small>
-                Relative volume and OI use CE and PE contracts from this
-                underlying and expiry&apos;s bounded chain. ΔOI percentile ranks
-                absolute change magnitude; direction remains in ΔOI and ΔOI %.
-                Missing observations cannot pass an active filter.
+                This field can be unavailable in the current Dhan chain; an
+                active filter cannot pass missing data.
               </small>
             )}
-          {spec?.provider_dependent && (
-            <small>
-              This field can be unavailable in the current Dhan chain; an active
-              filter cannot pass missing data.
-            </small>
-          )}
-          <button onClick={addFilter} disabled={!spec}>
-            Add / update filter
-          </button>
+            <button onClick={addFilter} disabled={!spec}>
+              Add / update filter
+            </button>
+          </details>
           <div className="derivative-run">
             <button
               className="wl-primary"
@@ -1271,7 +1342,7 @@ export function DerivativesScanner() {
                 <small>
                   {run
                     ? `${run.counts.matches} matches · ${new Date(run.created_at).toLocaleString("en-IN")}`
-                    : "Build your next scan"}
+                    : "Ready to scan"}
                 </small>
               </div>
               {run && (
@@ -1517,10 +1588,14 @@ export function DerivativesScanner() {
                 </small>
               </>
             ) : (
-              <p>
-                Select underlyings, expiry and at least one filter, then Run
-                Scan.
-              </p>
+              <div className="sc-empty">
+                <h2>Ready to scan</h2>
+                <p>
+                  Select an underlying watchlist or enter Custom underlyings,
+                  choose expiry and option settings, add a filter, then Run
+                  Scan.
+                </p>
+              </div>
             )}
           </section>
           <div

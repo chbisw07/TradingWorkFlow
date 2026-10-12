@@ -11,6 +11,7 @@ import { SectorEvidence } from "./sector-evidence";
 import { DerivativesScanner } from "./derivatives-scanner";
 import { ScannerHistoryMenu } from "./scanner-history-menu";
 import { ScannerColumnsMenu } from "./scanner-columns-menu";
+import { ScannerWatchlistSelector } from "./watchlist-selector";
 import {
   scannerApi,
   initialConfig,
@@ -58,6 +59,7 @@ const resultColumns = [
 
 export function ScannerWorkspace() {
   const [filterOpen, setFilterOpen] = useState(true);
+  const [customOpen, setCustomOpen] = useState(false);
   const [panelView, setPanelView] = useState<
     "detail" | "saved" | "recent" | "history" | "movers" | null
   >(null);
@@ -102,8 +104,7 @@ export function ScannerWorkspace() {
       null,
     );
   const [name, setName] = useState(""),
-    [custom, setCustom] = useState(""),
-    [search, setSearch] = useState("");
+    [custom, setCustom] = useState("");
   const [view, setView] = useState("table"),
     [columns, setColumns] = useState(["volume", "rsi", "trend", "chart"]);
   const [sort, setSort] = useState("relevance"),
@@ -292,6 +293,7 @@ export function ScannerWorkspace() {
       sort: c.sort || "relevance",
     };
     setSort(normalized.sort);
+    setMembers(null);
     setConfig(normalized);
     setCustom(normalized.universe.symbols.join(", "));
     setSavedId(id);
@@ -992,6 +994,26 @@ export function ScannerWorkspace() {
         )}
         {!derivatives && (
           <div className="sc-top-actions">
+            <ScannerWatchlistSelector
+              lists={lists}
+              selectedId={
+                config.universe.source === "WATCHLIST"
+                  ? config.universe.watchlist_id
+                  : undefined
+              }
+              onSelect={(id) => {
+                setMembers(null);
+                setConfig((current) => ({
+                  ...current,
+                  universe: {
+                    source: "WATCHLIST",
+                    watchlist_id: id,
+                    symbols: [],
+                    instrument_ids: [],
+                  },
+                }));
+              }}
+            />
             <select
               aria-label="Scan Templates"
               value=""
@@ -1030,13 +1052,21 @@ export function ScannerWorkspace() {
           className={`sc-grid conditional-detail-layout${panelView ? " has-detail" : ""}`}
         >
           <div className="wl-card sc-chips">
-            <span>
-              Universe:{" "}
-              {config.universe.source === "WATCHLIST"
-                ? lists.find((l) => l.id === config.universe.watchlist_id)
-                    ?.name || "Choose watchlist"
-                : config.universe.source}
-            </span>
+            {(config.universe.source === "WATCHLIST" ||
+              Boolean(custom.trim())) && (
+              <span>
+                Universe:{" "}
+                {config.universe.source === "WATCHLIST"
+                  ? lists.find((l) => l.id === config.universe.watchlist_id)
+                      ?.name || "Unavailable watchlist"
+                  : config.universe.source}{" "}
+                {config.universe.source === "WATCHLIST" &&
+                lists.find((list) => list.id === config.universe.watchlist_id)
+                  ?.read_only
+                  ? "🔒"
+                  : ""}
+              </span>
+            )}
             {config.filters.map((f, i) => (
               <button
                 title="Remove filter"
@@ -1096,143 +1126,119 @@ export function ScannerWorkspace() {
               open={filterOpen}
               onToggle={(e) => setFilterOpen(e.currentTarget.open)}
             >
-              <summary>Universe & filters</summary>
-              <h2>Universe</h2>
-              <div className="sc-universe-tabs">
-                {["WATCHLIST", "INDEX", "SECTOR", "MARKET", "CUSTOM"].map(
-                  (s) => (
-                    <button
-                      key={s}
-                      aria-pressed={config.universe.source === s}
-                      onClick={() => source(s)}
-                    >
-                      {s[0] + s.slice(1).toLowerCase()}
-                    </button>
-                  ),
-                )}
-              </div>
+              <summary>Build your scan</summary>
+              <p>
+                Add filters to find trading opportunities. No filters are
+                pre-selected.
+              </p>
               {config.universe.source === "WATCHLIST" ? (
-                <>
-                  {input(
-                    "Watchlist",
-                    <select
-                      value={config.universe.watchlist_id || ""}
-                      onChange={(e) => {
-                        setConfig({
-                          ...config,
-                          universe: {
-                            source: "WATCHLIST",
-                            watchlist_id: e.target.value,
-                            symbols: [],
-                            instrument_ids: [],
-                          },
-                        });
-                        setMembers(null);
-                      }}
-                    >
-                      <option value="">Choose watchlist</option>
-                      <optgroup label="My Watchlists">
-                        {lists
-                          .filter((l) => l.ownership_kind !== "SYSTEM")
-                          .map((l) => (
-                            <option value={l.id} key={l.id}>
-                              {l.name} ({l.count} symbols)
-                            </option>
-                          ))}
-                      </optgroup>
-                      <optgroup label="Built-in Watchlists">
-                        {lists
-                          .filter((l) => l.ownership_kind === "SYSTEM")
-                          .map((l) => (
-                            <option value={l.id} key={l.id}>
-                              {l.name} · Built-in ({l.count} constituents)
-                            </option>
-                          ))}
-                      </optgroup>
-                    </select>,
+                <div className="sc-universe-summary">
+                  <strong>
+                    {lists.find(
+                      (list) => list.id === config.universe.watchlist_id,
+                    )?.name || "Selected watchlist unavailable"}
+                  </strong>
+                  {lists.find(
+                    (list) => list.id === config.universe.watchlist_id,
+                  )?.read_only && <span> 🔒 Built-in · read-only</span>}
+                  {members && (
+                    <small>
+                      {members.items.length > 20
+                        ? `${config.universe.instrument_ids.length || 20} of ${members.items.length} selected — current scanner limit`
+                        : `${config.universe.instrument_ids.length || members.items.length} of ${members.items.length} constituents selected`}
+                      . Snapshot is captured when you run.
+                    </small>
                   )}
-                  <input
-                    aria-label="Search universe"
-                    placeholder="Search watchlist…"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
-                  <div className="sc-members">
-                    {members?.items
-                      .filter((i) =>
-                        i.instrument.symbol.includes(search.toUpperCase()),
-                      )
-                      .map((i) => (
-                        <label key={i.instrument.instrument_id}>
-                          <input
-                            type="checkbox"
-                            checked={
-                              !config.universe.instrument_ids.length ||
-                              config.universe.instrument_ids.includes(
-                                i.instrument.instrument_id,
-                              )
-                            }
-                            onChange={(e) => {
-                              const all = members.items.map(
-                                (m) => m.instrument.instrument_id,
-                              );
-                              const ids = config.universe.instrument_ids.length
-                                ? config.universe.instrument_ids
-                                : all;
-                              if (!e.target.checked && ids.length === 1) {
-                                setError(
-                                  "Keep at least one instrument selected.",
-                                );
-                                return;
+                  {members && members.items.length > 0 && (
+                    <details>
+                      <summary>Adjust selected instruments</summary>
+                      <div className="sc-members">
+                        {members.items.map((item) => (
+                          <label key={item.instrument.instrument_id}>
+                            <input
+                              type="checkbox"
+                              checked={
+                                config.universe.instrument_ids.length
+                                  ? config.universe.instrument_ids.includes(
+                                      item.instrument.instrument_id,
+                                    )
+                                  : members.items.length <= 20
                               }
-                              if (
-                                e.target.checked &&
-                                !ids.includes(i.instrument.instrument_id) &&
-                                ids.length >= 20
-                              ) {
-                                setError("Select no more than 20 instruments.");
-                                return;
-                              }
-                              setConfig({
-                                ...config,
-                                universe: {
-                                  ...config.universe,
-                                  instrument_ids: e.target.checked
-                                    ? Array.from(
-                                        new Set([
-                                          ...ids,
-                                          i.instrument.instrument_id,
-                                        ]),
-                                      )
-                                    : ids.filter(
-                                        (x) => x !== i.instrument.instrument_id,
-                                      ),
-                                },
-                              });
-                            }}
-                          />
-                          {i.instrument.symbol}
-                          <small>{i.kind}</small>
-                        </label>
-                      ))}
-                  </div>
-                  <small>
-                    Snapshot captured when you run. Maximum 20 instruments.
-                  </small>
-                </>
+                              onChange={(event) => {
+                                const id = item.instrument.instrument_id;
+                                const current = config.universe.instrument_ids
+                                  .length
+                                  ? config.universe.instrument_ids
+                                  : members.items
+                                      .slice(0, 20)
+                                      .map(
+                                        (member) =>
+                                          member.instrument.instrument_id,
+                                      );
+                                if (
+                                  event.target.checked &&
+                                  current.length >= 20
+                                ) {
+                                  setError(
+                                    "Select no more than 20 instruments.",
+                                  );
+                                  return;
+                                }
+                                if (
+                                  !event.target.checked &&
+                                  current.length === 1
+                                ) {
+                                  setError(
+                                    "Keep at least one instrument selected.",
+                                  );
+                                  return;
+                                }
+                                setConfig({
+                                  ...config,
+                                  universe: {
+                                    ...config.universe,
+                                    instrument_ids: event.target.checked
+                                      ? [...current, id]
+                                      : current.filter((value) => value !== id),
+                                  },
+                                });
+                              }}
+                            />
+                            {item.instrument.symbol}
+                          </label>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+                </div>
               ) : config.universe.source === "CUSTOM" ? (
-                input(
-                  "NSE symbols",
-                  <textarea
-                    rows={4}
-                    placeholder="RELIANCE, INFY, M&M"
-                    value={custom}
-                    onChange={(e) => setCustom(e.target.value)}
-                  />,
-                )
+                customOpen || custom || config.universe.symbols.length ? (
+                  input(
+                    "NSE symbols",
+                    <textarea
+                      rows={4}
+                      placeholder="RELIANCE, INFY, M&M"
+                      value={custom}
+                      onChange={(event) => setCustom(event.target.value)}
+                    />,
+                  )
+                ) : null
               ) : (
-                <p>{catalog?.universe_limitation}</p>
+                <p>
+                  This legacy universe is unavailable. Choose a watchlist or
+                  Custom symbols.
+                </p>
               )}
+              <button
+                type="button"
+                className="sc-custom-action"
+                onClick={() => {
+                  source("CUSTOM");
+                  setCustomOpen(true);
+                }}
+              >
+                Custom symbols
+              </button>
               <h2>Scan Filters</h2>
               {Array.from(new Set(catalog?.fields.map((f) => f.category))).map(
                 (category) => (
@@ -1519,7 +1525,9 @@ export function ScannerWorkspace() {
                   busy ||
                   !config.filters.length ||
                   !filtersValid ||
-                  !["CUSTOM", "WATCHLIST"].includes(config.universe.source)
+                  !["CUSTOM", "WATCHLIST"].includes(config.universe.source) ||
+                  (config.universe.source === "WATCHLIST" &&
+                    (!config.universe.watchlist_id || !members))
                 }
                 onClick={() => void execute()}
               >
@@ -1648,10 +1656,10 @@ export function ScannerWorkspace() {
               {!run ? (
                 <div className="sc-empty">
                   <Icon name="scanners" />
-                  <h2>Build your next scan</h2>
+                  <h2>Ready to scan</h2>
                   <p>
-                    Choose a universe, load a template or add explicit filters,
-                    then Run Scan.
+                    Select a watchlist or enter Custom symbols, add filters,
+                    then click Run Scan.
                   </p>
                 </div>
               ) : !matches.length ? (

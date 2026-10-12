@@ -15,6 +15,7 @@ async function forward(
           route,
         ) ||
         new RegExp(`^derivatives/runs/${id}$`).test(route) ||
+        new RegExp(`^derivatives/watchlists/${id}/optionable$`).test(route) ||
         new RegExp(
           `^runs/${id}(/items/${id}/(reference|news|broker-instrument))?$`,
         ).test(route)

@@ -31,6 +31,7 @@ test("O4 catalog and owner-scoped routes forward through the scanner proxy", asy
     ["GET", "derivatives/saved"],
     ["GET", "derivatives/runs"],
     ["GET", `derivatives/runs/${id}`],
+    ["GET", `derivatives/watchlists/${id}/optionable`],
     ["POST", "derivatives/saved"],
     ["POST", "derivatives/runs"],
     ["PATCH", `derivatives/saved/${id}`],
@@ -47,7 +48,7 @@ test("O4 catalog and owner-scoped routes forward through the scanner proxy", asy
     );
     expect(fetcher.mock.lastCall?.[1].headers.get("Authorization")).toBeNull();
   }
-  expect(fetcher).toHaveBeenCalledTimes(7);
+  expect(fetcher).toHaveBeenCalledTimes(8);
 });
 
 test("scanner proxy rejects unlisted O4 paths without an upstream call", async () => {

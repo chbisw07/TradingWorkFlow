@@ -13,6 +13,7 @@ import {
   initialConfig,
   scannerApi,
   type FilterField,
+  type Catalog,
 } from "../src/lib/scanner";
 
 function field(
@@ -35,7 +36,7 @@ function field(
   };
 }
 
-const catalog = {
+const catalog: Catalog = {
   fields: [
     field({
       field: "rsi",
@@ -160,7 +161,21 @@ const catalog = {
       enum_values: ["LOW", "NORMAL", "ELEVATED", "HIGH"],
     }),
   ],
-  templates: [{ name: "RSI Oversold", filters: initialConfig.filters }],
+  templates: [
+    {
+      name: "RSI Oversold",
+      filters: [
+        {
+          field: "rsi",
+          operator: "<",
+          value: 30,
+          timeframe: "1d",
+          version: "1",
+          source: "internal",
+        },
+      ],
+    },
+  ],
   universes: { CUSTOM: true, WATCHLIST: true, INDEX: false },
   universe_limitation: "No verified constituent source",
 };
@@ -203,8 +218,15 @@ test("fresh Scanner UI separates equity and active derivatives workspace", async
   fireEvent.click(screen.getByText("＋ Add / edit filter"));
   await screen.findByRole("option", { name: "PE ratio" });
   expect(screen.getByRole("option", { name: "PE ratio" })).toBeDisabled();
-  fireEvent.click(screen.getByRole("button", { name: "Index" }));
-  expect(screen.getByText("No verified constituent source")).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Index" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Remove filter 1" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: /Watchlist: Choose watchlist/ }),
+  ).toBeVisible();
   expect(screen.getByRole("button", { name: "Run Scan" })).toBeDisabled();
   fireEvent.click(screen.getByRole("tab", { name: /Derivatives Scanner/ }));
   expect(
@@ -222,6 +244,8 @@ test("explicit real Dhan payload and acquisition failures never become no-match"
   render(<ScannerWorkspace />);
   fireEvent.click(screen.getByText("＋ Add / edit filter"));
   await screen.findByRole("option", { name: "RSI (14)" });
+  fireEvent.click(screen.getByRole("button", { name: /Add Filter/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Custom symbols" }));
   fireEvent.change(screen.getByLabelText("NSE symbols"), {
     target: { value: "INFY" },
   });
@@ -234,7 +258,7 @@ test("explicit real Dhan payload and acquisition failures never become no-match"
   expect(body.data_mode).toBe("REAL");
   expect(body.provider).toBe("dhan");
   expect(body.universe.symbols).toEqual(["INFY"]);
-  expect(body.filters[0]).toEqual(initialConfig.filters[0]);
+  expect(body.filters[0]).toEqual(catalog.templates[0].filters[0]);
 });
 test("filter chips edit conditions and clear all disables execution", async () => {
   mockFetch();
@@ -246,11 +270,11 @@ test("filter chips edit conditions and clear all disables execution", async () =
   });
   fireEvent.click(screen.getByRole("button", { name: /Add Filter/ }));
   expect(
-    screen.getByRole("button", { name: "Remove filter 2" }),
+    screen.getByRole("button", { name: "Remove filter 1" }),
   ).toHaveTextContent("40");
   fireEvent.click(screen.getByRole("button", { name: "Remove filter 1" }));
   expect(
-    screen.queryByRole("button", { name: "Remove filter 2" }),
+    screen.queryByRole("button", { name: "Remove filter 1" }),
   ).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Clear All" }));
   expect(screen.getByRole("button", { name: "Run Scan" })).toBeDisabled();
@@ -358,19 +382,23 @@ test("built-in watchlists share the provider-neutral selector and submit a bound
     });
 
   render(<ScannerWorkspace />);
-  fireEvent.click(await screen.findByRole("button", { name: "Watchlist" }));
-  const selector = screen.getByLabelText("Watchlist");
+  fireEvent.click(
+    await screen.findByRole("button", { name: /Watchlist: Choose watchlist/ }),
+  );
+  expect(screen.getByText("My Watchlists")).toBeInTheDocument();
+  expect(screen.getByText("Built-in Watchlists")).toBeInTheDocument();
   expect(
-    screen.getByRole("group", { name: "My Watchlists" }),
-  ).toBeInTheDocument();
-  expect(
-    screen.getByRole("group", { name: "Built-in Watchlists" }),
-  ).toBeInTheDocument();
-  expect(
-    screen.queryByRole("option", { name: /F&O 50/ }),
+    screen.queryByRole("button", { name: /F&O 50/ }),
   ).not.toBeInTheDocument();
-  fireEvent.change(selector, { target: { value: systemId } });
-  await screen.findByLabelText(/SYM21/);
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: /Nifty Bank, 21 constituents, built-in read-only/,
+    }),
+  );
+  await screen.findByText(/20 of 21 selected/);
+  fireEvent.click(screen.getByText("＋ Add / edit filter"));
+  await screen.findByRole("option", { name: "RSI (14)" });
+  fireEvent.click(screen.getByRole("button", { name: /Add Filter/ }));
   await waitFor(() =>
     expect(screen.getByRole("button", { name: "Run Scan" })).toBeEnabled(),
   );
@@ -487,7 +515,7 @@ test("enum fields use canonical selectors and typed chips", async () => {
   expect(within(enumValue).getByRole("option", { name: "Down" })).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: /Add Filter/ }));
   expect(
-    screen.getByRole("button", { name: "Remove filter 2" }),
+    screen.getByRole("button", { name: "Remove filter 1" }),
   ).toHaveTextContent("Supertrend direction (10,3) = Up");
 });
 
@@ -550,7 +578,7 @@ test("field comparison chip names both sides of the expression", async () => {
   });
   fireEvent.click(screen.getByRole("button", { name: /Add Filter/ }));
   expect(
-    screen.getByRole("button", { name: "Remove filter 2" }),
+    screen.getByRole("button", { name: "Remove filter 1" }),
   ).toHaveTextContent("Prior 20-day high > SMA (20)");
 });
 
@@ -586,6 +614,10 @@ test("Market Context defaults to ranking and hard filters use typed enum control
   expect(
     screen.getByRole("button", { name: "Remove context filter 1" }),
   ).toHaveTextContent("India VIX state ≠ HIGH");
+  fireEvent.click(screen.getByText("＋ Add / edit filter"));
+  await screen.findByRole("option", { name: "RSI (14)" });
+  fireEvent.click(screen.getByRole("button", { name: /Add Filter/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Custom symbols" }));
   fireEvent.change(screen.getByLabelText("NSE symbols"), {
     target: { value: "INFY" },
   });
@@ -749,6 +781,10 @@ test("stored deterministic Reason opens complete no-LLM Evidence analysis", asyn
   await screen.findByText("Context: RANKING");
   expect(document.querySelector(".sc-inspector")).not.toBeInTheDocument();
   expect(document.querySelector(".sc-grid")).not.toHaveClass("has-detail");
+  fireEvent.click(screen.getByText("＋ Add / edit filter"));
+  await screen.findByRole("option", { name: "RSI (14)" });
+  fireEvent.click(screen.getByRole("button", { name: /Add Filter/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Custom symbols" }));
   fireEvent.change(screen.getByLabelText("NSE symbols"), {
     target: { value: "RELIANCE" },
   });
@@ -793,4 +829,65 @@ test("stored deterministic Reason opens complete no-LLM Evidence analysis", asyn
   expect(
     screen.getByText("1/1 technical · Context +1 Mixed · Final 81"),
   ).toBeInTheDocument();
+});
+
+test("derivatives uses the same top selector and only O2-optionable watchlist underlyings", async () => {
+  const key = "44444444-4444-4444-8444-444444444444";
+  const fetcher = vi.spyOn(global, "fetch").mockImplementation(async (url) => {
+    const path = String(url);
+    if (path.endsWith("/api/v1/watchlists"))
+      return Response.json([
+        {
+          id: key,
+          name: "Nifty Pharma",
+          count: 20,
+          ownership_kind: "SYSTEM",
+          read_only: true,
+          archived: false,
+          enabled: true,
+        },
+      ]);
+    if (path.endsWith(`/api/v1/watchlists/${key}`))
+      return Response.json({ id: key, name: "Nifty Pharma", items: [] });
+    if (path.endsWith(`/derivatives/watchlists/${key}/optionable`))
+      return Response.json({
+        watchlist_id: key,
+        members: 20,
+        optionable: 1,
+        symbols: ["SUNPHARMA"],
+        max_underlyings: 5,
+      });
+    if (path.endsWith("/derivatives/catalog"))
+      return Response.json({ fields: [], max_underlyings: 5 });
+    if (path.endsWith("/catalog")) return Response.json(catalog);
+    return Response.json([]);
+  });
+  render(<ScannerWorkspace />);
+  fireEvent.click(screen.getByRole("tab", { name: /Derivatives Scanner/ }));
+  const trigger = await screen.findByRole("button", {
+    name: "Watchlist: Choose watchlist",
+  });
+  fireEvent.click(trigger);
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: /Nifty Pharma, 20 constituents, built-in read-only/,
+    }),
+  );
+  expect(await screen.findByText(/20 watchlist members/)).toHaveTextContent(
+    "1 optionable",
+  );
+  expect(screen.getByText(/20 watchlist members/)).toHaveTextContent(
+    "1 selected",
+  );
+  expect(
+    screen.getByLabelText("Active derivatives scan configuration"),
+  ).toHaveTextContent("Nifty Pharma");
+  expect(
+    screen.queryByRole("combobox", { name: "Watchlist" }),
+  ).not.toBeInTheDocument();
+  expect(
+    fetcher.mock.calls.some(([url]) =>
+      String(url).endsWith(`/derivatives/watchlists/${key}/optionable`),
+    ),
+  ).toBe(true);
 });

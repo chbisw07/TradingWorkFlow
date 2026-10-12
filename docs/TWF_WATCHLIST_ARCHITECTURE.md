@@ -337,3 +337,7 @@ alphabetical sectors with Unknown last, Large/Mid/Small, Up/Sideways/Down, and
 Gainers/Flat/Losers/Unavailable. Grouping reads row data even when its corresponding
 column is hidden. Column and group choices remain component-local because Watchlists
 has no saved table-preference contract.
+
+## Scanner selection surface (October 2026)
+
+Scanner reuses the existing Watchlists list/detail contracts. Its top selector separates user lists from locked system lists and searches local list metadata. The Scanner popover is selection-only; create, favorite, and management actions remain in the Watchlists workspace. Scan execution captures a universe snapshot; later edits to user lists or published system membership affect future scans only.

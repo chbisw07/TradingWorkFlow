@@ -305,21 +305,12 @@ export async function scannerApi<T>(
   return value as T;
 }
 export const initialConfig: Config = {
-  name: "RSI Oversold",
+  name: "New equity scan",
   scanner_type: "EQUITY_INDEX",
   data_mode: "REAL",
   provider: "dhan",
   universe: { source: "CUSTOM", symbols: [], instrument_ids: [] },
-  filters: [
-    {
-      field: "rsi",
-      operator: "<",
-      value: 30,
-      timeframe: "1d",
-      version: "1",
-      source: "internal",
-    },
-  ],
+  filters: [],
   context_mode: "RANKING",
   context_filters: [],
   sort: "relevance",

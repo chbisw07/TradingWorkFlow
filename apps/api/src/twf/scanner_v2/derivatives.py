@@ -738,6 +738,33 @@ class DerivativeScannerService:
                 raise WatchlistFailure("SCAN_NOT_FOUND", 404)
             return dict(row.payload)
 
+    async def watchlist_optionability(
+        self,
+        watchlist_id: UUID,
+        provider: DhanMarketDataProvider,
+        chain_service: OptionChainService,
+    ) -> dict[str, Any]:
+        """Project the current owner-scoped watchlist through the active O2 master."""
+        if self.system_universes and self.system_universes.definition(watchlist_id):
+            snap = await self.system_universes.snapshot(watchlist_id, provider)
+        else:
+            snap = WatchlistService(self.factory, self.owner).snapshot(watchlist_id)
+        members = tuple(dict.fromkeys(item.symbol for item in snap.instruments))
+        try:
+            async with asyncio.timeout(30):
+                active = await chain_service.active(datetime.now(UTC))
+        except (ChainFailure, MarketDataFailure, TimeoutError) as exc:
+            raise WatchlistFailure("OPTION_MASTER_UNAVAILABLE", 503) from exc
+        optionable = {contract.underlying_symbol for contract in active}
+        eligible = tuple(symbol for symbol in members if symbol in optionable)
+        return {
+            "watchlist_id": str(watchlist_id),
+            "members": len(members),
+            "optionable": len(eligible),
+            "symbols": eligible,
+            "max_underlyings": MAX_UNDERLYINGS,
+        }
+
     async def execute(
         self,
         config: DerivativeScanConfig,
@@ -763,8 +790,6 @@ class DerivativeScannerService:
             if config.universe.symbols and set(config.universe.symbols) - set(available):
                 raise WatchlistFailure("WATCHLIST_SELECTION_CHANGED", 409)
             symbols = config.universe.symbols or available
-        if not 1 <= len(symbols) <= MAX_UNDERLYINGS:
-            raise WatchlistFailure("SELECT_1_TO_5_UNDERLYINGS", 422)
         rows: list[dict[str, Any]] = []
         underlyings: list[dict[str, Any]] = []
         master_error: str | None = None
@@ -777,6 +802,12 @@ class DerivativeScannerService:
         by_symbol: dict[str, set[date]] = {}
         for contract in active:
             by_symbol.setdefault(contract.underlying_symbol, set()).add(contract.expiry)
+        if config.universe.source == "WATCHLIST" and not config.universe.symbols:
+            if master_error:
+                raise WatchlistFailure("OPTION_MASTER_UNAVAILABLE", 503)
+            symbols = tuple(symbol for symbol in symbols if symbol in by_symbol)
+        if not 1 <= len(symbols) <= MAX_UNDERLYINGS:
+            raise WatchlistFailure("SELECT_1_TO_5_UNDERLYINGS", 422)
         technical_active = bool({f.field for f in config.filters} & TECHNICAL_FIELDS)
         with self.factory() as db:
             metadata_service = InstrumentMetadataService(db)
@@ -933,11 +964,13 @@ class DerivativeScannerService:
             )
         )
         key = uuid4()
+        archived_config = config.model_dump(mode="json")
+        archived_config["universe"]["symbols"] = list(symbols)
         result = {
             "id": str(key),
             "created_at": now.isoformat(),
             "completed_at": datetime.now(UTC).isoformat(),
-            "config": config.model_dump(mode="json"),
+            "config": archived_config,
             "data_mode": "REAL",
             "market_data_provider": "dhan",
             "generation": generation,

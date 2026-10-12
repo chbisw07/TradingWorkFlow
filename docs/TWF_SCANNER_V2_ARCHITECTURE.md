@@ -639,3 +639,11 @@ owner-scoped run JSON. Historical views read that JSON unchanged. OI
 interpretation does not participate in O4 MATCH, hidden ranking, trade
 availability, or automatic execution. The definitions, bounded comparison
 window and O5 boundary are in TWF_OPTIONS_ARCHITECTURE.md.
+
+## Unified watchlist-first Scanner setup (October 2026)
+
+Both Equity / Index and Derivatives use the same top-toolbar Watchlist selector, immediately before Scan Templates. It reads the existing owner-scoped Watchlists API; user lists and the system-universe registry appear in separate searchable sections. System lists carry an explicit lock/read-only label and have no edit action in Scanner. The Scanner popover contains only search and selectable user/system lists; creation, favorites, and management remain in the Watchlists workspace. A favorite is a display preference, not an automatic scan selection.
+
+A fresh Scanner load has no selected watchlist and no active technical predicate. Equity starts with an empty Custom universe and no filters; Derivatives starts with an empty Custom underlying set and no filters. Choosing a watchlist or entering Custom symbols is explicit. Saved setups and templates can restore their stored predicates when explicitly loaded. The old Index, Sector, and Market picker tabs are absent from Scanner; system watchlists remain the authoritative way to select those published constituent sets.
+
+Equity snapshots the selected watchlist at execution. The current maximum is 20 instruments. When a list has more, Scanner selects the first 20 in published order and states `20 of N selected — current scanner limit`; users can adjust that subset before running. Historical runs retain their submitted universe snapshot, independent of later user or system watchlist changes. Custom one-off symbols remain available in the left builder.
