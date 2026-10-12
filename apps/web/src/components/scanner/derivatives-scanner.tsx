@@ -472,9 +472,7 @@ export function DerivativesScanner() {
       .then(setSaved)
       .catch(() => setError("Saved derivatives scans could not be loaded."));
     void watchApi<Watchlist[]>("")
-      .then((w) =>
-        setLists(w.filter((x) => !x.archived && x.enabled !== false)),
-      )
+      .then((w) => setLists(w.filter((x) => !x.archived)))
       .catch(() => setError("Watchlists could not be loaded."));
     void brokerApi<Account[]>("accounts")
       .then(async (accounts) => {
@@ -614,6 +612,14 @@ export function DerivativesScanner() {
     setError("");
   }
   async function execute() {
+    if (
+      config.universe.source === "WATCHLIST" &&
+      lists.find((list) => list.id === config.universe.watchlist_id)
+        ?.enabled === false
+    ) {
+      setError("This watchlist is not ready for scanning yet.");
+      return;
+    }
     const symbols =
       config.universe.source === "CUSTOM"
         ? parseSymbols(raw)
@@ -1310,7 +1316,12 @@ export function DerivativesScanner() {
           <div className="derivative-run">
             <button
               className="wl-primary"
-              disabled={busy}
+              disabled={
+                busy ||
+                (config.universe.source === "WATCHLIST" &&
+                  lists.find((list) => list.id === config.universe.watchlist_id)
+                    ?.enabled === false)
+              }
               onClick={() => void execute()}
             >
               {busy ? "Scanning…" : "Run Scan"}

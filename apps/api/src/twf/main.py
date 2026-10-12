@@ -52,6 +52,7 @@ from twf.options.chain_service import ChainFailure
 from twf.preferences import SettingsFailure
 from twf.scanner_v2.service import ScannerHistory
 from twf.schemas import ErrorResponse
+from twf.watchlists.fno_liquidity import FnoLiquidityCache
 from twf.watchlists.market import WatchlistHistoryCache, WatchlistQuoteCache
 from twf.watchlists.reference import WatchlistReferenceCache
 from twf.watchlists.service import WatchlistFailure
@@ -90,7 +91,9 @@ def create_app(
         app.state.watchlist_history = WatchlistHistoryCache()
         app.state.watchlist_reference = WatchlistReferenceCache()
         if getattr(app.state, "system_universes", None) is None:
-            app.state.system_universes = SystemUniverseCatalog()
+            app.state.system_universes = SystemUniverseCatalog(
+                liquidity=FnoLiquidityCache(app.state.session_factory)
+            )
         app.state.auth_dummy_hash = PasswordHasher().hash(secrets.token_urlsafe(32))
         app.state.initialized = True
         logger.info("application_started")

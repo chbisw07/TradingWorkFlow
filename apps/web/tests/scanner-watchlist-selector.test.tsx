@@ -2,7 +2,7 @@ import { expect, test, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { ScannerWatchlistSelector } from "../src/components/scanner/watchlist-selector";
-import type { Watchlist } from "../src/lib/watchlists";
+import { watchlistReadinessLabel, type Watchlist } from "../src/lib/watchlists";
 
 const base = {
   description: "",
@@ -38,11 +38,11 @@ const builtIn = {
   system_code: "NIFTY_PHARMA",
 } as Watchlist;
 
-function Harness() {
+function Harness({ extra = [] }: { extra?: Watchlist[] }) {
   const [selected, setSelected] = useState("");
   return (
     <ScannerWatchlistSelector
-      lists={[personal, builtIn]}
+      lists={[personal, builtIn, ...extra]}
       selectedId={selected}
       onSelect={setSelected}
     />
@@ -122,4 +122,110 @@ test("keyboard focus can move through lists and Escape returns to trigger", () =
   fireEvent.keyDown(document.activeElement as Element, { key: "Escape" });
   expect(trigger).toHaveFocus();
   expect(trigger).toHaveAttribute("aria-expanded", "false");
+});
+
+test("ranked F&O built-ins are discoverable and selection preserves the lock", () => {
+  const ranked = [50, 100, 200].map((size) => ({
+    ...builtIn,
+    id: `00000000-0000-0000-0000-${String(size).padStart(12, "0")}`,
+    name: `F&O Liquidity ${size}`,
+    count: size,
+    system_code: `FNO_LIQUIDITY_${size}`,
+    readiness: {
+      state: "READY",
+      completed_sessions_collected: 3,
+      minimum_sessions_required: 3,
+      lookback_sessions_target: 20,
+      as_of_date: "2026-10-12",
+      generated_at: "2026-10-12T10:15:00Z",
+      stale: false,
+      methodology_version: "v1",
+      last_error_category: null,
+      last_success_at: "2026-10-12T10:15:00Z",
+      earliest_session: "2026-10-08",
+      latest_session: "2026-10-12",
+      observation_count_used: 3,
+    },
+  })) as Watchlist[];
+  render(<Harness extra={ranked} />);
+  fireEvent.click(
+    screen.getByRole("button", { name: "Watchlist: Choose watchlist" }),
+  );
+  fireEvent.change(screen.getByRole("textbox", { name: "Search watchlists" }), {
+    target: { value: "liquidity" },
+  });
+  for (const size of [50, 100, 200]) {
+    expect(
+      screen.getByRole("button", {
+        name: `F&O Liquidity ${size}, ${size} constituents, built-in read-only, ${size} constituents · Ready`,
+      }),
+    ).toHaveTextContent("🔒");
+  }
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: "F&O Liquidity 50, 50 constituents, built-in read-only, 50 constituents · Ready",
+    }),
+  );
+  expect(
+    screen.getByRole("button", { name: /Watchlist: F&O Liquidity 50/ }),
+  ).toHaveTextContent("🔒");
+});
+
+test("ranked readiness labels distinguish building, stale, credentials and provider failure", () => {
+  const ranked = {
+    ...builtIn,
+    id: "00000000-0000-0000-0000-000000000050",
+    name: "F&O Liquidity 50",
+    system_code: "FNO_LIQUIDITY_50",
+    count: 0,
+    enabled: false,
+    availability: "UNAVAILABLE",
+    readiness: {
+      state: "BUILDING_HISTORY",
+      completed_sessions_collected: 2,
+      minimum_sessions_required: 3,
+      lookback_sessions_target: 20,
+      as_of_date: null,
+      generated_at: null,
+      stale: false,
+      methodology_version: "v1",
+      last_error_category: null,
+      last_success_at: null,
+      earliest_session: null,
+      latest_session: null,
+      observation_count_used: null,
+    },
+  } as Watchlist;
+  render(<Harness extra={[ranked]} />);
+  fireEvent.click(
+    screen.getByRole("button", { name: "Watchlist: Choose watchlist" }),
+  );
+  const item = screen.getByRole("button", {
+    name: /F&O Liquidity 50.*Building liquidity history/,
+  });
+  expect(item).toBeDisabled();
+  expect(item).toHaveTextContent("Building liquidity history · 2/3 sessions");
+  expect(
+    watchlistReadinessLabel({
+      ...ranked,
+      readiness: {
+        ...ranked.readiness!,
+        state: "STALE",
+        as_of_date: "2026-10-11",
+      },
+      count: 50,
+    }),
+  ).toContain("Stale");
+  expect(
+    watchlistReadinessLabel({
+      ...ranked,
+      readiness: { ...ranked.readiness!, state: "CREDENTIAL_UNAVAILABLE" },
+    }),
+  ).toBe("Credentials unavailable");
+  expect(
+    watchlistReadinessLabel({
+      ...ranked,
+      readiness: { ...ranked.readiness!, state: "PROVIDER_UNAVAILABLE" },
+    }),
+  ).toBe("Provider temporarily unavailable");
 });

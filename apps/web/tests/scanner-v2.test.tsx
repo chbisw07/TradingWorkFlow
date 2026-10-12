@@ -403,7 +403,7 @@ test("built-in watchlists share the provider-neutral selector and submit a bound
           },
           {
             id: "33333333-3333-4333-8333-333333333333",
-            name: "F&O 50",
+            name: "F&O Liquidity 50",
             count: 0,
             archived: false,
             ownership_kind: "SYSTEM",
@@ -443,8 +443,8 @@ test("built-in watchlists share the provider-neutral selector and submit a bound
   expect(screen.getByText("My Watchlists")).toBeInTheDocument();
   expect(screen.getByText("Built-in Watchlists")).toBeInTheDocument();
   expect(
-    screen.queryByRole("button", { name: /F&O 50/ }),
-  ).not.toBeInTheDocument();
+    screen.getByRole("button", { name: /F&O Liquidity 50/ }),
+  ).toBeDisabled();
   fireEvent.click(
     screen.getByRole("button", {
       name: /Nifty Bank, 21 constituents, built-in read-only/,

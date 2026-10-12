@@ -51,14 +51,60 @@ export type Watchlist = {
   read_only: boolean;
   system_code: string | null;
   enabled: boolean;
-  availability: "READY" | "PARTIAL" | "DEFINITION_PENDING";
+  availability:
+    "READY" | "PARTIAL" | "STALE" | "UNAVAILABLE" | "DEFINITION_PENDING";
   pending_reason: string | null;
   expected_count: number | null;
   instrument_type_summary: Kind[];
   source_reference: string | null;
   source_received_at: string | null;
   freshness: "CURRENT" | "STALE" | "NOT_LOADED";
+  readiness?: {
+    state:
+      | "READY"
+      | "BUILDING_HISTORY"
+      | "STALE"
+      | "CREDENTIAL_UNAVAILABLE"
+      | "PROVIDER_UNAVAILABLE"
+      | "INSUFFICIENT_HISTORY"
+      | "UNAVAILABLE";
+    completed_sessions_collected: number;
+    minimum_sessions_required: number;
+    lookback_sessions_target: number;
+    as_of_date: string | null;
+    generated_at: string | null;
+    stale: boolean;
+    methodology_version: string;
+    last_error_category: string | null;
+    last_success_at: string | null;
+    earliest_session: string | null;
+    latest_session: string | null;
+    observation_count_used: number | null;
+  } | null;
 };
+
+export function watchlistReadinessLabel(list: Watchlist): string | null {
+  if (!list.system_code?.startsWith("FNO_LIQUIDITY_")) return null;
+  const ready = list.readiness;
+  if (!ready) return "Unavailable · insufficient liquidity history";
+  switch (ready.state) {
+    case "READY":
+      return `${list.count} constituents · Ready`;
+    case "STALE":
+      return `${list.count} constituents · Stale · updated ${ready.as_of_date || "unknown"}`;
+    case "BUILDING_HISTORY":
+      return `Building liquidity history · ${ready.completed_sessions_collected}/${ready.minimum_sessions_required} sessions`;
+    case "CREDENTIAL_UNAVAILABLE":
+      return "Credentials unavailable";
+    case "PROVIDER_UNAVAILABLE":
+      return "Provider temporarily unavailable";
+    case "INSUFFICIENT_HISTORY":
+      return `Unavailable · insufficient history (${ready.completed_sessions_collected}/${ready.minimum_sessions_required} sessions)`;
+    default:
+      return "Temporarily unavailable";
+  }
+}
+
 export type WatchDetail = Watchlist & {
   unresolved_count?: number;
   items: WatchItem[];

@@ -35,6 +35,30 @@ const builtIn = {
   read_only: true,
   system_code: "NIFTY_PHARMA",
 };
+const building = {
+  ...builtIn,
+  id: "99999999-9999-4999-8999-999999999999",
+  name: "F&O Liquidity 50",
+  count: 0,
+  enabled: false,
+  availability: "UNAVAILABLE",
+  system_code: "FNO_LIQUIDITY_50",
+  readiness: {
+    state: "BUILDING_HISTORY",
+    completed_sessions_collected: 2,
+    minimum_sessions_required: 3,
+    lookback_sessions_target: 20,
+    as_of_date: null,
+    generated_at: null,
+    stale: false,
+    methodology_version: "v1",
+    last_error_category: null,
+    last_success_at: null,
+    earliest_session: null,
+    latest_session: null,
+    observation_count_used: null,
+  },
+};
 
 test("unified watchlist-first scanner clean, popover and built-in states", async ({
   page,
@@ -51,7 +75,7 @@ test("unified watchlist-first scanner clean, popover and built-in states", async
   expect(login.ok()).toBe(true);
   await page.route("**/api/v1/watchlists", async (route) => {
     if (route.request().method() === "GET")
-      await route.fulfill({ json: [personal, builtIn] });
+      await route.fulfill({ json: [personal, builtIn, building] });
     else await route.continue();
   });
   await page.route(`**/api/v1/watchlists/${userId}`, async (route) => {
@@ -140,6 +164,11 @@ test("unified watchlist-first scanner clean, popover and built-in states", async
       name: /Nifty Pharma, 20 constituents, built-in read-only/,
     }),
   ).toBeVisible();
+  const buildingChoice = page.getByRole("button", {
+    name: /F&O Liquidity 50.*Building liquidity history/,
+  });
+  await expect(buildingChoice).toBeDisabled();
+  await expect(buildingChoice).toContainText("2/3 sessions");
   await expect(page.getByText(/Create New Watchlist/)).toHaveCount(0);
   await expect(page.getByText(/Manage Watchlists/)).toHaveCount(0);
   await expect(

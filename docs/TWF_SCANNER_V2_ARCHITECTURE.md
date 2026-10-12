@@ -663,3 +663,20 @@ Charts and the Instrument Analysis Overview render the run's archived Dhan compl
 Cards share one range state, defaulting to 3M: 1M/3M/6M/1Y show at most 22/66/132/252 archived daily bars. Changing range updates every card and the Instrument Analysis Overview without a scan or data request. The chart's compact axes and per-bar tooltip display only values present in the archive. Each card exposes canonical result selection, Why? (existing Evidence tab), Open chart (existing Instrument Analysis Overview), bulk checkbox, and the unchanged exact Broker V2 Buy/Sell ticket handoff. Opening a ticket still requires an equity instrument, a capable account, and the existing exact broker-contract mapping; no order is placed by the card.
 
 The responsive grid uses the actual results-panel width and limits cards to one, two, or three columns. Opening the conditional right panel reduces that width; closing it restores the grid. The selected card receives a subtle border. The previous Table and Derivatives Scanner layout remains separate. The Scanner has no result pagination today: the bounded maximum is 20 requested instruments, so Charts presents the same complete matched set as Table.
+
+### F&O liquidity built-in universes
+
+F&O Liquidity 50/100/200 are TWF-ranked, read-only NSE F&O stock-underlying
+watchlists. The shared selector receives them from the watchlist API without
+frontend membership copies. The Equity/Index Scanner scans selected members as
+NSE equities and retains its 20-instrument request maximum; selecting a larger
+list requires an explicit subset, never an implied full scan. The Derivatives
+Scanner treats selected members as underlying candidates and still revalidates
+active option contracts with O2/O4. Its five-underlying limit remains in force.
+A ranked list without a valid snapshot is disabled in the shared selector,
+which shows collected-session progress or a credential/provider failure. A
+ready or stale-valid list is selectable, subject to current Dhan credential
+capture. Each run archives the exact selected membership, methodology version,
+and source freshness where available, so later ranking refreshes cannot rewrite
+historical runs. Historical futures bootstrap is deferred because current Dhan
+master resolution cannot establish expiry-safe nearest contracts for past dates.

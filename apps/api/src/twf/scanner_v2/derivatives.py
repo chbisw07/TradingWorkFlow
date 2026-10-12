@@ -774,6 +774,7 @@ class DerivativeScannerService:
         history_cache: ScannerHistory,
     ) -> dict[str, Any]:
         now = datetime.now(UTC)
+        universe_snapshot: dict[str, Any] | None = None
         if config.universe.source == "CUSTOM":
             symbols = config.universe.symbols
         else:
@@ -786,6 +787,7 @@ class DerivativeScannerService:
                 snap = WatchlistService(self.factory, self.owner).snapshot(
                     config.universe.watchlist_id
                 )
+            universe_snapshot = snap.model_dump(mode="json")
             available = tuple(dict.fromkeys(item.symbol for item in snap.instruments))
             if config.universe.symbols and set(config.universe.symbols) - set(available):
                 raise WatchlistFailure("WATCHLIST_SELECTION_CHANGED", 409)
@@ -971,6 +973,7 @@ class DerivativeScannerService:
             "created_at": now.isoformat(),
             "completed_at": datetime.now(UTC).isoformat(),
             "config": archived_config,
+            "universe_snapshot": universe_snapshot,
             "data_mode": "REAL",
             "market_data_provider": "dhan",
             "generation": generation,

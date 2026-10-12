@@ -100,6 +100,7 @@ def test_database_boundary() -> None:
             "scanner_v2_saved",
             "instrument_metadata",
             "instrument_metadata_refreshes",
+            "fno_liquidity_cache",
         }
         assert not inspect(engine).get_table_names()
     finally:

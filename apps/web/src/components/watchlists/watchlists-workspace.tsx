@@ -28,6 +28,7 @@ import {
   sessionDate,
   type WatchReference,
   watchApi,
+  watchlistReadinessLabel,
   type Kind,
   type WatchBar,
   type WatchChart,
@@ -216,6 +217,7 @@ export function WatchlistsWorkspace() {
               source_received_at: next.source_received_at,
               freshness: next.freshness,
               availability: next.availability,
+              readiness: next.readiness,
             }
           : list,
       ),
@@ -1139,9 +1141,10 @@ export function WatchlistsWorkspace() {
                   <span>
                     <strong>{l.name}</strong>
                     <small>
-                      {l.enabled
-                        ? l.count + " constituents"
-                        : "Definition pending"}
+                      {watchlistReadinessLabel(l) ||
+                        (l.enabled
+                          ? l.count + " constituents"
+                          : "Definition pending")}
                     </small>
                     <span className="wl-list-types">
                       {(l.instrument_type_summary || []).map((kind) => (

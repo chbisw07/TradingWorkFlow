@@ -491,3 +491,133 @@ def test_built_in_watchlist_scan_persists_immutable_resolved_snapshot(
     )
     assert rejected.status_code == 409
     assert rejected.json()["error"]["code"] == "READ_ONLY_SYSTEM_WATCHLIST"
+
+
+def test_dynamic_fno_scan_archives_original_ranked_membership(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from datetime import UTC, datetime
+    from types import SimpleNamespace
+    from typing import cast
+
+    from twf.watchlists.fno_liquidity import FnoLiquidityCache
+    from twf.watchlists.system import SystemUniverseCatalog
+
+    app = cast(Any, client.app)
+    liquidity = FnoLiquidityCache(app.state.session_factory)
+    now = datetime.now(UTC).isoformat()
+    ranking = {
+        "ranked": [
+            {"symbol": "RELIANCE", "rank": 1, "score": 1.0},
+            {"symbol": "INFY", "rank": 2, "score": 0.0},
+        ],
+        "generated_at": now,
+        "as_of_date": datetime.now(UTC).date().isoformat(),
+        "methodology_version": "v1",
+        "source": "Dhan completed futures quotes",
+        "observations": [],
+        "last_observed_date": datetime.now(UTC).date().isoformat(),
+    }
+    liquidity._save(ranking)
+    app.state.system_universes = SystemUniverseCatalog(liquidity=liquidity)
+    live = provider()
+    live._master = (
+        *live._master,
+        *(
+            {
+                "SEM_EXM_EXCH_ID": "NSE",
+                "SEM_SEGMENT": "D",
+                "SEM_SMST_SECURITY_ID": str(identifier),
+                "SEM_INSTRUMENT_NAME": asset,
+                "SEM_TRADING_SYMBOL": f"{symbol}99DEC{asset}",
+                "SEM_CUSTOM_SYMBOL": symbol,
+                "SEM_EXCH_INSTRUMENT_TYPE": "",
+                "SEM_SERIES": "",
+                "SM_SYMBOL_NAME": symbol,
+                "SEM_EXPIRY_DATE": "2099-12-30",
+                "SEM_STRIKE_PRICE": "100",
+                "SEM_OPTION_TYPE": "CE",
+            }
+            for identifier, symbol, asset in (
+                (101, "RELIANCE", "FUTSTK"),
+                (102, "RELIANCE", "OPTSTK"),
+                (103, "INFY", "FUTSTK"),
+                (104, "INFY", "OPTSTK"),
+            )
+        ),
+    )
+
+    async def history(instrument: Any, interval: str, **kwargs: Any) -> Any:
+        value = series(
+            [float(n) for n in range(100, 401)],
+            instrument=instrument,
+            interval="1d",
+            step=86400,
+        )
+        return value.model_copy(
+            update={
+                "provenance": value.provenance.model_copy(
+                    update={
+                        "mode": SourceMode.EOD,
+                        "producer": value.provenance.producer.model_copy(
+                            update={"provider": "dhan"}
+                        ),
+                    }
+                )
+            }
+        )
+
+    monkeypatch.setattr(live, "get_ohlcv", history)
+    monkeypatch.setattr(
+        app.state.dhan_credentials,
+        "capture",
+        lambda *args, **kwargs: SimpleNamespace(
+            provider=live, status=SimpleNamespace(generation=12)
+        ),
+    )
+    built_in = next(
+        row
+        for row in client.get("/api/v1/watchlists").json()
+        if row["system_code"] == "FNO_LIQUIDITY_50"
+    )
+    requested = config(universe={"source": "WATCHLIST", "watchlist_id": built_in["id"]})
+    response = client.post(BASE + "/runs", json=requested, headers=HEADERS)
+    assert response.status_code == 200, response.text
+    run = response.json()
+    snapshot = run["universe_snapshot"]
+    assert snapshot["methodology_version"] == "v1"
+    assert [item["symbol"] for item in snapshot["instruments"]] == ["RELIANCE", "INFY"]
+    liquidity._save(
+        {
+            **ranking,
+            "ranked": [
+                {"symbol": "INFY", "rank": 1, "score": 1.0},
+                {"symbol": "RELIANCE", "rank": 2, "score": 0.0},
+            ],
+        }
+    )
+    persisted = client.get(BASE + "/runs/" + run["id"]).json()
+    assert persisted["universe_snapshot"] == snapshot
+    # A cached rank is not proof that the stock still has an active option.
+    live._master = tuple(
+        row
+        for row in live._master
+        if not (row["SM_SYMBOL_NAME"] == "INFY" and row["SEM_INSTRUMENT_NAME"] == "OPTSTK")
+    )
+    detail = asyncio.run(app.state.system_universes.detail(built_in["id"], live))
+    assert detail["availability"] == "PARTIAL"
+    assert detail["unresolved_count"] == 1
+    assert [item["instrument"]["symbol"] for item in detail["items"]] == ["RELIANCE"]
+    from datetime import timedelta
+
+    liquidity._save(
+        {
+            **ranking,
+            "generated_at": (datetime.now(UTC) - timedelta(days=1)).isoformat(),
+            "as_of_date": (datetime.now(UTC) - timedelta(days=1)).date().isoformat(),
+        }
+    )
+    stale_snapshot = asyncio.run(app.state.system_universes.snapshot(built_in["id"], live))
+    assert stale_snapshot.source_freshness == "STALE"
+    assert [instrument.symbol for instrument in stale_snapshot.instruments] == ["RELIANCE"]
+    assert client.get(BASE + "/runs/" + run["id"]).json()["universe_snapshot"] == snapshot

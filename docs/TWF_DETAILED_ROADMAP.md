@@ -173,8 +173,10 @@ overlays/charts and the existing Broker V2 preview workflow. Eight read-only bui
 Nifty universes now resolve centrally from bounded official NSE Indices constituent
 CSV caches; they can be inspected, exported, copied into custom lists and used by
 Scanner V2 through the same `WATCHLIST` source. Scanner runs persist the immutable
-resolved membership snapshot and selected subset. F&O 50/100 remain disabled as
-Definition pending until an accepted eligibility source exists. Discovery inbound
+resolved membership snapshot and selected subset. TWF-defined F&O Liquidity
+50/100/200 built-ins now use a governed Dhan futures volume/OI ranking. They
+remain unavailable until three completed-session observations accumulate;
+no provisional members are invented. Discovery inbound
 provenance remains explicit. Broader Universe Management is separate. Live official
 constituent, market and preview revalidation awaits current Dhan and broker credentials. See
 [architecture](TWF_WATCHLIST_ARCHITECTURE.md) and

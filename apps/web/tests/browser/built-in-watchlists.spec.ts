@@ -25,13 +25,20 @@ test("built-in watchlists are read-only, copyable and responsive", async ({
     name: "Built-in watchlists",
   });
   await expect(systemNavigation).toBeVisible();
-  await expect(systemNavigation.getByRole("button")).toHaveCount(10);
+  await expect(systemNavigation.getByRole("button")).toHaveCount(11);
   await expect(
-    systemNavigation.getByRole("button", { name: /F&O 50/ }),
+    systemNavigation.getByRole("button", { name: /F&O Liquidity 50/ }),
   ).toBeDisabled();
   await expect(
-    systemNavigation.getByRole("button", { name: /F&O 100/ }),
+    systemNavigation.getByRole("button", { name: /F&O Liquidity 100/ }),
   ).toBeDisabled();
+  await expect(
+    systemNavigation.getByRole("button", { name: /F&O Liquidity 200/ }),
+  ).toBeDisabled();
+  await expect(
+    systemNavigation.getByText("Credentials unavailable"),
+  ).toHaveCount(3);
+  await expect(systemNavigation.getByText("Definition pending")).toHaveCount(0);
   await systemNavigation.getByRole("button", { name: /Nifty Energy/ }).click();
   await page.getByLabel("Group by", { exact: true }).selectOption("SECTOR");
   await expect(

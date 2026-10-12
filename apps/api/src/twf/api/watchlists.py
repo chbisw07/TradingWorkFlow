@@ -127,8 +127,16 @@ async def watchlist_error(request: Request, exc: Exception) -> JSONResponse:
 
 
 @router.get("")
-def lists(service: Service, request: Request) -> list[dict[str, Any]]:
-    return [*service.list(), *systems(request).summaries()]
+async def lists(service: Service, request: Request, who: Who) -> list[dict[str, Any]]:
+    system = systems(request)
+    credential_available = False
+    if system.liquidity is not None:
+        credentials = cast(DhanCredentialManager, request.app.state.dhan_credentials)
+        capture = credentials.capture(who.owner_id, ready_only=True)
+        credential_available = isinstance(capture.provider, DhanMarketDataProvider)
+        if credential_available:
+            await system.liquidity.refresh(cast(DhanMarketDataProvider, capture.provider))
+    return [*service.list(), *system.summaries(credential_available=credential_available)]
 
 
 @router.post("", dependencies=[Depends(require_origin)], status_code=201)

@@ -1297,6 +1297,19 @@
 .sc-watchlist-item[aria-current="true"] {
   background: #e9f3ff;
 }
+.sc-watchlist-readiness {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--color-text-muted, #64748b);
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+.sc-watchlist-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
 .sc-watchlist-system {
   color: #79532c;
   background: #fff9ee;

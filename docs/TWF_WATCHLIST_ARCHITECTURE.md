@@ -29,10 +29,82 @@ returned to the UI.
 
 Membership symbols are resolved through the current owner's Dhan security master
 to exact NSE equity identities. Missing or ambiguous identities are omitted and the
-list is marked `PARTIAL`; membership is never fabricated. F&O 100 and F&O 50 are
-visible disabled TWF system-universe definitions marked **Definition pending**. No
-accepted repository/provider eligibility source exists, so they have no invented
-constituents and are not presented as official indices.
+list is marked `PARTIAL`; membership is never fabricated.
+
+## Dynamic System Watchlists — F&O Liquidity Universes
+
+**F&O Liquidity 50/100/200** are TWF-defined, system-owned, read-only ranked
+underlying watchlists, not official NSE/Nifty indices. The eligibility gate
+requires an NSE `EQ` equity, a current `FUTSTK`, and a current `OPTSTK` contract
+in Dhan's instrument master. A single ranked list supplies top 50, top 100,
+and top 200 slices, so nesting is automatic. Counts reflect available ranked
+members; they are never padded. Old `FNO_50`/`FNO_100` IDs resolve to the new
+definitions without duplicate navigation entries.
+
+Methodology `v1` uses the **nearest-expiry stock future** per eligible underlying.
+On the first watchlist list request after 15:45 IST on a weekday, one cached
+Dhan master read and one batch quote request (maximum 1,000 futures) collect
+positive futures volume and open interest with a provider source timestamp for
+that completed session. Quotes without same-date source time or positive values
+are excluded. The cache persists up to `LIQUIDITY_LOOKBACK_DAYS = 20` completed
+observations in `fno_liquidity_cache`; it attempts at most one refresh per
+process/trading date and never changes membership intraday. Exchange holidays
+cannot be predicted by the local clock: a no-data day adds no observation.
+A process restart can retry a failed date, but an already stored date is not
+requoted. No SQL transaction spans provider I/O.
+
+Historical bootstrap is deliberately **not supported in V1**. The existing
+Dhan daily OHLCV adapter can request futures volume and may return a dated OI
+array, but the current instrument master supplies current contracts only. It
+cannot prove which contract was the nearest-active future on each earlier
+session across an expiry rollover, nor that OI was present for every required
+bar. Querying today's contract for earlier dates would silently change the
+approved evidence basis. No historical OHLCV requests, guessed rolls, synthetic
+OI, or continuous futures series are used by this feature. The first valid
+ranking therefore appears after three prospective completed-session captures.
+
+At least **three completed observations per symbol** are required before it can
+rank. The rolling median of each available symbol's futures volume and open
+interest (up to 20 completed sessions) limits one-day spikes. Each component
+becomes a cross-sectional midrank percentile: `(first_equal_rank +
+last_equal_rank) / (2 × (N - 1))`, ascending, with a single eligible symbol
+scored 1. The score is `0.60 × volume_percentile + 0.40 ×
+open_interest_percentile`. Sort by descending score, then descending median
+volume, then symbol ascending. The weights sum to 100%; no cash-volume or
+opaque provider score enters this rank. Volume is an activity proxy, not
+notional turnover. Options volume/OI, spread, active-strike depth, and a
+separate consistency score are omitted because the current option-chain
+adapter requires per-underlying calls and provides no whole-universe daily
+history. The 20-session window fills over time; first-run lists remain
+`UNAVAILABLE` until the three-session gate is met. Coverage per member,
+score/rank, as-of date, generation time, source, and method version are stored.
+The cache also records the earliest/latest captured session, observation count
+used, last success time, and a coarse last-error category. Repeated same-day
+refreshes do not duplicate observations.
+
+The list API publishes per-owner readiness: `READY`, `BUILDING_HISTORY`,
+`STALE`, `CREDENTIAL_UNAVAILABLE`, `PROVIDER_UNAVAILABLE`, or
+`INSUFFICIENT_HISTORY`. It reports the highest per-symbol count of valid completed sessions
+alongside required/target counts, ranking dates and freshness; disjoint
+partial quote days do not falsely report 3/3 progress. The credential state is derived from the current
+owner-scoped capture and is never written into the global market-data cache.
+Without a usable rank, the built-in remains disabled with a progress or failure
+explanation in Watchlists and the shared Scanner selector; it is never shown as
+"Definition pending". A valid cached rank can remain usable after a provider
+refresh failure within the seven-day window and is labeled stale. If credentials
+are unavailable, the cached rank is preserved but new scanning is disabled
+because current F&O eligibility cannot be revalidated.
+
+Opening or scanning a ranked list rechecks its members against the current
+Dhan master F&O gate and omits delisted/expired contracts, marking the detail
+`PARTIAL`; this can reduce the actual count below the cached summary.
+A failed refresh retains the last valid ranking, marked `STALE` after 24 hours;
+reads reject it after seven days. With no valid cache, membership is unavailable
+rather than synthetic. Scanner runs persist the exact resolved membership and
+method version and source freshness used at execution. Ranking is not an investment recommendation,
+does not express bullish/bearish quality, and membership may change after a
+daily refresh. The global cache stores provider-derived public market facts,
+not owner credentials.
 
 The navigator separates **My Watchlists** from **Built-in Watchlists**. Built-ins
 show a lock/Built-in badge plus chips derived from actual member types. Official

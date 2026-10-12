@@ -1012,12 +1012,27 @@ test("built-in watchlists are grouped, read-only and copy into custom lists", as
   const pending = {
     ...system,
     id: "00000000-0000-0000-0000-000000000003",
-    name: "F&O 50",
-    system_code: "FNO_50",
+    name: "F&O Liquidity 50",
+    system_code: "FNO_LIQUIDITY_50",
     enabled: false,
-    availability: "DEFINITION_PENDING",
-    pending_reason: "Definition pending",
-    count: 50,
+    availability: "UNAVAILABLE",
+    pending_reason: null,
+    count: 0,
+    readiness: {
+      state: "BUILDING_HISTORY",
+      completed_sessions_collected: 1,
+      minimum_sessions_required: 3,
+      lookback_sessions_target: 20,
+      as_of_date: null,
+      generated_at: null,
+      stale: false,
+      methodology_version: "v1",
+      last_error_category: null,
+      last_success_at: null,
+      earliest_session: null,
+      latest_session: null,
+      observation_count_used: null,
+    },
   };
   const reliance = {
     instrument: {
@@ -1046,7 +1061,23 @@ test("built-in watchlists are grouped, read-only and copy into custom lists", as
     });
     if (path.endsWith("/brokers/accounts")) return Response.json([]);
     if (path.endsWith("/watchlists"))
-      return Response.json([custom, system, pending]);
+      return Response.json([
+        custom,
+        system,
+        pending,
+        {
+          ...pending,
+          id: "00000000-0000-0000-0000-000000000004",
+          name: "F&O Liquidity 100",
+          system_code: "FNO_LIQUIDITY_100",
+        },
+        {
+          ...pending,
+          id: "00000000-0000-0000-0000-000000000005",
+          name: "F&O Liquidity 200",
+          system_code: "FNO_LIQUIDITY_200",
+        },
+      ]);
     if (path.endsWith("/watchlists/" + custom.id))
       return Response.json({ ...custom, items: [], notes: [], activity: [] });
     if (path.endsWith("/watchlists/" + system.id))
@@ -1070,7 +1101,17 @@ test("built-in watchlists are grouped, read-only and copy into custom lists", as
   expect(
     await screen.findByRole("heading", { name: "Built-in Watchlists" }),
   ).toBeInTheDocument();
-  expect(await screen.findByRole("button", { name: /F&O 50/ })).toBeDisabled();
+  for (const size of [50, 100, 200]) {
+    expect(
+      await screen.findByRole("button", {
+        name: new RegExp(`F&O Liquidity ${size}`),
+      }),
+    ).toBeDisabled();
+  }
+  expect(
+    screen.getAllByText("Building liquidity history · 1/3 sessions"),
+  ).toHaveLength(3);
+  expect(screen.queryByText("Definition pending")).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: /Nifty Bank/ }));
   expect(
     await screen.findByRole("heading", { name: /Nifty Bank/ }),

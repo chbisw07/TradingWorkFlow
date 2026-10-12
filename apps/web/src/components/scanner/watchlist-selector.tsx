@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Watchlist } from "../../lib/watchlists";
+import { watchlistReadinessLabel, type Watchlist } from "../../lib/watchlists";
 
 type Props = {
   lists: Watchlist[];
@@ -143,11 +143,18 @@ export function ScannerWatchlistSelector({
                 key={list.id}
                 className="sc-watchlist-item sc-watchlist-system"
                 aria-current={selectedId === list.id ? "true" : undefined}
-                aria-label={`${list.name}, ${list.count} constituents, built-in read-only`}
+                aria-label={`${list.name}, ${list.count} constituents, built-in read-only${watchlistReadinessLabel(list) ? `, ${watchlistReadinessLabel(list)}` : ""}`}
+                disabled={!list.enabled}
+                title={watchlistReadinessLabel(list) || list.description}
                 onClick={() => choose(list.id)}
               >
                 <span>
                   {list.name} ({list.count})
+                  {watchlistReadinessLabel(list) && (
+                    <small className="sc-watchlist-readiness">
+                      {watchlistReadinessLabel(list)}
+                    </small>
+                  )}
                 </span>
                 <span aria-hidden="true">🔒</span>
               </button>

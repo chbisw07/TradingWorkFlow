@@ -776,9 +776,11 @@ def test_reference_cache_deduplicates_and_fences_owner_generation() -> None:
 def test_system_universe_definitions_and_bounded_parser() -> None:
     from twf.watchlists.system import DEFINITIONS, SystemUniverseCatalog
 
-    enabled = [definition for definition in DEFINITIONS if definition.enabled]
-    pending = [definition for definition in DEFINITIONS if not definition.enabled]
-    assert [definition.name for definition in enabled] == [
+    official = [definition for definition in DEFINITIONS if definition.constituent_url]
+    dynamic = [
+        definition for definition in DEFINITIONS if definition.code.startswith("FNO_LIQUIDITY_")
+    ]
+    assert [definition.name for definition in official] == [
         "Nifty 500",
         "Nifty Smallcap 250",
         "Nifty Pharma",
@@ -788,14 +790,17 @@ def test_system_universe_definitions_and_bounded_parser() -> None:
         "Nifty Metal",
         "Nifty Realty",
     ]
-    assert {definition.name for definition in pending} == {"F&O 100", "F&O 50"}
-    assert all(definition.pending_reason == "Definition pending" for definition in pending)
+    assert [definition.name for definition in dynamic] == [
+        "F&O Liquidity 50",
+        "F&O Liquidity 100",
+        "F&O Liquidity 200",
+    ]
     assert all(
         definition.constituent_url
         and definition.constituent_url.startswith(
             "https://nsearchives.nseindia.com/content/indices/"
         )
-        for definition in enabled
+        for definition in official
     )
     assert SystemUniverseCatalog._parse_csv(
         b"Company Name,Industry,Symbol,Series\nOne,IT,INFY,EQ\nTwo,Energy,RELIANCE,EQ\n"
@@ -835,6 +840,26 @@ def test_system_universe_cache_stale_fallback_and_stable_identity() -> None:
     asyncio.run(run())
 
 
+def test_fno_catalog_exposes_credential_unavailable_without_pending_definition(
+    client: TestClient,
+) -> None:
+    rows = client.get(BASE).json()
+    dynamic = [
+        row
+        for row in rows
+        if row["system_code"] and row["system_code"].startswith("FNO_LIQUIDITY_")
+    ]
+    assert len(dynamic) == 3
+    for row in dynamic:
+        assert row["read_only"] and not row["enabled"]
+        assert row["availability"] == "UNAVAILABLE"
+        assert row["pending_reason"] is None
+        assert row["readiness"]["state"] == "CREDENTIAL_UNAVAILABLE"
+        assert row["readiness"]["completed_sessions_collected"] == 0
+        assert row["readiness"]["minimum_sessions_required"] == 3
+        assert row["count"] == 0
+
+
 def test_system_watchlists_are_global_read_only_and_copyable(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -863,12 +888,16 @@ def test_system_watchlists_are_global_read_only_and_copyable(
 
     rows = client.get(BASE).json()
     systems = [row for row in rows if row["ownership_kind"] == "SYSTEM"]
-    assert len(systems) == 10
+    assert len(systems) == 11
     assert all(row["read_only"] and not row["archived"] for row in systems)
-    assert all(row["instrument_type_summary"] == ["EQUITY"] for row in systems if row["enabled"])
-    pending = [row for row in systems if not row["enabled"]]
-    assert {row["name"] for row in pending} == {"F&O 100", "F&O 50"}
-    assert all(row["availability"] == "DEFINITION_PENDING" for row in pending)
+    assert all(row["instrument_type_summary"] == ["EQUITY"] for row in systems)
+    unavailable = [row for row in systems if not row["enabled"]]
+    assert {row["name"] for row in unavailable} == {
+        "F&O Liquidity 50",
+        "F&O Liquidity 100",
+        "F&O Liquidity 200",
+    }
+    assert all(row["availability"] == "UNAVAILABLE" for row in unavailable)
 
     nifty = next(row for row in systems if row["system_code"] == "NIFTY_500")
     detail = client.get(f"{BASE}/{nifty['id']}")
@@ -883,9 +912,9 @@ def test_system_watchlists_are_global_read_only_and_copyable(
     assert body["source_reference"].startswith("https://www.niftyindices.com/")
     assert body["source_received_at"] and body["freshness"] == "CURRENT"
 
-    pending_detail = client.get(f"{BASE}/{pending[0]['id']}")
-    assert pending_detail.status_code == 409
-    assert pending_detail.json()["error"]["code"] == "SYSTEM_UNIVERSE_DEFINITION_PENDING"
+    unavailable_detail = client.get(f"{BASE}/{unavailable[0]['id']}")
+    assert unavailable_detail.status_code == 503
+    assert unavailable_detail.json()["error"]["code"] == "SYSTEM_UNIVERSE_UNAVAILABLE"
 
     target = create(client, "Built-in copy")
     copied = client.post(

@@ -75,9 +75,9 @@ Watchlists are a substantial, persistent workspace:
 - CSV import/export, notes, activity, trash, restore, and permanent-delete
   workflows.
 
-Built-in lists currently cover the enabled official Nifty universes. F&O 50 and
-F&O 100 remain disabled while their eligibility definition is pending. Details
-and validation boundaries are in the
+Built-in lists cover the enabled official Nifty universes and TWF-defined dynamic F&O
+Liquidity 50/100/200 universes, which show explicit collection/readiness status
+and become available after three trustworthy completed sessions. Details and validation boundaries are in the
 [Watchlists architecture](docs/TWF_WATCHLIST_ARCHITECTURE.md).
 
 ### Scanner V2

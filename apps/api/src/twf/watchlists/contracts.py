@@ -78,6 +78,9 @@ class UniverseSnapshot(Contract):
     system_code: str | None = None
     source_reference: str | None = None
     source_updated_at: datetime | None = None
+    methodology_version: str | None = None
+    as_of_date: str | None = None
+    source_freshness: Literal["CURRENT", "STALE"] | None = None
     instruments: tuple[InstrumentIdentity, ...]
 
 

@@ -563,3 +563,14 @@ rank them.
 ## Derivatives Scanner watchlist optionability (October 2026)
 
 The shared Scanner watchlist selector can feed O4. The owner-scoped read-only projection `/api/v1/scanner/derivatives/watchlists/{id}/optionable` intersects the current Watchlists snapshot with active O2 option contracts. It returns watchlist member count, optionable count, eligible underlying symbols, and the unchanged O4 limit of five. The UI shows all three counts, initially selects up to five optionable members in watchlist order, and lets the user adjust the selection. Non-optionable members are not claimed as scannable; O2 master failures return a typed unavailable state. O4 still validates the submitted subset against current membership and archives the exact selected underlyings in each immutable run. One-off Custom underlyings remain available.
+
+### Ranked F&O underlying watchlists
+
+TWF-defined F&O Liquidity 50/100/200 are selectable high-liquidity underlying
+universes for the derivatives scanner. They rank NSE F&O-eligible stocks from
+completed Dhan futures volume and open interest evidence, not option contracts.
+Current listed option contracts are rechecked when a scan runs. They are not
+official NSE/Nifty indices and their rank is not a trading signal. These
+underlying lists remain disabled until three trustworthy prospective completed
+sessions produce a rank; the scanner selector shows progress, stale status, or
+a credential/provider failure. Current optionability is still revalidated.

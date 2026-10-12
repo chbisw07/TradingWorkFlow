@@ -149,7 +149,7 @@ export function ScannerWorkspace() {
       scannerApi<Run[]>("runs"),
     ]);
     setCatalog(c);
-    setLists(l.filter((x) => !x.archived && x.enabled !== false));
+    setLists(l.filter((x) => !x.archived));
     setSaved(s);
     setHistory(h);
   }
@@ -439,6 +439,14 @@ export function ScannerWorkspace() {
     setError("");
   }
   async function execute() {
+    if (
+      config.universe.source === "WATCHLIST" &&
+      lists.find((list) => list.id === config.universe.watchlist_id)
+        ?.enabled === false
+    ) {
+      setError("This watchlist is not ready for scanning yet.");
+      return;
+    }
     await action(async () => {
       const c = {
         ...config,
@@ -1553,7 +1561,11 @@ export function ScannerWorkspace() {
                   !filtersValid ||
                   !["CUSTOM", "WATCHLIST"].includes(config.universe.source) ||
                   (config.universe.source === "WATCHLIST" &&
-                    (!config.universe.watchlist_id || !members))
+                    (!config.universe.watchlist_id ||
+                      !members ||
+                      lists.find(
+                        (list) => list.id === config.universe.watchlist_id,
+                      )?.enabled === false))
                 }
                 onClick={() => void execute()}
               >

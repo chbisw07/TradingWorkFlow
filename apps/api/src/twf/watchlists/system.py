@@ -12,12 +12,18 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import NAMESPACE_URL, UUID, uuid5
+from zoneinfo import ZoneInfo
 
 import httpx
 
 from twf.discovery.market_data import DhanMarketDataProvider
 from twf.watchlists.catalog import WatchlistCatalog, kind
 from twf.watchlists.contracts import UniverseSnapshot
+from twf.watchlists.fno_liquidity import (
+    FNO_LIQUIDITY_METHOD_VERSION,
+    FnoLiquidityCache,
+    _eligible_futures,
+)
 from twf.watchlists.service import WatchlistFailure
 
 _SYSTEM_ID_PREFIX = "https://tradingworkflow.local/system-universe/"
@@ -111,31 +117,40 @@ DEFINITIONS: tuple[SystemUniverseDefinition, ...] = (
         "https://nsearchives.nseindia.com/content/indices/ind_niftyrealtylist.csv",
     ),
     SystemUniverseDefinition(
-        "FNO_100",
-        "F&O 100",
-        "Proposed high-liquidity derivatives universe.",
-        100,
-        None,
-        None,
-        instrument_types=(),
-        enabled=False,
-        pending_reason="Definition pending",
-    ),
-    SystemUniverseDefinition(
-        "FNO_50",
-        "F&O 50",
-        "Proposed compact high-liquidity derivatives universe.",
+        "FNO_LIQUIDITY_50",
+        "F&O Liquidity 50",
+        "Top 50 NSE F&O-eligible stocks by TWF rolling derivatives-liquidity rank.",
         50,
         None,
         None,
-        instrument_types=(),
-        enabled=False,
-        pending_reason="Definition pending",
+    ),
+    SystemUniverseDefinition(
+        "FNO_LIQUIDITY_100",
+        "F&O Liquidity 100",
+        "Top 100 NSE F&O-eligible stocks by TWF rolling derivatives-liquidity rank.",
+        100,
+        None,
+        None,
+    ),
+    SystemUniverseDefinition(
+        "FNO_LIQUIDITY_200",
+        "F&O Liquidity 200",
+        "Top 200 NSE F&O-eligible stocks by TWF rolling derivatives-liquidity rank.",
+        200,
+        None,
+        None,
     ),
 )
 
 _BY_ID = {definition.id: definition for definition in DEFINITIONS}
 _BY_CODE = {definition.code: definition for definition in DEFINITIONS}
+for _legacy, _replacement in (("FNO_50", "FNO_LIQUIDITY_50"), ("FNO_100", "FNO_LIQUIDITY_100")):
+    _BY_CODE[_legacy] = _BY_CODE[_replacement]
+    _BY_ID[uuid5(NAMESPACE_URL, f"{_SYSTEM_ID_PREFIX}{_legacy}")] = _BY_CODE[_replacement]
+
+
+def _dynamic(definition: SystemUniverseDefinition) -> bool:
+    return definition.code.startswith("FNO_LIQUIDITY_")
 
 
 @dataclass(frozen=True, slots=True)
@@ -151,7 +166,10 @@ FetchConstituents = Callable[[SystemUniverseDefinition], Awaitable[bytes]]
 class SystemUniverseCatalog:
     """Central bounded cache for official system-universe memberships."""
 
-    def __init__(self, fetcher: FetchConstituents | None = None) -> None:
+    def __init__(
+        self, fetcher: FetchConstituents | None = None, liquidity: FnoLiquidityCache | None = None
+    ) -> None:
+        self.liquidity = liquidity
         self._fetcher = fetcher or self._fetch_official
         self._cache: dict[str, _Membership] = {}
         self._locks = {definition.code: asyncio.Lock() for definition in DEFINITIONS}
@@ -165,20 +183,65 @@ class SystemUniverseCatalog:
         except ValueError:
             return _BY_CODE.get(key.upper())
 
-    def summaries(self) -> list[dict[str, Any]]:
-        return [self._summary(definition) for definition in DEFINITIONS]
+    def summaries(self, *, credential_available: bool = True) -> list[dict[str, Any]]:
+        return [
+            self._summary(definition, credential_available=credential_available)
+            for definition in DEFINITIONS
+        ]
 
-    def _summary(self, definition: SystemUniverseDefinition) -> dict[str, Any]:
+    def _summary(
+        self, definition: SystemUniverseDefinition, *, credential_available: bool = True
+    ) -> dict[str, Any]:
         cached = self._cache.get(definition.code)
-        available_count = len(cached.symbols) if cached else definition.expected_count
+        dynamic = _dynamic(definition)
+        ranking = self.liquidity.load() if dynamic and self.liquidity else {}
+        ranked = ranking.get("ranked", [])
+        readiness = (
+            FnoLiquidityCache.readiness(ranking, credential_available=credential_available)
+            if dynamic
+            else None
+        )
+        generated_text = ranking.get("generated_at")
+        generated = datetime.fromisoformat(generated_text) if generated_text else None
+        age = datetime.now(UTC) - generated if generated else None
+        usable = bool(ranked and age is not None and age <= _STALE_LIMIT)
+        completed = FnoLiquidityCache.completed_date(datetime.now(UTC)) if dynamic else None
+        stale = bool(
+            usable
+            and (
+                (age is not None and age > _CACHE_TTL)
+                or (completed is not None and ranking.get("as_of_date", "") < completed.isoformat())
+            )
+        )
+        count = (
+            min(definition.expected_count, len(ranked))
+            if dynamic
+            else (len(cached.symbols) if cached else definition.expected_count)
+        )
+        revision = (
+            self._revision(tuple(row["symbol"] for row in ranked[:count]))
+            if dynamic
+            else (self._revision(cached.symbols) if cached else 0)
+        )
+        updated = generated_text if dynamic else cached.received_at.isoformat() if cached else None
+        source = ranking.get("source") if dynamic else definition.source_page
+        freshness = (
+            "STALE"
+            if stale
+            else "CURRENT"
+            if usable
+            else "NOT_LOADED"
+            if dynamic
+            else (cached.freshness if cached else "NOT_LOADED")
+        )
         return {
             "id": str(definition.id),
             "name": definition.name,
             "description": definition.description,
-            "count": available_count,
-            "revision": self._revision(cached.symbols) if cached else 0,
+            "count": count if usable or not dynamic else 0,
+            "revision": revision if usable or not dynamic else 0,
             "created_at": None,
-            "updated_at": cached.received_at.isoformat() if cached else None,
+            "updated_at": updated,
             "archived": False,
             "favorite": False,
             "pinned": False,
@@ -186,20 +249,52 @@ class SystemUniverseCatalog:
             "ownership_kind": "SYSTEM",
             "read_only": True,
             "system_code": definition.code,
-            "enabled": definition.enabled,
-            "availability": "READY" if definition.enabled else "DEFINITION_PENDING",
-            "pending_reason": definition.pending_reason,
+            "enabled": (usable and credential_available) if dynamic else definition.enabled,
+            "availability": (
+                "UNAVAILABLE"
+                if not credential_available
+                else "STALE"
+                if stale
+                else "READY"
+                if usable
+                else "UNAVAILABLE"
+            )
+            if dynamic
+            else "READY"
+            if definition.enabled
+            else "DEFINITION_PENDING",
+            "pending_reason": None if dynamic else definition.pending_reason,
             "expected_count": definition.expected_count,
             "instrument_type_summary": list(definition.instrument_types),
-            "source_reference": definition.source_page,
-            "source_received_at": cached.received_at.isoformat() if cached else None,
-            "freshness": cached.freshness if cached else "NOT_LOADED",
+            "source_reference": source,
+            "source_received_at": updated,
+            "freshness": freshness,
+            "category": "F&O liquidity" if dynamic else "Index constituents",
+            "dynamic_membership": dynamic,
+            "methodology_version": FNO_LIQUIDITY_METHOD_VERSION if dynamic else None,
+            "as_of_date": ranking.get("as_of_date") if dynamic else None,
+            "readiness": readiness,
         }
 
     async def membership(self, key: UUID | str) -> tuple[SystemUniverseDefinition, _Membership]:
         definition = self.definition(key)
         if definition is None:
             raise WatchlistFailure("WATCHLIST_NOT_FOUND", 404)
+        if _dynamic(definition):
+            ranking = self.liquidity.load() if self.liquidity else {}
+            ranked = ranking.get("ranked", [])
+            if not ranked:
+                raise WatchlistFailure("SYSTEM_UNIVERSE_UNAVAILABLE", 503)
+            generated = datetime.fromisoformat(ranking["generated_at"])
+            age = datetime.now(UTC) - generated
+            if age > _STALE_LIMIT:
+                raise WatchlistFailure("SYSTEM_UNIVERSE_UNAVAILABLE", 503)
+            symbols = tuple(row["symbol"] for row in ranked[: definition.expected_count])
+            completed = FnoLiquidityCache.completed_date(datetime.now(UTC))
+            stale = age > _CACHE_TTL or bool(
+                completed and ranking.get("as_of_date", "") < completed.isoformat()
+            )
+            return definition, _Membership(symbols, generated, "STALE" if stale else "CURRENT")
         if not definition.enabled or definition.constituent_url is None:
             raise WatchlistFailure("SYSTEM_UNIVERSE_DEFINITION_PENDING", 409)
 
@@ -229,11 +324,17 @@ class SystemUniverseCatalog:
     async def detail(self, key: UUID | str, provider: DhanMarketDataProvider) -> dict[str, Any]:
         definition, membership = await self.membership(key)
         watchlist_catalog = WatchlistCatalog(provider)
+        current_eligible: set[str] | None = None
+        if _dynamic(definition):
+            local_date = datetime.now(UTC).astimezone(ZoneInfo("Asia/Kolkata")).date()
+            current_eligible = set(_eligible_futures(await provider._load_master(), local_date))
         resolved = await watchlist_catalog.resolve_symbols(
             {f"NSE:{symbol}" for symbol in membership.symbols}
         )
         by_symbol = {}
         for symbol in membership.symbols:
+            if current_eligible is not None and symbol not in current_eligible:
+                continue
             matches = tuple(
                 item
                 for item in resolved.get(f"NSE:{symbol}", ())
@@ -252,6 +353,7 @@ class SystemUniverseCatalog:
                     "instrument": instrument.model_dump(mode="json"),
                     "kind": "EQUITY",
                     "ordering": position,
+                    "liquidity_rank": position + 1 if _dynamic(definition) else None,
                     "added_at": added_at,
                     "source": {
                         "source": "built_in_watchlist",
@@ -292,6 +394,9 @@ class SystemUniverseCatalog:
                 "system_code": detail["system_code"],
                 "source_reference": detail["source_reference"],
                 "source_updated_at": detail["source_received_at"],
+                "methodology_version": detail["methodology_version"],
+                "as_of_date": detail["as_of_date"],
+                "source_freshness": detail["freshness"],
                 "instruments": [item["instrument"] for item in detail["items"]],
             }
         )
