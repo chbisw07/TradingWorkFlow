@@ -108,6 +108,8 @@ def test_lifecycle_and_contracts(settings: Settings) -> None:
             "/api/v1/brokers/accounts/{account_id}/order-entry/option-capabilities",
             "/api/v1/scanner/catalog",
             "/api/v1/scanner/derivatives/catalog",
+            "/api/v1/scanner/derivatives/templates",
+            "/api/v1/scanner/derivatives/templates/{key}",
             "/api/v1/scanner/derivatives/saved",
             "/api/v1/scanner/derivatives/saved/{key}",
             "/api/v1/scanner/derivatives/runs",

@@ -43,7 +43,7 @@ user validation; Sprint 2 as a whole is not accepted or frozen.
 | Market breadth                | **NEXT**                              | Planned deterministic Market Context dimension                                                              |
 | Institutional flows / events  | **PARTIAL**                           | Available evidence is normalized without inventing unavailable history or sentiment                         |
 | Scanner LLM narrative         | **PLANNED / OPTIONAL**                | Future natural-language synthesis only; deterministic scores remain authoritative                           |
-| Derivatives Scanner O4        | **IMPLEMENTED / USER VALIDATION PENDING** | Bounded single-leg NSE options scanning over canonical O2 chains; exact O1/O3 handoffs |
+| Derivatives Scanner O4        | **IMPLEMENTED / USER VALIDATION PENDING** | Bounded single-leg NSE options scanning, transparent Intraday/Positional templates, and exact O1/O3 handoffs |
 
 The accepted Broker capability is TWF's execution substrate. It is not intended
 to recreate a complete broker terminal.

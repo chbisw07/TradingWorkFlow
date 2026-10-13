@@ -234,6 +234,24 @@ test("unified watchlist-first scanner clean, popover and built-in states", async
   await expect(page.locator(".sc-universe-summary")).toContainText(
     "2 selected",
   );
+  await page.getByRole("button", { name: /Scan Templates/ }).click();
+  await page
+    .getByRole("menuitem", { name: /Intraday — Liquid ATM Options/ })
+    .click();
+  await expect(
+    page.getByRole("button", { name: /Watchlist: Nifty Pharma/ }),
+  ).toBeVisible();
+  await expect(page.locator(".derivative-active-bar")).toContainText(
+    "Volume Percentile >= 70%",
+  );
+  await page.getByRole("button", { name: /Watchlist: Nifty Pharma/ }).click();
+  await page.getByRole("button", { name: "My Core (4)" }).click();
+  await expect(
+    page.getByRole("button", { name: "Watchlist: My Core" }),
+  ).toBeVisible();
+  await expect(page.locator(".derivative-active-bar")).toContainText(
+    "Volume Percentile >= 70%",
+  );
   await page.screenshot({
     path: info.outputPath("derivatives-built-in-selected.png"),
     fullPage: true,

@@ -1609,3 +1609,121 @@
 [data-theme="dark"] .sc-chart-card-actions .sc-chart-text-action {
   color: #83bdff;
 }
+
+/* Derivatives templates share the scanner toolbar and never reserve result space. */
+.sc-template-menu,
+.sc-save-menu {
+  position: relative;
+}
+.sc-template-options,
+.sc-save-options {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 5px);
+  z-index: 70;
+  width: min(390px, calc(100vw - 24px));
+  max-height: min(70vh, 700px);
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #cddff7;
+  border-radius: 8px;
+  box-shadow: 0 12px 34px #14305b2b;
+  padding: 12px;
+  color: #153358;
+}
+.sc-template-options section {
+  border-top: 1px solid #e5edf8;
+  padding-top: 8px;
+  margin-top: 8px;
+}
+.sc-template-options h3 {
+  font-size: 12px;
+  margin: 4px 0 8px;
+  color: #23558e;
+}
+.sc-template-options section > button,
+.sc-template-user-row > button:first-child,
+.sc-save-options > button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  border: 0;
+  background: #fff;
+  color: #143967;
+  text-align: left;
+  padding: 6px 8px;
+  border-radius: 5px;
+}
+.sc-template-options button:hover,
+.sc-template-options button:focus-visible,
+.sc-save-options button:hover,
+.sc-save-options button:focus-visible {
+  background: #eaf3ff;
+  outline-color: #2577ee;
+}
+.sc-template-options small {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.sc-save-options small {
+  color: #617890;
+  font-size: 11px;
+  margin-top: 2px;
+}
+.sc-template-user-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.sc-template-user-row > button:first-child {
+  flex: 1;
+}
+.sc-template-user-row > button:not(:first-child) {
+  font-size: 11px;
+  padding: 5px;
+}
+.sc-template-preview {
+  color: #153358;
+  background: #edf5ff;
+  border: 1px solid #cfe2fa;
+  border-radius: 6px;
+  padding: 10px;
+  margin: 8px 0 12px;
+}
+.sc-template-preview strong,
+.sc-template-preview small {
+  display: block;
+}
+.sc-template-preview strong {
+  color: #153358;
+}
+.sc-template-preview p {
+  color: #35587e;
+  margin: 7px 0;
+}
+.sc-template-preview small {
+  color: #48688c;
+}
+.sc-template-origin {
+  border-color: #b9d7ff !important;
+  color: #145bb2;
+}
+@media (max-width: 640px) {
+  .sc-template-options,
+  .sc-save-options {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    top: 74px;
+    width: auto;
+    max-height: calc(100vh - 100px);
+  }
+}

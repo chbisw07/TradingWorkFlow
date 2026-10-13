@@ -574,3 +574,9 @@ official NSE/Nifty indices and their rank is not a trading signal. These
 underlying lists remain disabled until three trustworthy prospective completed
 sessions produce a rank; the scanner selector shows progress, stale status, or
 a credential/provider failure. Current optionability is still revalidated.
+
+### O4 Derivatives Scan Templates V1
+
+The O4 Scanner offers server-defined **Intraday** and **Positional** OPTIONS presets plus owner-scoped **My Templates**. Each recipe is a versioned, configuration-only set of explicit O4 predicates and structural expiry/strike settings. Loading a template populates editable controls and active chips without running the scan. Built-ins preserve the selected watchlist; a user template can bind one only through the explicit include-watchlist choice when saved. Incompatible old recipes fail visibly rather than silently losing filters.
+
+The top-level **+ Save Scan** choice keeps normal saved scans separate from **Save as Template**. Template storage has no option-chain snapshot, result, price, volume, OI observation, evidence, or chart data. Executed runs still archive the *actual* configuration submitted after user edits and may record the template ID/name as origin. O4 result evaluation and inferred OI interpretation are unchanged. Positional presets use visible `DTE >= 7` filters. Breakout/Breakdown option presets await an explicit O4 underlying breakout field. FUTURES is reserved in the template schema but is rejected as unsupported; no Futures presets are exposed.

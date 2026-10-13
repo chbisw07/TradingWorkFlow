@@ -29,6 +29,11 @@ from twf.scanner_v2.contracts import (
     ScanConfig,
     compatible_comparison_fields,
 )
+from twf.scanner_v2.derivative_templates import (
+    DERIVATIVES_BUILTIN_TEMPLATES,
+    DerivativeTemplateInput,
+    DerivativeTemplateService,
+)
 from twf.scanner_v2.derivatives import (
     DerivativeScanConfig,
     DerivativeScannerService,
@@ -155,6 +160,38 @@ def derivative_service(request: Request, who: Who) -> DerivativeScannerService:
 @router.get("/derivatives/catalog")
 def derivatives_catalog(who: Who) -> dict[str, Any]:
     return derivative_catalog()
+
+
+def derivative_templates(request: Request, who: Who) -> DerivativeTemplateService:
+    return DerivativeTemplateService(request.app.state.session_factory, who.owner_id)
+
+
+@router.get("/derivatives/templates")
+def derivatives_templates(request: Request, who: Who) -> dict[str, Any]:
+    return {
+        "built_in": list(DERIVATIVES_BUILTIN_TEMPLATES),
+        "user": derivative_templates(request, who).list(),
+    }
+
+
+@router.post("/derivatives/templates", dependencies=[Depends(require_origin)])
+def derivatives_template_create(
+    payload: DerivativeTemplateInput, request: Request, who: Who
+) -> dict[str, Any]:
+    return derivative_templates(request, who).save(payload)
+
+
+@router.patch("/derivatives/templates/{key}", dependencies=[Depends(require_origin)])
+def derivatives_template_update(
+    key: UUID, payload: DerivativeTemplateInput, request: Request, who: Who
+) -> dict[str, Any]:
+    return derivative_templates(request, who).save(payload, key)
+
+
+@router.delete("/derivatives/templates/{key}", dependencies=[Depends(require_origin)])
+def derivatives_template_delete(key: UUID, request: Request, who: Who) -> dict[str, bool]:
+    derivative_templates(request, who).delete(key)
+    return {"deleted": True}
 
 
 @router.get("/derivatives/saved")

@@ -922,7 +922,8 @@ test("O4 real catalog drives typed filters, saved setup, and scan payload", asyn
   ).toBeVisible();
   await page.getByRole("radio", { name: "CE" }).check();
   page.once("dialog", (dialog) => void dialog.accept("Typed O4"));
-  await page.getByRole("button", { name: "Save Scan" }).click();
+  await page.getByRole("button", { name: /Save Scan ▾/ }).click();
+  await page.getByRole("menuitem", { name: /Save Scan/ }).click();
   expect(savedConfig).toMatchObject({
     filters: expect.arrayContaining([
       { field: "option_type", operator: "equals", value: "CE" },

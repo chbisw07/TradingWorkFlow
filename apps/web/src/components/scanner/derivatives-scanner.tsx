@@ -4,6 +4,12 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { OrderTicket } from "../brokers/order-ticket";
+import { WatchDialog } from "../watchlists/dialog";
+import {
+  DerivativeTemplateMenu,
+  type DerivativeTemplate,
+} from "./derivative-template-menu";
+import { DerivativeSaveMenu } from "./derivative-save-menu";
 import { brokerApi, type Account } from "../../lib/brokers";
 import type { Capability, Side } from "../../lib/broker-orders";
 import type {
@@ -54,6 +60,8 @@ type Config = {
   strike_window: 5 | 10 | 15 | 20;
   filters: Filter[];
   version: "1";
+  origin_template_id?: string | null;
+  origin_template_name?: string | null;
 };
 type Diagnostic = {
   filter: Filter;
@@ -340,6 +348,19 @@ export function DerivativesScanner() {
   const [run, setRun] = useState<Run | null>(null);
   const [history, setHistory] = useState<Run[]>([]);
   const [saved, setSaved] = useState<Saved[]>([]);
+  const [templates, setTemplates] = useState<{
+    built_in: DerivativeTemplate[];
+    user: DerivativeTemplate[];
+  }>({ built_in: [], user: [] });
+  const [selectedTemplate, setSelectedTemplate] =
+    useState<DerivativeTemplate | null>(null);
+  const [templateDialog, setTemplateDialog] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [templateHorizon, setTemplateHorizon] =
+    useState<DerivativeTemplate["horizon"]>("GENERAL");
+  const [templateDescription, setTemplateDescription] = useState("");
+  const [includeWatchlist, setIncludeWatchlist] = useState(false);
+  const [replaceSelectedTemplate, setReplaceSelectedTemplate] = useState(false);
   const [selected, setSelected] = useState<Row | null>(null);
   const [checked, setChecked] = useState<string[]>([]);
   const [panelView, setPanelView] = useState<
@@ -468,6 +489,15 @@ export function DerivativesScanner() {
     void scannerApi<Run[]>("derivatives/runs")
       .then(setHistory)
       .catch(() => setError("Recent derivatives scans could not be loaded."));
+    void scannerApi<{
+      built_in: DerivativeTemplate[];
+      user: DerivativeTemplate[];
+    }>("derivatives/templates")
+      .then((response) => {
+        if (Array.isArray(response.built_in) && Array.isArray(response.user))
+          setTemplates(response);
+      })
+      .catch(() => setError("Derivatives scan templates could not be loaded."));
     void scannerApi<Saved[]>("derivatives/saved")
       .then(setSaved)
       .catch(() => setError("Saved derivatives scans could not be loaded."));
@@ -673,7 +703,253 @@ export function DerivativesScanner() {
       setError((e as Error).message);
     }
   }
+  function templateCompatibility(template: DerivativeTemplate): string | null {
+    if (
+      !template.recipe ||
+      !Array.isArray(template.recipe.predicates) ||
+      template.template_schema_version !== 1 ||
+      template.instrument_scope !== "OPTIONS" ||
+      template.recipe.instrument_scope !== "OPTIONS" ||
+      template.scanner_type !== "DERIVATIVES" ||
+      template.recipe.scanner_type !== "DERIVATIVES"
+    )
+      return "Template incompatible: unsupported schema or instrument scope.";
+    if (
+      !["NEAREST", "EXACT"].includes(template.recipe.expiry_mode) ||
+      ![5, 10, 15, 20].includes(template.recipe.strike_window) ||
+      (template.recipe.expiry_mode === "EXACT" && !template.recipe.exact_expiry)
+    )
+      return "Template incompatible: unsupported expiry or strike setting.";
+    if (
+      !template.recipe.predicates.length ||
+      template.recipe.predicates.length > 16
+    )
+      return "Template incompatible: invalid predicate count.";
+    if (!catalog) return "Filter catalog is loading. Try again shortly.";
+    const seen = new Set<string>();
+    for (const predicate of template.recipe.predicates) {
+      const fieldSpec = catalog.fields.find(
+        (item) => item.field === predicate.field,
+      );
+      if (
+        !fieldSpec ||
+        !fieldSpec.operators.includes(predicate.operator) ||
+        seen.has(predicate.field)
+      )
+        return `Template incompatible: ${predicate.field} unavailable.`;
+      seen.add(predicate.field);
+      const values = Array.isArray(predicate.value)
+        ? predicate.value
+        : [predicate.value];
+      if (
+        !values.length ||
+        ((fieldSpec.kind === "enum" || fieldSpec.kind === "multi") &&
+          (values.some((value) => typeof value !== "string") ||
+            (fieldSpec.kind === "enum" && values.length !== 1) ||
+            values.some((value) => !fieldSpec.values?.includes(String(value)))))
+      )
+        return `Template incompatible: ${predicate.field} value unavailable.`;
+      if (
+        (fieldSpec.kind === "integer" || fieldSpec.kind === "number") &&
+        ((predicate.operator === "between" &&
+          (values.length !== 2 || Number(values[0]) > Number(values[1]))) ||
+          (predicate.operator !== "between" && values.length !== 1) ||
+          values.some(
+            (value) =>
+              typeof value !== "number" ||
+              !Number.isFinite(value) ||
+              (fieldSpec.kind === "integer" && !Number.isInteger(value)) ||
+              (fieldSpec.minimum !== undefined && value < fieldSpec.minimum) ||
+              (fieldSpec.maximum !== undefined && value > fieldSpec.maximum),
+          ))
+      )
+        return `Template incompatible: ${predicate.field} value unavailable.`;
+    }
+    if (
+      template.recipe.watchlist_id &&
+      !lists.some(
+        (list) => list.id === template.recipe.watchlist_id && list.enabled,
+      )
+    )
+      return "Template incompatible: linked watchlist unavailable.";
+    return null;
+  }
+  function loadTemplate(template: DerivativeTemplate) {
+    const issue = templateCompatibility(template);
+    if (issue) {
+      setError(issue);
+      return;
+    }
+    const recipe = template.recipe;
+    setConfig((current) => ({
+      ...current,
+      name: template.name,
+      expiry_mode: recipe.expiry_mode,
+      exact_expiry: recipe.exact_expiry,
+      strike_window: recipe.strike_window,
+      filters: recipe.predicates.map((predicate) => ({ ...predicate })),
+      universe: recipe.watchlist_id
+        ? current.universe.source === "WATCHLIST" &&
+          current.universe.watchlist_id === recipe.watchlist_id
+          ? current.universe
+          : {
+              source: "WATCHLIST",
+              watchlist_id: recipe.watchlist_id,
+              symbols: [],
+            }
+        : current.universe,
+      origin_template_id: template.template_id,
+      origin_template_name: template.name,
+    }));
+    if (
+      recipe.watchlist_id &&
+      recipe.watchlist_id !== config.universe.watchlist_id
+    )
+      setOptionability(null);
+    setSelectedTemplate(template);
+    setRun(null);
+    setSelected(null);
+    setChecked([]);
+    editField("");
+    setError("");
+    setNotice(
+      `${template.name} loaded. Review or edit the visible filters, then run the scan.`,
+    );
+  }
+  function openSaveTemplate() {
+    setTemplateName(
+      selectedTemplate?.source === "USER" ? selectedTemplate.name : "",
+    );
+    setTemplateHorizon(selectedTemplate?.horizon || "GENERAL");
+    setTemplateDescription(selectedTemplate?.description || "");
+    setIncludeWatchlist(Boolean(selectedTemplate?.recipe.watchlist_id));
+    setReplaceSelectedTemplate(false);
+    setTemplateDialog(true);
+  }
+  async function saveTemplate() {
+    const name = templateName.trim();
+    if (
+      !name ||
+      name.length > 100 ||
+      !config.filters.length ||
+      config.filters.length > 16 ||
+      (config.expiry_mode === "EXACT" && !config.exact_expiry)
+    ) {
+      setError(
+        "Enter a name and at least one valid filter, and complete the expiry setting.",
+      );
+      return;
+    }
+    try {
+      const replacing =
+        replaceSelectedTemplate && selectedTemplate?.source === "USER";
+      const next = await scannerApi<DerivativeTemplate>(
+        replacing
+          ? `derivatives/templates/${selectedTemplate.template_id}`
+          : "derivatives/templates",
+        replacing ? "PATCH" : "POST",
+        {
+          template_schema_version: 1,
+          name,
+          horizon: templateHorizon,
+          description: templateDescription.trim(),
+          recipe: {
+            scanner_type: "DERIVATIVES",
+            instrument_scope: "OPTIONS",
+            expiry_mode: config.expiry_mode,
+            exact_expiry:
+              config.expiry_mode === "EXACT" ? config.exact_expiry : null,
+            strike_window: config.strike_window,
+            watchlist_id:
+              includeWatchlist && config.universe.source === "WATCHLIST"
+                ? config.universe.watchlist_id
+                : null,
+            predicates: config.filters,
+          },
+        },
+      );
+      setTemplates((current) => ({
+        ...current,
+        user: replacing
+          ? current.user.map((item) =>
+              item.template_id === next.template_id ? next : item,
+            )
+          : [next, ...current.user],
+      }));
+      if (replacing) {
+        setSelectedTemplate(next);
+        setConfig((current) => ({
+          ...current,
+          origin_template_id: next.template_id,
+          origin_template_name: next.name,
+        }));
+      }
+      setTemplateDialog(false);
+      setNotice(
+        replacing
+          ? "My Template updated. Only configuration was stored."
+          : "Template saved under My Templates. Only configuration was stored.",
+      );
+      setError("");
+    } catch (reason) {
+      setError((reason as Error).message);
+    }
+  }
+  async function renameTemplate(template: DerivativeTemplate) {
+    const name = window.prompt("Template name", template.name)?.trim();
+    if (!name || name === template.name) return;
+    try {
+      const next = await scannerApi<DerivativeTemplate>(
+        `derivatives/templates/${template.template_id}`,
+        "PATCH",
+        {
+          template_schema_version: 1,
+          name,
+          horizon: template.horizon,
+          description: template.description,
+          recipe: template.recipe,
+        },
+      );
+      setTemplates((current) => ({
+        ...current,
+        user: current.user.map((item) =>
+          item.template_id === template.template_id ? next : item,
+        ),
+      }));
+      if (selectedTemplate?.template_id === template.template_id) {
+        setSelectedTemplate(next);
+        setConfig((current) => ({
+          ...current,
+          origin_template_name: next.name,
+        }));
+      }
+      setNotice("Template renamed.");
+    } catch (reason) {
+      setError((reason as Error).message);
+    }
+  }
+  async function deleteTemplate(template: DerivativeTemplate) {
+    if (!window.confirm(`Delete ${template.name}?`)) return;
+    try {
+      await scannerApi(
+        `derivatives/templates/${template.template_id}`,
+        "DELETE",
+      );
+      setTemplates((current) => ({
+        ...current,
+        user: current.user.filter(
+          (item) => item.template_id !== template.template_id,
+        ),
+      }));
+      if (selectedTemplate?.template_id === template.template_id)
+        setSelectedTemplate(null);
+      setNotice("Template deleted.");
+    } catch (reason) {
+      setError((reason as Error).message);
+    }
+  }
   function load(savedConfig: Config) {
+    setSelectedTemplate(null);
     setOptionability(null);
     setConfig(savedConfig);
     setRaw(savedConfig.universe.symbols.join(", "));
@@ -896,12 +1172,13 @@ export function DerivativesScanner() {
                 }));
               }}
             />
-            <button
-              disabled
-              title="Derivatives scan templates are not available"
-            >
-              Scan Templates ▾
-            </button>
+            <DerivativeTemplateMenu
+              builtIn={templates.built_in}
+              user={templates.user}
+              onLoad={loadTemplate}
+              onRename={(template) => void renameTemplate(template)}
+              onDelete={(template) => void deleteTemplate(template)}
+            />
             <button onClick={() => setPanelView("saved")}>My Scans</button>
             <ScannerHistoryMenu
               onRecent={() => setPanelView("recent")}
@@ -910,9 +1187,10 @@ export function DerivativesScanner() {
             <button onClick={() => setPanelView("movers")}>
               Market Movers
             </button>
-            <button className="wl-primary" onClick={() => void save()}>
-              ＋ Save Scan
-            </button>
+            <DerivativeSaveMenu
+              onSaveScan={() => void save()}
+              onSaveTemplate={openSaveTemplate}
+            />
           </>,
           toolbarHost,
         )}
@@ -978,6 +1256,11 @@ export function DerivativesScanner() {
             Option Type: {optionType} ×
           </button>
         )}
+        {selectedTemplate && (
+          <span className="sc-template-origin">
+            Template: {selectedTemplate.name}
+          </span>
+        )}
         {config.filters
           .filter((f) => f.field !== "option_type")
           .map((f) => (
@@ -1009,6 +1292,29 @@ export function DerivativesScanner() {
       >
         <aside className="wl-card sc-builder derivative-builder">
           <h2>Build an options scan</h2>
+          {selectedTemplate && (
+            <div
+              className="sc-template-preview"
+              aria-label="Selected template details"
+            >
+              <strong>{selectedTemplate.name}</strong>
+              <small>
+                {selectedTemplate.horizon.toLowerCase()} · Options ·{" "}
+                {selectedTemplate.source === "BUILT_IN"
+                  ? "Built-in working copy"
+                  : "My Template working copy"}
+              </small>
+              <p>{selectedTemplate.description}</p>
+              <small>
+                {config.filters.length} visible predicates ·{" "}
+                {config.expiry_mode === "NEAREST"
+                  ? "Nearest active expiry"
+                  : `Expiry ${config.exact_expiry}`}{" "}
+                · ±{config.strike_window} strikes. Edit any control before
+                running.
+              </small>
+            </div>
+          )}
           <p>
             Select up to 5 optionable underlyings, choose expiry and add
             explicit filters.
@@ -1329,6 +1635,7 @@ export function DerivativesScanner() {
             <button
               onClick={() => {
                 setConfig(initial);
+                setSelectedTemplate(null);
                 setRaw("");
                 editField("");
                 setRun(null);
@@ -2063,6 +2370,96 @@ export function DerivativesScanner() {
           </aside>
         )}
       </div>
+      {templateDialog && (
+        <WatchDialog
+          title="Save as Template"
+          close={() => setTemplateDialog(false)}
+        >
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              void saveTemplate();
+            }}
+          >
+            <label className="sc-label">
+              Name
+              <input
+                required
+                maxLength={100}
+                value={templateName}
+                onChange={(event) => setTemplateName(event.target.value)}
+                autoFocus
+              />
+            </label>
+            <label className="sc-label">
+              Horizon
+              <select
+                value={templateHorizon}
+                onChange={(event) =>
+                  setTemplateHorizon(
+                    event.target.value as DerivativeTemplate["horizon"],
+                  )
+                }
+              >
+                <option value="INTRADAY">Intraday</option>
+                <option value="POSITIONAL">Positional</option>
+                <option value="GENERAL">General</option>
+              </select>
+            </label>
+            <label className="sc-label">
+              Description
+              <textarea
+                maxLength={500}
+                value={templateDescription}
+                onChange={(event) => setTemplateDescription(event.target.value)}
+              />
+            </label>
+            <p>
+              Instrument: Options · {config.filters.length} visible filters ·{" "}
+              {config.expiry_mode === "NEAREST"
+                ? "Nearest active expiry"
+                : `Expiry ${config.exact_expiry || "not selected"}`}{" "}
+              · ±{config.strike_window} strikes.
+            </p>
+            {selectedTemplate?.source === "USER" && (
+              <label>
+                <input
+                  type="checkbox"
+                  checked={replaceSelectedTemplate}
+                  onChange={(event) =>
+                    setReplaceSelectedTemplate(event.target.checked)
+                  }
+                />{" "}
+                Update loaded My Template instead of creating a copy
+              </label>
+            )}
+            {config.universe.source === "WATCHLIST" && (
+              <label>
+                <input
+                  type="checkbox"
+                  checked={includeWatchlist}
+                  onChange={(event) =>
+                    setIncludeWatchlist(event.target.checked)
+                  }
+                />{" "}
+                Include current watchlist
+              </label>
+            )}
+            <p>
+              Only reusable configuration is saved. Results, observations, and
+              evidence are excluded.
+            </p>
+            <div className="wl-dialog-actions">
+              <button type="button" onClick={() => setTemplateDialog(false)}>
+                Cancel
+              </button>
+              <button type="submit" className="wl-primary">
+                Save Template
+              </button>
+            </div>
+          </form>
+        </WatchDialog>
+      )}
       {ticket && (
         <OrderTicket
           account={ticket.account}

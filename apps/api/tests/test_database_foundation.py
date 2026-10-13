@@ -261,6 +261,7 @@ def test_migration_history_and_metadata() -> None:
         "instrument_metadata",
         "instrument_metadata_refreshes",
         "fno_liquidity_cache",
+        "scanner_v2_derivative_templates",
     }
     assert set(Base.metadata.naming_convention) == {"pk", "fk", "ix", "uq", "ck"}
     command.upgrade(config, "head")
@@ -271,7 +272,7 @@ def test_migration_history_and_metadata() -> None:
         with db.connect() as connection:
             assert (
                 MigrationContext.configure(connection).get_current_revision()
-                == "0021_fno_liquidity_cache"
+                == "0022_derivative_templates"
             )
             assert inspect(connection).get_table_names() == [
                 "alembic_version",
@@ -306,6 +307,7 @@ def test_migration_history_and_metadata() -> None:
                 "mcp_secrets",
                 "preference_changes",
                 "preference_profiles",
+                "scanner_v2_derivative_templates",
                 "scanner_v2_runs",
                 "scanner_v2_saved",
                 "user_preferences",
@@ -322,7 +324,7 @@ def test_migration_history_and_metadata() -> None:
         with db.connect() as connection:
             assert (
                 MigrationContext.configure(connection).get_current_revision()
-                == "0021_fno_liquidity_cache"
+                == "0022_derivative_templates"
             )
     finally:
         db.dispose()

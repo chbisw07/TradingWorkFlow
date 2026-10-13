@@ -248,6 +248,8 @@ class DerivativeScanConfig(DerivativeModel):
     strike_window: Literal[5, 10, 15, 20] = 10
     filters: tuple[DerivativeFilter, ...] = Field(min_length=1, max_length=16)
     version: Literal["1"] = "1"
+    origin_template_id: str | None = Field(default=None, max_length=100)
+    origin_template_name: str | None = Field(default=None, max_length=100)
 
     @model_validator(mode="after")
     def valid(self) -> Self:
