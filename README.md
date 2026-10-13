@@ -5,46 +5,57 @@ discovery, watchlists, market intelligence, and governed broker workflows. It
 keeps discovery separate from trading authority: a scan can identify and explain
 an opportunity, but it cannot silently turn that result into a trade.
 
+> **Execution rule:** No TWF subsystem may initiate a broker order except through
+> the governed TWF execution path.
+
+**Current active program: OE — TWF Order & Execution Foundation.** The planned
+Opportunity/Discovery work O6–O13 is deferred, not cancelled, while TWF builds the
+Order → Queue → Broker foundation. Existing Broker V2 preview and execution
+controls remain operational during that transition.
+
 ## Where We Are Now
 
 TWF has moved beyond foundation-only development. The operational product now
 includes the application shell, the accepted Broker workspace, persistent
-Watchlists, Scanner V2, real Dhan market data, system-global NSE instrument
-metadata, deterministic Market Context ranking, and Dynamic Sector Context V1.
-Options O1 is implemented on the accepted Broker V2 execution substrate. Options O2
-canonical chain service is implemented. O3 adds the Options Analytics chain workspace
-and exact Broker V2 ticket/preview handoff; user validation and authenticated live
-chain acceptance remain pending.
+Watchlists, Equity/Index and Options/Futures Scanners, real Dhan market data,
+system-global NSE instrument metadata, deterministic Market Context ranking,
+and Dynamic Sector Context V1. Options O1/O2/O3, the O4 Options Scanner, and the
+O5 Futures Scanner have implemented foundations; the live validation gates noted
+below remain open.
 
-The current focus is Scanner ranking quality. Broad-market regime and market
-breadth are next, followed by richer flow and event context. Recent Scanner,
-Watchlist, metadata, and Market Context work is implemented and awaiting broader
-user validation; Sprint 2 as a whole is not accepted or frozen.
+**OE is the current implementation priority.** It will establish a canonical
+TWF Order, durable TWF Queue, governed Broker V2 submission, reconciliation,
+and first-class Orders workspace. O6–O13 and further Scanner/Market Context
+expansion remain planned but are not the next implementation sequence. Broader
+user validation remains open for recent Scanner, Watchlist, metadata, and
+Market Context work; Sprint 2 as a whole is not accepted or frozen.
 
 ## Current Product Status
 
-| Area                          | Current status                        | Product truth                                                                                               |
-| ----------------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| TWF-0 / TWF-1 foundations     | **ACCEPTED / FROZEN**                 | Architecture, repository, API, database, authentication, settings, and service-client foundations           |
-| Broker V1 / V2                | **ACCEPTED / FROZEN**                 | Read-only broker data plus governed manual order preview, intent, submission, and reconciliation            |
-| Options O1                    | **IMPLEMENTED / USER VALIDATION**                | Provider-neutral option identity plus Zerodha single-leg Broker V2 preview and execution foundation         |
-| Options O2                    | **IMPLEMENTED**                | Shared bounded canonical chain service, Dhan adapter, and exact Broker V2 preview handoff                  |
-| Options O3                    | **IMPLEMENTED / USER VALIDATION PENDING** | Responsive option-chain workspace, canonical contract selection and existing Broker V2 preview |
-| Application shell             | **IMPLEMENTED**                       | Shared responsive header, grouped navigation, theme support, and preserved product routes                   |
-| Watchlists                    | **IMPLEMENTED / USER VALIDATION**     | Persistent custom lists, read-only built-ins, Dhan enrichment, metadata, charts, and broker handoff         |
-| Scanner V2                    | **IMPLEMENTED / USER VALIDATION**     | Typed daily technical scanning, saved/history workflows, evidence, ranking, metadata, and Watchlist handoff |
-| Discovery                     | **IMPLEMENTED / USER VALIDATION**     | Downstream candidate interpretation and temporal tracking, separate from Scanner execution                  |
-| Dhan market data              | **IMPLEMENTED / LIVE PATH VALIDATED** | Authoritative real quotes and bounded completed-bar OHLCV; no silent synthetic fallback                     |
-| Instrument Metadata harvester | **IMPLEMENTED**                       | Project-owned offline NSE metadata maintenance workflow                                                     |
-| Runtime Instrument Metadata   | **IMPLEMENTED**                       | System-global database, importer, service, API, and bounded Scanner/Watchlist lookup                        |
-| Deterministic Market Context  | **IMPLEMENTED / ACTIVE DEVELOPMENT**  | Explainable ranking that preserves technical match truth                                                    |
-| Dynamic Sector Context V1     | **IMPLEMENTED / USER VALIDATION**     | Metadata-led sector identity with live Dhan benchmark analysis                                              |
-| Broad-market regime           | **NEXT**                              | Planned deterministic Market Context dimension                                                              |
-| Market breadth                | **NEXT**                              | Planned deterministic Market Context dimension                                                              |
-| Institutional flows / events  | **PARTIAL**                           | Available evidence is normalized without inventing unavailable history or sentiment                         |
-| Scanner LLM narrative         | **PLANNED / OPTIONAL**                | Future natural-language synthesis only; deterministic scores remain authoritative                           |
-| Derivatives Scanner O4        | **IMPLEMENTED / USER VALIDATION PENDING** | Bounded single-leg NSE options scanning, transparent Intraday/Positional templates, and exact O1/O3 handoffs |
-| Derivatives Scanner O5        | **IMPLEMENTED / LIVE VALIDATION PENDING** | Exact NSE FUTSTK/FUTIDX Dhan quote scanning, explicit Futures filters/templates, archived evidence, and guarded Broker V2 preview |
+| Area                          | Current status                              | Product truth                                                                                                                     |
+| ----------------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| TWF-0 / TWF-1 foundations     | **ACCEPTED / FROZEN**                       | Architecture, repository, API, database, authentication, settings, and service-client foundations                                 |
+| Broker V1 / V2                | **ACCEPTED / FROZEN**                       | Read-only broker data plus governed manual order preview, intent, submission, and reconciliation                                  |
+| Options O1                    | **IMPLEMENTED / USER VALIDATION**           | Provider-neutral option identity plus Zerodha single-leg Broker V2 preview and execution foundation                               |
+| Options O2                    | **IMPLEMENTED**                             | Shared bounded canonical chain service, Dhan adapter, and exact Broker V2 preview handoff                                         |
+| Options O3                    | **IMPLEMENTED / USER VALIDATION PENDING**   | Responsive option-chain workspace, canonical contract selection and existing Broker V2 preview                                    |
+| Application shell             | **IMPLEMENTED**                             | Shared responsive header, grouped navigation, theme support, and preserved product routes                                         |
+| Watchlists                    | **IMPLEMENTED / USER VALIDATION**           | Persistent custom lists, read-only built-ins, Dhan enrichment, metadata, charts, and broker handoff                               |
+| Scanner V2                    | **IMPLEMENTED / USER VALIDATION**           | Typed daily technical scanning, saved/history workflows, evidence, ranking, metadata, and Watchlist handoff                       |
+| Discovery                     | **IMPLEMENTED / USER VALIDATION**           | Downstream candidate interpretation and temporal tracking, separate from Scanner execution                                        |
+| Dhan market data              | **IMPLEMENTED / LIVE PATH VALIDATED**       | Authoritative real quotes and bounded completed-bar OHLCV; no silent synthetic fallback                                           |
+| Instrument Metadata harvester | **IMPLEMENTED**                             | Project-owned offline NSE metadata maintenance workflow                                                                           |
+| Runtime Instrument Metadata   | **IMPLEMENTED**                             | System-global database, importer, service, API, and bounded Scanner/Watchlist lookup                                              |
+| Deterministic Market Context  | **IMPLEMENTED / FURTHER WORK DEFERRED**     | Explainable ranking that preserves technical match truth                                                                          |
+| Dynamic Sector Context V1     | **IMPLEMENTED / USER VALIDATION**           | Metadata-led sector identity with live Dhan benchmark analysis                                                                    |
+| Broad-market regime           | **PLANNED / DEFERRED**                      | Planned Market Context dimension, deferred during OE                                                                              |
+| Market breadth                | **PLANNED / DEFERRED**                      | Planned Market Context dimension, deferred during OE                                                                              |
+| Institutional flows / events  | **PARTIAL**                                 | Available evidence is normalized without inventing unavailable history or sentiment                                               |
+| Scanner LLM narrative         | **PLANNED / DEFERRED / OPTIONAL**           | Future natural-language synthesis only; deterministic scores remain authoritative                                                 |
+| Derivatives Scanner O4        | **IMPLEMENTED / USER VALIDATION PENDING**   | Bounded single-leg NSE options scanning, transparent Intraday/Positional templates, and exact O1/O3 handoffs                      |
+| Derivatives Scanner O5        | **IMPLEMENTED / LIVE VALIDATION PENDING**   | Exact NSE FUTSTK/FUTIDX Dhan quote scanning, explicit Futures filters/templates, archived evidence, and guarded Broker V2 preview |
+| OE — TWF Order / Queue        | **ACTIVE PROGRAM / PLANNED IMPLEMENTATION** | Canonical TWF Order → durable Queue → governed Broker V2 submission; not yet the runtime entry path                               |
+| Opportunity O6–O13            | **PLANNED / DEFERRED**                      | Analytics, Discovery, context, monitoring, and execution handoff follow the OE foundation                                         |
 
 The accepted Broker capability is TWF's execution substrate. It is not intended
 to recreate a complete broker terminal.
@@ -53,13 +64,18 @@ to recreate a complete broker terminal.
 
 ### Brokers
 
-The Broker workspace provides accepted Zerodha-backed account views and Broker V2
-manual trading under explicit preview and confirmation. Durable intent,
+The Broker workspace currently provides accepted Zerodha-backed account views
+and Broker V2 manual trading under explicit preview and confirmation. Its existing
+New Order flow remains available until the OE migration is implemented. Durable intent,
 idempotency, reconciliation, ownership, and audit controls remain the authority
 for order submission. Options O1 extends this same path with provider-neutral
 contract identity, exact Zerodha mapping, lot validation, MARKET/LIMIT option
 preview, risk information, and explicit confirmation. It does not implement a
-multi-leg strategies. See the
+multi-leg strategy engine. The target Broker workspace is the faithful broker-truth
+and reconciliation surface: connection/authentication, funds, holdings, actual
+broker orders and positions, broker errors, instruments/metadata, and
+refresh/connect/disconnect. Normal TWF trade initiation will move to TWF Orders;
+Broker is not yet fully read-only. See the
 [Broker V2 manual-order foundation](docs/TWF_BROKER_V2_MANUAL_ORDER_ENTRY.md) and
 [Options architecture](docs/TWF_OPTIONS_ARCHITECTURE.md).
 
@@ -95,7 +111,10 @@ Scanner V2 is operational for Equity/Index daily technical scans. It provides:
 - selected-result handoff to Watchlists; and
 - a current validation limit of 20 instruments per scan.
 
-The Equity/Index scanner and bounded O4 single-leg Derivatives Scanner are implemented. The O4 scanner is pending live user validation. See the
+The Equity/Index scanner, bounded O4 single-leg Options Scanner, and O5 Futures
+Scanner are implemented. O4/O5 live acceptance remains pending; current result
+handoffs use Broker V2 controls while OE prepares the common TWF Order entry.
+See the
 [Scanner V2 architecture and validation record](docs/TWF_SCANNER_V2_ARCHITECTURE.md).
 
 ### Discovery
@@ -157,8 +176,8 @@ Market Context
   ├─ Sector Context .............. IMPLEMENTED
   ├─ India VIX ................... IMPLEMENTED when evidence is available
   ├─ Institutional flows ......... PARTIAL
-  ├─ Broad-market regime ......... NEXT
-  ├─ Market breadth .............. NEXT
+  ├─ Broad-market regime ......... PLANNED / DEFERRED
+  ├─ Market breadth .............. PLANNED / DEFERRED
   └─ Events / news ............... PARTIAL
   ↓
 Explainable relevance ranking
@@ -175,14 +194,14 @@ filter must be selected explicitly.
 
 ### Market Context maturity
 
-| Dimension           | Status          | Current behavior                                                                            |
-| ------------------- | --------------- | ------------------------------------------------------------------------------------------- |
-| Sector Context      | **IMPLEMENTED** | Dynamic benchmark evidence and deterministic, direction-aware contribution                  |
-| India VIX           | **IMPLEMENTED** | Normalized volatility context when provider evidence is available                           |
-| Institutional flows | **PARTIAL**     | Current flow evidence may contribute; unsupported rolling velocity/streak stays unavailable |
-| Broad-market regime | **NEXT**        | Deterministic regime model is the next implementation priority                              |
-| Market breadth      | **NEXT**        | Breadth model and evidence are not yet implemented                                          |
-| Events / news       | **PARTIAL**     | Explicit provider evidence is retained; missing sentiment or scope is not inferred          |
+| Dimension           | Status                 | Current behavior                                                                            |
+| ------------------- | ---------------------- | ------------------------------------------------------------------------------------------- |
+| Sector Context      | **IMPLEMENTED**        | Dynamic benchmark evidence and deterministic, direction-aware contribution                  |
+| India VIX           | **IMPLEMENTED**        | Normalized volatility context when provider evidence is available                           |
+| Institutional flows | **PARTIAL**            | Current flow evidence may contribute; unsupported rolling velocity/streak stays unavailable |
+| Broad-market regime | **PLANNED / DEFERRED** | Deterministic regime model remains planned after the OE foundation                          |
+| Market breadth      | **PLANNED / DEFERRED** | Breadth model and evidence are not yet implemented                                          |
+| Events / news       | **PARTIAL**            | Explicit provider evidence is retained; missing sentiment or scope is not inferred          |
 
 TapTide is the optional provider-neutral market-intelligence adapter. Its
 owner-scoped MCP connection, bounded allowlisted tools, normalization, and failure
@@ -216,19 +235,186 @@ subject to TWF's one-active-LLM policy.
 
 ## Current Priorities
 
-1. Validate Options O3 authenticated live chains and exact Broker V2 preview through the running application, without automated live orders.
-2. Implement deterministic broad-market regime.
-3. Implement market breadth.
-4. Continue Market Context quality, coverage, and validation improvements.
-5. Deepen institutional-flow and event/news context where source contracts support
-   it.
-6. Add optional evidence-bound LLM narrative synthesis.
-7. Validate O4 single-leg Derivatives Scanner with a connected Dhan account and exact Broker V2 preview; do not place test orders.
-8. Evolve Discovery without collapsing its boundary with Scanner.
+1. **Build OE — TWF Order & Execution Foundation**, starting with the canonical
+   TWF Order and reuse of the proven New Order experience, then a durable Queue,
+   governed Broker V2 bridge, and broker-truth reconciliation.
+2. Preserve existing Broker V2, Watchlist, and Scanner functionality while their
+   normal trade initiation moves toward TWF Orders. Do not imply the new Queue
+   or Orders workspace is implemented yet.
+3. Complete outstanding authenticated O3/O4/O5 live validation and broader
+   Watchlist/Scanner/metadata acceptance without automated test orders. These
+   are validation gates, not a competing implementation priority.
+4. Resume planned O6–O13 Opportunity/Discovery work after the OE foundation is
+   stable. Broad-market regime, breadth, richer flow/event context, and optional
+   LLM explanation are included in that later context program.
 
-Broader user validation remains open for recent Watchlist, Scanner V2, metadata,
-and Dynamic Sector work. Final Sprint-2 acceptance and freeze require the
-documented validation, adversarial review, and hardening gates.
+Final Sprint-2 acceptance and freeze still require documented validation,
+adversarial review, and hardening gates.
+
+## Active Program — TWF Order & Execution Foundation (OE)
+
+TWF is building a governed trading workflow above the broker. **No TWF
+subsystem may initiate a broker order except through the governed TWF execution
+path.** Manual entry, Watchlists, Scanner, Discovery, Strategy, future agents,
+and external integrations must create or request a TWF Order rather than submit
+a broker order directly:
+
+```text
+Manual / Watchlist / Scanner / Discovery / Strategy / Agent / external intake
+  → TWF Order
+  → TWF Queue
+  → governed execution
+  → Broker V2
+  → actual broker
+  → broker truth and reconciliation
+```
+
+Today, Broker, Watchlist, and Scanner order entry already converges on the
+Broker V2 preview, intent, submission, and reconciliation machinery. OE moves
+the shared governed entry point one level upward; the diagram is the **target
+architecture**, not a claim that TWF Order or TWF Queue already exists. Broker
+V2 remains the broker-facing submission boundary. Broker truth, including
+rejections and fills, remains authoritative; TWF must not claim a fill before
+broker confirmation.
+
+### Broker boundary and existing New Order reuse
+
+The target Broker workspace is primarily a faithful reflection of the external
+broker: connections and authentication, funds, holdings, actual broker orders
+and positions, rejections/errors, reconciliation, instruments/metadata, and
+refresh/connect/disconnect. Normal TWF trade initiation moves to the TWF Orders
+workspace. The current Broker New Order flow is still operational; Broker is
+**not** already read-only.
+
+The proven `Select Instrument → Ticket → Preview → Result` experience is the
+starting point, not a flow to discard or redesign wholesale. The first OE
+milestone reuses it for `TWF New Order → TWF Order → TWF Queue → Broker V2 →
+broker result/reconciliation`. Foundational routing and state integrity come
+before a richer ticket.
+
+A TWF Order is intended to grow beyond a broker-native order. Later capabilities
+may include Equity/Futures/Options, exact identity and provenance, entry intent,
+SL/TP, max profit/loss, trailing SL, conditional or timed execution, scale-in/out,
+hedges, parent/child relationships, and authority mode. These are **future
+increments**, not prerequisites to stabilizing the basic Order → Queue → Broker
+path.
+
+### Durable audit and external intake
+
+TWF-generated and TWF-managed trades require durable operational and audit
+records. As OE develops, capture origin, owner and actor/subsystem, TWF Order ID,
+Queue transitions and authority decisions, Broker V2 submission/response IDs,
+fills, amendments/cancellations, reconciliation, errors, timestamps, and
+referenced evidence where applicable. This supports debugging, governance,
+restart/recovery, and later performance analysis.
+
+Future TradingView webhooks, strategy services, external applications, and
+agents may submit **TWF Order requests** to the governed intake. They must never
+submit directly to Broker V2; the same TWF Order → Queue → governed execution
+boundary applies. Historical TradingView market-data integration remains
+decommissioned as described below.
+
+### OE implementation sequence
+
+The following phases are **planned**, not implemented capabilities:
+
+1. **OE-1 — TWF Order Domain Foundation.** Define a broker-independent,
+   extensible canonical TWF Order with Equity/Futures/Options identity, BUY/SELL,
+   quantity, currently supported order types, product/validity where applicable,
+   source/provenance, owner, timestamps, lifecycle state, and immutable audit
+   identity. Defer advanced SL/TP and strategy features.
+2. **OE-2 — Existing New Order → TWF Order.** Reuse the current Select
+   Instrument/Ticket/Preview experience from top-level TWF Orders so manual
+   TWF-originated orders enter the new domain without losing proven behavior.
+3. **OE-3 — TWF Queue Foundation.** Add durable admission, ordering, lifecycle,
+   ownership/provenance, duplicate prevention, safe retries, and operator
+   visibility. States may include READY, WAITING, BLOCKED, SUBMITTING, SENT,
+   FAILED, and CANCELLED or repository-approved equivalents. This is not an
+   in-memory list.
+4. **OE-4 — Queue → Broker V2 Bridge.** Submit ready, authorized Queue items
+   through Broker V2 using exact contract identity, idempotency, timeout safety,
+   durable submission identity, acknowledgement capture, and typed failures.
+5. **OE-5 — Broker Reconciliation.** Reconcile broker order IDs and accepted,
+   rejected, open, partially filled, filled, cancelled, and broker-side changes.
+   Broker confirmation remains final execution truth.
+6. **OE-6 — TWF Orders Workspace.** Show + New Order, active/queued/submitted
+   TWF Orders, completed/cancelled/rejected outcomes, provenance, execution
+   state, history, and audit in the established TWF visual language.
+7. **OE-7 — TWF Trading Audit / Logging Foundation.** Persist exact transitions
+   and evidence across TWF Order, Queue, Broker submission and response, and
+   reconciliation.
+8. **OE-8 — TWF Positions Linkage.** Derive TWF Positions from executed TWF
+   Orders or explicitly adopted broker positions. Add entry basis, remaining
+   quantity, risk/SL/target/trailing state, thesis, authority, and broker
+   reconciliation incrementally.
+9. **OE-9 — TWF Alerts Linkage.** Attach Alerts to Orders, Queue, and Positions
+   for waits, disconnects, rejection, partial/complete fill, expiry, conditions,
+   thresholds, and broker/TWF mismatches.
+10. **OE-10 — Advanced TWF Order Model.** After the basic path is stable, add
+    SL/TP, max loss/profit, trailing SL, entry/time conditions, scale-in/out,
+    hedges, parent/child or OCO-like relationships, authority mode, and
+    Scanner/Discovery/Strategy provenance.
+11. **OE-11 — External Order Intake.** Admit TradingView webhook, strategy,
+    application, and agent requests only as governed TWF Orders/Queue entries;
+    never as direct Broker V2 submissions.
+12. **OE-12 — Acceptance / Hardening / Freeze.** Adversarially validate state
+    transitions, durability, idempotency, disconnects, retries, reconciliation,
+    authorization, logging, crash/restart recovery, and the external boundary
+    before freezing the end-to-end path.
+
+## Pending Opportunity / Discovery Program — O6–O13 (deferred)
+
+These phases remain valid planned work. They are intentionally **deferred, not
+cancelled**, while OE establishes the governed Order → Queue → Broker path.
+Their ordering and scope should be revalidated when resumed.
+
+### O6 — Futures Analytics + Chart Handoff
+
+Complete post-scan Futures analysis with richer exact-contract detail,
+spot-versus-futures basis, OI/ΔOI history, trend and interpretation evidence, and
+an exact Futures chart where supported. If only an underlying-spot chart is
+available, label that fallback clearly. This does not add Scanner logic.
+
+### O7 — Derivatives Analytics Convergence
+
+Unify deeper Options/Futures analysis through a shared instrument-detail shell,
+consistent evidence/history, contract metadata, and risk context, with navigation
+from Scanner to Analytics to the governed TWF Order flow.
+
+### O8 — Scanner → Discovery Integration
+
+Promote qualified Equity, Options, and Futures Scanner outputs into
+`DiscoveryCandidate` with the originating scan, exact predicates, resolved
+instrument identity, evidence, timestamp, horizon, and provenance intact.
+
+### O9 — Discovery / Live Opportunity Book V1
+
+Maintain a candidate book across `QUALIFIED`, `STALE`, `DEFUNCT`, `EXPIRED`, and
+`REJECTED` (or approved equivalents). Invalid opportunities may disappear and
+reappear later only with fresh qualifying evidence.
+
+### O10 — Market Intelligence + Context Fusion
+
+Combine deterministic Scanner/Discovery facts with market regime, sector,
+India VIX, macro/events, news/catalysts, commodities, rates/bonds, and policy
+context. Preserve the boundary between measured facts and interpretation.
+
+### O11 — LLM Level-0 Interpretation
+
+An optional LLM may explain, summarize, surface conflicts/risks, and describe
+conditions using grounded evidence. It must not invent market evidence,
+initiate broker execution, or bypass the governed TWF path.
+
+### O12 — Candidate Lifecycle + Monitoring
+
+Track entry zone, invalidation, target progression, freshness, stale/expired
+state, refresh triggers, and continued actionability.
+
+### O13 — Execution Handoff / TradeMonitor Integration
+
+Connect a qualified candidate to `TWF Order → authority/risk checks → TWF Queue
+→ Broker V2 → broker reconciliation → TWF Position → ongoing supervision`.
+Discovery never gains independent broker-submission authority.
 
 ## Current Runtime Architecture
 
@@ -374,4 +560,4 @@ When a milestone or target changes state:
 4. update this README's current-state map; and
 5. preserve historical records and distinguish them from current runtime truth.
 
-Documentation revision: **2026-10-09**.
+Documentation revision: **2026-10-14**.
