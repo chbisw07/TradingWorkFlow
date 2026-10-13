@@ -1,6 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { oiDisplay } from "./derivative-display";
+import { FuturesScanner } from "./futures-scanner";
+import { Icon } from "../shell/icon";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { OrderTicket } from "../brokers/order-ticket";
@@ -159,7 +162,7 @@ const resultColumnOptions = [
   ["oi_change_percent", "ΔOI %"],
   ["implied_volatility", "IV"],
   ["trend", "Trend"],
-  ["oi_interpretation", "OI Interpretation (Inferred)"],
+  ["oi_interpretation", "OI Interpretation"],
   ["spot", "Spot"],
   ["dte", "DTE"],
   ["moneyness", "Money"],
@@ -206,23 +209,39 @@ function oiEvidenceText(row: Row): string {
 }
 function OiBadge({ row }: { row: Row }) {
   const label = row.oi_interpretation?.label || "Insufficient evidence";
-  const tone = label.includes("long buildup")
-    ? "long"
-    : label.includes("short buildup")
-      ? "short"
-      : label === "Short covering"
-        ? "covering"
-        : label === "Long unwinding"
-          ? "unwinding"
-          : "neutral";
+  const display = oiDisplay(label);
   return (
     <span
-      className={`derivative-oi-badge derivative-oi-${tone}`}
+      className={`derivative-oi-badge derivative-oi-${display.tone}`}
       title={oiEvidenceText(row)}
       aria-label={`OI interpretation, inferred: ${label}. ${oiEvidenceText(row)}`}
       tabIndex={0}
     >
-      {label} <small>Inferred</small>
+      {display.label}
+    </span>
+  );
+}
+function OptionTypeBadge({ side }: { side: "CE" | "PE" }) {
+  return (
+    <span
+      className={`derivative-type-badge derivative-type-${side.toLowerCase()}`}
+    >
+      {side}
+    </span>
+  );
+}
+function TrendIndicator({
+  trend,
+}: {
+  trend: string | number | null | undefined;
+}) {
+  const tone = trend === "Up" ? "up" : trend === "Down" ? "down" : "neutral";
+  return (
+    <span className={`derivative-trend derivative-trend-${tone}`}>
+      {tone !== "neutral" && (
+        <span aria-hidden="true">{tone === "up" ? "▲" : "▼"}</span>
+      )}
+      {trend || "—"}
     </span>
   );
 }
@@ -280,7 +299,7 @@ const resultColumnHelp: Record<string, string> = {
   "Vol/OI %": "Contract volume as a percentage of current open interest",
   "OI Pctl": "OI percentile within this bounded underlying and expiry chain",
   "ΔOI %": "Signed change divided by prior OI; not a scan-to-scan movement",
-  "OI Interpretation (Inferred)":
+  "OI Interpretation":
     "Candidate interpretation from comparable archived snapshots; not a signal",
 };
 function expiredContract(contract: OptionContract): boolean {
@@ -324,6 +343,47 @@ function analyticsHref(row: Row): string {
 }
 
 export function DerivativesScanner() {
+  const [scope, setScope] = useState<"OPTIONS" | "FUTURES">("OPTIONS");
+  const [futuresVisited, setFuturesVisited] = useState(false);
+  return (
+    <div className="derivative-workspace">
+      <div
+        className="wl-card derivative-instrument-switch"
+        role="group"
+        aria-label="Instrument"
+      >
+        <strong>Instrument:</strong>
+        <button
+          type="button"
+          aria-pressed={scope === "OPTIONS"}
+          onClick={() => setScope("OPTIONS")}
+        >
+          Options
+        </button>
+        <button
+          type="button"
+          aria-pressed={scope === "FUTURES"}
+          onClick={() => {
+            setFuturesVisited(true);
+            setScope("FUTURES");
+          }}
+        >
+          Futures
+        </button>
+      </div>
+      <div hidden={scope !== "OPTIONS"}>
+        <OptionsScanner active={scope === "OPTIONS"} />
+      </div>
+      {futuresVisited && (
+        <div hidden={scope !== "FUTURES"}>
+          <FuturesScanner active={scope === "FUTURES"} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OptionsScanner({ active }: { active: boolean }) {
   const [catalog, setCatalog] = useState<{
     fields: Field[];
     max_underlyings: number;
@@ -333,6 +393,9 @@ export function DerivativesScanner() {
   const [config, setConfig] = useState<Config>(initial);
   const [raw, setRaw] = useState("");
   const [lists, setLists] = useState<Watchlist[]>([]);
+  const [listsStatus, setListsStatus] = useState<"loading" | "ready" | "error">(
+    "loading",
+  );
   const [optionability, setOptionability] = useState<{
     members: number;
     optionable: number;
@@ -352,6 +415,9 @@ export function DerivativesScanner() {
     built_in: DerivativeTemplate[];
     user: DerivativeTemplate[];
   }>({ built_in: [], user: [] });
+  const [templatesStatus, setTemplatesStatus] = useState<
+    "loading" | "ready" | "error"
+  >("loading");
   const [selectedTemplate, setSelectedTemplate] =
     useState<DerivativeTemplate | null>(null);
   const [templateDialog, setTemplateDialog] = useState(false);
@@ -487,23 +553,51 @@ export function DerivativesScanner() {
   }, [catalogRetry]);
   useEffect(() => {
     void scannerApi<Run[]>("derivatives/runs")
-      .then(setHistory)
+      .then((items) =>
+        setHistory(
+          items.filter(
+            (item) =>
+              (item.config as Config & { instrument_scope?: string })
+                .instrument_scope !== "FUTURES",
+          ),
+        ),
+      )
       .catch(() => setError("Recent derivatives scans could not be loaded."));
     void scannerApi<{
       built_in: DerivativeTemplate[];
       user: DerivativeTemplate[];
     }>("derivatives/templates")
       .then((response) => {
-        if (Array.isArray(response.built_in) && Array.isArray(response.user))
-          setTemplates(response);
+        if (!Array.isArray(response.built_in) || !Array.isArray(response.user))
+          throw new Error("Invalid template catalog");
+        setTemplates(response);
+        setTemplatesStatus("ready");
       })
-      .catch(() => setError("Derivatives scan templates could not be loaded."));
+      .catch(() => {
+        setTemplatesStatus("error");
+        setError("Derivatives scan templates could not be loaded.");
+      });
     void scannerApi<Saved[]>("derivatives/saved")
-      .then(setSaved)
+      .then((items) =>
+        setSaved(
+          items.filter(
+            (item) =>
+              (item.config as Config & { instrument_scope?: string })
+                .instrument_scope !== "FUTURES",
+          ),
+        ),
+      )
       .catch(() => setError("Saved derivatives scans could not be loaded."));
     void watchApi<Watchlist[]>("")
-      .then((w) => setLists(w.filter((x) => !x.archived)))
-      .catch(() => setError("Watchlists could not be loaded."));
+      .then((w) => {
+        if (!Array.isArray(w)) throw new Error("Invalid watchlist catalog");
+        setLists(w.filter((x) => !x.archived));
+        setListsStatus("ready");
+      })
+      .catch(() => {
+        setListsStatus("error");
+        setError("Watchlists could not be loaded.");
+      });
     void brokerApi<Account[]>("accounts")
       .then(async (accounts) => {
         const capable = await Promise.all(
@@ -1054,7 +1148,7 @@ export function DerivativesScanner() {
       case "strike":
         return num(row.strike);
       case "option_type":
-        return row.option_type;
+        return <OptionTypeBadge side={row.option_type} />;
       case "spot":
         return num(row.spot);
       case "dte":
@@ -1103,7 +1197,7 @@ export function DerivativesScanner() {
           </span>
         );
       case "trend":
-        return row.technical.trend || "—";
+        return <TrendIndicator trend={row.technical.trend} />;
       case "oi_interpretation":
         return <OiBadge row={row} />;
       case "rsi":
@@ -1150,11 +1244,13 @@ export function DerivativesScanner() {
           </button>
         </div>
       )}
-      {toolbarHost &&
+      {active &&
+        toolbarHost &&
         createPortal(
           <>
             <ScannerWatchlistSelector
               lists={lists}
+              status={listsStatus}
               selectedId={
                 config.universe.source === "WATCHLIST"
                   ? config.universe.watchlist_id
@@ -1173,8 +1269,13 @@ export function DerivativesScanner() {
               }}
             />
             <DerivativeTemplateMenu
-              builtIn={templates.built_in}
-              user={templates.user}
+              status={templatesStatus}
+              builtIn={templates.built_in.filter(
+                (item) => item.instrument_scope === "OPTIONS",
+              )}
+              user={templates.user.filter(
+                (item) => item.instrument_scope === "OPTIONS",
+              )}
               onLoad={loadTemplate}
               onRename={(template) => void renameTemplate(template)}
               onDelete={(template) => void deleteTemplate(template)}
@@ -1463,7 +1564,10 @@ export function DerivativesScanner() {
           <fieldset className="derivative-option-type">
             <legend>Option Type</legend>
             {(["CE", "PE", "BOTH"] as const).map((side) => (
-              <label key={side}>
+              <label
+                key={side}
+                className={`derivative-option-${side.toLowerCase()}`}
+              >
                 <input
                   type="radio"
                   name="derivative-option-type"
@@ -1723,16 +1827,33 @@ export function DerivativesScanner() {
               <>
                 <div className="derivative-counts">
                   {[
-                    ["requested", "Underlyings requested"],
-                    ["resolved", "Resolved"],
-                    ["chains_evaluated", "Chains"],
-                    ["contracts_evaluated", "Contracts evaluated"],
-                    ["not_evaluated", "Not evaluated"],
-                    ["matches", "Matches"],
-                  ].map(([key, label]) => (
-                    <div key={key}>
-                      <small>{label}</small>
-                      <strong>{run.counts[key]}</strong>
+                    ["requested", "Underlyings requested", "target"],
+                    ["resolved", "Resolved", "check"],
+                    ["chains_evaluated", "Chains", "stack"],
+                    ["contracts_evaluated", "Contracts evaluated", "stack"],
+                    ["not_evaluated", "Not evaluated", "warning"],
+                    ["matches", "Matches", "trophy"],
+                  ].map(([key, label, icon]) => (
+                    <div
+                      key={key}
+                      className={`derivative-count-card derivative-count-${key}`}
+                    >
+                      <span className="derivative-count-icon">
+                        <Icon
+                          name={
+                            icon as
+                              | "target"
+                              | "check"
+                              | "stack"
+                              | "warning"
+                              | "trophy"
+                          }
+                        />
+                      </span>
+                      <span>
+                        <small>{label}</small>
+                        <strong>{run.counts[key]}</strong>
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -1837,7 +1958,8 @@ export function DerivativesScanner() {
                             >
                               {row.underlying}
                             </Link>{" "}
-                            {num(row.strike)} {row.option_type}
+                            {num(row.strike)}{" "}
+                            <OptionTypeBadge side={row.option_type} />
                           </strong>
                         </label>
                         <span>{row.moneyness || "—"}</span>

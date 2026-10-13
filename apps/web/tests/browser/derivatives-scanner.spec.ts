@@ -119,7 +119,7 @@ test("O4 bounded scanner, explanation and exact Analytics handoff", async ({
                 iv_change_points: null,
                 reason: "Observed snapshot-to-snapshot premium and OI moves",
               },
-              technical: {},
+              technical: { trend: "Up" },
               instrument_metadata: null,
               observed: { option_type: "CE" },
               provenance,
@@ -228,9 +228,19 @@ test("O4 bounded scanner, explanation and exact Analytics handoff", async ({
   await expect(fieldOptions).toHaveCount(24);
   await expect(page.getByRole("combobox", { name: "Field" })).toHaveValue("");
   await expect(page.getByRole("radio", { name: "Both" })).toBeChecked();
+  await expect(
+    page.locator(".derivative-option-both input:checked + span"),
+  ).toHaveCSS("background-color", "rgb(36, 119, 242)");
+  await expect(page.locator(".derivative-option-ce span")).toHaveCSS(
+    "color",
+    "rgb(18, 98, 62)",
+  );
   await page.getByRole("radio", { name: "Both" }).focus();
   await page.keyboard.press("ArrowLeft");
   await expect(page.getByRole("radio", { name: "PE" })).toBeChecked();
+  await expect(
+    page.locator(".derivative-option-pe input:checked + span"),
+  ).toHaveCSS("background-color", "rgb(255, 217, 221)");
   await expect(
     page
       .getByRole("combobox", { name: "Field" })
@@ -292,6 +302,25 @@ test("O4 bounded scanner, explanation and exact Analytics handoff", async ({
   );
   await expect(results).toContainText("Call long buildup");
   await expect(
+    results.locator(".derivative-oi-badge").first(),
+  ).not.toContainText("Inferred");
+  await expect(results.locator(".derivative-oi-badge").first()).toHaveClass(
+    /derivative-oi-call-long/,
+  );
+  await expect(page.getByRole("radio", { name: "CE" })).toBeChecked();
+  await expect(
+    page.locator(".derivative-option-ce input:checked + span"),
+  ).toHaveCSS("background-color", "rgb(199, 237, 216)");
+  if (!compact) {
+    await expect(results.locator(".derivative-type-ce").first()).toBeVisible();
+    await expect(results.locator(".derivative-trend-up").first()).toContainText(
+      "Up",
+    );
+    await expect(results.locator(".derivative-trend-up").first()).toContainText(
+      "▲",
+    );
+  }
+  await expect(
     results.getByRole("link", { name: "Open NIFTY in Options Analytics" }),
   ).toHaveAttribute("href", "/options-analytics?underlying=NIFTY");
   if (!compact) {
@@ -300,7 +329,7 @@ test("O4 bounded scanner, explanation and exact Analytics handoff", async ({
       "OI Pctl",
       "ΔOI",
       "ΔOI %",
-      "OI Interpretation (Inferred)",
+      "OI Interpretation",
     ]) {
       await expect(
         page.getByRole("columnheader", { name: label, exact: true }),
@@ -367,7 +396,7 @@ test("O4 bounded scanner, explanation and exact Analytics handoff", async ({
     "OI vs Median",
     "ΔOI %",
     "ΔOI Percentile",
-    "OI Interpretation (Inferred)",
+    "OI Interpretation",
   ]) {
     await expect(
       columnsPopup.getByRole("checkbox", { name: label }),
@@ -612,7 +641,21 @@ test("O4 exact canonical contract reaches Broker V2 Buy and Sell previews", asyn
               strike_distance_percent: 0,
               market: leg.market,
               availability: "AVAILABLE",
-              technical: {},
+              technical: { trend: "Down" },
+              oi_interpretation: {
+                label: "Put short buildup inferred",
+                inferred: true,
+                confidence: "MEDIUM",
+                freshness: "SOURCE_TIME_UNAVAILABLE",
+                window_start: null,
+                window_end: "2026-10-10T10:00:00Z",
+                window_seconds: null,
+                premium_change_percent: null,
+                oi_window_change_percent: null,
+                underlying_change_percent: null,
+                iv_change_points: null,
+                reason: "Fixture interpretation",
+              },
               instrument_metadata: null,
               observed: { option_type: "PE" },
               provenance: fixture.provenance,
@@ -645,6 +688,33 @@ test("O4 exact canonical contract reaches Broker V2 Buy and Sell previews", asyn
     "Option Type: PE",
   );
   await page.getByRole("button", { name: "Run Scan" }).click();
+  const peBackground = await page
+    .locator(".derivative-option-pe input:checked + span")
+    .evaluate((element) => getComputedStyle(element).backgroundColor);
+  expect(["rgb(255, 217, 221)", "rgb(113, 54, 64)"]).toContain(peBackground);
+  const visibleResults = page.locator(
+    info.project.use.viewport!.width <= 600
+      ? ".derivative-mobile-cards"
+      : ".derivative-table-wrap",
+  );
+  await expect(
+    visibleResults.locator(".derivative-type-pe").first(),
+  ).toBeVisible();
+  await expect(
+    visibleResults.locator(".derivative-oi-badge").first(),
+  ).toHaveText("Put short buildup");
+  await expect(
+    visibleResults.locator(".derivative-oi-badge").first(),
+  ).toHaveClass(/derivative-oi-put-short/);
+  if (info.project.use.viewport!.width > 600) {
+    await expect(
+      visibleResults.locator(".derivative-trend-down").first(),
+    ).toContainText("▼Down");
+  }
+  await page.screenshot({
+    path: info.outputPath("derivatives-pe-results.png"),
+    fullPage: true,
+  });
   const resultActions = page
     .locator(".derivative-scanner .derivative-row-actions:visible")
     .first();

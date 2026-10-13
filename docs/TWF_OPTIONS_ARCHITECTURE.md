@@ -579,4 +579,15 @@ a credential/provider failure. Current optionability is still revalidated.
 
 The O4 Scanner offers server-defined **Intraday** and **Positional** OPTIONS presets plus owner-scoped **My Templates**. Each recipe is a versioned, configuration-only set of explicit O4 predicates and structural expiry/strike settings. Loading a template populates editable controls and active chips without running the scan. Built-ins preserve the selected watchlist; a user template can bind one only through the explicit include-watchlist choice when saved. Incompatible old recipes fail visibly rather than silently losing filters.
 
-The top-level **+ Save Scan** choice keeps normal saved scans separate from **Save as Template**. Template storage has no option-chain snapshot, result, price, volume, OI observation, evidence, or chart data. Executed runs still archive the *actual* configuration submitted after user edits and may record the template ID/name as origin. O4 result evaluation and inferred OI interpretation are unchanged. Positional presets use visible `DTE >= 7` filters. Breakout/Breakdown option presets await an explicit O4 underlying breakout field. FUTURES is reserved in the template schema but is rejected as unsupported; no Futures presets are exposed.
+The top-level **+ Save Scan** choice keeps normal saved scans separate from **Save as Template**. Template storage has no option-chain snapshot, result, price, volume, OI observation, evidence, or chart data. Executed runs still archive the *actual* configuration submitted after user edits and may record the template ID/name as origin. O4 result evaluation and inferred OI interpretation are unchanged. Positional presets use visible `DTE >= 7` filters. Breakout/Breakdown option presets await an explicit O4 underlying breakout field. O5 adds a separately typed FUTURES template scope and built-ins; OPTIONS presets remain separate and unchanged.
+
+## O5 Derivatives Futures boundary
+
+The Derivatives Scanner now contains an additional Futures mode without changing O1/O2/O3/O4 option identity, chain, filters, or Broker handoff. Futures mode resolves an exact active Dhan FUTSTK/FUTIDX contract from the NSE master and quotes it in a bounded batch; it does not use the option-chain adapter, option strike window, or O4 option OI cohort. Futures templates are separate typed recipes and cannot be loaded into Options mode. Futures scan-to-scan OI change and participation interpretation are inferred, provenance-bearing observations as described in [Scanner V2 architecture](TWF_SCANNER_V2_ARCHITECTURE.md). Broker V2 preview is available only after exact futures instrument, expiry, lot, and tick reconciliation; no scanner result authorizes direct execution. Futures Analytics and a futures-specific chart route are deferred.
+
+O5 futures resolution now uses the detailed Dhan master through a separate cached
+adapter and the shared index-name lookup. Structured `UNDERLYING_SYMBOL` identifies
+FUTSTK/FUTIDX underlyings; the derivative security ID, expiry, lot and INR tick are
+preserved for quotes/history/Broker handoff. O2/O3/O4 option resolution and chain
+contracts are unchanged. See the O5 structured futures resolution remediation in
+`TWF_SCANNER_V2_ARCHITECTURE.md` for expiry selection and diagnostic semantics.

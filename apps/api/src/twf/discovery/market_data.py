@@ -248,6 +248,9 @@ class DhanMarketDataProvider:
         self.transport = transport
         self._master: tuple[dict[str, str], ...] = ()
         self._master_at: datetime | None = None
+        self._futures_master: tuple[dict[str, str], ...] = ()
+        self._futures_master_at: datetime | None = None
+        self._futures_master_lock = asyncio.Lock()
         self._master_lock = asyncio.Lock()
         self._index_master: tuple[dict[str, str], ...] | None = None
         self._index_lookup: DhanIndexLookup | None = None
@@ -322,6 +325,26 @@ class DhanMarketDataProvider:
         if not isinstance(value, dict):
             raise MarketDataFailure(MarketDataErrorCode.INVALID_RESPONSE)
         return cast(dict[str, Any], value)
+
+    async def _load_futures_master(self) -> tuple[dict[str, str], ...]:
+        from twf.discovery.dhan_futures import MASTER_URL, parse_master
+
+        async with self._futures_master_lock:
+            now = datetime.now(UTC)
+            if (
+                self._futures_master_at is not None
+                and self._futures_master
+                and (now - self._futures_master_at).total_seconds()
+                < self.settings.master_cache_seconds
+            ):
+                return self._futures_master
+            try:
+                raw = await self._body("GET", MASTER_URL, limit=40_000_000)
+                rows = parse_master(raw)
+            except (ValueError, UnicodeError, csv.Error):
+                raise MarketDataFailure(MarketDataErrorCode.INVALID_RESPONSE) from None
+            self._futures_master, self._futures_master_at = rows, now
+            return rows
 
     async def _load_master(self) -> tuple[dict[str, str], ...]:
         now = datetime.now(UTC)
@@ -511,6 +534,20 @@ class DhanMarketDataProvider:
     async def get_quotes(
         self, instruments: tuple[InstrumentIdentity, ...]
     ) -> tuple[QuoteSnapshot, ...]:
+        quotes, missing = await self._quotes(instruments, allow_partial=False)
+        if missing:
+            raise MarketDataFailure(MarketDataErrorCode.PARTIAL_RESPONSE)
+        return quotes
+
+    async def get_quotes_partial(
+        self, instruments: tuple[InstrumentIdentity, ...]
+    ) -> tuple[tuple[QuoteSnapshot, ...], tuple[str, ...]]:
+        """One quote request; surface missing IDs without hiding unaffected quotes."""
+        return await self._quotes(instruments, allow_partial=True)
+
+    async def _quotes(
+        self, instruments: tuple[InstrumentIdentity, ...], *, allow_partial: bool
+    ) -> tuple[tuple[QuoteSnapshot, ...], tuple[str, ...]]:
         if not 1 <= len(instruments) <= self.capabilities.max_quote_batch:
             raise MarketDataFailure(MarketDataErrorCode.INVALID_RESPONSE)
         request: dict[str, list[int]] = {}
@@ -526,11 +563,15 @@ class DhanMarketDataProvider:
             raise MarketDataFailure(MarketDataErrorCode.INVALID_RESPONSE)
         received = datetime.now(UTC)
         output: list[QuoteSnapshot] = []
+        missing: list[str] = []
         for item in instruments:
             segment, security_id = item.native.native_id.split(":", 1)
             segment_rows = data.get(segment)
             row = segment_rows.get(security_id) if isinstance(segment_rows, dict) else None
             if not isinstance(row, dict):
+                if allow_partial:
+                    missing.append(item.native.native_id)
+                    continue
                 raise MarketDataFailure(MarketDataErrorCode.PARTIAL_RESPONSE)
             ohlc_raw = row.get("ohlc")
             ohlc: dict[str, object] = (
@@ -574,8 +615,11 @@ class DhanMarketDataProvider:
                     )
                 )
             except (ValueError, ValidationError):
+                if allow_partial:
+                    missing.append(item.native.native_id)
+                    continue
                 raise MarketDataFailure(MarketDataErrorCode.INVALID_RESPONSE) from None
-        return tuple(output)
+        return tuple(output), tuple(missing)
 
     @staticmethod
     def _available_at(timestamp: datetime, interval: str) -> datetime:

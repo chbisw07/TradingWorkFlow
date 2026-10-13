@@ -632,6 +632,30 @@
   display: grid;
   gap: 12px;
   min-width: 0;
+  --derivative-call-bg: #183c31;
+  --derivative-call-border: #367c5d;
+  --derivative-call-text: #a7e9c1;
+  --derivative-call-selected: #205942;
+  --derivative-put-bg: #472b30;
+  --derivative-put-border: #98505b;
+  --derivative-put-text: #ffd1d3;
+  --derivative-put-selected: #713640;
+  --derivative-neutral-bg: #293744;
+  --derivative-neutral-border: #526478;
+  --derivative-neutral-text: #d6e1ec;
+}
+[data-theme="light"] .derivative-scanner {
+  --derivative-call-bg: #e6f7ed;
+  --derivative-call-border: #8bd3a9;
+  --derivative-call-text: #12623e;
+  --derivative-call-selected: #c7edd8;
+  --derivative-put-bg: #fff0f0;
+  --derivative-put-border: #e5a4aa;
+  --derivative-put-text: #9d2638;
+  --derivative-put-selected: #ffd9dd;
+  --derivative-neutral-bg: #edf1f5;
+  --derivative-neutral-border: #ccd4de;
+  --derivative-neutral-text: #45566b;
 }
 .derivative-detail-actions a {
   color: #1764c3;
@@ -681,11 +705,33 @@
   text-align: center;
   cursor: pointer;
 }
+.derivative-option-ce span,
+.derivative-option-pe span {
+  background: var(--derivative-call-bg);
+  border-color: var(--derivative-call-border);
+  color: var(--derivative-call-text);
+}
+.derivative-option-pe span {
+  background: var(--derivative-put-bg);
+  border-color: var(--derivative-put-border);
+  color: var(--derivative-put-text);
+}
 .derivative-option-type input:checked + span {
   background: #2477f2;
   border-color: #2477f2;
   color: #fff;
   font-weight: 700;
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+.derivative-option-ce input:checked + span {
+  background: var(--derivative-call-selected);
+  border-color: var(--derivative-call-border);
+  color: var(--derivative-call-text);
+}
+.derivative-option-pe input:checked + span {
+  background: var(--derivative-put-selected);
+  border-color: var(--derivative-put-border);
+  color: var(--derivative-put-text);
 }
 .derivative-option-type input:focus-visible + span {
   outline: 2px solid #2477f2;
@@ -1176,39 +1222,66 @@
   white-space: normal;
   font-weight: 700;
 }
-.derivative-oi-badge small {
-  font-size: 9px;
+.derivative-type-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  padding: 1px 4px;
+  border: 1px solid;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.25;
+  vertical-align: baseline;
+}
+.derivative-type-ce {
+  background: var(--derivative-call-bg);
+  border-color: var(--derivative-call-border);
+  color: var(--derivative-call-text);
+}
+.derivative-type-pe {
+  background: var(--derivative-put-bg);
+  border-color: var(--derivative-put-border);
+  color: var(--derivative-put-text);
+}
+.derivative-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
   font-weight: 600;
-  opacity: 0.85;
+}
+.derivative-trend-up {
+  color: var(--derivative-call-text);
+}
+.derivative-trend-down {
+  color: var(--derivative-put-text);
+}
+.derivative-trend-neutral {
+  color: var(--derivative-neutral-text);
+}
+.derivative-trend [aria-hidden="true"] {
+  font-size: 9px;
 }
 .derivative-oi-badge:focus-visible {
   outline: 2px solid #1764c3;
   outline-offset: 2px;
 }
-.derivative-oi-long {
-  background: #ddf6e9;
-  border-color: #a9dfc2;
-  color: #126344;
+.derivative-oi-call-long {
+  background: var(--derivative-call-bg);
+  border-color: var(--derivative-call-border);
+  color: var(--derivative-call-text);
 }
-.derivative-oi-short {
-  background: #fff0ed;
-  border-color: #efc1b7;
-  color: #8d483c;
-}
-.derivative-oi-covering {
-  background: #e4f1ff;
-  border-color: #b7d8fb;
-  color: #205e9b;
-}
-.derivative-oi-unwinding {
-  background: #fff4df;
-  border-color: #ead6a3;
-  color: #76551e;
+.derivative-oi-put-short {
+  background: var(--derivative-put-bg);
+  border-color: var(--derivative-put-border);
+  color: var(--derivative-put-text);
 }
 .derivative-oi-neutral {
-  background: #edf1f5;
-  border-color: #ccd4de;
-  color: #45566b;
+  background: var(--derivative-neutral-bg);
+  border-color: var(--derivative-neutral-border);
+  color: var(--derivative-neutral-text);
 }
 .derivative-oi-evidence {
   margin-top: 16px;
@@ -1382,6 +1455,7 @@
 
 /* Scanner Charts: archived completed-bar comparison cards. */
 .sc-chart-grid {
+  display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   align-content: start;
@@ -1725,5 +1799,112 @@
     top: 74px;
     width: auto;
     max-height: calc(100vh - 100px);
+  }
+}
+
+/* O5 Futures extends the existing Derivatives workspace. */
+.derivative-workspace {
+  min-width: 0;
+}
+.derivative-instrument-switch {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+}
+.derivative-instrument-switch strong {
+  margin-right: 6px;
+  font-size: 12px;
+}
+.derivative-instrument-switch button {
+  min-width: 88px;
+  padding: 7px 14px;
+  background: var(--shell-surface);
+  color: var(--shell-text);
+}
+.derivative-instrument-switch button[aria-pressed="true"] {
+  background: #2477f2;
+  color: white;
+  border-color: #2477f2;
+  font-weight: 700;
+}
+.derivative-instrument-switch button:focus-visible {
+  outline: 2px solid #1764c3;
+  outline-offset: 2px;
+}
+.derivative-counts > .derivative-count-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.derivative-count-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 29px;
+  width: 29px;
+  height: 29px;
+  border-radius: 5px;
+  background: #e5f1ff;
+  color: #1764c3;
+}
+.derivative-count-icon svg {
+  width: 17px;
+  height: 17px;
+}
+.derivative-count-resolved .derivative-count-icon,
+.derivative-count-matches .derivative-count-icon {
+  background: #e6f6ee;
+  color: #087442;
+}
+.derivative-count-not_evaluated .derivative-count-icon {
+  background: #fff2e6;
+  color: #9b6320;
+}
+.futures-scanner .derivative-counts {
+  grid-template-columns: repeat(5, minmax(95px, 1fr));
+}
+.futures-scanner .derivative-table-wrap th,
+.futures-scanner .derivative-table-wrap td {
+  padding: 7px 6px;
+}
+.futures-scanner .derivative-table-wrap th:nth-child(2),
+.futures-scanner .derivative-table-wrap td:nth-child(2) {
+  width: 24px;
+  color: var(--shell-secondary);
+}
+.futures-scanner .derivative-underlying-link {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+.futures-scanner .sc-universe-tabs .active {
+  background: #e5f1ff;
+  border-color: #89b6ef;
+  color: #1764c3;
+}
+.futures-scanner .derivative-detail {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 1100px) {
+  .futures-scanner .derivative-counts {
+    grid-template-columns: repeat(3, minmax(95px, 1fr));
+  }
+}
+@media (max-width: 600px) {
+  .futures-scanner .derivative-counts {
+    grid-template-columns: repeat(2, minmax(95px, 1fr));
+  }
+  .derivative-instrument-switch {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 600px) {
+  /* O5 uses a horizontally scrollable dense table, not O4's mobile cards. */
+  .futures-scanner .derivative-table-wrap {
+    display: block;
   }
 }

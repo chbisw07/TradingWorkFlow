@@ -1020,7 +1020,7 @@ export function ScannerWorkspace() {
             }}
           >
             <strong>Derivatives Scanner</strong>
-            <small>Single-leg NSE options</small>
+            <small>Single-leg NSE options & futures</small>
           </button>
         </div>
         {derivatives && (

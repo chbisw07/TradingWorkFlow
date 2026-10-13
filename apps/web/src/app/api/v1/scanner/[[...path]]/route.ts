@@ -11,16 +11,19 @@ async function forward(
   const id = "[0-9a-fA-F-]{36}";
   const allowed =
     request.method === "GET"
-      ? /^(catalog|saved|runs|movers|derivatives\/(catalog|saved|runs|templates))$/.test(
+      ? /^(catalog|saved|runs|movers|derivatives\/(catalog|saved|runs|templates|futures\/catalog))$/.test(
           route,
         ) ||
         new RegExp(`^derivatives/runs/${id}$`).test(route) ||
         new RegExp(`^derivatives/watchlists/${id}/optionable$`).test(route) ||
+        new RegExp(`^derivatives/futures/watchlists/${id}/eligible$`).test(
+          route,
+        ) ||
         new RegExp(
           `^runs/${id}(/items/${id}/(reference|news|broker-instrument))?$`,
         ).test(route)
       : request.method === "POST"
-        ? /^(saved|runs|provider-screen|derivatives\/(saved|runs|templates))$/.test(
+        ? /^(saved|runs|provider-screen|derivatives\/(saved|runs|templates|futures\/(saved|runs)))$/.test(
             route,
           ) || new RegExp(`^runs/${id}/watchlists/${id}$`).test(route)
         : (request.method === "PATCH" &&

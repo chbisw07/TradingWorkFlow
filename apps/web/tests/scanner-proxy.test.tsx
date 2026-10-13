@@ -28,12 +28,16 @@ test("O4 catalog and owner-scoped routes forward through the scanner proxy", asy
   vi.stubGlobal("fetch", fetcher);
   for (const [method, path] of [
     ["GET", "derivatives/catalog"],
+    ["GET", "derivatives/futures/catalog"],
+    ["GET", `derivatives/futures/watchlists/${id}/eligible`],
     ["GET", "derivatives/saved"],
     ["GET", "derivatives/runs"],
     ["GET", `derivatives/runs/${id}`],
     ["GET", `derivatives/watchlists/${id}/optionable`],
     ["POST", "derivatives/saved"],
     ["POST", "derivatives/runs"],
+    ["POST", "derivatives/futures/saved"],
+    ["POST", "derivatives/futures/runs"],
     ["PATCH", `derivatives/saved/${id}`],
   ]) {
     const route = path.split("/");
@@ -48,7 +52,7 @@ test("O4 catalog and owner-scoped routes forward through the scanner proxy", asy
     );
     expect(fetcher.mock.lastCall?.[1].headers.get("Authorization")).toBeNull();
   }
-  expect(fetcher).toHaveBeenCalledTimes(8);
+  expect(fetcher).toHaveBeenCalledTimes(12);
 });
 
 test("scanner proxy rejects unlisted O4 paths without an upstream call", async () => {
@@ -56,6 +60,8 @@ test("scanner proxy rejects unlisted O4 paths without an upstream call", async (
   vi.stubGlobal("fetch", fetcher);
   for (const path of [
     "derivatives/secret",
+    "derivatives/futures/secret",
+    "derivatives/futures/watchlists/not-an-id/eligible",
     "derivatives/runs/not-an-id",
     `derivatives/runs/${id}/delete`,
   ]) {

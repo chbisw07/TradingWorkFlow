@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from twf.infrastructure.scanner_v2 import DerivativeTemplateRow
 from twf.scanner_v2.derivatives import DerivativeFilter, DerivativeModel
+from twf.scanner_v2.futures import FuturesFilter
 from twf.watchlists.service import WatchlistFailure
 
 TEMPLATE_SCHEMA_VERSION = 1
@@ -26,12 +27,13 @@ class DerivativeTemplateRecipe(DerivativeModel):
     exact_expiry: date | None = None
     strike_window: Literal[5, 10, 15, 20] = 10
     watchlist_id: UUID | None = None
-    predicates: tuple[DerivativeFilter, ...] = Field(min_length=1, max_length=16)
+    predicates: tuple[DerivativeFilter | FuturesFilter, ...] = Field(min_length=1, max_length=16)
 
     @model_validator(mode="after")
     def valid(self) -> Self:
-        if self.instrument_scope != "OPTIONS":
-            raise ValueError("Futures templates are planned, not available")
+        predicate_model = DerivativeFilter if self.instrument_scope == "OPTIONS" else FuturesFilter
+        for item in self.predicates:
+            predicate_model.model_validate(item.model_dump(mode="json"))
         if self.expiry_mode == "EXACT" and self.exact_expiry is None:
             raise ValueError("Choose an exact expiry")
         if len({item.field for item in self.predicates}) != len(self.predicates):
@@ -100,6 +102,126 @@ POSITIONAL = (
     ("oi_percentile", ">=", 70),
     ("spread_percent", "<=", 2),
 )
+
+
+def _future_builtin(
+    slug: str, name: str, horizon: Horizon, purpose: str, rules: tuple[tuple[str, str, Any], ...]
+) -> dict[str, Any]:
+    recipe = DerivativeTemplateRecipe(
+        instrument_scope="FUTURES",
+        predicates=tuple(
+            FuturesFilter.model_validate({"field": field, "operator": op, "value": value})
+            for field, op, value in rules
+        ),
+    )
+    return {
+        "template_id": f"builtin:{slug}",
+        "name": name,
+        "scanner_type": "DERIVATIVES",
+        "instrument_scope": "FUTURES",
+        "horizon": horizon,
+        "source": "BUILT_IN",
+        "description": purpose,
+        "template_schema_version": TEMPLATE_SCHEMA_VERSION,
+        "recipe": recipe.model_dump(mode="json"),
+    }
+
+
+FUTURES_BUILTIN_TEMPLATES: tuple[dict[str, Any], ...] = (
+    _future_builtin(
+        "futures-momentum-long",
+        "Intraday — Futures Momentum Long",
+        "INTRADAY",
+        "Liquid futures with an upward spot day direction.",
+        (
+            ("volume_percentile", ">=", 70),
+            ("oi_percentile", ">=", 60),
+            ("underlying_trend", "equals", "Up"),
+        ),
+    ),
+    _future_builtin(
+        "futures-momentum-short",
+        "Intraday — Futures Momentum Short",
+        "INTRADAY",
+        "Liquid futures with a downward spot day direction.",
+        (
+            ("volume_percentile", ">=", 70),
+            ("oi_percentile", ">=", 60),
+            ("underlying_trend", "equals", "Down"),
+        ),
+    ),
+    _future_builtin(
+        "futures-oi-buildup",
+        "Intraday — Futures OI Buildup",
+        "INTRADAY",
+        "Requires comparable exact-contract archived OI within 30 minutes.",
+        (
+            ("change_in_open_interest", ">", 0),
+            ("oi_change_percent", ">=", 1),
+            ("oi_percentile", ">=", 70),
+            ("volume_percentile", ">=", 60),
+        ),
+    ),
+    _future_builtin(
+        "futures-short-covering",
+        "Intraday — Futures Short Covering",
+        "INTRADAY",
+        "Explicit inferred interpretation and liquid participation.",
+        (
+            ("interpretation", "equals", "Short covering"),
+            ("volume_percentile", ">=", 60),
+            ("oi_percentile", ">=", 60),
+        ),
+    ),
+    _future_builtin(
+        "futures-positional-long",
+        "Positional — Futures Trend Long",
+        "POSITIONAL",
+        "At least seven days to expiry with spot day direction up and liquid OI.",
+        (
+            ("dte", ">=", 7),
+            ("underlying_trend", "equals", "Up"),
+            ("volume_percentile", ">=", 60),
+            ("oi_percentile", ">=", 70),
+        ),
+    ),
+    _future_builtin(
+        "futures-positional-short",
+        "Positional — Futures Trend Short",
+        "POSITIONAL",
+        "At least seven days to expiry with spot day direction down and liquid OI.",
+        (
+            ("dte", ">=", 7),
+            ("underlying_trend", "equals", "Down"),
+            ("volume_percentile", ">=", 60),
+            ("oi_percentile", ">=", 70),
+        ),
+    ),
+    _future_builtin(
+        "futures-positional-oi",
+        "Positional — Futures OI Buildup",
+        "POSITIONAL",
+        "At least seven days to expiry and comparable OI expansion.",
+        (
+            ("dte", ">=", 7),
+            ("change_in_open_interest", ">", 0),
+            ("oi_change_percent", ">=", 1),
+            ("oi_percentile", ">=", 70),
+        ),
+    ),
+    _future_builtin(
+        "futures-positional-covering",
+        "Positional — Futures Short Covering",
+        "POSITIONAL",
+        "At least seven days to expiry and explicit inferred covering evidence.",
+        (
+            ("dte", ">=", 7),
+            ("interpretation", "equals", "Short covering"),
+            ("volume_percentile", ">=", 60),
+        ),
+    ),
+)
+
 
 DERIVATIVES_BUILTIN_TEMPLATES: tuple[dict[str, Any], ...] = (
     _builtin(
@@ -251,7 +373,7 @@ class DerivativeTemplateService:
             "template_id": str(row.id),
             "source": "USER",
             "scanner_type": "DERIVATIVES",
-            "instrument_scope": "OPTIONS",
+            "instrument_scope": row.payload.get("recipe", {}).get("instrument_scope", "OPTIONS"),
             **row.payload,
             "created_at": row.created_at.isoformat(),
             "updated_at": row.updated_at.isoformat(),

@@ -7,12 +7,14 @@ type Props = {
   lists: Watchlist[];
   selectedId?: string;
   onSelect: (id: string) => void;
+  status?: "loading" | "ready" | "error";
 };
 
 export function ScannerWatchlistSelector({
   lists,
   selectedId,
   onSelect,
+  status = "ready",
 }: Props) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -93,13 +95,16 @@ export function ScannerWatchlistSelector({
         ref={trigger}
         type="button"
         className="sc-watchlist-trigger"
-        aria-label={`Watchlist: ${selected?.name || (selectedId ? "Unavailable watchlist" : "Choose watchlist")}`}
+        aria-label={`Watchlist: ${status === "error" ? "Watchlists unavailable" : status === "loading" ? "Loading watchlists" : selected?.name || (selectedId ? "Unavailable watchlist" : "Choose watchlist")}`}
         aria-expanded={open}
         aria-controls="scanner-watchlist-popover"
         onClick={() => setOpen((current) => !current)}
       >
         ◈{" "}
-        {selected?.name || (selectedId ? "Unavailable watchlist" : "Watchlist")}{" "}
+        {status === "error"
+          ? "Watchlists unavailable"
+          : selected?.name ||
+            (selectedId ? "Unavailable watchlist" : "Watchlist")}{" "}
         {selected?.read_only ? "🔒" : ""} ▾
       </button>
       {open && (
@@ -117,50 +122,58 @@ export function ScannerWatchlistSelector({
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
-          <div className="sc-watchlist-scroll">
-            <div className="sc-watchlist-group-label">
-              My Watchlists <span>{mine.length}</span>
-            </div>
-            {mine.map((list) => (
-              <div className="sc-watchlist-row" key={list.id}>
+          {status === "loading" ? (
+            <p role="status">Loading watchlists…</p>
+          ) : status === "error" ? (
+            <p role="alert">Watchlists unavailable. Please retry later.</p>
+          ) : (
+            <div className="sc-watchlist-scroll">
+              <div className="sc-watchlist-group-label">
+                My Watchlists <span>{mine.length}</span>
+              </div>
+              {mine.map((list) => (
+                <div className="sc-watchlist-row" key={list.id}>
+                  <button
+                    type="button"
+                    className="sc-watchlist-item"
+                    aria-current={selectedId === list.id ? "true" : undefined}
+                    onClick={() => choose(list.id)}
+                  >
+                    {list.name} ({list.count})
+                  </button>
+                </div>
+              ))}
+              {!mine.length && <small>No matching personal watchlists.</small>}
+              <div className="sc-watchlist-group-label">
+                Built-in Watchlists <span>{system.length}</span>
+              </div>
+              {system.map((list) => (
                 <button
                   type="button"
-                  className="sc-watchlist-item"
+                  key={list.id}
+                  className="sc-watchlist-item sc-watchlist-system"
                   aria-current={selectedId === list.id ? "true" : undefined}
+                  aria-label={`${list.name}, ${list.count} constituents, built-in read-only${watchlistReadinessLabel(list) ? `, ${watchlistReadinessLabel(list)}` : ""}`}
+                  disabled={!list.enabled}
+                  title={watchlistReadinessLabel(list) || list.description}
                   onClick={() => choose(list.id)}
                 >
-                  {list.name} ({list.count})
+                  <span>
+                    {list.name} ({list.count})
+                    {watchlistReadinessLabel(list) && (
+                      <small className="sc-watchlist-readiness">
+                        {watchlistReadinessLabel(list)}
+                      </small>
+                    )}
+                  </span>
+                  <span aria-hidden="true">🔒</span>
                 </button>
-              </div>
-            ))}
-            {!mine.length && <small>No matching personal watchlists.</small>}
-            <div className="sc-watchlist-group-label">
-              Built-in Watchlists <span>{system.length}</span>
+              ))}
+              {!system.length && (
+                <small>No matching built-in watchlists.</small>
+              )}
             </div>
-            {system.map((list) => (
-              <button
-                type="button"
-                key={list.id}
-                className="sc-watchlist-item sc-watchlist-system"
-                aria-current={selectedId === list.id ? "true" : undefined}
-                aria-label={`${list.name}, ${list.count} constituents, built-in read-only${watchlistReadinessLabel(list) ? `, ${watchlistReadinessLabel(list)}` : ""}`}
-                disabled={!list.enabled}
-                title={watchlistReadinessLabel(list) || list.description}
-                onClick={() => choose(list.id)}
-              >
-                <span>
-                  {list.name} ({list.count})
-                  {watchlistReadinessLabel(list) && (
-                    <small className="sc-watchlist-readiness">
-                      {watchlistReadinessLabel(list)}
-                    </small>
-                  )}
-                </span>
-                <span aria-hidden="true">🔒</span>
-              </button>
-            ))}
-            {!system.length && <small>No matching built-in watchlists.</small>}
-          </div>
+          )}
         </div>
       )}
     </div>

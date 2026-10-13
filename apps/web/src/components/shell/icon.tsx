@@ -2,6 +2,11 @@ const paths = {
   compass: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Zm4 5-3 5-5 3 3-5 5-3Z",
   portfolio: "M3 6h18v5H3V6Zm0 9h18v5H3v-5Zm4-6h1m-1 9h1M8 3h8v3",
   document: "M5 3h10l4 4v14H5V3Zm10 0v5h4M8 12h8m-8 4h5",
+  check: "M4 12l5 5L20 6",
+  stack: "M12 3 2 8l10 5 10-5-10-5Zm-10 9 10 5 10-5M2 16l10 5 10-5",
+  warning: "M12 3 2 21h20L12 3Zm0 6v5m0 3v.1",
+  trophy:
+    "M7 3h10v7a5 5 0 0 1-10 0V3ZM7 5H3v3a4 4 0 0 0 4 4m10-7h4v3a4 4 0 0 1-4 4m-5 3v4m-4 2h8",
   target:
     "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Zm0 4a5 5 0 1 0 0 10 5 5 0 0 0 0-10Zm0 3v4m-2-2h4",
   nodes:

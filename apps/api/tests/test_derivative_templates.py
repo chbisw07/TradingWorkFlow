@@ -12,11 +12,13 @@ from test_watchlists import client as client  # noqa: F401
 from twf.infrastructure.scanner_v2 import DerivativeTemplateRow
 from twf.scanner_v2.derivative_templates import (
     DERIVATIVES_BUILTIN_TEMPLATES,
+    FUTURES_BUILTIN_TEMPLATES,
     DerivativeTemplateInput,
     DerivativeTemplateRecipe,
     DerivativeTemplateService,
 )
 from twf.scanner_v2.derivatives import DerivativeFilter, DerivativeScanConfig
+from twf.scanner_v2.futures import FuturesFilter
 from twf.watchlists.service import WatchlistFailure
 
 BASE = "/api/v1/scanner/derivatives"
@@ -86,7 +88,7 @@ def test_template_api_is_owner_scoped_configuration_only_and_saved_scans_stay_se
 ) -> None:
     catalog = client.get(BASE + "/templates")
     assert catalog.status_code == 200, catalog.text
-    assert len(catalog.json()["built_in"]) == 12
+    assert len(catalog.json()["built_in"]) == 20
     assert catalog.json()["user"] == []
     create = client.post(BASE + "/templates", json=template(), headers=HEADERS)
     assert create.status_code == 200, create.text
@@ -158,3 +160,55 @@ def test_template_origin_does_not_replace_actual_executed_filters() -> None:
         )["value"]
         == 70
     )
+
+
+def test_futures_builtin_recipes_are_explicit_and_separate_from_options() -> None:
+    assert len(FUTURES_BUILTIN_TEMPLATES) == 8
+    assert {item["instrument_scope"] for item in FUTURES_BUILTIN_TEMPLATES} == {"FUTURES"}
+    names = {item["name"] for item in FUTURES_BUILTIN_TEMPLATES}
+    assert "Intraday — Futures Momentum Long" in names
+    assert "Intraday — Futures Momentum Short" in names
+    assert "Intraday — Futures Short Covering" in names
+    assert "Positional — Futures Trend Long" in names
+    assert "Positional — Futures Short Covering" in names
+    assert not any("Breakout" in name or "Breakdown" in name for name in names)
+    for item in FUTURES_BUILTIN_TEMPLATES:
+        parsed = DerivativeTemplateRecipe.model_validate(item["recipe"])
+        assert parsed.instrument_scope == "FUTURES"
+        assert parsed.watchlist_id is None
+        assert all(
+            isinstance(FuturesFilter.model_validate(rule.model_dump(mode="json")), FuturesFilter)
+            for rule in parsed.predicates
+        )
+        assert len({rule.field for rule in parsed.predicates}) == len(parsed.predicates)
+        if item["horizon"] == "POSITIONAL":
+            assert any(rule.field == "dte" and rule.value == 7 for rule in parsed.predicates)
+
+
+def test_futures_template_api_persists_configuration_without_results(client: TestClient) -> None:
+    setup = {
+        "template_schema_version": 1,
+        "name": "My Futures Activity",
+        "horizon": "INTRADAY",
+        "description": "Explicit futures recipe",
+        "recipe": {
+            "instrument_scope": "FUTURES",
+            "expiry_mode": "NEAREST",
+            "strike_window": 10,
+            "predicates": [
+                {"field": "volume_percentile", "operator": ">=", "value": 75},
+                {"field": "underlying_trend", "operator": "equals", "value": "Up"},
+            ],
+        },
+    }
+    response = client.post(BASE + "/templates", json=setup, headers=HEADERS)
+    assert response.status_code == 200, response.text
+    template = response.json()
+    assert template["instrument_scope"] == "FUTURES"
+    assert template["recipe"]["predicates"] == setup["recipe"]["predicates"]
+    assert client.get(BASE + "/runs").json() == []
+    assert client.get(BASE + "/saved").json() == []
+    factory = client.app.state.session_factory
+    with factory() as db:
+        stored = db.get(DerivativeTemplateRow, UUID(template["template_id"])).payload
+        assert "rows" not in stored and "quote" not in str(stored)

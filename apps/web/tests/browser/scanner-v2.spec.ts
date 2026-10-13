@@ -511,7 +511,10 @@ test("Scanner V2 editable filters, durable runs, Watchlist handoff and responsiv
       (element) =>
         getComputedStyle(element).gridTemplateColumns.split(" ").length,
     );
-  expect(columns).toBe(width >= 1920 ? 3 : width >= 1200 ? 2 : 1);
+  const resultsWidth = await page
+    .locator(".sc-results")
+    .evaluate((element) => parseFloat(getComputedStyle(element).width));
+  expect(columns).toBe(resultsWidth >= 1220 ? 3 : resultsWidth >= 800 ? 2 : 1);
   await page.screenshot({
     path: info.outputPath(`scanner-charts-${width}.png`),
     fullPage: width >= 1024,

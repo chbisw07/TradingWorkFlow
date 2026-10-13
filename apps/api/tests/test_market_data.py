@@ -203,6 +203,32 @@ def test_dhan_http_failures_are_typed(status: int, code: MarketDataErrorCode) ->
     assert caught.value.code == code
 
 
+def test_partial_quote_batch_preserves_valid_rows_when_another_row_is_malformed() -> None:
+    def transport(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, content=master(RELIANCE, NIFTY))
+        return httpx.Response(
+            200,
+            json={
+                "status": "success",
+                "data": {
+                    "NSE_EQ": {"2885": {"last_price": 2920, "net_change": 20, "volume": 100}},
+                    "IDX_I": {"13": {"last_price": -1}},
+                },
+            },
+        )
+
+    provider = DhanMarketDataProvider(settings(), transport=httpx.MockTransport(transport))
+    instruments = resolve(provider, ("RELIANCE", "NIFTY"))
+    quotes, missing = asyncio.run(provider.get_quotes_partial(instruments))
+    assert len(quotes) == 1
+    assert quotes[0].instrument.symbol == "RELIANCE"
+    assert missing == ("IDX_I:13",)
+    with pytest.raises(MarketDataFailure) as strict:
+        asyncio.run(provider.get_quotes(instruments))
+    assert strict.value.code == MarketDataErrorCode.INVALID_RESPONSE
+
+
 def test_quote_partial_response_is_typed() -> None:
     provider, instrument = provider_with_identity(
         lambda _: httpx.Response(200, json={"status": "success", "data": {"NSE_EQ": {}}})

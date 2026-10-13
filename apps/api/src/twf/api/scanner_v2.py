@@ -31,6 +31,7 @@ from twf.scanner_v2.contracts import (
 )
 from twf.scanner_v2.derivative_templates import (
     DERIVATIVES_BUILTIN_TEMPLATES,
+    FUTURES_BUILTIN_TEMPLATES,
     DerivativeTemplateInput,
     DerivativeTemplateService,
 )
@@ -41,6 +42,14 @@ from twf.scanner_v2.derivatives import (
 )
 from twf.scanner_v2.derivatives import (
     catalog as derivative_catalog,
+)
+from twf.scanner_v2.futures import (
+    FuturesScanConfig,
+    FuturesScannerService,
+    SavedFuturesInput,
+)
+from twf.scanner_v2.futures import (
+    catalog as futures_catalog,
 )
 from twf.scanner_v2.service import ScannerService
 from twf.scanner_v2.tapetide import TapTideScanner
@@ -169,7 +178,7 @@ def derivative_templates(request: Request, who: Who) -> DerivativeTemplateServic
 @router.get("/derivatives/templates")
 def derivatives_templates(request: Request, who: Who) -> dict[str, Any]:
     return {
-        "built_in": list(DERIVATIVES_BUILTIN_TEMPLATES),
+        "built_in": list(DERIVATIVES_BUILTIN_TEMPLATES + FUTURES_BUILTIN_TEMPLATES),
         "user": derivative_templates(request, who).list(),
     }
 
@@ -264,6 +273,48 @@ async def derivatives_execute(
         capture.status.generation,
         OptionChainService(source),
         request.app.state.scanner_history,
+    )
+
+
+def futures_service(request: Request, who: Who) -> FuturesScannerService:
+    return FuturesScannerService(
+        request.app.state.session_factory, who.owner_id, request.app.state.system_universes
+    )
+
+
+@router.get("/derivatives/futures/catalog")
+def derivatives_futures_catalog(who: Who) -> dict[str, Any]:
+    return futures_catalog()
+
+
+@router.get("/derivatives/futures/watchlists/{key}/eligible")
+async def derivatives_futures_eligible(
+    key: UUID, request: Request, who: Who, capture: Market
+) -> dict[str, Any]:
+    from twf.discovery.market_data import DhanMarketDataProvider
+
+    if not isinstance(capture.provider, DhanMarketDataProvider):
+        raise WatchlistFailure("DHAN_AUTH_REQUIRED", 503)
+    return await futures_service(request, who).watchlist_eligibility(key, capture.provider)
+
+
+@router.post("/derivatives/futures/saved", dependencies=[Depends(require_origin)])
+def derivatives_futures_save(
+    payload: SavedFuturesInput, request: Request, who: Who
+) -> dict[str, Any]:
+    return futures_service(request, who).save(payload)
+
+
+@router.post("/derivatives/futures/runs", dependencies=[Depends(require_origin)])
+async def derivatives_futures_execute(
+    payload: FuturesScanConfig, request: Request, who: Who, capture: Market
+) -> dict[str, Any]:
+    from twf.discovery.market_data import DhanMarketDataProvider
+
+    if not isinstance(capture.provider, DhanMarketDataProvider):
+        raise WatchlistFailure("DHAN_AUTH_REQUIRED", 503)
+    return await futures_service(request, who).execute(
+        payload, capture.provider, capture.status.generation
     )
 
 

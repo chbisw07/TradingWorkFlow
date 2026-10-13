@@ -689,4 +689,59 @@ A recipe is a transparent working configuration: selecting one copies its expiry
 
 The **+ Save Scan** chooser separates the existing saved-scan operation from **Save as Template**. The latter persists only schema version, name, horizon, description, instrument scope, expiry, strike window, optional watchlist ID, and active predicates. It excludes result rows, market observations, chart bars, evidence, timestamps, and provider snapshots. A later run stores its actual submitted configuration, including any edits and the optional origin template ID/name; the origin never replaces the executed filters. The result engine, matching, OI interpretation, Broker V2 handoff, and scanner thresholds are unchanged.
 
-Intraday presets emphasize nearest active expiry and chain-relative activity. Positional presets add a visible `DTE >= 7` predicate and liquidity/OI requirements. The registry provides Liquid ATM Options, Bullish Call Momentum, Bearish Put Momentum, Unusual Option Activity, Fresh OI Buildup, and Best Liquidity for Intraday; Bullish Call Setup, Bearish Put Setup, separate Bullish/ Bearish OI + Trend, Liquid Near-ATM Options, and Best Liquidity for Positional. Underlying breakout/breakdown are not O4 filter fields, so Breakout Calls and Breakdown Puts are deferred rather than approximated. No inferred OI label is a hidden filter. The schema reserves a FUTURES instrument scope, but validation rejects it until a Futures Scanner exists; no Futures template is selectable.
+Intraday presets emphasize nearest active expiry and chain-relative activity. Positional presets add a visible `DTE >= 7` predicate and liquidity/OI requirements. The registry provides Liquid ATM Options, Bullish Call Momentum, Bearish Put Momentum, Unusual Option Activity, Fresh OI Buildup, and Best Liquidity for Intraday; Bullish Call Setup, Bearish Put Setup, separate Bullish/ Bearish OI + Trend, Liquid Near-ATM Options, and Best Liquidity for Positional. Underlying breakout/breakdown are not O4 filter fields, so Breakout Calls and Breakdown Puts are deferred rather than approximated. No inferred OI label is a hidden filter. The same registry now also accepts separately typed FUTURES recipes in O5; OPTIONS recipes and their strike-window behavior are unchanged.
+
+### O5 Futures Scanner V1 (13 Oct 2026)
+
+Derivatives Scanner now has isolated Options and Futures modes in one workspace. Switching modes retains each mode's working configuration and viewed run; it never converts an OPTIONS condition into a FUTURES condition. Fresh Futures load has no underlying or filter selection. The shared Watchlist picker supplies owner and read-only system universes, while the builder also accepts Custom NSE underlyings. At execution, membership and active FUTSTK/FUTIDX eligibility are revalidated against the current Dhan master. A request contains 1–50 selected underlyings; a larger watchlist requires an explicit subset. The run archives the selected membership and watchlist snapshot.
+
+Each selected underlying resolves to one exact NSE futures contract by nearest active expiry or an explicitly chosen exact expiry. The run archives underlying, FUTSTK/FUTIDX type, trading symbol, Dhan native ID, expiry, lot and tick size. Missing or invalid contracts are not substituted with an equity, option, or synthetic row. The scanner reads the master once, indexes cash identities locally, and requests all futures plus resolvable spot quotes in one bounded Dhan quote batch. A missing quote leaves that contract NOT_EVALUATED without suppressing other contracts. No synthetic fallback or per-symbol quote call exists.
+
+Futures LTP, open, prior close, volume, and absolute OI come from that exact contract's Dhan quote snapshot. Daily change is `(LTP - previous close) / previous close × 100` when previous close is positive. Relative volume and OI are current-run cross-sectional percentiles among observed exact futures contracts: `100 × count(value ≤ current value) / N`, with at least five observations and ties sharing the last rank. They are not historical volume or OI percentiles. ΔOI is current absolute OI minus the previous archived quote's OI for the *same native contract*. Both quotes must be received and sourced within 30 minutes, in the same IST session, with strictly advancing source times and each source at most 15 minutes behind receipt. ΔOI % divides by positive previous OI. The observed receipt window and source timestamps are archived. The first scan, stale evidence, or a changed contract yields unavailable ΔOI, not zero.
+
+Cash or index spot uses TWF's Dhan identity and the same quote batch. Basis is `futures LTP - spot LTP` and basis % is `basis / spot LTP × 100`. Both quotes must have source timestamps within five minutes of each other and each source must be at most 15 minutes behind receipt; otherwise basis is unavailable. Positive/negative basis describes premium/discount only. Spot direction uses the Dhan spot quote versus its positive previous close, with ±0.1% thresholds for Up/Down and otherwise Sideways. The participation label is an *inference* from same-window futures price and OI percentage changes: +/+ Long buildup, -/+ Short buildup, +/- Short covering, -/- Long unwinding; sub-threshold movement is Mixed / Unclear. Without comparable evidence it is Insufficient evidence. The archived Why? evidence retains this provenance even though the compact result pill omits redundant “inferred” text.
+
+Only explicitly visible filters determine MATCH, NON_MATCH, or NOT_EVALUATED. Known failed conditions are NON_MATCH; otherwise missing active evidence is NOT_EVALUATED. Expiry, universe, loaded template, and every predicate appear in editable controls and active chips. Intraday and Positional Futures presets use only supported explicit fields; Futures breakout/breakdown are deferred because no authoritative breakout field exists. My Templates store configuration alone. Saved scans store configuration, while history stores the immutable run, exact evidence, counts, source timestamps, and diagnostics. Summary cards use the EWD's compact icons for requested, resolved, contracts evaluated, not evaluated, and matches.
+
+Broker V2 Buy/Sell opens only after an exact capable broker contract with matching underlying, expiry, lot, and tick is found; Scanner never submits an order. A Futures-specific Analytics workspace and futures chart route do not currently exist, so those actions remain visibly unavailable. The screen never relabels a spot chart as a futures chart. Add-to-Watchlist and comparison of futures contracts remain deferred pending an exact supported mapping. Live Dhan user validation is still required.
+
+### O5 structured futures resolution remediation (13 Oct 2026)
+
+Futures eligibility and execution share `FuturesMaster`, backed by Dhan's public
+**detailed** scrip master. The compact master has blank `SM_SYMBOL_NAME` on NSE
+futures rows (671 rows in the 13 Oct capture), so it cannot supply their underlying
+identity. No trading-symbol splitting or company-name matching is used.
+
+- NSE segment `D` and instrument `FUTSTK` / `FUTIDX` identify stock / index futures.
+  `UNDERLYING_SYMBOL` supplies the canonical underlying; `SYMBOL_NAME` supplies
+  the exact derivative trading symbol. `SECURITY_ID` becomes `NSE_FNO:<id>`.
+  `UNDERLYING_SECURITY_ID` is retained as metadata, never used as a futures quote
+  token (index derivative underlying IDs can differ from the `IDX_I` spot IDs).
+- Inputs trim whitespace and uppercase. Index aliases use the existing
+  `DhanIndexLookup` and structured index display fields, including Nifty 50 and
+  Nifty Bank; there is no new per-symbol alias table. Equity identifiers are not
+  rewritten. Detailed cash rows use `UNDERLYING_SYMBOL` as their ticker because
+  their `SYMBOL_NAME` is a company name.
+- ISO expiry dates are compared against the IST trading date. Expiry day remains
+  active. Nearest chooses the earliest active date; exact mode never substitutes
+  another date. Invalid security ID, expiry, segment, lot or tick metadata excludes
+  that entry without suppressing valid symbols. Valid duplicate candidates sort
+  by expiry, numeric security ID and trading symbol, independently of row order.
+- Lot sizes remain authoritative integral units. Derivative `TICK_SIZE` is
+  converted from paise to rupees, consistent with O2. Spot and futures identities
+  remain distinct in the single quote batch and immutable archived run.
+- The detailed snapshot is cached on the owner/generation-scoped provider under
+  a lock for the existing master TTL. Each run builds its lookup once and applies
+  the current active-date rule. Cold execution downloads one master; warm execution
+  downloads none. Index spot lookup uses that same snapshot, without N+1 master
+  reads. Work is O(master rows + candidate sorting + requested symbols).
+- Resolution diagnostics distinguish `NO_MASTER_MATCH`, `NO_ACTIVE_FUTURES`,
+  `INVALID_FUTURES_METADATA`, `EXPIRY_NOT_FOUND`, and
+  `PROVIDER_MASTER_UNAVAILABLE`. Quote failures occur only after resolution and
+  remain separate from evaluated non-matches. A failed master produces per-input
+  diagnostics and no fabricated contract/market rows.
+
+This correction changes no predicates, percentile cohorts, basis, OI inference,
+Options contracts, template recipes, Broker order semantics or UI. Existing runs
+are not migrated. The liquidity ranking collector remains a separate workflow;
+its historical readiness/metrics are not changed by this remediation.

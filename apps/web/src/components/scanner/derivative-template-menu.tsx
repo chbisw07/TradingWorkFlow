@@ -32,12 +32,14 @@ export function DerivativeTemplateMenu({
   onLoad,
   onRename,
   onDelete,
+  status = "ready",
 }: {
   builtIn: DerivativeTemplate[];
   user: DerivativeTemplate[];
   onLoad: (template: DerivativeTemplate) => void;
   onRename: (template: DerivativeTemplate) => void;
   onDelete: (template: DerivativeTemplate) => void;
+  status?: "loading" | "ready" | "error";
 }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -101,71 +103,97 @@ export function DerivativeTemplateMenu({
           aria-label="Scan Templates"
         >
           <strong>Scan Templates</strong>
-          {(["INTRADAY", "POSITIONAL"] as const).map((horizon) => (
-            <section
-              key={horizon}
-              aria-label={horizon === "INTRADAY" ? "Intraday" : "Positional"}
-            >
-              <h3>{horizon === "INTRADAY" ? "⚡ Intraday" : "◷ Positional"}</h3>
-              {builtIn
-                .filter((item) => item.horizon === horizon)
-                .map((item, index) => (
+          {status === "loading" && <p role="status">Loading templates…</p>}
+          {status === "error" && (
+            <p role="alert">Scan templates unavailable. Please retry later.</p>
+          )}
+          {status === "ready" && builtIn.length === 0 && user.length === 0 && (
+            <p>No compatible templates available.</p>
+          )}
+          {status === "ready" &&
+            (["INTRADAY", "POSITIONAL"] as const)
+              .filter((horizon) =>
+                builtIn.some((item) => item.horizon === horizon),
+              )
+              .map((horizon) => (
+                <section
+                  key={horizon}
+                  aria-label={
+                    horizon === "INTRADAY" ? "Intraday" : "Positional"
+                  }
+                >
+                  <h3>
+                    {horizon === "INTRADAY" ? "⚡ Intraday" : "◷ Positional"}
+                  </h3>
+                  {builtIn
+                    .filter((item) => item.horizon === horizon)
+                    .map((item, index) => (
+                      <button
+                        key={item.template_id}
+                        ref={
+                          horizon === "INTRADAY" && index === 0
+                            ? first
+                            : undefined
+                        }
+                        role="menuitem"
+                        type="button"
+                        onClick={() => choose(item)}
+                        title={item.description}
+                      >
+                        <span>{item.name}</span>
+                        <small>
+                          {item.description} ·{" "}
+                          {item.instrument_scope === "FUTURES"
+                            ? "Futures"
+                            : "Options"}
+                        </small>
+                      </button>
+                    ))}
+                </section>
+              ))}
+          {status === "ready" && (
+            <section aria-label="My Templates">
+              <h3>♙ My Templates ({user.length})</h3>
+              {user.length === 0 && <p>No templates saved yet.</p>}
+              {user.map((item) => (
+                <div key={item.template_id} className="sc-template-user-row">
                   <button
-                    key={item.template_id}
-                    ref={
-                      horizon === "INTRADAY" && index === 0 ? first : undefined
-                    }
-                    role="menuitem"
                     type="button"
+                    role="menuitem"
                     onClick={() => choose(item)}
                     title={item.description}
                   >
                     <span>{item.name}</span>
-                    <small>{item.description} · Options</small>
+                    <small>
+                      {item.horizon.toLowerCase()} ·{" "}
+                      {item.description ||
+                        `${item.instrument_scope === "FUTURES" ? "Futures" : "Options"} configuration`}
+                    </small>
                   </button>
-                ))}
+                  <button
+                    type="button"
+                    aria-label={`Rename ${item.name}`}
+                    onClick={() => {
+                      setOpen(false);
+                      onRename(item);
+                    }}
+                  >
+                    Rename
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Delete ${item.name}`}
+                    onClick={() => {
+                      setOpen(false);
+                      onDelete(item);
+                    }}
+                  >
+                    Delete
+                  </button>
+                </div>
+              ))}
             </section>
-          ))}
-          <section aria-label="My Templates">
-            <h3>♙ My Templates ({user.length})</h3>
-            {user.length === 0 && <p>No templates saved yet.</p>}
-            {user.map((item) => (
-              <div key={item.template_id} className="sc-template-user-row">
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => choose(item)}
-                  title={item.description}
-                >
-                  <span>{item.name}</span>
-                  <small>
-                    {item.horizon.toLowerCase()} ·{" "}
-                    {item.description || "Options configuration"}
-                  </small>
-                </button>
-                <button
-                  type="button"
-                  aria-label={`Rename ${item.name}`}
-                  onClick={() => {
-                    setOpen(false);
-                    onRename(item);
-                  }}
-                >
-                  Rename
-                </button>
-                <button
-                  type="button"
-                  aria-label={`Delete ${item.name}`}
-                  onClick={() => {
-                    setOpen(false);
-                    onDelete(item);
-                  }}
-                >
-                  Delete
-                </button>
-              </div>
-            ))}
-          </section>
+          )}
         </div>
       )}
     </div>
