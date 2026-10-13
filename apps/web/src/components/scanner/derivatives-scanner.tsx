@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { oiDisplay } from "./derivative-display";
+import { TrendIndicator } from "./trend-indicator";
 import { FuturesScanner } from "./futures-scanner";
 import { Icon } from "../shell/icon";
 import { useEffect, useState } from "react";
@@ -227,21 +228,6 @@ function OptionTypeBadge({ side }: { side: "CE" | "PE" }) {
       className={`derivative-type-badge derivative-type-${side.toLowerCase()}`}
     >
       {side}
-    </span>
-  );
-}
-function TrendIndicator({
-  trend,
-}: {
-  trend: string | number | null | undefined;
-}) {
-  const tone = trend === "Up" ? "up" : trend === "Down" ? "down" : "neutral";
-  return (
-    <span className={`derivative-trend derivative-trend-${tone}`}>
-      {tone !== "neutral" && (
-        <span aria-hidden="true">{tone === "up" ? "▲" : "▼"}</span>
-      )}
-      {trend || "—"}
     </span>
   );
 }

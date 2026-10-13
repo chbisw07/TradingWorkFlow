@@ -174,6 +174,13 @@ test("O5 Futures stays in Derivatives workspace with explicit filters and icon c
   await expect(future.locator("small", { hasText: "1 matches" })).toBeVisible();
   await expect(future.locator(".derivative-count-card")).toHaveCount(5);
   await expect(future.locator(".derivative-count-icon svg")).toHaveCount(5);
+  await expect(
+    future.getByRole("columnheader", { name: "Spot Direction" }),
+  ).toHaveCount(1);
+  await expect(future.locator(".derivative-trend-up").first()).toContainText(
+    "▲ Up",
+  );
+  await page.screenshot({ path: info.outputPath("futures-results.png") });
   await future.getByRole("button", { name: "Why?" }).click();
   await expect(
     future.getByText("Passed · Volume >= 100", { exact: false }),

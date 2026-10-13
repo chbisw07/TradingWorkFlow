@@ -694,205 +694,240 @@ test("Market Context defaults to ranking and hard filters use typed enum control
   ]);
 });
 
-test("stored deterministic Reason opens complete no-LLM Evidence analysis", async () => {
-  vi.spyOn(global, "fetch").mockImplementation(async (url, init) => {
-    const path = String(url);
-    if (path.endsWith("/catalog")) return Response.json(catalog);
-    if (path.endsWith("/runs") && init?.method === "POST") {
-      const config = JSON.parse(String(init.body));
-      return Response.json({
-        id: "context-run",
-        created_at: "2026-10-08T10:00:00Z",
-        config,
-        data_mode: "REAL",
-        market_data_provider: "dhan",
-        counts: {
-          requested: 1,
-          resolved: 1,
-          evaluated: 1,
-          not_evaluated: 0,
-          matches: 1,
-        },
-        context_snapshot: {
-          as_of: "2026-10-08T10:00:00Z",
-          provider: "tapetide",
-          status: "PARTIAL",
-          source_health: "AVAILABLE",
-          coverage_count: 2,
-          dimension_count: 6,
-          missing_dimensions: [
-            "broad_regime",
-            "sector",
-            "breadth",
-            "event_news",
-          ],
-          warnings: [],
-          evidence: [],
-        },
-        rows: [
-          {
-            symbol: "RELIANCE",
-            instrument: {
-              instrument_id: "11111111-1111-4111-8111-111111111111",
-              symbol: "RELIANCE",
-              exchange: "NSE",
-              segment: "EQ",
-            },
-            outcome: "MATCH",
-            instrument_metadata: {
-              applies_to_symbol: "RELIANCE",
-              metadata_symbol: "RELIANCE",
-              resolution_basis: "DIRECT",
-              sector: "Energy",
-              industry: "Oil & Gas Exploration",
-              market_cap: 20000000000000,
-              market_cap_currency: "INR",
-              market_cap_rank: 1,
-              market_cap_category: "LARGE",
-              twf_cap_tier: "LARGE",
-              context_benchmark: "NIFTY OIL & GAS",
-              context_benchmark_symbol: "NIFTYOILGAS",
-              resolution_status: "RESOLVED",
-              present_in_latest_snapshot: true,
-              sector_as_of: "2026-10-09",
-              industry_as_of: "2026-10-09",
-              market_cap_as_of: "2026-10-09",
-              dataset_generated_at: "2026-10-09T09:15:00+05:30",
-              metadata_updated_at: "2026-10-09T09:20:00+05:30",
-            },
-            metrics: { change: 1.2, volume: 1000, rsi: 58, trend: "Up" },
-            diagnostics: [
-              {
-                filter: config.filters[0],
-                observed: 58,
-                threshold: 30,
-                passed: true,
-                reason: "RSI (14) < 30",
-              },
-            ],
-            analysis: {
-              run_id: "context-run",
-              candidate_instrument_id: "11111111-1111-4111-8111-111111111111",
-              candidate_symbol: "RELIANCE",
-              analyzed_at: "2026-10-08T10:00:00Z",
-              setup_direction: "BULLISH",
-              matched: true,
-              technical_match: true,
-              technical_evidence: { passed: 1, total: 1, diagnostics: [] },
-              technical_score: 80,
-              context_mode: "RANKING",
-              context_status: "PARTIAL",
-              context_coverage: "2/6",
-              context_contributions: [
-                {
-                  factor: "vix",
-                  observed_state: "NORMAL",
-                  interpretation: "SUPPORTIVE",
-                  contribution: 1,
-                  explanation: "India VIX 14",
-                  source: "tapetide",
-                  freshness: "FRESH",
-                },
-                {
-                  factor: "breadth",
-                  observed_state: "UNKNOWN",
-                  interpretation: "MISSING",
-                  contribution: 0,
-                  explanation: "Authoritative breadth evidence unavailable",
-                  source: null,
-                  freshness: "UNAVAILABLE",
-                },
-              ],
-              supporting_factors: ["India VIX 14"],
-              contradicting_factors: ["FII selling pressure"],
-              neutral_factors: [],
-              missing_evidence: ["breadth"],
-              context_adjustment: 1,
-              final_relevance: 81,
-              context_classification: "MIXED",
-              short_reason: "1/1 technical · Context +1 Mixed · Final 81",
-              provenance: [
-                {
-                  dimension: "vix",
-                  state: "NORMAL",
-                  detail: "India VIX 14",
-                  provider: "tapetide",
-                  provider_tool: "get_india_vix",
-                  source_time: "2026-10-08T10:00:00Z",
-                  received_at: "2026-10-08T10:00:00Z",
-                  freshness: "FRESH",
-                },
-              ],
-              warnings: [],
-              context_filter_diagnostics: [],
-            },
+test.each(["Up", "Down"] as const)(
+  "stored deterministic Reason and %s trend open complete no-LLM Evidence analysis",
+  async (trend) => {
+    vi.spyOn(global, "fetch").mockImplementation(async (url, init) => {
+      const path = String(url);
+      if (path.endsWith("/catalog")) return Response.json(catalog);
+      if (path.endsWith("/runs") && init?.method === "POST") {
+        const config = JSON.parse(String(init.body));
+        return Response.json({
+          id: "context-run",
+          created_at: "2026-10-08T10:00:00Z",
+          config,
+          data_mode: "REAL",
+          market_data_provider: "dhan",
+          counts: {
+            requested: 1,
+            resolved: 1,
+            evaluated: 1,
+            not_evaluated: 0,
+            matches: 1,
           },
-        ],
-      });
+          context_snapshot: {
+            as_of: "2026-10-08T10:00:00Z",
+            provider: "tapetide",
+            status: "PARTIAL",
+            source_health: "AVAILABLE",
+            coverage_count: 2,
+            dimension_count: 6,
+            missing_dimensions: [
+              "broad_regime",
+              "sector",
+              "breadth",
+              "event_news",
+            ],
+            warnings: [],
+            evidence: [],
+          },
+          rows: [
+            {
+              symbol: "RELIANCE",
+              instrument: {
+                instrument_id: "11111111-1111-4111-8111-111111111111",
+                symbol: "RELIANCE",
+                exchange: "NSE",
+                segment: "EQ",
+              },
+              outcome: "MATCH",
+              instrument_metadata: {
+                applies_to_symbol: "RELIANCE",
+                metadata_symbol: "RELIANCE",
+                resolution_basis: "DIRECT",
+                sector: "Energy",
+                industry: "Oil & Gas Exploration",
+                market_cap: 20000000000000,
+                market_cap_currency: "INR",
+                market_cap_rank: 1,
+                market_cap_category: "LARGE",
+                twf_cap_tier: "LARGE",
+                context_benchmark: "NIFTY OIL & GAS",
+                context_benchmark_symbol: "NIFTYOILGAS",
+                resolution_status: "RESOLVED",
+                present_in_latest_snapshot: true,
+                sector_as_of: "2026-10-09",
+                industry_as_of: "2026-10-09",
+                market_cap_as_of: "2026-10-09",
+                dataset_generated_at: "2026-10-09T09:15:00+05:30",
+                metadata_updated_at: "2026-10-09T09:20:00+05:30",
+              },
+              metrics: { change: 1.2, volume: 1000, rsi: 58, trend },
+              diagnostics: [
+                {
+                  filter: config.filters[0],
+                  observed: 58,
+                  threshold: 30,
+                  passed: true,
+                  reason: "RSI (14) < 30",
+                },
+              ],
+              analysis: {
+                run_id: "context-run",
+                candidate_instrument_id: "11111111-1111-4111-8111-111111111111",
+                candidate_symbol: "RELIANCE",
+                analyzed_at: "2026-10-08T10:00:00Z",
+                setup_direction: "BULLISH",
+                matched: true,
+                technical_match: true,
+                technical_evidence: { passed: 1, total: 1, diagnostics: [] },
+                technical_score: 80,
+                context_mode: "RANKING",
+                context_status: "PARTIAL",
+                context_coverage: "2/6",
+                context_contributions: [
+                  {
+                    factor: "vix",
+                    observed_state: "NORMAL",
+                    interpretation: "SUPPORTIVE",
+                    contribution: 1,
+                    explanation: "India VIX 14",
+                    source: "tapetide",
+                    freshness: "FRESH",
+                  },
+                  {
+                    factor: "breadth",
+                    observed_state: "UNKNOWN",
+                    interpretation: "MISSING",
+                    contribution: 0,
+                    explanation: "Authoritative breadth evidence unavailable",
+                    source: null,
+                    freshness: "UNAVAILABLE",
+                  },
+                ],
+                supporting_factors: ["India VIX 14"],
+                contradicting_factors: ["FII selling pressure"],
+                neutral_factors: [],
+                missing_evidence: ["breadth"],
+                context_adjustment: 1,
+                final_relevance: 81,
+                context_classification: "MIXED",
+                short_reason: "1/1 technical · Context +1 Mixed · Final 81",
+                provenance: [
+                  {
+                    dimension: "vix",
+                    state: "NORMAL",
+                    detail: "India VIX 14",
+                    provider: "tapetide",
+                    provider_tool: "get_india_vix",
+                    source_time: "2026-10-08T10:00:00Z",
+                    received_at: "2026-10-08T10:00:00Z",
+                    freshness: "FRESH",
+                  },
+                ],
+                warnings: [],
+                context_filter_diagnostics: [],
+              },
+            },
+          ],
+        });
+      }
+      return Response.json([]);
+    });
+    render(<ScannerWorkspace />);
+    await screen.findByText("Context: RANKING");
+    expect(document.querySelector(".sc-inspector")).not.toBeInTheDocument();
+    expect(document.querySelector(".sc-grid")).not.toHaveClass("has-detail");
+    fireEvent.click(screen.getByText("＋ Add / edit filter"));
+    await screen.findByRole("option", { name: "RSI (14)" });
+    fireEvent.click(screen.getByRole("button", { name: /Add Filter/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Custom symbols" }));
+    fireEvent.change(screen.getByLabelText("NSE symbols"), {
+      target: { value: "RELIANCE" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Run Scan" }));
+    expect(await screen.findByText("RSI (14) < 30")).toBeVisible();
+    expect(screen.getByRole("columnheader", { name: "Reason" })).toBeVisible();
+    expect(
+      screen.getByLabelText("Technical Indicators active filters"),
+    ).toHaveTextContent("1");
+    expect(screen.getByRole("button", { name: "Remove filter 1" })).toHaveClass(
+      "derivative-predicate-chip",
+    );
+    expect(screen.getByRole("button", { name: "Clear All" })).toHaveClass(
+      "derivative-clear-all",
+    );
+    const counts = screen.getByLabelText("Scan run counts");
+    for (const [label, value] of [
+      ["Requested", "1"],
+      ["Resolved", "1"],
+      ["Evaluated", "1"],
+      ["Not evaluated", "0"],
+      ["Matches", "1"],
+    ]) {
+      const card = within(counts)
+        .getByText(label)
+        .closest(".derivative-count-card");
+      expect(card).toHaveTextContent(value);
+      expect(card?.querySelector(".derivative-count-icon svg")).not.toBeNull();
     }
-    return Response.json([]);
-  });
-  render(<ScannerWorkspace />);
-  await screen.findByText("Context: RANKING");
-  expect(document.querySelector(".sc-inspector")).not.toBeInTheDocument();
-  expect(document.querySelector(".sc-grid")).not.toHaveClass("has-detail");
-  fireEvent.click(screen.getByText("＋ Add / edit filter"));
-  await screen.findByRole("option", { name: "RSI (14)" });
-  fireEvent.click(screen.getByRole("button", { name: /Add Filter/ }));
-  fireEvent.click(screen.getByRole("button", { name: "Custom symbols" }));
-  fireEvent.change(screen.getByLabelText("NSE symbols"), {
-    target: { value: "RELIANCE" },
-  });
-  fireEvent.click(screen.getByRole("button", { name: "Run Scan" }));
-  expect(await screen.findByText("RSI (14) < 30")).toBeVisible();
-  expect(screen.getByRole("columnheader", { name: "Reason" })).toBeVisible();
-  expect(
-    screen.queryByText("1/1 technical · Context +1 Mixed · Final 81"),
-  ).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Run Evidence" }));
-  const runEvidence = screen.getByLabelText("Scanner contextual panel");
-  expect(within(runEvidence).getByText("Data source & mode")).toBeVisible();
-  expect(within(runEvidence).getByText("Evaluation diagnostics")).toBeVisible();
-  expect(within(runEvidence).getByText(/Per-symbol diagnostics/)).toBeVisible();
-  fireEvent.click(
-    within(runEvidence).getByRole("button", { name: "Close panel" }),
-  );
-  expect(screen.getByRole("columnheader", { name: "Sector" })).toBeVisible();
-  expect(screen.getByText("Energy")).toBeVisible();
-  fireEvent.click(screen.getByRole("button", { name: "RELIANCE" }));
-  const metadataPanels = await screen.findAllByRole("region", {
-    name: "Instrument metadata",
-  });
-  const metadata = metadataPanels.at(-1)!;
-  expect(metadata).toHaveTextContent("Oil & Gas Exploration");
-  expect(metadata).toHaveTextContent("₹20 L Cr");
-  expect(metadata).toHaveTextContent("NIFTY OIL & GAS");
-  fireEvent.click(screen.getByRole("button", { name: "Close panel" }));
-  fireEvent.click(screen.getByRole("button", { name: "Why?" }));
-  const panels = await screen.findAllByLabelText(
-    "Deterministic candidate analysis",
-  );
-  const panel = panels.at(-1)!;
-  expect(panel).toBeVisible();
-  expect(within(panel).getByText("Final relevance")).toBeVisible();
-  expect(within(panel).getByText("Supporting factors")).toBeVisible();
-  expect(within(panel).getByText("Contradictions")).toBeVisible();
-  expect(within(panel).getByText("Missing evidence")).toBeVisible();
-  fireEvent.click(within(panel).getByText("Provenance and freshness"));
-  expect(within(panel).getByText(/get_india_vix/)).toBeVisible();
-  expect(document.querySelector(".sc-grid")).toHaveClass("has-detail");
-  fireEvent.click(
-    within(screen.getByLabelText("Scanner contextual panel")).getByRole(
-      "button",
-      {
-        name: "Clear selection",
-      },
-    ),
-  );
-  expect(document.querySelector(".sc-inspector")).not.toBeInTheDocument();
-  expect(document.querySelector(".sc-grid")).not.toHaveClass("has-detail");
-  expect(screen.getByText("RSI (14) < 30")).toBeInTheDocument();
-});
+    expect(
+      within(screen.getByRole("region", { name: /Equity scan results/ }))
+        .getByText(trend)
+        .closest(".derivative-trend"),
+    ).toHaveClass(`derivative-trend-${trend.toLowerCase()}`);
+    expect(
+      screen.queryByText("1/1 technical · Context +1 Mixed · Final 81"),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Run Evidence" }));
+    const runEvidence = screen.getByLabelText("Scanner contextual panel");
+    expect(within(runEvidence).getByText("Data source & mode")).toBeVisible();
+    expect(
+      within(runEvidence).getByText("Evaluation diagnostics"),
+    ).toBeVisible();
+    expect(
+      within(runEvidence).getByText(/Per-symbol diagnostics/),
+    ).toBeVisible();
+    fireEvent.click(
+      within(runEvidence).getByRole("button", { name: "Close panel" }),
+    );
+    expect(screen.getByRole("columnheader", { name: "Sector" })).toBeVisible();
+    expect(screen.getByText("Energy")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "RELIANCE" }));
+    const metadataPanels = await screen.findAllByRole("region", {
+      name: "Instrument metadata",
+    });
+    const metadata = metadataPanels.at(-1)!;
+    expect(metadata).toHaveTextContent("Oil & Gas Exploration");
+    expect(metadata).toHaveTextContent("₹20 L Cr");
+    expect(metadata).toHaveTextContent("NIFTY OIL & GAS");
+    fireEvent.click(screen.getByRole("button", { name: "Close panel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Why?" }));
+    const panels = await screen.findAllByLabelText(
+      "Deterministic candidate analysis",
+    );
+    const panel = panels.at(-1)!;
+    expect(panel).toBeVisible();
+    expect(within(panel).getByText("Final relevance")).toBeVisible();
+    expect(within(panel).getByText("Supporting factors")).toBeVisible();
+    expect(within(panel).getByText("Contradictions")).toBeVisible();
+    expect(within(panel).getByText("Missing evidence")).toBeVisible();
+    fireEvent.click(within(panel).getByText("Provenance and freshness"));
+    expect(within(panel).getByText(/get_india_vix/)).toBeVisible();
+    expect(document.querySelector(".sc-grid")).toHaveClass("has-detail");
+    fireEvent.click(
+      within(screen.getByLabelText("Scanner contextual panel")).getByRole(
+        "button",
+        {
+          name: "Clear selection",
+        },
+      ),
+    );
+    expect(document.querySelector(".sc-inspector")).not.toBeInTheDocument();
+    expect(document.querySelector(".sc-grid")).not.toHaveClass("has-detail");
+    expect(screen.getByText("RSI (14) < 30")).toBeInTheDocument();
+  },
+);
 
 test("derivatives uses the same top selector and only O2-optionable watchlist underlyings", async () => {
   const key = "44444444-4444-4444-8444-444444444444";

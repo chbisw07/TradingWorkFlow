@@ -2,17 +2,21 @@
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any, cast
+from types import SimpleNamespace
+from typing import Any, Literal, cast
 from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+from internal_scanner_support import series
 from pydantic import ValidationError
 from test_option_chain import Source, contract
 from test_scanner_v2 import install_market
 from test_watchlists import HEADERS
 from test_watchlists import client as client  # noqa: F401
+from test_watchlists import provider as market_provider
 
+from twf.discovery.domain import SourceMode
 from twf.infrastructure.scanner_v2 import SavedScannerRow, ScannerRunRow
 from twf.options.chain_service import ChainFailure
 from twf.scanner_v2.derivatives import DerivativeFilter, DerivativeScanConfig, evaluate
@@ -118,7 +122,11 @@ def test_both_option_types_match_without_side_bias() -> None:
     ],
 )
 def test_typed_predicate_boundaries(
-    field: str, operator: str, value: Any, observed: Any, expected: str
+    field: str,
+    operator: Literal[">", ">=", "<", "<=", "equals", "between", "not_equals"],
+    value: Any,
+    observed: Any,
+    expected: str,
 ) -> None:
     predicate = DerivativeFilter(field=field, operator=operator, value=value)
     result = evaluate((predicate,), {field: observed}, quote_available=True)
@@ -228,6 +236,54 @@ def test_api_exact_contract_partial_underlying_history_saved_and_owner_isolation
     login(client, "bob")
     assert client.get(BASE + "/runs/" + run["id"]).status_code == 404
     assert client.get(BASE + "/saved").json() == []
+
+
+@pytest.mark.parametrize("direction", ["Up", "Down"])
+def test_option_run_preserves_underlying_trend_without_a_technical_filter(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, direction: str
+) -> None:
+    market = market_provider()
+
+    async def history(instrument: Any, interval: str, **kwargs: Any) -> Any:
+        closes = list(range(100, 401))
+        if direction == "Down":
+            closes.reverse()
+        bars = series(
+            [float(value) for value in closes], instrument=instrument, interval="1d", step=86400
+        )
+        return bars.model_copy(
+            update={
+                "provenance": bars.provenance.model_copy(
+                    update={
+                        "mode": SourceMode.EOD,
+                        "producer": bars.provenance.producer.model_copy(
+                            update={"provider": "dhan"}
+                        ),
+                    }
+                )
+            }
+        )
+
+    monkeypatch.setattr(market, "get_ohlcv", history)
+    monkeypatch.setattr(
+        cast(Any, client.app).state.dhan_credentials,
+        "capture",
+        lambda *args, **kwargs: SimpleNamespace(
+            provider=market, status=SimpleNamespace(generation=3)
+        ),
+    )
+    source = Source()
+    monkeypatch.setattr(cast(Any, client.app).state.option_chains, "get", lambda *args: source)
+    payload = config(universe={"source": "CUSTOM", "symbols": ["NIFTY"]})
+    response = client.post(BASE + "/runs", json=payload, headers=HEADERS)
+    assert response.status_code == 200, response.text
+    run = response.json()
+    assert run["rows"]
+    assert {row["technical"]["trend"] for row in run["rows"]} == {direction}
+    assert {row["observed"]["underlying_trend"] for row in run["rows"]} == {direction}
+    archived = client.get(BASE + "/runs/" + run["id"])
+    assert archived.status_code == 200
+    assert {row["technical"]["trend"] for row in archived.json()["rows"]} == {direction}
 
 
 def test_relative_volume_filters_archive_exact_metrics_without_extra_chain_calls(

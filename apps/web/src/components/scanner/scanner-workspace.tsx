@@ -43,6 +43,7 @@ import { canOrder, type Capability } from "../../lib/broker-orders";
 import { OrderTicket } from "../brokers/order-ticket";
 import { MarketChart } from "../watchlists/market-chart";
 import { ScannerPriceChart } from "./scanner-price-chart";
+import { TrendIndicator } from "./trend-indicator";
 import { chartRanges, type ChartRange } from "../../lib/scanner-chart";
 import { WatchDialog } from "../watchlists/dialog";
 import { Icon } from "../shell/icon";
@@ -1085,7 +1086,7 @@ export function ScannerWorkspace() {
         <div
           className={`sc-grid conditional-detail-layout${panelView ? " has-detail" : ""}`}
         >
-          <div className="wl-card sc-chips">
+          <div className="wl-card sc-chips derivative-active-bar">
             {(config.universe.source === "WATCHLIST" ||
               Boolean(custom.trim())) && (
               <span>
@@ -1103,6 +1104,7 @@ export function ScannerWorkspace() {
             )}
             {config.filters.map((f, i) => (
               <button
+                className="derivative-predicate-chip"
                 title="Remove filter"
                 aria-label={`Remove filter ${i + 1}`}
                 key={i}
@@ -1144,7 +1146,10 @@ export function ScannerWorkspace() {
                 </button>
               );
             })}
-            <button onClick={() => setConfig({ ...config, filters: [] })}>
+            <button
+              className="derivative-clear-all"
+              onClick={() => setConfig({ ...config, filters: [] })}
+            >
               Clear All
             </button>
             {!filtersValid && (
@@ -1277,7 +1282,31 @@ export function ScannerWorkspace() {
               {Array.from(new Set(catalog?.fields.map((f) => f.category))).map(
                 (category) => (
                   <details className="sc-category" key={category}>
-                    <summary>{category}</summary>
+                    <summary>
+                      <span>{category}</span>
+                      {config.filters.filter((active) =>
+                        catalog?.fields.some(
+                          (item) =>
+                            item.field === active.field &&
+                            item.category === category,
+                        ),
+                      ).length > 0 && (
+                        <span
+                          className="sc-category-count"
+                          aria-label={`${category} active filters`}
+                        >
+                          {
+                            config.filters.filter((active) =>
+                              catalog?.fields.some(
+                                (item) =>
+                                  item.field === active.field &&
+                                  item.category === category,
+                              ),
+                            ).length
+                          }
+                        </span>
+                      )}
+                    </summary>
                     {catalog?.fields
                       .filter((f) => f.category === category)
                       .map((f) => (
@@ -1301,7 +1330,17 @@ export function ScannerWorkspace() {
                 ),
               )}
               <details className="sc-category sc-context-builder">
-                <summary>Market Context</summary>
+                <summary>
+                  <span>Market Context</span>
+                  {!!config.context_filters?.length && (
+                    <span
+                      className="sc-category-count"
+                      aria-label="Market Context active filters"
+                    >
+                      {config.context_filters.length}
+                    </span>
+                  )}
+                </summary>
                 <p>
                   Rank technical matches with a stored, explainable market
                   snapshot. Missing context never becomes positive evidence.
@@ -1590,7 +1629,11 @@ export function ScannerWorkspace() {
             <section className="wl-card sc-results">
               <header>
                 <h2>
-                  Scan Results <small>{matches.length} results</small>
+                  Scan Results{" "}
+                  <small>
+                    {matches.length} results
+                    {run && ` · ${new Date(run.created_at).toLocaleString()}`}
+                  </small>
                 </h2>
                 {run && (
                   <button
@@ -1640,28 +1683,42 @@ export function ScannerWorkspace() {
               </header>
               {run && (
                 <>
-                  <div className="sc-counts" aria-label="Scan run counts">
+                  <div
+                    className="derivative-counts sc-equity-counts"
+                    aria-label="Scan run counts"
+                  >
                     {(
                       [
-                        "requested",
-                        "resolved",
-                        "evaluated",
-                        "not_evaluated",
-                        "matches",
+                        ["requested", "Requested", "target"],
+                        ["resolved", "Resolved", "check"],
+                        ["evaluated", "Evaluated", "stack"],
+                        ["not_evaluated", "Not evaluated", "warning"],
+                        ["matches", "Matches", "trophy"],
                       ] as const
-                    ).map((key) => (
-                      <span key={key}>
-                        {key.replaceAll("_", " ")}{" "}
-                        <strong>{run.counts[key] ?? 0}</strong>
-                      </span>
+                    ).map(([key, label, icon]) => (
+                      <div
+                        key={key}
+                        className={`derivative-count-card derivative-count-${key}`}
+                      >
+                        <span
+                          className="derivative-count-icon"
+                          aria-hidden="true"
+                        >
+                          <Icon name={icon} />
+                        </span>
+                        <span>
+                          <small>{label}</small>
+                          <strong>{run.counts[key] ?? 0}</strong>
+                        </span>
+                      </div>
                     ))}
-                    <span className="sc-source-badge">
-                      {run.market_data_provider === "dhan" &&
-                      run.data_mode === "REAL"
-                        ? "Dhan · Completed daily bars"
-                        : `${run.market_data_provider || "Provider unavailable"} · ${run.data_mode || "Mode unavailable"}`}
-                    </span>
                   </div>
+                  <p className="sc-results-source">
+                    {run.market_data_provider === "dhan" &&
+                    run.data_mode === "REAL"
+                      ? "Dhan · Completed daily bars"
+                      : `${run.market_data_provider || "Provider unavailable"} · ${run.data_mode || "Mode unavailable"}`}
+                  </p>
                   {(JSON.stringify(run.config.filters) !==
                     JSON.stringify(config.filters) ||
                     (run.config.context_mode || "RANKING") !==
@@ -1884,7 +1941,12 @@ export function ScannerWorkspace() {
                   })}
                 </div>
               ) : (
-                <div className="sc-table-wrap">
+                <div
+                  className="sc-table-wrap"
+                  role="region"
+                  aria-label="Equity scan results, scroll horizontally if needed"
+                  tabIndex={0}
+                >
                   <table className="sc-table">
                     <thead>
                       <tr>
@@ -1997,9 +2059,12 @@ export function ScannerWorkspace() {
                           )}
                           {columns.includes("trend") && (
                             <td data-label="Trend">
-                              <span className="sc-trend">
-                                {r.metrics?.trend ?? "—"}
-                              </span>
+                              <TrendIndicator
+                                trend={
+                                  r.metrics?.trend as
+                                    string | number | null | undefined
+                                }
+                              />
                             </td>
                           )}
                           {columns.includes("industry") && (

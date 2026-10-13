@@ -216,7 +216,7 @@
   width: 80px;
   height: 32px;
 }
-.sc-symbol {
+.scanner-v2 .sc-symbol {
   color: #0878ef;
   cursor: pointer;
   border: 0 !important;
@@ -1906,5 +1906,213 @@
   /* O5 uses a horizontally scrollable dense table, not O4's mobile cards. */
   .futures-scanner .derivative-table-wrap {
     display: block;
+  }
+}
+
+/* The shared trend indicator needs the same semantic tokens outside Derivatives. */
+.sc-grid {
+  --derivative-call-text: #a7e9c1;
+  --derivative-put-text: #ffd1d3;
+  --derivative-neutral-text: #d6e1ec;
+}
+[data-theme="light"] .sc-grid {
+  --derivative-call-text: #12623e;
+  --derivative-put-text: #9d2638;
+  --derivative-neutral-text: #45566b;
+}
+
+/* Equity shares the approved scanner shell while retaining its own evidence columns. */
+.sc-equity-counts {
+  grid-template-columns: repeat(5, minmax(105px, 1fr));
+  margin: 10px 0 4px;
+}
+.sc-results-source {
+  margin: 0 0 11px;
+  color: var(--shell-secondary);
+  font-size: 10px;
+}
+.sc-grid > .sc-chips {
+  gap: 6px;
+}
+.sc-grid > .sc-chips button,
+.sc-grid > .sc-chips > span {
+  padding: 5px 8px;
+  border-radius: 4px;
+}
+.sc-builder > details > summary {
+  color: var(--shell-text);
+  font-size: 13px;
+}
+.sc-builder > details > p,
+.sc-builder > details > small {
+  color: var(--shell-secondary);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.sc-category {
+  margin: 5px 0;
+  padding: 0;
+  border: 1px solid var(--shell-border);
+  border-radius: 5px;
+  background: var(--shell-surface);
+}
+.sc-category[open] {
+  border-color: #8ab8e6;
+}
+.sc-category > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 6px 8px;
+  font-size: 11px;
+  list-style: none;
+}
+.sc-category > summary::-webkit-details-marker {
+  display: none;
+}
+.sc-category > summary::after {
+  content: "⌄";
+  margin-left: auto;
+  color: #56718f;
+}
+.sc-category[open] > summary {
+  color: #1764c3;
+  background: #f3f9ff;
+}
+.sc-category[open] > summary::after {
+  transform: rotate(180deg);
+}
+.sc-category > summary:focus-visible {
+  outline: 2px solid #1764c3;
+  outline-offset: 2px;
+}
+.sc-category-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: #e5f1ff;
+  color: #1764c3;
+  font-size: 10px;
+  font-weight: 700;
+}
+.sc-category > button,
+.sc-category > p,
+.sc-category > fieldset {
+  margin-left: 8px;
+  margin-right: 8px;
+}
+.sc-category > button {
+  width: calc(100% - 16px);
+  border-radius: 4px;
+}
+.sc-category > button:hover {
+  background: #f3f9ff;
+  color: #1764c3;
+}
+.sc-results > header {
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.sc-results > header button[aria-pressed="true"] {
+  background: #e5f1ff;
+  border-color: #89b6ef;
+  color: #1764c3;
+  font-weight: 700;
+}
+.sc-results > header button:focus-visible,
+.sc-top-actions button:focus-visible,
+.sc-top-actions select:focus-visible,
+.sc-row-actions button:focus-visible,
+.sc-bulk button:focus-visible {
+  outline: 2px solid #1764c3;
+  outline-offset: 2px;
+}
+.sc-table {
+  min-width: 1000px;
+}
+.sc-table th,
+.sc-table td {
+  padding: 7px 6px;
+  text-align: left;
+  border-bottom: 1px solid #e3eaf1;
+}
+.sc-table th {
+  background: rgba(116, 164, 207, 0.12);
+  color: var(--shell-text);
+  font-weight: 600;
+}
+.sc-table td {
+  vertical-align: middle;
+}
+.sc-table-wrap:focus-visible {
+  outline: 2px solid #1764c3;
+  outline-offset: -2px;
+}
+.sc-table .wl-chart {
+  width: 80px;
+  height: 30px;
+}
+.sc-row-actions {
+  flex-wrap: nowrap;
+}
+.sc-row-actions button {
+  min-width: 28px;
+  min-height: 27px;
+  border-radius: 4px;
+}
+.sc-row-actions .wl-buy {
+  background: #009b70;
+  border-color: #009b70;
+  color: #fff;
+}
+.sc-row-actions .wl-sell {
+  background: #f14352;
+  border-color: #f14352;
+  color: #fff;
+}
+.sc-bulk {
+  margin-top: 0;
+}
+@media (min-width: 1800px) {
+  .sc-table td {
+    padding: 7px 6px;
+  }
+}
+@media (max-width: 1100px) {
+  .sc-equity-counts {
+    grid-template-columns: repeat(3, minmax(100px, 1fr));
+  }
+}
+@media (max-width: 600px) {
+  .sc-equity-counts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .sc-table {
+    min-width: 0;
+  }
+  .sc-table td {
+    padding: 0;
+    border-bottom: 0;
+  }
+  .sc-row-actions {
+    flex-wrap: wrap;
+  }
+}
+@media (max-width: 600px) {
+  .sc-columns-menu[data-placement] .sc-columns-options {
+    position: fixed;
+    top: 80px;
+    right: 10px;
+    bottom: auto;
+    left: 10px;
+    width: auto;
+    max-height: min(70dvh, 450px) !important;
+    overflow-y: auto;
+    z-index: 80;
   }
 }

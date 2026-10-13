@@ -153,7 +153,6 @@ FIELDS: dict[str, dict[str, Any]] = {
         unit="%",
     ),
 }
-TECHNICAL_FIELDS = {field for field in FIELDS if field.startswith("underlying_")}
 
 
 class DerivativeModel(BaseModel):
@@ -812,7 +811,6 @@ class DerivativeScannerService:
             symbols = tuple(symbol for symbol in symbols if symbol in by_symbol)
         if not 1 <= len(symbols) <= MAX_UNDERLYINGS:
             raise WatchlistFailure("SELECT_1_TO_5_UNDERLYINGS", 422)
-        technical_active = bool({f.field for f in config.filters} & TECHNICAL_FIELDS)
         with self.factory() as db:
             metadata_service = InstrumentMetadataService(db)
             metadata = metadata_service.get_many_by_exchange_symbols(
@@ -863,25 +861,25 @@ class DerivativeScannerService:
                 continue
             technical: dict[str, Any] = {}
             technical_provenance: dict[str, Any] | None = None
-            if technical_active:
-                try:
-                    async with asyncio.timeout(20):
-                        resolved = await provider.resolve_instruments((symbol,))
-                        if len(resolved) != 1 or resolved[0].exchange != "NSE":
-                            raise WatchlistFailure("UNDERLYING_UNRESOLVED", 422)
-                        series = await history_cache.read(
-                            self.owner, generation, provider, resolved[0]
-                        )
-                    technical = metrics(series.at(now))
-                    technical_provenance = series.provenance.model_dump(mode="json")
-                except (MarketDataFailure, WatchlistFailure, DataUnavailable, TimeoutError) as exc:
-                    status["technical_failure"] = (
-                        "TIMEOUT"
-                        if isinstance(exc, TimeoutError)
-                        else exc.reason.value
-                        if isinstance(exc, DataUnavailable)
-                        else str(exc.code)
-                    )
+            # Trend is part of the default results and archived evidence even when
+            # the scan has no technical predicate. Keep one bounded underlying
+            # completed-bar read per symbol; missing data remains unavailable.
+            try:
+                async with asyncio.timeout(20):
+                    resolved = await provider.resolve_instruments((symbol,))
+                    if len(resolved) != 1 or resolved[0].exchange != "NSE":
+                        raise WatchlistFailure("UNDERLYING_UNRESOLVED", 422)
+                    series = await history_cache.read(self.owner, generation, provider, resolved[0])
+                technical = metrics(series.at(now))
+                technical_provenance = series.provenance.model_dump(mode="json")
+            except (MarketDataFailure, WatchlistFailure, DataUnavailable, TimeoutError) as exc:
+                status["technical_failure"] = (
+                    "TIMEOUT"
+                    if isinstance(exc, TimeoutError)
+                    else exc.reason.value
+                    if isinstance(exc, DataUnavailable)
+                    else str(exc.code)
+                )
             try:
                 async with asyncio.timeout(40):
                     chain = await chain_service.snapshot(

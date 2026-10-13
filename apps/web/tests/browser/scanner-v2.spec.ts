@@ -183,8 +183,42 @@ test("Scanner V2 editable filters, durable runs, Watchlist handoff and responsiv
     fullPage: true,
   });
   await page.getByRole("button", { name: "Run Scan", exact: true }).click();
-  await expect(page.locator(".sc-counts")).toContainText("matches 3", {
+  const scanCounts = page.getByLabel("Scan run counts");
+  await expect(scanCounts.locator(".derivative-count-card")).toHaveCount(5, {
     timeout: 30000,
+  });
+  await expect(scanCounts.locator(".derivative-count-matches")).toContainText(
+    "3",
+  );
+  await expect(scanCounts.locator(".derivative-count-matches svg")).toHaveCount(
+    1,
+  );
+  const symbolLink = page.locator(".sc-table .sc-symbol").first();
+  await expect(symbolLink).toHaveCSS("color", "rgb(8, 120, 239)");
+  await expect(symbolLink).toHaveCSS("cursor", "pointer");
+  await symbolLink.focus();
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Shift+Tab");
+  await expect(symbolLink).toBeFocused();
+  await expect(symbolLink).toHaveCSS("outline-style", "solid");
+  const trendColors = await page.locator(".sc-grid").evaluate((grid) => {
+    const sample = document.createElement("span");
+    grid.append(sample);
+    const color = (tone: string) => {
+      sample.className = `derivative-trend derivative-trend-${tone}`;
+      return getComputedStyle(sample).color;
+    };
+    const colors = [color("up"), color("down"), color("neutral")];
+    sample.remove();
+    return colors;
+  });
+  expect(trendColors).toEqual([
+    "rgb(18, 98, 62)",
+    "rgb(157, 38, 56)",
+    "rgb(69, 86, 107)",
+  ]);
+  await page.screenshot({
+    path: info.outputPath("scanner-results-unified.png"),
   });
   await expect(page.locator(".sc-reason").first()).toContainText(
     "RSI (14) > 0",
