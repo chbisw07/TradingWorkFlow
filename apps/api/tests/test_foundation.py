@@ -104,6 +104,7 @@ def test_database_boundary() -> None:
             "scanner_v2_derivative_templates",
             "twf_order_events",
             "twf_orders",
+            "manual_order_previews",
         }
         assert not inspect(engine).get_table_names()
     finally:

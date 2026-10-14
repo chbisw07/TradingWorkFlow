@@ -353,3 +353,170 @@ test("option MARKET preview omits price and shows exact contract plus short-risk
     fetch.mock.calls.filter((entry) => String(entry[0]).endsWith("confirm")),
   ).toHaveLength(0);
 });
+
+test("TWF destination reuses ticket and server preview, creates once, and never confirms broker intent", async () => {
+  const preview = {
+    preview_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    expires_at: "2026-10-14T12:05:00Z",
+    instrument: {
+      asset_class: "OPTION",
+      instrument_id: "11111111-1111-4111-8111-111111111111",
+      exchange: "NFO",
+      symbol: "NIFTY 2026-12-31 25000 CE",
+      underlying_id: "22222222-2222-4222-8222-222222222222",
+      expiry: "2026-12-31",
+      strike: "25000",
+      option_type: "CE",
+      lot_size: 65,
+      tick_size: "0.05",
+    },
+    terms: {
+      side: "BUY",
+      quantity: 130,
+      order_type: "LIMIT",
+      limit_price: "100",
+      product: "CARRY_FORWARD",
+      validity: "DAY",
+    },
+    source: "MANUAL",
+    account_id: account.id,
+  };
+  let complete: (response: Response) => void = () => {};
+  const fetch = vi
+    .spyOn(global, "fetch")
+    .mockImplementation(async (url, init) => {
+      const path = String(url);
+      if (path.includes("capabilities")) return Response.json(cap);
+      if (path.endsWith("/twf-orders/preview")) return Response.json(preview);
+      if (path.endsWith("/twf-orders"))
+        return new Promise<Response>((resolve) => {
+          complete = resolve;
+        });
+      throw new Error(`Unexpected broker request: ${path} ${init?.method}`);
+    });
+  const created = vi.fn();
+  render(
+    <OrderTicket
+      account={account}
+      initial={{ instrument, side: "BUY" }}
+      destination="TWF_ORDER"
+      onCreated={created}
+      close={() => {}}
+    />,
+  );
+  await fill();
+  expect(screen.queryByRole("option", { name: "SL" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Preview Buy" }));
+  await screen.findByText(/No broker order will be submitted/);
+  expect(screen.getByText("2026-12-31")).toBeVisible();
+  const previewCall = fetch.mock.calls.find(([url]) =>
+    String(url).endsWith("/twf-orders/preview"),
+  );
+  expect(previewCall).toBeDefined();
+  expect(JSON.parse(String(previewCall?.[1]?.body))).toMatchObject({
+    account_id: account.id,
+    reference: instrument.reference,
+    native_token: "123",
+    side: "BUY",
+    quantity: 130,
+  });
+  const button = screen.getByRole("button", { name: "Create TWF Order" });
+  fireEvent.click(button);
+  fireEvent.click(button);
+  expect(
+    fetch.mock.calls.filter(([url]) => String(url).endsWith("/twf-orders")),
+  ).toHaveLength(1);
+  expect(button).toBeDisabled();
+  const createCall = fetch.mock.calls.find(([url]) =>
+    String(url).endsWith("/twf-orders"),
+  );
+  expect(JSON.parse(String(createCall?.[1]?.body)).preview_id).toBe(
+    preview.preview_id,
+  );
+  complete(
+    Response.json({
+      order: {
+        twf_order_id: "33333333-3333-4333-8333-333333333333",
+        state: "READY",
+        terms: preview.terms,
+        instrument: preview.instrument,
+        created_at: "2026-10-14T12:00:00Z",
+      },
+      validation: { ready: true, violations: [], order_version: 2 },
+    }),
+  );
+  await screen.findByRole("heading", { name: "TWF Order Created" });
+  expect(created).toHaveBeenCalledWith("33333333-3333-4333-8333-333333333333");
+  expect(
+    fetch.mock.calls.some(([url]) => String(url).includes("/confirm")),
+  ).toBe(false);
+  expect(
+    screen.getByRole("link", { name: "View Order Details" }),
+  ).toHaveAttribute(
+    "href",
+    "/orders?selected=33333333-3333-4333-8333-333333333333",
+  );
+});
+
+test("TWF binding rejection returns ticket to a fresh Preview", async () => {
+  let previewCount = 0;
+  const fetch = vi.spyOn(global, "fetch").mockImplementation(async (url) => {
+    const path = String(url);
+    if (path.includes("capabilities")) return Response.json(cap);
+    if (path.endsWith("/twf-orders/preview")) {
+      previewCount++;
+      return Response.json({
+        preview_id: `aaaaaaaa-aaaa-4aaa-8aaa-${String(previewCount).padStart(12, "0")}`,
+        expires_at: "2026-10-14T12:05:00Z",
+        instrument: {
+          asset_class: "OPTION",
+          instrument_id: "11111111-1111-4111-8111-111111111111",
+          exchange: "NFO",
+          symbol: "NIFTY 2026-12-31 25000 CE",
+          underlying_id: "22222222-2222-4222-8222-222222222222",
+          expiry: "2026-12-31",
+          strike: "25000",
+          option_type: "CE",
+          lot_size: 65,
+          tick_size: "0.05",
+        },
+        terms: {
+          side: "BUY",
+          quantity: 130,
+          order_type: "LIMIT",
+          limit_price: "100",
+          product: "CARRY_FORWARD",
+          validity: "DAY",
+        },
+        source: "MANUAL",
+        account_id: account.id,
+      });
+    }
+    if (path.endsWith("/twf-orders"))
+      return Response.json(
+        { error: { code: "PREVIEW_MISMATCH", message: "Changed" } },
+        { status: 409 },
+      );
+    throw new Error(`Unexpected request: ${path}`);
+  });
+  render(
+    <OrderTicket
+      account={account}
+      initial={{ instrument, side: "BUY" }}
+      destination="TWF_ORDER"
+      close={() => {}}
+    />,
+  );
+  await fill();
+  fireEvent.click(screen.getByRole("button", { name: "Preview Buy" }));
+  await screen.findByRole("button", { name: "Create TWF Order" });
+  fireEvent.click(screen.getByRole("button", { name: "Create TWF Order" }));
+  await screen.findByText(/Please review again/);
+  expect(screen.queryByRole("button", { name: "Create TWF Order" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Preview Buy" }));
+  await screen.findByRole("button", { name: "Create TWF Order" });
+  expect(previewCount).toBe(2);
+  expect(
+    fetch.mock.calls.filter(([url]) => String(url).endsWith("/twf-orders")),
+  ).toHaveLength(1);
+});

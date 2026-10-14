@@ -30,6 +30,8 @@ from twf.api.preferences import settings_error
 from twf.api.routes import create_router
 from twf.api.scanner_v2 import router as scanner_v2_router
 from twf.api.services import router as services_router
+from twf.api.twf_orders import order_error as twf_order_error
+from twf.api.twf_orders import router as twf_orders_router
 from twf.api.watchlists import router as watchlists_router
 from twf.api.watchlists import watchlist_error
 from twf.brokers.contracts import BrokerAdapter, BrokerFailure
@@ -49,6 +51,7 @@ from twf.login_limit import LoginLimit
 from twf.middleware import ErrorBoundaryMiddleware, RequestContextMiddleware
 from twf.observability import create_logger
 from twf.options.chain_service import ChainFailure
+from twf.orders.errors import OrderError
 from twf.preferences import SettingsFailure
 from twf.scanner_v2.service import ScannerHistory
 from twf.schemas import ErrorResponse
@@ -144,6 +147,8 @@ def create_app(
     app.include_router(create_router(settings))
     app.include_router(brokers_router)
     app.include_router(broker_orders_router)
+    app.include_router(twf_orders_router)
+    app.add_exception_handler(OrderError, twf_order_error)
     app.include_router(options_router)
     app.add_exception_handler(ChainFailure, chain_error)
     app.add_exception_handler(BrokerFailure, broker_error)

@@ -25,7 +25,7 @@ below remain open.
 
 **OE is the current implementation priority.** It will establish a canonical
 TWF Order, durable TWF Queue, governed Broker V2 submission, reconciliation,
-and first-class Orders workspace. O6–O13 and further Scanner/Market Context
+and first-class Orders workspace. The manual Orders entry/list/detail path is implemented in OE-2; Queue and broker handoff remain future work. O6–O13 and further Scanner/Market Context
 expansion remain planned but are not the next implementation sequence. Broader
 user validation remains open for recent Scanner, Watchlist, metadata, and
 Market Context work; Sprint 2 as a whole is not accepted or frozen.
@@ -54,7 +54,7 @@ Market Context work; Sprint 2 as a whole is not accepted or frozen.
 | Scanner LLM narrative         | **PLANNED / DEFERRED / OPTIONAL**         | Future natural-language synthesis only; deterministic scores remain authoritative                                                              |
 | Derivatives Scanner O4        | **IMPLEMENTED / USER VALIDATION PENDING** | Bounded single-leg NSE options scanning, transparent Intraday/Positional templates, and exact O1/O3 handoffs                                   |
 | Derivatives Scanner O5        | **IMPLEMENTED / LIVE VALIDATION PENDING** | Exact NSE FUTSTK/FUTIDX Dhan quote scanning, explicit Futures filters/templates, archived evidence, and guarded Broker V2 preview              |
-| OE — TWF Order / Queue        | **OE-1 ACCEPTED / FROZEN**                | Broker-neutral Order domain, lifecycle and audit are accepted; OE-2 is not started, while Queue, execution bridge and Orders UI remain planned |
+| OE — TWF Order / Queue        | **OE-1 FROZEN; OE-2 IMPLEMENTED / REVIEW** | Manual Orders UI and trusted DRAFT → READY intake now use frozen OE-1; Queue and execution bridge remain unimplemented |
 | Opportunity O6–O13            | **PLANNED / DEFERRED**                    | Analytics, Discovery, context, monitoring, and execution handoff follow the OE foundation                                                      |
 
 The accepted Broker capability is TWF's execution substrate. It is not intended
@@ -235,12 +235,12 @@ subject to TWF's one-active-LLM policy.
 
 ## Current Priorities
 
-1. **Continue OE — TWF Order & Execution Foundation** with OE-2 reuse of the
-   proven New Order experience on the accepted OE-1 domain, then a durable Queue,
-   governed Broker V2 bridge, and broker-truth reconciliation.
+1. **Validate OE-2 — manual TWF Orders** through user review of the reused New
+   Order flow and trusted DRAFT → READY path. Then build the durable Queue,
+   governed Broker V2 bridge, and broker-truth reconciliation in later phases.
 2. Preserve existing Broker V2, Watchlist, and Scanner functionality while their
-   normal trade initiation moves toward TWF Orders. Do not imply the new Queue
-   or Orders workspace is implemented yet.
+   normal trade initiation moves toward TWF Orders. The manual Orders workspace
+   exists in OE-2; do not imply Queue or Broker handoff is implemented.
 3. Complete outstanding authenticated O3/O4/O5 live validation and broader
    Watchlist/Scanner/metadata acceptance without automated test orders. These
    are validation gates, not a competing implementation priority.
@@ -322,7 +322,7 @@ decommissioned as described below.
 The freeze covers canonical broker-neutral Order contracts, exact instrument
 identity and owner/source trust boundaries, lifecycle and Queue/Broker authority
 guards, optimistic concurrency, migration, persistence, and audit/history
-semantics. OE-2 is **NOT STARTED**; OE-3 onward remain planned, not runtime
+semantics. OE-2 is **implemented / ready for independent review**; OE-3 onward remain planned, not runtime
 capabilities.
 
 1. **OE-1 — TWF Order Domain & Lifecycle Foundation (ACCEPTED / FROZEN).**
@@ -332,9 +332,11 @@ capabilities.
    ordinary callers cannot assert Queue or broker-truth states. No API, UI, Queue,
    broker submission or advanced SL/TP execution was added. See the
    [normative Order architecture](docs/TWF_Order_Domain_and_Lifecycle_Architecture.md).
-2. **OE-2 — Existing New Order → TWF Order.** Reuse the current Select
-   Instrument/Ticket/Preview experience from top-level TWF Orders so manual
-   TWF-originated orders enter the new domain without losing proven behavior.
+2. **OE-2 — Existing New Order → TWF Order (IMPLEMENTED / REVIEW).** Top-level
+   Orders reuses Select Instrument/Ticket/Preview, resolves canonical identity
+   server-side, creates MANUAL TWF Orders, validates and stops at READY.
+   Owner-scoped list/detail/history use OE-1 persistence. No Queue or broker
+   submission occurs. See the [OE-2 architecture](docs/TWF_ORDERS_OE2_ARCHITECTURE.md).
 3. **OE-3 — TWF Queue Foundation.** Add durable admission, ordering, lifecycle,
    ownership/provenance, duplicate prevention, safe retries, and operator
    visibility. States may include READY, WAITING, BLOCKED, SUBMITTING, SENT,
@@ -346,9 +348,9 @@ capabilities.
 5. **OE-5 — Broker Reconciliation.** Reconcile broker order IDs and accepted,
    rejected, open, partially filled, filled, cancelled, and broker-side changes.
    Broker confirmation remains final execution truth.
-6. **OE-6 — TWF Orders Workspace.** Show + New Order, active/queued/submitted
-   TWF Orders, completed/cancelled/rejected outcomes, provenance, execution
-   state, history, and audit in the established TWF visual language.
+6. **OE-6 — TWF Orders Workspace expansion.** Expand the OE-2 manual Orders
+   list/detail/history with active/queued/submitted and completed outcomes once
+   Queue and Broker handoff are implemented.
 7. **OE-7 — TWF Trading Audit / Logging Foundation.** Persist exact transitions
    and evidence across TWF Order, Queue, Broker submission and response, and
    reconciliation.
@@ -372,7 +374,7 @@ capabilities.
     before freezing the end-to-end path.
 
 The OE-1 freeze does not implement TWF Queue or its workers, Queue → Broker V2
-handoff, TWF Orders UI, moved New Order flow, TWF Positions/Alerts lifecycles,
+handoff, TWF Positions/Alerts lifecycles,
 SL/TP automation, max profit/loss execution, webhook execution, or a finalized
 create/intake idempotency policy. The current Broker New Order flow remains
 operational. Carry forward these observations:
@@ -382,10 +384,12 @@ operational. Carry forward these observations:
   substitutes for a live run.
 - Repository-wide mypy retains pre-existing, unrelated errors in unchanged test
   files. OE-1 changed-source type checking passed.
-- Define create/intake idempotency keys and uniqueness scope in OE-2/OE-3, and
-  require stable source-event identity for OE-11 external intake.
-- OE-2 must wire the existing New Order flow to the trusted server-side canonical
-  instrument authority introduced by OE-1.
+- OE-2 binds Create to a short-lived server Preview and consumes each preview
+  once, including concurrent replay. Broader create/intake idempotency across
+  distinct previews and automated sources remains deferred. Define stable
+  source-event keys and uniqueness scope before OE-3/OE-11 automated intake.
+- OE-2 wires the existing New Order flow to the trusted server-side canonical
+  instrument authority introduced by OE-1; independent review is pending.
 - Future Watchlist, Scanner, Discovery, Strategy, Agent, and Webhook adapters
   must issue trusted owner-bound source/origin contexts with event validators.
 

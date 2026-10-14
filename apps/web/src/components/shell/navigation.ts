@@ -32,7 +32,7 @@ export const navigationSections: { label: string; items: NavigationItem[] }[] =
           icon: "portfolio",
           planned: true,
         },
-        { label: "Orders", href: "/orders", icon: "document", planned: true },
+        { label: "Orders", href: "/orders", icon: "document" },
         { label: "Alerts", href: "/alerts", icon: "alerts", planned: true },
       ],
     },

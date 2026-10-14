@@ -20,6 +20,13 @@ import {
 } from "../../lib/broker-orders";
 
 import type { OptionContractRequest } from "../../lib/options";
+import {
+  twfOrdersApi,
+  TWFOrderApiError,
+  type TWFCreation,
+  type TWFOrderInput,
+  type TWFPreview,
+} from "../../lib/twf-orders";
 
 function instrumentLabel(instrument: Instrument): string {
   if (
@@ -46,6 +53,8 @@ export function OrderTicket({
   initial,
   recovery,
   canonical,
+  destination = "BROKER_DIRECT",
+  onCreated,
   close,
 }: {
   account: Account;
@@ -57,6 +66,8 @@ export function OrderTicket({
   };
   recovery?: Intent;
   canonical?: { contract: OptionContractRequest; side: Side };
+  destination?: "BROKER_DIRECT" | "TWF_ORDER";
+  onCreated?: (orderId: string) => void;
   close: () => void;
 }) {
   const base = `accounts/${account.id}/order-entry/`;
@@ -79,6 +90,9 @@ export function OrderTicket({
   );
   const [capability, setCapability] = useState<Capability | null>(null);
   const [intent, setIntent] = useState<Intent | null>(recovery || null);
+  const [twfPayload, setTwfPayload] = useState<TWFOrderInput | null>(null);
+  const [twfPreview, setTwfPreview] = useState<TWFPreview | null>(null);
+  const [twfCreation, setTwfCreation] = useState<TWFCreation | null>(null);
   const [busy, setBusy] = useState(false);
   const lock = useRef(false);
   const priceInitialized = useRef(false);
@@ -138,11 +152,17 @@ export function OrderTicket({
             "Manual trading is unavailable. Check your connection.",
           );
         if (controller.signal.aborted) return;
-        setCapability(c);
+        const available =
+          destination === "TWF_ORDER"
+            ? c.order_types.filter((r) => ["MARKET", "LIMIT"].includes(r.name))
+            : c.order_types;
+        if (!available.length)
+          throw new Error("This contract has no supported TWF Order type.");
+        setCapability({ ...c, order_types: available });
         const selectedRule =
-          c.order_types.find((r) => r.name === initial?.orderType) ||
-          c.order_types.find((r) => r.name === "LIMIT") ||
-          c.order_types[0];
+          available.find((r) => r.name === initial?.orderType) ||
+          available.find((r) => r.name === "LIMIT") ||
+          available[0];
         const launchPrice = selectedRule.price_required
           ? quotePrice(launchQuote.current, instrument.tick_size)
           : null;
@@ -160,7 +180,7 @@ export function OrderTicket({
         if (e.name !== "AbortError") setError(e.message);
       });
     return () => controller.abort();
-  }, [base, instrument, initial?.orderType, initial?.quantity]);
+  }, [base, instrument, initial?.orderType, initial?.quantity, destination]);
   const rule = capability?.order_types.find((t) => t.name === form.order_type);
   const quotes = useBrokerQuotes(
     base,
@@ -211,6 +231,26 @@ export function OrderTicket({
       validity: form.validity,
     };
     try {
+      if (destination === "TWF_ORDER") {
+        if (!["MARKET", "LIMIT"].includes(order.order_type))
+          throw new Error("Choose MARKET or LIMIT for a TWF Order.");
+        const payload: TWFOrderInput = {
+          account_id: account.id,
+          reference: order.reference,
+          native_token: order.native_token,
+          side: order.side,
+          quantity: order.quantity,
+          order_type: order.order_type as "MARKET" | "LIMIT",
+          limit_price: order.price || null,
+          product: order.product as "MIS" | "CNC" | "NRML",
+          validity: order.validity as "DAY" | "IOC",
+          notes: "",
+        };
+        setTwfPreview(await twfOrdersApi<TWFPreview>("preview", payload));
+        setTwfPayload(payload);
+        setStage("preview");
+        return;
+      }
       const { reference, native_token, ...canonicalOrder } = order;
       setIntent(
         await brokerApi<Intent>(
@@ -223,6 +263,43 @@ export function OrderTicket({
       setStage("preview");
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      lock.current = false;
+      setBusy(false);
+    }
+  }
+  async function createTWFOrder() {
+    if (!twfPayload || !twfPreview || lock.current) return;
+    lock.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      const result = await twfOrdersApi<TWFCreation>("", {
+        ...twfPayload,
+        preview_id: twfPreview.preview_id,
+      });
+      setTwfCreation(result);
+      setStage("result");
+      onCreated?.(result.order.twf_order_id);
+    } catch (e) {
+      if (
+        e instanceof TWFOrderApiError &&
+        [
+          "PREVIEW_MISMATCH",
+          "PREVIEW_EXPIRED",
+          "PREVIEW_USED",
+          "PREVIEW_NOT_FOUND",
+        ].includes(e.code)
+      ) {
+        setTwfPreview(null);
+        setTwfPayload(null);
+        setStage("ticket");
+        setError(
+          "Order details changed since preview. Please review again and preview the order.",
+        );
+      } else {
+        setError((e as Error).message);
+      }
     } finally {
       lock.current = false;
       setBusy(false);
@@ -305,7 +382,9 @@ export function OrderTicket({
               ? "Order Ticket"
               : stage === "preview"
                 ? "Preview"
-                : "Submission Result"}
+                : destination === "TWF_ORDER"
+                  ? "TWF Order Result"
+                  : "Submission Result"}
         </h2>
         <button
           type="button"
@@ -565,7 +644,84 @@ export function OrderTicket({
             )}
           </>
         )}
-        {stage === "preview" && intent && (
+        {stage === "preview" && destination === "TWF_ORDER" && twfPreview && (
+          <>
+            <div
+              className={`order-preview order-${twfPreview.terms.side.toLowerCase()}`}
+            >
+              <strong>
+                {twfPreview.terms.side} {twfPreview.instrument.symbol}
+              </strong>
+              <span>
+                {twfPreview.instrument.exchange} ·{" "}
+                {twfPreview.instrument.asset_class}
+              </span>
+              <span>Source: MANUAL · {account.name}</span>
+            </div>
+            <dl className="order-totals">
+              <div>
+                <dt>Quantity</dt>
+                <dd>{twfPreview.terms.quantity}</dd>
+              </div>
+              <div>
+                <dt>Order type</dt>
+                <dd>{twfPreview.terms.order_type}</dd>
+              </div>
+              <div>
+                <dt>Limit price</dt>
+                <dd>{money(twfPreview.terms.limit_price)}</dd>
+              </div>
+              <div>
+                <dt>Product / validity</dt>
+                <dd>
+                  {twfPreview.terms.product} · {twfPreview.terms.validity}
+                </dd>
+              </div>
+              {twfPreview.instrument.expiry && (
+                <div>
+                  <dt>Expiry</dt>
+                  <dd>{twfPreview.instrument.expiry}</dd>
+                </div>
+              )}
+              {twfPreview.instrument.strike && (
+                <div>
+                  <dt>Strike / type</dt>
+                  <dd>
+                    {twfPreview.instrument.strike} ·{" "}
+                    {twfPreview.instrument.option_type}
+                  </dd>
+                </div>
+              )}
+              {twfPreview.instrument.lot_size && (
+                <div>
+                  <dt>Lot / tick</dt>
+                  <dd>
+                    {twfPreview.instrument.lot_size} ·{" "}
+                    {twfPreview.instrument.tick_size}
+                  </dd>
+                </div>
+              )}
+            </dl>
+            <p className="order-disclaimer">
+              This will create a TWF Order. No broker order will be submitted.
+              Instrument identity is resolved by the server and checked again at
+              creation.
+            </p>
+            <div className="order-footer">
+              <button disabled={busy} onClick={() => setStage("ticket")}>
+                Back
+              </button>
+              <button
+                className="primary"
+                disabled={busy}
+                onClick={() => void createTWFOrder()}
+              >
+                {busy ? "Creating…" : "Create TWF Order"}
+              </button>
+            </div>
+          </>
+        )}
+        {stage === "preview" && destination === "BROKER_DIRECT" && intent && (
           <>
             <div
               className={`order-preview order-${intent.order.side.toLowerCase()}`}
@@ -607,7 +763,61 @@ export function OrderTicket({
             </div>
           </>
         )}
-        {stage === "result" && intent && (
+        {stage === "result" && destination === "TWF_ORDER" && twfCreation && (
+          <div className="order-result">
+            {twfCreation.validation.ready && (
+              <span className="order-success-mark" aria-hidden="true">
+                ✓
+              </span>
+            )}
+            <h3>
+              {twfCreation.validation.ready
+                ? "TWF Order Created"
+                : "TWF Order Draft Created"}
+            </h3>
+            <p>
+              <strong>{twfCreation.order.state}</strong> ·{" "}
+              {twfCreation.order.terms.side} {twfCreation.order.terms.quantity}{" "}
+              {twfCreation.order.instrument.symbol}
+            </p>
+            <p>
+              TWF Order ID{" "}
+              <strong className="order-id">
+                {twfCreation.order.twf_order_id}
+              </strong>
+            </p>
+            <p>
+              Source: MANUAL · Created{" "}
+              {new Date(twfCreation.order.created_at).toLocaleString("en-IN")}
+            </p>
+            {!twfCreation.validation.ready && (
+              <p role="alert">
+                Draft needs correction:{" "}
+                {twfCreation.validation.violations.join(", ")}
+              </p>
+            )}
+            <Link
+              className="broker-button"
+              href={`/orders?selected=${twfCreation.order.twf_order_id}`}
+              onClick={close}
+            >
+              View Order Details
+            </Link>
+            <button
+              onClick={() => {
+                setTwfCreation(null);
+                setTwfPreview(null);
+                setTwfPayload(null);
+                setInstrument(null);
+                setCapability(null);
+                setStage("select");
+              }}
+            >
+              Create Another Order
+            </button>
+          </div>
+        )}
+        {stage === "result" && destination === "BROKER_DIRECT" && intent && (
           <div className="order-result">
             {intent.status === "SUBMITTED" && (
               <span className="order-success-mark" aria-hidden="true">

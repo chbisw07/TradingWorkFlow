@@ -14,6 +14,7 @@ import twf.infrastructure.identity  # noqa: F401 -- register metadata
 import twf.infrastructure.instrument_metadata  # noqa: F401 -- register metadata
 import twf.infrastructure.mcp  # noqa: F401 -- register metadata
 import twf.infrastructure.order_intent  # noqa: F401 -- register metadata
+import twf.infrastructure.order_preview  # noqa: F401 -- register metadata
 import twf.infrastructure.preferences  # noqa: F401 -- register metadata
 import twf.infrastructure.scanner_v2  # noqa: F401 -- register metadata
 import twf.infrastructure.twf_order  # noqa: F401 -- register metadata

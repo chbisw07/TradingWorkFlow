@@ -100,6 +100,10 @@ def test_lifecycle_and_contracts(settings: Settings) -> None:
         }
         schema = client.get("/openapi.json").json()
         assert set(schema["paths"]) == {
+            "/api/v1/twf-orders",
+            "/api/v1/twf-orders/preview",
+            "/api/v1/twf-orders/{order_id}",
+            "/api/v1/twf-orders/{order_id}/history",
             "/api/v1/market/summary",
             "/api/v1/options/underlyings",
             "/api/v1/options/expiries",
