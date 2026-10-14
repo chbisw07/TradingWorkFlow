@@ -2,7 +2,7 @@
 
 import hashlib
 import json
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from enum import StrEnum
 from typing import Annotated, Literal, Self
@@ -73,6 +73,11 @@ class InstrumentIdentity(Contract):
     instrument_type: Identifier | None = None
     provider_symbol: Text | None = None
     expiry: Instant | None = None
+    # Contract expiry is an exchange-calendar date. The instant is retained for
+    # existing discovery consumers and must not determine this date.
+    expiry_date: Annotated[date, Field(strict=True)] | None = None
+    lot_size: PositiveInt | None = None
+    tick_size: Annotated[Decimal, Field(gt=0, allow_inf_nan=False)] | None = None
     strike: Number | None = None
     right: Literal["CALL", "PUT"] | None = None
 

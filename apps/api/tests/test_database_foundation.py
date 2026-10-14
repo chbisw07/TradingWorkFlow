@@ -262,6 +262,8 @@ def test_migration_history_and_metadata() -> None:
         "instrument_metadata_refreshes",
         "fno_liquidity_cache",
         "scanner_v2_derivative_templates",
+        "twf_order_events",
+        "twf_orders",
     }
     assert set(Base.metadata.naming_convention) == {"pk", "fk", "ix", "uq", "ck"}
     command.upgrade(config, "head")
@@ -271,8 +273,7 @@ def test_migration_history_and_metadata() -> None:
     try:
         with db.connect() as connection:
             assert (
-                MigrationContext.configure(connection).get_current_revision()
-                == "0022_derivative_templates"
+                MigrationContext.configure(connection).get_current_revision() == "0023_twf_orders"
             )
             assert inspect(connection).get_table_names() == [
                 "alembic_version",
@@ -310,6 +311,8 @@ def test_migration_history_and_metadata() -> None:
                 "scanner_v2_derivative_templates",
                 "scanner_v2_runs",
                 "scanner_v2_saved",
+                "twf_order_events",
+                "twf_orders",
                 "user_preferences",
                 "users",
                 "watchlist_activity",
@@ -323,8 +326,7 @@ def test_migration_history_and_metadata() -> None:
         command.upgrade(config, "head")
         with db.connect() as connection:
             assert (
-                MigrationContext.configure(connection).get_current_revision()
-                == "0022_derivative_templates"
+                MigrationContext.configure(connection).get_current_revision() == "0023_twf_orders"
             )
     finally:
         db.dispose()

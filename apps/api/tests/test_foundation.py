@@ -102,6 +102,8 @@ def test_database_boundary() -> None:
             "instrument_metadata_refreshes",
             "fno_liquidity_cache",
             "scanner_v2_derivative_templates",
+            "twf_order_events",
+            "twf_orders",
         }
         assert not inspect(engine).get_table_names()
     finally:
