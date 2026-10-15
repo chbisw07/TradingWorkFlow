@@ -122,11 +122,13 @@ def test_negative_after_commit_retains_marker_until_reconciled(
     fixture: Fixture, terminal: Code, iteration: int
 ) -> None:
     m, who, server, _ = fixture
-    api_key(m, 0.4 if terminal == Code.TIMEOUT else 3)
+    # The expiry is triggered at the post-commit barrier, not by wall-clock luck.
+    api_key(m, 3)
 
     async def run() -> None:
         row = await m.create(who, "fixture", f"negative-{iteration}")
         row = await m.connect(who, row.id, 0, SecretStr("synthetic-key"))
+        await m.operations.wait_receipts()
         reached, release = asyncio.Event(), threading.Event()
         tx, loop = m.transaction, asyncio.get_running_loop()
         hit = False
@@ -149,12 +151,18 @@ def test_negative_after_commit_retains_marker_until_reconciled(
                 with pytest.raises(asyncio.CancelledError):
                     await task
             else:
+                scope = next(scope for scope in m.operations.tasks if scope.is_tool_operation)
+                scope.expire()
                 with pytest.raises(Failure) as error:
                     await task
                 assert error.value.code == Code.TIMEOUT
             peer = ConnectionManager(
                 m.factory, m.settings, tuple(m.providers.values()), http=m.http
             )
+            with m.factory() as db:
+                p = db.scalar(select(MCPOperation).where(MCPOperation.connection_id == row.id))
+                assert p and p.state == "COMPLETE" and p.outcome == "SUCCESS"
+                assert p.reconciliation_required
             assert peer.status(who, row.id).recovery_required
             before = len(server.calls)
             with pytest.raises(Failure):

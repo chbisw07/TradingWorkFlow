@@ -214,3 +214,7 @@ R1 retained-data PASS is qualified by the explicit, user-confirmed post-cutover 
 **DB1_READY_FOR_FOCUSED_REREVIEW = NO**
 
 Both requested remediations are implemented with permanent regressions. The sole remaining required-gate blocker is the repeated full SQLite failure of `test_negative_after_commit_retains_marker_until_reconciled[sqlite-1-TIMEOUT]`. No DB-1 freeze, commit, tag or push. OE-3 F1/F2/F3 remain separate and pending; OE-4 was not started.
+
+## U. Follow-up status — SQLite MCP timeout investigation (2026-10-15)
+
+The separate investigation in [TWF_DB1_SQLITE_MCP_TIMEOUT_INVESTIGATION.md](TWF_DB1_SQLITE_MCP_TIMEOUT_INVESTIGATION.md) found an invalid wall-clock ordering assumption in the MCP durability test, not a lost SQLite recovery marker. Event-controlled regressions now cover timeout before and after commit; two related MCP permit tests were synchronized to their intended transport phases. From the final test state, the exact case passed 100/100 runs, its family 50/50 cycles, the durability module 20/20 runs, and the controlled sequence 50/50 cycles. Two complete SQLite suites passed (1,466 passed, 72 skipped each), as did full PostgreSQL (1,537 passed, 1 skipped), focused DB1-R1/R2 (77 passed), and focused OE-1/OE-2 (102 passed). The DB-1 final gate is ready for this specific blocker. This status addendum does not freeze DB-1 or close the separately pending OE-3 findings.

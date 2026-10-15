@@ -137,19 +137,17 @@ def test_real_pool_shield_does_not_extend_public_deadline(
     close_error: bool,
 ) -> None:
     m, who, server, engine = setup(tmp_path / "shield.db")
-    m.providers["fixture"] = m.providers["fixture"].model_copy(update={"timeout_seconds": 0.08})
+    m.providers["fixture"] = m.providers["fixture"].model_copy(update={"timeout_seconds": 3})
 
     async def run() -> None:
         closed, entered, finish_close = asyncio.Event(), asyncio.Event(), asyncio.Event()
+        request_entered = asyncio.Event()
         pool = httpcore2.AsyncConnectionPool()
         sends: list[float] = []
 
         class SlowConnection:
             async def aclose(self) -> None:
                 entered.set()
-                release = asyncio.Event()
-                asyncio.get_running_loop().call_later(0.32, release.set)
-                await release.wait()
                 await finish_close.wait()
                 closed.set()
                 if close_error:
@@ -159,9 +157,11 @@ def test_real_pool_shield_does_not_extend_public_deadline(
 
         async def handler(request: httpx2.Request) -> httpx2.Response:
             sends.append(time.monotonic())
-            if body_timeout and request.method == "POST":
+            if request.method == "POST":
                 if json.loads(await request.aread())["method"] == "tools/list":
-                    await asyncio.Event().wait()
+                    request_entered.set()
+                    if body_timeout:
+                        await asyncio.Event().wait()
             return await server.handle(request)
 
         class Transport(httpx2.MockTransport):
@@ -172,12 +172,24 @@ def test_real_pool_shield_does_not_extend_public_deadline(
         m.client = SDKClient(HTTPFactory(lambda: Transport(handler), public_ip))
         row = await m.create(who, "fixture", "shield")
         row = await m.connect(who, row.id, 0)
-        start = time.monotonic()
-        with pytest.raises(Failure) as result:
-            await m.tools(who, row.id, row.generation)
-        elapsed = time.monotonic() - start
-        assert result.value.code == Code.TIMEOUT and elapsed < 0.15
-        assert not closed.is_set() and m.operations.tasks  # Owned, still unwinding.
+        task = asyncio.create_task(m.tools(who, row.id, row.generation))
+        try:
+            # The longer deadline lets transport reach the intended phase first;
+            # the real timer must then expire while HTTPcore close is blocked.
+            barrier = request_entered if body_timeout else entered
+            await asyncio.wait_for(barrier.wait(), 2)
+            with pytest.raises(Failure) as result:
+                await asyncio.wait_for(task, 4)
+            assert result.value.code == Code.TIMEOUT
+            await asyncio.wait_for(entered.wait(), 2)
+            # Close is deliberately blocked until after the public result.
+            # If the public path awaits the shielded close, wait_for above fails.
+            assert not finish_close.is_set() and not closed.is_set()
+            assert m.operations.tasks  # Owned, still unwinding.
+        except BaseException:
+            finish_close.set()
+            await m.operations.drain(2)
+            raise
         timed_out = m.status(who, row.id)
         assert timed_out.operations_pending == 0
         assert timed_out.unresolved_cleanup_count == 1
@@ -259,7 +271,7 @@ def test_expired_foreign_worker_permit_is_not_assumed_drained(tmp_path: Path) ->
 
 def test_late_provider_result_is_quarantined(tmp_path: Path) -> None:
     m, who, server, engine = setup(tmp_path / "late.db")
-    m.providers["fixture"] = m.providers["fixture"].model_copy(update={"timeout_seconds": 0.08})
+    m.providers["fixture"] = m.providers["fixture"].model_copy(update={"timeout_seconds": 3})
 
     async def run() -> None:
         entered, release = asyncio.Event(), asyncio.Event()
@@ -280,7 +292,11 @@ def test_late_provider_result_is_quarantined(tmp_path: Path) -> None:
         row = await m.create(who, "fixture", "late")
         row = await m.connect(who, row.id, 0)
         task = asyncio.create_task(m.tools(who, row.id, row.generation))
-        await asyncio.wait_for(entered.wait(), 1)
+        await asyncio.wait_for(entered.wait(), 2)
+        # Expire only after the provider is inside the shielded handler.
+        # An 80 ms wall clock could expire before dispatch on a loaded suite.
+        scope = next(scope for scope in m.operations.tasks if scope.is_tool_operation)
+        scope.expire()
         with pytest.raises(Failure) as result:
             await task
         assert result.value.code == Code.TIMEOUT
