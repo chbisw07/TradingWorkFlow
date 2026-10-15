@@ -20,7 +20,9 @@ from twf.observability import JsonFormatter, request_id_context
 
 
 @pytest.fixture(autouse=True)
-def isolated_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def isolated_config(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, migrated_database: None
+) -> None:
     # No developer .env or inherited deployment settings control this fixture.
     monkeypatch.chdir(tmp_path)
     for key in (
@@ -31,10 +33,8 @@ def isolated_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         "API_VERSION",
         "LOG_LEVEL",
         "CORS_ORIGINS",
-        "DATABASE_URL",
     ):
         monkeypatch.delenv(f"TWF_{key}", raising=False)
-    monkeypatch.setenv("TWF_DATABASE_URL", "sqlite+pysqlite:///:memory:")
 
 
 @pytest.fixture
@@ -81,9 +81,15 @@ def test_lifecycle_and_contracts(settings: Settings) -> None:
         assert response.status_code == 200
         assert response.json() == {
             "status": "ready",
-            "checks": "application_initialization_only",
+            "checks": "application_and_database",
             "satellite_dependencies_checked": False,
-            "database_checked": False,
+            "database_checked": True,
+            "database_backend": (
+                "PostgreSQL"
+                if settings.database_url.startswith("postgresql")
+                else "SQLite fallback"
+            ),
+            "database_status": "ready",
         }
         assert client.get("/api/v1/status").json() == {
             "service": "test-api",
@@ -100,6 +106,13 @@ def test_lifecycle_and_contracts(settings: Settings) -> None:
         }
         schema = client.get("/openapi.json").json()
         assert set(schema["paths"]) == {
+            "/api/v1/twf-queue",
+            "/api/v1/twf-queue/admit",
+            "/api/v1/twf-queue/by-order/{order_id}",
+            "/api/v1/twf-queue/{entry_id}",
+            "/api/v1/twf-queue/{entry_id}/history",
+            "/api/v1/twf-queue/{entry_id}/hold",
+            "/api/v1/twf-queue/{entry_id}/release",
             "/api/v1/twf-orders",
             "/api/v1/twf-orders/preview",
             "/api/v1/twf-orders/{order_id}",

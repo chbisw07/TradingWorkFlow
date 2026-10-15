@@ -1,5 +1,6 @@
 # TradingWorkFlow — Ubuntu/Linux Local Development Setup
 
+> DB-1 supersedes the historical SQLite-default setup below: PostgreSQL is primary, `TWF_DATABASE_URL` is required, and SQLite must be explicitly selected. Follow [Database architecture](TWF_DATABASE_ARCHITECTURE.md) and the [migration runbook](TWF_SQLITE_TO_POSTGRES_MIGRATION_RUNBOOK.md) for current setup, tests, backup, and cutover.
 ## 1. Purpose
 
 This guide covers local development setup for TradingWorkFlow (TWF) on

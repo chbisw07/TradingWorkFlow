@@ -26,7 +26,7 @@ export default defineConfig({
   webServer: [
     {
       command: "node tests/browser/auth-test-server.mjs",
-      url: "http://127.0.0.1:8100/health",
+      url: "http://127.0.0.1:8100/ready",
       reuseExistingServer: false,
     },
     {

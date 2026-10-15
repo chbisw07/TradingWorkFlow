@@ -1,4 +1,19 @@
 services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${TWF_POSTGRES_USER:-twf}
+      POSTGRES_PASSWORD: ${TWF_POSTGRES_PASSWORD:?Set TWF_POSTGRES_PASSWORD in a private env file}
+      POSTGRES_DB: ${TWF_POSTGRES_DB:-twf}
+    ports:
+      - "127.0.0.1:${TWF_POSTGRES_PORT:-55432}:5432"
+    volumes:
+      - twf_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
   api:
     build:
       context: .
@@ -7,7 +22,10 @@ services:
       TWF_ENVIRONMENT: development
       TWF_BROKER_MANUAL_TRADING_ENABLED: ${TWF_BROKER_MANUAL_TRADING_ENABLED:-false}
       TWF_CREDENTIAL_MASTER_KEY: ${TWF_CREDENTIAL_MASTER_KEY:-}
-      TWF_DATABASE_URL: ${TWF_DATABASE_URL:-sqlite+pysqlite:////app/twf.db}
+      TWF_DATABASE_URL: ${TWF_DATABASE_URL:?Set the PostgreSQL application URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "127.0.0.1:8000:8000"
     healthcheck:
@@ -16,7 +34,7 @@ services:
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready')",
         ]
       interval: 10s
       timeout: 3s
@@ -29,3 +47,6 @@ services:
       TWF_API_ORIGIN: http://api:8000
     ports:
       - "127.0.0.1:3000:3000"
+
+volumes:
+  twf_postgres:

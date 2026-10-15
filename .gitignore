@@ -29,3 +29,7 @@ coverage/
 
 # Generated instrument metadata snapshots and checkpoints
 var/market_metadata/
+
+# Private database backups and migration evidence (may contain owner metadata)
+var/backups/
+var/db1/

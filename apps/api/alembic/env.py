@@ -18,6 +18,7 @@ import twf.infrastructure.order_preview  # noqa: F401 -- register metadata
 import twf.infrastructure.preferences  # noqa: F401 -- register metadata
 import twf.infrastructure.scanner_v2  # noqa: F401 -- register metadata
 import twf.infrastructure.twf_order  # noqa: F401 -- register metadata
+import twf.infrastructure.twf_queue  # noqa: F401 -- register metadata
 import twf.infrastructure.watchlists  # noqa: F401 -- register metadata
 from twf.config.settings import Settings
 from twf.infrastructure.database import Base, create_database_engine

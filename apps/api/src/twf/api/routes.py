@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Request, Response
 
 from twf.api.dependencies import get_settings
 from twf.config.settings import Settings
+from twf.infrastructure.database import database_status
 from twf.schemas import HealthResponse, MetadataResponse, ReadinessResponse, StatusResponse
 
 
@@ -23,10 +24,17 @@ def create_router(settings: Settings) -> APIRouter:
         responses={503: {"model": ReadinessResponse}},
     )
     def ready(request: Request, response: Response) -> ReadinessResponse:
-        """Only completed application initialization, never external readiness."""
+        """Application plus authoritative database; never satellite/trading readiness."""
         initialized = bool(request.app.state.initialized)
-        response.status_code = 200 if initialized else 503
-        return ReadinessResponse(status="ready" if initialized else "not_ready")
+        db = database_status(request.app.state.database_engine) if initialized else None
+        ready = initialized and db is not None and db["status"] == "ready"
+        response.status_code = 200 if ready else 503
+        return ReadinessResponse(
+            status="ready" if ready else "not_ready",
+            database_checked=db is not None,
+            database_backend=db["backend"] if db else None,
+            database_status=db["status"] if db else "not_checked",
+        )
 
     @v1.get("/status", response_model=StatusResponse, tags=["status"])
     def status(config: Annotated[Settings, Depends(get_settings)]) -> StatusResponse:

@@ -26,7 +26,10 @@ class Settings(BaseSettings):
     api_prefix: Literal["/api/v1"] = "/api/v1"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] | None = None
     cors_origins: tuple[str, ...] | None = None
-    database_url: str = Field(default="sqlite+pysqlite:///./twf.db", repr=False)
+    database_url: str = Field(default="", validate_default=True, repr=False)
+    database_pool_size: int = Field(default=5, ge=1, le=20)
+    database_max_overflow: int = Field(default=5, ge=0, le=20)
+    database_connect_timeout: int = Field(default=5, ge=1, le=30)
     session_ttl_seconds: int = Field(default=28800, ge=60, le=604800)
 
     credential_master_key: SecretStr | None = Field(default=None, repr=False)
@@ -82,6 +85,10 @@ class Settings(BaseSettings):
     @field_validator("database_url")
     @classmethod
     def validate_database_url(cls, value: str) -> str:
+        if not value:
+            raise ValueError(
+                "Set TWF_DATABASE_URL to PostgreSQL; SQLite requires an explicit fallback URL"
+            )
         try:
             url = make_url(value)
             if url.drivername in {"sqlite", "sqlite+pysqlite"}:

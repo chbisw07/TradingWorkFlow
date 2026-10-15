@@ -45,7 +45,11 @@ from twf.discovery.market_data import DhanMarketDataProvider
 from twf.discovery.market_intelligence import TapTideSnapshotCache
 from twf.discovery.market_summary import MarketSummaryCache
 from twf.discovery.product_service import ProductFailure
-from twf.infrastructure.database import create_database_engine, create_session_factory
+from twf.infrastructure.database import (
+    create_database_engine,
+    create_session_factory,
+    require_database_ready,
+)
 from twf.integrations.mcp.connection import ConnectionManager
 from twf.integrations.mcp.contracts import Failure as MCPFailure
 from twf.integrations.registry import ServiceRegistry
@@ -79,6 +83,11 @@ def create_app(
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         engine = engine_factory(settings)
+        try:
+            require_database_ready(engine)
+        except BaseException:
+            engine.dispose()
+            raise
         app.state.database_engine = engine
         app.state.session_factory = create_session_factory(engine)
         app.state.broker_service = BrokerService(

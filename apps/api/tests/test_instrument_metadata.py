@@ -24,8 +24,8 @@ SUMMARY = FIXTURES / "instrument_metadata_v1_summary.json"
 
 
 @pytest.fixture
-def database() -> Iterator[tuple[Engine, sessionmaker[Session]]]:
-    engine = create_database_engine(Settings(database_url="sqlite+pysqlite:///:memory:"))
+def database(migrated_database: None) -> Iterator[tuple[Engine, sessionmaker[Session]]]:
+    engine = create_database_engine(Settings())
     Base.metadata.create_all(engine)
     try:
         yield engine, create_session_factory(engine)

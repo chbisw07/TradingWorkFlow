@@ -14,7 +14,7 @@ from pydantic import JsonValue, SecretStr
 from sqlalchemy import Engine
 
 from twf.config.settings import Settings
-from twf.infrastructure.database import Base, create_database_engine, create_session_factory
+from twf.infrastructure.database import create_database_engine, create_session_factory
 from twf.infrastructure.identity import AuthSession, User
 from twf.integrations.mcp.connection import ConnectionManager
 from twf.integrations.mcp.contracts import AuthMode, Context, OAuthConfig, ProviderConfig
@@ -124,11 +124,13 @@ def setup(
     path: Path, mode: AuthMode = AuthMode.NONE
 ) -> tuple[ConnectionManager, Context, SyntheticServer, Engine]:
     settings = Settings(
-        database_url=f"sqlite+pysqlite:///{path}",
         credential_master_key=SecretStr(Fernet.generate_key().decode()),
     )
     engine = create_database_engine(settings)
-    Base.metadata.create_all(engine)
+    from alembic import command
+    from alembic.config import Config
+
+    command.upgrade(Config(str(Path(__file__).parents[1] / "alembic.ini")), "head")
     factory = create_session_factory(engine)
     now = datetime.now(UTC)
     owner = uuid4()

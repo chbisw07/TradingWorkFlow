@@ -238,8 +238,11 @@ def test_authenticated_endpoint_uses_owner_scoped_ready_capture(tmp_path: Path) 
     from twf.infrastructure.database import Base, create_database_engine, create_session_factory
     from twf.main import create_app
 
-    database = tmp_path / "market-summary.db"
-    settings = Settings(database_url=f"sqlite+pysqlite:///{database}")
+    settings = Settings()
+    from alembic import command
+    from alembic.config import Config
+
+    command.upgrade(Config(str(Path(__file__).parents[1] / "alembic.ini")), "head")
     engine = create_database_engine(settings)
     Base.metadata.create_all(engine)
     with create_session_factory(engine).begin() as session:

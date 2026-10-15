@@ -11,9 +11,11 @@ class HealthResponse(BaseModel):
 
 class ReadinessResponse(BaseModel):
     status: Literal["ready", "not_ready"]
-    checks: Literal["application_initialization_only"] = "application_initialization_only"
+    checks: Literal["application_and_database"] = "application_and_database"
     satellite_dependencies_checked: Literal[False] = False
-    database_checked: Literal[False] = False
+    database_checked: bool = False
+    database_backend: str | None = None
+    database_status: str = "not_checked"
 
 
 class StatusResponse(BaseModel):

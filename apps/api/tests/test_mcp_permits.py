@@ -397,7 +397,9 @@ def test_revocation_permit_protects_group_after_cleanup_lease_expiry(
 
 def test_public_test_status_lookup_shares_invocation_deadline(tmp_path: Path) -> None:
     m, who, _, engine = setup(tmp_path / "status-deadline.db")
-    m.providers["fixture"] = m.providers["fixture"].model_copy(update={"timeout_seconds": 0.08})
+    # Include real PostgreSQL admission round-trips before the blocked lookup.
+    # The lookup still blocks for 3s; the whole call must time out before release.
+    m.providers["fixture"] = m.providers["fixture"].model_copy(update={"timeout_seconds": 0.5})
 
     async def run() -> None:
         row = await m.create(who, "fixture", "status-deadline")
@@ -420,7 +422,7 @@ def test_public_test_status_lookup_shares_invocation_deadline(tmp_path: Path) ->
             with pytest.raises(Failure) as outcome:
                 await task
             assert outcome.value.code == Code.TIMEOUT
-            assert time.monotonic() - started < 0.15
+            assert time.monotonic() - started < 1.0
             assert m.operations.tasks
         finally:
             release.set()

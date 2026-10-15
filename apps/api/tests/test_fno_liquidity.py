@@ -6,7 +6,6 @@ from decimal import Decimal
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from twf.discovery.market_data import MarketDataErrorCode, MarketDataFailure
@@ -82,7 +81,10 @@ def test_deterministic_rank_nesting_and_bounded_sizes() -> None:
 
 
 def test_daily_cache_reuse_refresh_and_last_valid_fallback() -> None:
-    engine = create_engine("sqlite://")
+    from twf.config.settings import Settings
+    from twf.infrastructure.database import create_database_engine
+
+    engine = create_database_engine(Settings())
     Base.metadata.create_all(engine)
     factory = sessionmaker(engine, expire_on_commit=False)
     cache = FnoLiquidityCache(factory)

@@ -25,8 +25,11 @@ below remain open.
 
 **OE is the current implementation priority.** It will establish a canonical
 TWF Order, durable TWF Queue, governed Broker V2 submission, reconciliation,
-and first-class Orders workspace. The manual Orders entry/list/detail path is implemented in OE-2; Queue and broker handoff remain future work. O6–O13 and further Scanner/Market Context
-expansion remain planned but are not the next implementation sequence. Broader
+and first-class Trade workspace. The manual Orders entry/list/detail path is
+accepted and frozen in OE-2. OE-3 implements explicit, durable Queue admission
+and operator visibility; Queue-to-Broker handoff remains future work. O6–O13
+and further Scanner/Market Context expansion remain planned but are not the next
+implementation sequence. Broader
 user validation remains open for recent Scanner, Watchlist, metadata, and
 Market Context work; Sprint 2 as a whole is not accepted or frozen.
 
@@ -54,7 +57,7 @@ Market Context work; Sprint 2 as a whole is not accepted or frozen.
 | Scanner LLM narrative         | **PLANNED / DEFERRED / OPTIONAL**         | Future natural-language synthesis only; deterministic scores remain authoritative                                                              |
 | Derivatives Scanner O4        | **IMPLEMENTED / USER VALIDATION PENDING** | Bounded single-leg NSE options scanning, transparent Intraday/Positional templates, and exact O1/O3 handoffs                                   |
 | Derivatives Scanner O5        | **IMPLEMENTED / LIVE VALIDATION PENDING** | Exact NSE FUTSTK/FUTIDX Dhan quote scanning, explicit Futures filters/templates, archived evidence, and guarded Broker V2 preview              |
-| OE — TWF Order / Queue        | **OE-1 FROZEN; OE-2 IMPLEMENTED / REVIEW** | Manual Orders UI and trusted DRAFT → READY intake now use frozen OE-1; Queue and execution bridge remain unimplemented |
+| OE — TWF Order / Queue        | **OE-1/2 ACCEPTED / FROZEN; OE-3 IMPLEMENTED / REVIEW** | Manual Orders intake stops at READY; explicit OE-3 Queue admission atomically creates one entry and moves the Order to QUEUED. Broker bridge is absent |
 | Opportunity O6–O13            | **PLANNED / DEFERRED**                    | Analytics, Discovery, context, monitoring, and execution handoff follow the OE foundation                                                      |
 
 The accepted Broker capability is TWF's execution substrate. It is not intended
@@ -235,12 +238,12 @@ subject to TWF's one-active-LLM policy.
 
 ## Current Priorities
 
-1. **Validate OE-2 — manual TWF Orders** through user review of the reused New
-   Order flow and trusted DRAFT → READY path. Then build the durable Queue,
-   governed Broker V2 bridge, and broker-truth reconciliation in later phases.
+1. **Validate OE-3 — TWF Queue** through user and independent adversarial review
+   of explicit READY → QUEUED admission, Hold/Release, owner boundaries and
+   durable audit. OE-1 and OE-2 are accepted and frozen.
 2. Preserve existing Broker V2, Watchlist, and Scanner functionality while their
-   normal trade initiation moves toward TWF Orders. The manual Orders workspace
-   exists in OE-2; do not imply Queue or Broker handoff is implemented.
+   normal trade initiation moves toward TWF Orders. Queue admission is implemented;
+   Queue-to-Broker submission, workers, and reconciliation are not.
 3. Complete outstanding authenticated O3/O4/O5 live validation and broader
    Watchlist/Scanner/metadata acceptance without automated test orders. These
    are validation gates, not a competing implementation priority.
@@ -272,8 +275,9 @@ Manual / Watchlist / Scanner / Discovery / Strategy / Agent / external intake
 Today, Broker, Watchlist, and Scanner order entry already converges on the
 Broker V2 preview, intent, submission, and reconciliation machinery. OE moves
 the shared governed entry point one level upward; the diagram is the **target
-architecture**. OE-1 provides the non-executional TWF Order domain; TWF Queue
-and the runtime migration do not yet exist. Broker V2 remains the broker-facing
+architecture**. OE-1 provides the non-executional TWF Order domain, OE-2 the
+manual READY intake, and OE-3 the non-executing TWF Queue. The Queue-to-Broker
+runtime bridge does not yet exist. Broker V2 remains the broker-facing
 submission boundary. Broker truth, including
 rejections and fills, remains authoritative; TWF must not claim a fill before
 broker confirmation.
@@ -322,8 +326,8 @@ decommissioned as described below.
 The freeze covers canonical broker-neutral Order contracts, exact instrument
 identity and owner/source trust boundaries, lifecycle and Queue/Broker authority
 guards, optimistic concurrency, migration, persistence, and audit/history
-semantics. OE-2 is **implemented / ready for independent review**; OE-3 onward remain planned, not runtime
-capabilities.
+semantics. OE-2 is also **ACCEPTED / FROZEN**. OE-3 is implemented and awaits
+user validation and independent adversarial review; OE-4 has not started.
 
 1. **OE-1 — TWF Order Domain & Lifecycle Foundation (ACCEPTED / FROZEN).**
    Owner-scoped, broker-neutral Equity/Futures/Options orders have exact canonical
@@ -332,16 +336,18 @@ capabilities.
    ordinary callers cannot assert Queue or broker-truth states. No API, UI, Queue,
    broker submission or advanced SL/TP execution was added. See the
    [normative Order architecture](docs/TWF_Order_Domain_and_Lifecycle_Architecture.md).
-2. **OE-2 — Existing New Order → TWF Order (IMPLEMENTED / REVIEW).** Top-level
+2. **OE-2 — Existing New Order → TWF Order (ACCEPTED / FROZEN).** Trade →
    Orders reuses Select Instrument/Ticket/Preview, resolves canonical identity
    server-side, creates MANUAL TWF Orders, validates and stops at READY.
    Owner-scoped list/detail/history use OE-1 persistence. No Queue or broker
    submission occurs. See the [OE-2 architecture](docs/TWF_ORDERS_OE2_ARCHITECTURE.md).
-3. **OE-3 — TWF Queue Foundation.** Add durable admission, ordering, lifecycle,
-   ownership/provenance, duplicate prevention, safe retries, and operator
-   visibility. States may include READY, WAITING, BLOCKED, SUBMITTING, SENT,
-   FAILED, and CANCELLED or repository-approved equivalents. This is not an
-   in-memory list.
+3. **OE-3 — TWF Queue Foundation (IMPLEMENTED / REVIEW).** Explicit Add to Queue
+   atomically creates one owner-bound entry and transitions a READY Order to
+   QUEUED, with Order and Queue audit events. Queue entries support READY and
+   HELD, FIFO listing, Hold/Release, and Trade → Execution Queue operator views.
+   Trade also groups Orders and read-only account Positions with one persistent
+   Instrument account selector and New Order action. This does not implement the
+   future TWF-managed Position lifecycle. It makes no broker write calls. See the [OE-3 Queue architecture](docs/TWF_QUEUE_OE3_ARCHITECTURE.md).
 4. **OE-4 — Queue → Broker V2 Bridge.** Submit ready, authorized Queue items
    through Broker V2 using exact contract identity, idempotency, timeout safety,
    durable submission identity, acknowledgement capture, and typed failures.
@@ -373,13 +379,13 @@ capabilities.
     authorization, logging, crash/restart recovery, and the external boundary
     before freezing the end-to-end path.
 
-The OE-1 freeze does not implement TWF Queue or its workers, Queue → Broker V2
-handoff, TWF Positions/Alerts lifecycles,
-SL/TP automation, max profit/loss execution, webhook execution, or a finalized
-create/intake idempotency policy. The current Broker New Order flow remains
-operational. Carry forward these observations:
+The OE-1 freeze itself does not implement TWF Queue. OE-3 adds Queue admission
+and Hold/Release without workers or Queue → Broker V2 handoff. TWF
+Positions/Alerts lifecycles, SL/TP automation, max profit/loss execution, webhook
+execution, and a finalized create/intake idempotency policy remain future work.
+The current Broker New Order flow remains operational. Carry forward these observations:
 
-- Live PostgreSQL validation was **NOT_RUN** because a test environment was
+- Historical pre-DB-1 result (superseded by the DB-1 platform gate): live PostgreSQL validation was **NOT_RUN** because a test environment was
   unavailable; SQLite validation and offline PostgreSQL migration SQL are not
   substitutes for a live run.
 - Repository-wide mypy retains pre-existing, unrelated errors in unchanged test
@@ -387,9 +393,9 @@ operational. Carry forward these observations:
 - OE-2 binds Create to a short-lived server Preview and consumes each preview
   once, including concurrent replay. Broader create/intake idempotency across
   distinct previews and automated sources remains deferred. Define stable
-  source-event keys and uniqueness scope before OE-3/OE-11 automated intake.
+  source-event keys and uniqueness scope before later automated intake (OE-11).
 - OE-2 wires the existing New Order flow to the trusted server-side canonical
-  instrument authority introduced by OE-1; independent review is pending.
+  instrument authority introduced by OE-1; final acceptance is complete.
 - Future Watchlist, Scanner, Discovery, Strategy, Agent, and Webhook adapters
   must issue trusted owner-bound source/origin contexts with event validators.
 
@@ -516,9 +522,32 @@ The last tag is a validation-ready checkpoint, not final Sprint-2 acceptance.
 Historical acceptance documents remain historical unless a later authority
 explicitly supersedes them.
 
+## Database authority (DB-1)
+
+**PostgreSQL is now the primary/default authoritative runtime database. SQLite is
+explicit fallback / recovery snapshot / lightweight mode only.** There is no
+automatic PostgreSQL → SQLite failover and no dual-write. An unavailable primary
+fails closed. `TWF_DATABASE_URL` is required; startup checks connectivity and the
+Alembic head before serving requests. `/ready` reports the active backend safely.
+
+DB-1 runs before OE-4. OE-1/OE-2 domain semantics remain frozen; the pending OE-3
+coherence, history immutability, and pagination findings remain a separate task.
+No Queue worker or Broker handoff is added by this database migration.
+
+- [Database architecture](docs/TWF_DATABASE_ARCHITECTURE.md)
+- [SQLite → PostgreSQL migration and recovery runbook](docs/TWF_SQLITE_TO_POSTGRES_MIGRATION_RUNBOOK.md)
+- [DB-1 implementation evidence and review status](docs/TWF_DB1_IMPLEMENTATION_REPORT.md)
+
 ## Local Development
 
-Prerequisites: Python 3.12+ and Node.js 20.19+, 22.13+, or 24+.
+Prerequisites: Python 3.12+, Node.js 20.19+, 22.13+, or 24+, and PostgreSQL 16
+(server tools are also needed for the isolated primary test gate).
+
+Start PostgreSQL using the [database runbook](docs/TWF_SQLITE_TO_POSTGRES_MIGRATION_RUNBOOK.md).
+Configure a private `apps/api/.env` from `.env.example` with the PostgreSQL
+application URL and existing credential master key before running the commands
+below. Existing SQLite installations must follow the verified backup/import
+procedure before switching their runtime URL.
 
 ```bash
 # Terminal 1, from the repository root
@@ -542,11 +571,17 @@ Web: <http://localhost:3000>. API: <http://localhost:8000/health>,
 <http://localhost:8000/ready>, <http://localhost:8000/api/v1/status>,
 <http://localhost:8000/api/v1/meta>, and <http://localhost:8000/docs>.
 
-`TWF_DATABASE_URL` defaults to local SQLite. PostgreSQL uses an externally
-injected `postgresql+psycopg://` URL. Run migrations explicitly from `apps/api`
-with `.venv/bin/alembic upgrade head`; API startup does not run production
-migrations. For containers, run `docker compose up --build` from the repository
-root.
+`TWF_DATABASE_URL` is required and normally points to PostgreSQL. Run migrations
+explicitly from `apps/api` with `.venv/bin/alembic upgrade head`; API startup does
+not run migrations. Compose provides a persistent PostgreSQL service and requires
+private credentials. Native URLs use loopback port 55432; container API URLs use
+`postgres:5432`. Select SQLite only with an explicit fallback URL.
+
+Primary backend gate: `tools/test-postgres.sh -q` (private disposable PostgreSQL,
+per-test isolation, no developer data). SQLite compatibility: from `apps/api`, run
+`.venv/bin/python -m pytest --db-backend=sqlite -q`. PostgreSQL-backed browser smoke
+uses `tools/test-postgres.sh --browser ...`. Back up the authority with `pg_dump`
+and rehearse `pg_restore`; the retained SQLite snapshot is not a current replica.
 
 See the
 [Ubuntu/Linux local development guide](docs/TWF_LOCAL_DEVELOPMENT_SETUP_LINUX.md)

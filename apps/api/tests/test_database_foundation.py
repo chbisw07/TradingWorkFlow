@@ -46,7 +46,7 @@ class Child(ProofBase):
 
 
 @pytest.fixture
-def engine() -> Iterator[Engine]:
+def engine(migrated_database: None) -> Iterator[Engine]:
     instance = create_database_engine(Settings())
     ProofBase.metadata.create_all(instance)  # Test-only schema, never application startup.
     try:
@@ -57,7 +57,8 @@ def engine() -> Iterator[Engine]:
 
 def test_settings_default_and_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("TWF_DATABASE_URL")
-    assert Settings().database_url == "sqlite+pysqlite:///./twf.db"
+    with pytest.raises(ValidationError, match="Set TWF_DATABASE_URL"):
+        Settings()
     monkeypatch.setenv("TWF_DATABASE_URL", "sqlite+pysqlite:///:memory:")
     assert Settings(environment="test").database_url.endswith(":memory:")
     value = "postgresql://placeholder:credential_marker_123@db.invalid:5432/twf"
@@ -92,27 +93,28 @@ def test_invalid_production_configuration_is_safe(url: str) -> None:
     assert "secret" not in str(caught.value)
 
 
-def test_lazy_engine_and_app_lifecycle(tmp_path: Path) -> None:
+def test_lazy_engine_and_app_lifecycle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     path = tmp_path / "lazy.db"
     settings = Settings(database_url=f"sqlite+pysqlite:///{path}")
-    created: list[Engine] = []
     disposed = Mock()
 
     def factory(config: Settings) -> Engine:
         db = create_database_engine(config)
         event.listen(db, "engine_disposed", disposed)
-        created.append(db)
         return db
 
     app = create_app(settings, engine_factory=factory)
-    assert not created and not path.exists()
-    with TestClient(app) as client:
-        assert len(created) == 1 and not path.exists()
-        assert client.get("/ready").json()["database_checked"] is False
-        assert not path.exists()  # Neither startup nor readiness connects/migrates.
-        assert probe_database(created[0])
-        assert inspect(created[0]).get_table_names() == []
+    assert not path.exists()
+    with pytest.raises(RuntimeError, match="schema_mismatch"):
+        with TestClient(app):
+            pass
     disposed.assert_called_once()
+    assert app.state.initialized is False
+    monkeypatch.setenv("TWF_DATABASE_URL", settings.database_url)
+    command.upgrade(Config(str(Path(__file__).parents[1] / "alembic.ini")), "head")
+    with TestClient(app) as client:
+        assert client.get("/ready").json()["database_checked"] is True
+        assert client.get("/ready").json()["database_backend"] == "SQLite fallback"
     assert app.state.session_factory is None and app.state.database_engine is None
 
 
@@ -214,9 +216,9 @@ def test_probe_failure_safe_and_ready_unchanged(
         assert "secret" not in caplog.text
     finally:
         engine.dispose()
-    with TestClient(create_app(settings)) as client:
-        assert client.get("/ready").status_code == 200
-        assert client.get("/ready").json()["database_checked"] is False
+    with pytest.raises(RuntimeError, match="unavailable"):
+        with TestClient(create_app(settings)):
+            pass
 
 
 def test_migration_history_and_metadata() -> None:
@@ -264,6 +266,8 @@ def test_migration_history_and_metadata() -> None:
         "scanner_v2_derivative_templates",
         "twf_order_events",
         "twf_orders",
+        "twf_queue_entries",
+        "twf_queue_events",
         "manual_order_previews",
     }
     assert set(Base.metadata.naming_convention) == {"pk", "fk", "ix", "uq", "ck"}
@@ -273,11 +277,8 @@ def test_migration_history_and_metadata() -> None:
     db = create_database_engine(Settings())
     try:
         with db.connect() as connection:
-            assert (
-                MigrationContext.configure(connection).get_current_revision()
-                == "0024_manual_order_previews"
-            )
-            assert inspect(connection).get_table_names() == [
+            assert MigrationContext.configure(connection).get_current_revision() == "0025_twf_queue"
+            assert sorted(inspect(connection).get_table_names()) == [
                 "alembic_version",
                 "auth_sessions",
                 "broker_accounts",
@@ -316,6 +317,8 @@ def test_migration_history_and_metadata() -> None:
                 "scanner_v2_saved",
                 "twf_order_events",
                 "twf_orders",
+                "twf_queue_entries",
+                "twf_queue_events",
                 "user_preferences",
                 "users",
                 "watchlist_activity",
@@ -328,10 +331,7 @@ def test_migration_history_and_metadata() -> None:
             assert MigrationContext.configure(connection).get_current_revision() is None
         command.upgrade(config, "head")
         with db.connect() as connection:
-            assert (
-                MigrationContext.configure(connection).get_current_revision()
-                == "0024_manual_order_previews"
-            )
+            assert MigrationContext.configure(connection).get_current_revision() == "0025_twf_queue"
     finally:
         db.dispose()
 
@@ -348,6 +348,9 @@ def test_offline_postgresql_migration(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "credential_marker_123" not in sql and "db.invalid" not in sql
     assert "version_num VARCHAR(128)" in sql
     assert sql.count("CREATE TABLE alembic_version") == 1
+    assert "CREATE TABLE twf_queue_entries" in sql
+    assert "CREATE TABLE twf_queue_events" in sql
+    assert "uq_twf_queue_entries_order" in sql
 
 
 def test_temporal_migration_preserves_legacy_episode_round_trip(

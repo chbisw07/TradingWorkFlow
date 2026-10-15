@@ -183,7 +183,9 @@ def test_cancelled_exchange_leaves_no_active_binding(tmp_path: Path) -> None:
 def test_sdk_session_bounds_and_generation(tmp_path: Path, case: str) -> None:
     manager, who, server, engine = setup(tmp_path / "session.db")
     manager.providers["fixture"] = manager.providers["fixture"].model_copy(
-        update={"timeout_seconds": 0.3, "max_response_bytes": 4096}
+        # The stale-generation probe coordinates disconnect/database transactions;
+        # it must not accidentally test the separate short-deadline timeout case.
+        update={"timeout_seconds": 2.0 if case == "stale" else 0.3, "max_response_bytes": 4096}
     )
 
     async def exercise() -> None:

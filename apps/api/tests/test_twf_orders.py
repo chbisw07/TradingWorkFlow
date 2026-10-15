@@ -103,9 +103,7 @@ def service_for(engine: Engine, key: UUID, source: Source = Source.MANUAL) -> Or
 
 @pytest.fixture
 def store(tmp_path: Path) -> tuple[OrderService, UUID, Engine]:
-    engine = create_database_engine(
-        Settings(database_url=f"sqlite+pysqlite:///{tmp_path / 'orders.db'}")
-    )
+    engine = create_database_engine(Settings())
     Base.metadata.create_all(engine)
     key = owner(engine)
     return service_for(engine, key), key, engine
@@ -378,12 +376,10 @@ def test_order_migration_upgrade_downgrade(tmp_path: Path, monkeypatch: pytest.M
     from alembic.config import Config
     from sqlalchemy import inspect
 
-    database = tmp_path / "migrated.db"
-    monkeypatch.setenv("TWF_DATABASE_URL", f"sqlite+pysqlite:///{database}")
     config = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
     command.upgrade(config, "0022_derivative_templates")
     command.upgrade(config, "0023_twf_orders")
-    engine = create_database_engine(Settings(database_url=f"sqlite+pysqlite:///{database}"))
+    engine = create_database_engine(Settings())
     try:
         assert {"twf_orders", "twf_order_events"} <= set(inspect(engine).get_table_names())
         constraints = inspect(engine).get_foreign_keys("twf_order_events")
@@ -682,10 +678,20 @@ def test_database_audit_insert_failure_rolls_back(
     service, _, engine = store
     order = create(service, request()) if operation == "update" else None
     with engine.begin() as conn:
-        conn.exec_driver_sql(
-            "CREATE TRIGGER deny_order_event BEFORE INSERT ON twf_order_events "
-            "BEGIN SELECT RAISE(ABORT, 'audit denied'); END"
-        )
+        if engine.dialect.name == "postgresql":
+            conn.exec_driver_sql(
+                "CREATE FUNCTION deny_order_event_fn() RETURNS trigger LANGUAGE plpgsql AS $$ "
+                "BEGIN RAISE EXCEPTION 'audit denied' USING ERRCODE = '23514'; END $$"
+            )
+            conn.exec_driver_sql(
+                "CREATE TRIGGER deny_order_event BEFORE INSERT ON twf_order_events "
+                "FOR EACH ROW EXECUTE FUNCTION deny_order_event_fn()"
+            )
+        else:
+            conn.exec_driver_sql(
+                "CREATE TRIGGER deny_order_event BEFORE INSERT ON twf_order_events "
+                "BEGIN SELECT RAISE(ABORT, 'audit denied'); END"
+            )
     try:
         with pytest.raises(IntegrityError):
             if operation == "create":
@@ -697,7 +703,11 @@ def test_database_audit_insert_failure_rolls_back(
                 )
     finally:
         with engine.begin() as conn:
-            conn.exec_driver_sql("DROP TRIGGER deny_order_event")
+            if engine.dialect.name == "postgresql":
+                conn.exec_driver_sql("DROP TRIGGER deny_order_event ON twf_order_events")
+                conn.exec_driver_sql("DROP FUNCTION deny_order_event_fn()")
+            else:
+                conn.exec_driver_sql("DROP TRIGGER deny_order_event")
     if operation == "create":
         assert service.list_orders() == ()
     else:
@@ -707,7 +717,7 @@ def test_database_audit_insert_failure_rolls_back(
 
 
 @pytest.mark.parametrize("kind", ["draft_update", "ready_cancel"])
-def test_sqlite_same_version_races_are_typed_and_single_commit(
+def test_same_version_races_are_typed_and_single_commit(
     store: tuple[OrderService, UUID, Engine], kind: str
 ) -> None:
     from concurrent.futures import ThreadPoolExecutor

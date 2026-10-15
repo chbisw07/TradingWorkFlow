@@ -471,3 +471,9 @@ The implementation uses additive revision `0015_discovery_evidence_series` and r
 - [S2-3 hardening register](TWF_S2_3_DEFERRED_ISSUES_AND_HARDENING_REGISTER.md): historical TradingView disposition plus active Dhan/TapTide and generic MCP obligations.
 
 The TradingView implementation and acceptance documents remain indexed as historical evidence. They no longer configure or authorize active S&D. The current migration is **IMPLEMENTED / READY FOR USER VALIDATION** and does not change prior milestone tags.
+
+## Database platform — current authority
+
+- [Database architecture (DB-1)](TWF_DATABASE_ARCHITECTURE.md)
+- [SQLite to PostgreSQL migration runbook](TWF_SQLITE_TO_POSTGRES_MIGRATION_RUNBOOK.md)
+- [DB-1 implementation report](TWF_DB1_IMPLEMENTATION_REPORT.md)

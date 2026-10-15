@@ -14,9 +14,8 @@ from twf.main import create_app
 
 
 @pytest.fixture(autouse=True)
-def test_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_environment(monkeypatch: pytest.MonkeyPatch, migrated_database: None) -> None:
     monkeypatch.setenv("TWF_ENVIRONMENT", "test")
-    monkeypatch.setenv("TWF_DATABASE_URL", "sqlite+pysqlite:///:memory:")
 
 
 def test_health_and_status() -> None:
@@ -105,8 +104,12 @@ def test_database_boundary() -> None:
             "twf_order_events",
             "twf_orders",
             "manual_order_previews",
+            "twf_queue_entries",
+            "twf_queue_events",
         }
-        assert not inspect(engine).get_table_names()
+        assert set(inspect(engine).get_table_names()) == set(Base.metadata.tables) | {
+            "alembic_version"
+        }
     finally:
         engine.dispose()
 

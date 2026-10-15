@@ -181,7 +181,7 @@ def test_synthetic_reference_time_requires_timezone() -> None:
     assert asyncio.run(client.health(RequestContext())).as_of == REFERENCE
 
 
-def test_synthetic_failures_leave_siblings_and_application_ready() -> None:
+def test_synthetic_failures_leave_siblings_and_application_ready(migrated_database: None) -> None:
     clients = tuple(
         SyntheticAdapter(
             IDENTITY.model_copy(update={"service_id": f"fixture-{scenario.value.lower()}"}),
@@ -195,7 +195,7 @@ def test_synthetic_failures_leave_siblings_and_application_ready() -> None:
         for client in clients
     )
     app = create_app(
-        Settings(database_url="sqlite+pysqlite:///:memory:"),
+        Settings(),
         service_registry=ServiceRegistry(descriptors, clients=clients),
     )
     app.dependency_overrides[service_principal] = uuid4

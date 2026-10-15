@@ -5,6 +5,17 @@ import { join, resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
 
+const postgresTestUrl = process.env.TWF_BROWSER_POSTGRES_URL;
+if (
+  postgresTestUrl &&
+  !/^postgresql(?:\+psycopg)?:\/\/[^/]*\/twf_test_[^?]+(?:\?|$)/.test(
+    postgresTestUrl,
+  )
+) {
+  throw new Error(
+    "Browser PostgreSQL URL must name a disposable twf_test_* database",
+  );
+}
 const directory = mkdtempSync(join(tmpdir(), "twf-auth-e2e-"));
 const api = resolve("../api");
 const python = join(api, ".venv/bin/python");
@@ -27,7 +38,8 @@ Object.assign(env, {
       enabled: true,
     })),
   ),
-  TWF_DATABASE_URL: `sqlite+pysqlite:///${directory}/auth.db`,
+  TWF_DATABASE_URL:
+    postgresTestUrl || `sqlite+pysqlite:///${directory}/auth.db`,
   TWF_CORS_ORIGINS: '["http://127.0.0.1:3100"]',
   TWF_MCP_PROVIDERS: JSON.stringify([
     {
