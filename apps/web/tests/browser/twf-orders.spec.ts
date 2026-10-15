@@ -5,7 +5,7 @@ test("OE-2 reuses selection, ticket and preview for Equity, Futures and Options,
 }, info) => {
   test.setTimeout(120000);
   await page.goto("/login");
-  await page.getByLabel("Username").fill(`order-${info.project.name}`);
+  await page.getByLabel("Username").fill(`oe2-${info.project.name}`);
   await page
     .getByLabel("Password", { exact: true })
     .fill("test-only-browser-password");
@@ -16,7 +16,7 @@ test("OE-2 reuses selection, ticket and preview for Equity, Futures and Options,
     headers,
     data: {
       name: "OE-2 Instrument Account",
-      api_key: `testkey${info.project.name.replaceAll("-", "")}`,
+      api_key: `oe2key${info.project.name.replaceAll("-", "")}`,
       api_secret: "testsecret123",
     },
   });
@@ -35,7 +35,7 @@ test("OE-2 reuses selection, ticket and preview for Equity, Futures and Options,
     (
       await page.request.post("/api/v1/brokers/callback", {
         headers,
-        data: { state, request_token: "request123" },
+        data: { state, request_token: `order-request-${info.project.name}` },
       })
     ).ok(),
   ).toBeTruthy();

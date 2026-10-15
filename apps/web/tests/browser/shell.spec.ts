@@ -35,10 +35,10 @@ test("shell recomposes with reachable regions, keyboard controls and no page ove
   await expect(
     nav.getByRole("link", { name: "Home", exact: true }),
   ).toBeVisible();
-  await expect(nav.getByRole("link")).toHaveCount(17);
+  await expect(nav.getByRole("link")).toHaveCount(16);
   await expect(
-    nav.getByRole("link", { name: "Orders", exact: true }),
-  ).toHaveAttribute("href", "/orders");
+    nav.getByRole("link", { name: "Trade", exact: true }),
+  ).toHaveAttribute("href", "/trade/orders");
   if (width < 1200) {
     await nav.getByRole("link", { name: "Home", exact: true }).focus();
     await page.keyboard.press("Escape");

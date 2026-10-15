@@ -798,7 +798,7 @@ export function OrderTicket({
             )}
             <Link
               className="broker-button"
-              href={`/orders?selected=${twfCreation.order.twf_order_id}`}
+              href={`/trade/orders?selected=${twfCreation.order.twf_order_id}`}
               onClick={close}
             >
               View Order Details

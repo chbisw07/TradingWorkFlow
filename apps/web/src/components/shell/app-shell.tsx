@@ -13,6 +13,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     pathname.startsWith("/brokers") ||
     pathname.startsWith("/watchlists") ||
     pathname.startsWith("/scanners") ||
+    pathname.startsWith("/trade") ||
     pathname.startsWith("/candidates");
   const drawer = useRef<HTMLDialogElement>(null);
   const [navigationOpen, setNavigationOpen] = useState(false);

@@ -235,3 +235,171 @@
     padding: 0.55rem;
   }
 }
+.orders-workspace-tabs {
+  display: flex;
+  gap: 0.35rem;
+  margin: 0 0 0.75rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.orders-workspace-tabs button {
+  border: 0;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: transparent;
+  min-height: 2.25rem;
+  padding: 0.45rem 0.9rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+.orders-workspace-tabs button[aria-current] {
+  color: var(--broker-action);
+  background: var(--surface-accent);
+  box-shadow: inset 0 -2px var(--broker-action);
+}
+.twf-queue-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin: 0 0 0.75rem;
+}
+.twf-queue-summary-card {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  padding: 0.6rem 0.75rem;
+  background: color-mix(in srgb, var(--broker-action) 10%, var(--surface));
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+.twf-queue-summary-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  flex: none;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--broker-action);
+}
+.twf-queue-summary-card small,
+.twf-queue-summary-card strong {
+  display: block;
+}
+.twf-queue-summary-card small {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.twf-queue-summary-card strong {
+  margin-top: 0.1rem;
+  font-size: 1rem;
+}
+.twf-queue-state-ready {
+  color: var(--status-ready);
+  background: var(--surface-accent);
+}
+.twf-queue-state-held {
+  color: var(--text-secondary);
+  background: var(--surface-raised);
+}
+.twf-queue-confirm-body {
+  padding: 0.8rem 1rem;
+}
+.twf-queue-confirm-body > p:first-child {
+  margin-top: 0;
+  font-weight: 600;
+}
+.twf-queue-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--border-subtle);
+}
+.orders-detail-summary button {
+  margin-left: auto;
+}
+@media (max-width: 600px) {
+  .twf-queue-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .twf-queue-summary-card {
+    padding: 0.4rem;
+    gap: 0.25rem;
+  }
+  .twf-queue-summary-icon {
+    width: 1.4rem;
+    height: 1.4rem;
+  }
+}
+
+/* Trade shares the compact white/blue scanner workspace language. */
+.orders-workspace .orders-heading {
+  margin-bottom: 0.65rem;
+}
+.orders-workspace .orders-heading-actions {
+  align-items: end;
+}
+.orders-workspace-tabs a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.45rem 0.9rem;
+  min-height: 2.25rem;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.orders-workspace-tabs a:hover {
+  background: var(--surface-raised);
+}
+.orders-workspace-tabs a[aria-current] {
+  color: var(--broker-action);
+  background: color-mix(in srgb, var(--broker-action) 10%, var(--surface));
+  box-shadow: inset 0 -2px var(--broker-action);
+}
+.orders-workspace-tabs a:focus-visible {
+  outline: 2px solid var(--broker-action);
+  outline-offset: -2px;
+}
+.twf-order-state-queued {
+  color: var(--broker-action);
+  background: color-mix(in srgb, var(--broker-action) 10%, var(--surface));
+}
+.orders-table tbody tr:hover:not(.selected) {
+  background: var(--surface-raised);
+}
+.trade-positions .orders-list-head {
+  align-items: flex-start;
+}
+.trade-positions .orders-list-head p,
+.trade-positions-status {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  margin: 0.35rem 0 0;
+}
+.trade-positions-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+.trade-positions-actions a {
+  color: var(--broker-action);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.trade-positions .broker-table-scroll {
+  max-width: 100%;
+}
+@media (max-width: 600px) {
+  .orders-workspace-tabs {
+    overflow-x: auto;
+  }
+  .trade-positions .orders-list-head {
+    flex-wrap: wrap;
+  }
+}

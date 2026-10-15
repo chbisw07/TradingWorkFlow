@@ -454,7 +454,7 @@ test("TWF destination reuses ticket and server preview, creates once, and never 
     screen.getByRole("link", { name: "View Order Details" }),
   ).toHaveAttribute(
     "href",
-    "/orders?selected=33333333-3333-4333-8333-333333333333",
+    "/trade/orders?selected=33333333-3333-4333-8333-333333333333",
   );
 });
 

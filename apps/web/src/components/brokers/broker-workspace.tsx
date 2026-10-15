@@ -896,7 +896,7 @@ function Room({
         </>
       )}
       {view !== "overview" && current && (
-        <ReadTable
+        <BrokerReadTable
           view={view}
           trade={
             view === "instruments" && enabled
@@ -1056,7 +1056,7 @@ const columns: Record<string, [string, string][]> = {
     ["native_token", "Native token"],
   ],
 };
-function ReadTable({
+export function BrokerReadTable({
   view,
   rows,
   trade,

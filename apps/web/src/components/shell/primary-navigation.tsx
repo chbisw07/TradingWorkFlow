@@ -67,7 +67,11 @@ export function PrimaryNavigation({ onNavigate }: { onNavigate?: () => void }) {
                     (hash || "#preferences") === `#${anchor}`
                   : route === "/"
                     ? pathname === "/"
-                    : pathname === route || pathname.startsWith(route + "/");
+                    : pathname === route ||
+                      pathname.startsWith(route + "/") ||
+                      (route === "/trade/orders" &&
+                        (pathname === "/trade" ||
+                          pathname.startsWith("/trade/")));
                 return (
                   <SidebarItem
                     key={item.href}
