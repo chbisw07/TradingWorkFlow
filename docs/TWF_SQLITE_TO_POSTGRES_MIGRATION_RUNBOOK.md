@@ -34,57 +34,82 @@ and creates new files only. On platforms without immutable flags use verified
 WORM/object retention or equivalent immutable storage before proceeding. Keep the
 original SQLite file too. Do not delete/rewrite it or its only backup.
 
-## 3. Prepare PostgreSQL
+## 3. Prepare PostgreSQL with split roles
 
-Create a private root `.env` (0600, ignored) with `TWF_POSTGRES_PASSWORD` for the
-bootstrap role and `TWF_DATABASE_URL` for the intended application connection.
-Use `compose.yaml` with `docker compose up -d postgres` (or `--env-file` for a
-separate private deployment file). The service uses a persistent named volume and
-loopback port 55432. Do not use `docker compose down -v` on authoritative data.
+PostgreSQL is the production execution-authority database. Keep three credentials
+separate: bootstrap/admin (`TWF_PG_ADMIN_URL`) for role/ownership operations,
+`twf_migrator` (`TWF_MIGRATION_DATABASE_URL`) for Alembic/import/restore, and
+`twf_app` (`TWF_DATABASE_URL`) for the API. Store each in a private operator secret
+source; **never mount the admin or migrator URL into the API service**. The API
+container in Compose receives only `TWF_DATABASE_URL`. `TWF_PG_*_PASSWORD` is
+needed only when creating a missing role; existing passwords are not rotated.
 
-Provision a non-superuser application role and database ownership using your
-administrator's secure connection. The migration/application role must own its
-schema objects and have access to sequences. It does not need superuser, role
-creation, or database creation. For an existing managed PostgreSQL service, use its
-approved TLS and secret configuration instead of the local Compose service.
-
-For a new local Compose database with the example bootstrap/database name `twf`:
+Stop writers, take a verified PostgreSQL dump before an existing deployment
+cutover, and inventory existing ownership/grants. These commands never copy or
+rewrite application rows:
 
 ```bash
-docker compose exec postgres psql -U twf -d twf
+# URLs/passwords are injected privately, not supplied on command lines.
+apps/api/.venv/bin/python tools/postgres_roles.py inventory
+apps/api/.venv/bin/python tools/postgres_roles.py provision
 ```
 
-In that interactive psql session (the password prompt is hidden):
-
-```sql
-CREATE ROLE twf_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE;
-\password twf_app
-ALTER DATABASE twf OWNER TO twf_app;
-\q
-```
-
-Use the new application role in the private runtime URL. Do not recreate an
-existing role or change ownership on an unrelated database.
-
-Supply `TWF_DATABASE_URL` through the environment without placing a password in
-shell history (for example, a hidden `read -rs` prompt followed by `export`). Native
-API: `postgresql+psycopg://...@127.0.0.1:55432/twf`; container API: host `postgres`,
-port `5432`. These are different connection contexts.
+For a **fresh empty** PostgreSQL database (create the database with your bootstrap
+administrator first), run `prepare-fresh`, then Alembic as the migrator. A host
+migration uses `tools/migrate-postgres.sh` with private runtime and migration URLs.
+Compose supports the same operator-only operation via
+`docker compose --profile ops run --rm migrate` after provisioning. A blank
+migration URL fails; this service is never started by default.
 
 ```bash
-cd apps/api
-.venv/bin/alembic upgrade head
-.venv/bin/alembic current
-cd ../..
+apps/api/.venv/bin/python tools/postgres_roles.py prepare-fresh
+tools/migrate-postgres.sh
+# Import verified SQLite data using the migrator URL in this *operator* process.
+# Only after import/verification, grant the API its limited runtime DML:
+apps/api/.venv/bin/python tools/postgres_roles.py harden
+apps/api/.venv/bin/python tools/postgres_roles.py verify
 ```
 
-Use a **fresh empty destination**. Do not downgrade or erase a populated runtime DB.
-The expected head is `0025_twf_queue`. Run upgrade/downgrade tests only in the
-isolated test cluster described below.
+For an **already split PostgreSQL deployment at 0026**, do not rerun
+`prepare-fresh` or import data. Stop the API/all writers and disable runtime
+login; verify a fresh `pg_dump` and an isolated restore. Before 0027, the
+bootstrap administrator must verify `twf_migrator` has database CONNECT/CREATE
+and schema USAGE/CREATE: prior ownership transfer may have left an inherited ACL
+that names the new owner but withholds CONNECT. If missing, grant those rights to
+the migrator under bootstrap authority while writers remain stopped. Upgrade to
+head `0027_oe3_order_event_audit` with the migrator, then run `inventory`,
+`harden`, and `verify` under the bootstrap/admin URL. Re-enable runtime login
+only after the exact grant matrix and direct DML probes pass. A still-app-owned
+0026 deployment needs a separately rehearsed owner-transition procedure before
+this 0027 path; do not give migration credentials to the API to work around it.
+`harden` transfers database, schema, tables, sequences, and trigger functions to
+`twf_migrator`, explicitly grants the migrator database/schema rights that old ACLs
+may have withheld, and applies runtime grants in one PostgreSQL transaction. It does
+not recreate tables or touch rows/IDs. Check the app-role DDL-denial probes and
+normal Preview → READY → Queue/Hold/Release paths before restarting the API.
+If a step fails, its transaction rolls back; retain the dump and keep writers
+stopped while diagnosing. An operator must reapply/verify grants after future
+migrations add tables, because this cutover deliberately avoids broad default DML
+grants. Database role names default to `twf_migrator`/`twf_app` and may be set via
+`TWF_PG_MIGRATOR_ROLE`/`TWF_PG_APP_ROLE`; schema defaults to `public`.
+
+The runtime role has CONNECT, schema USAGE, and needed table DML. DELETE is
+default-denied for current and future tables; only the explicit 11-table
+`REQUIRED_DELETE_TABLES` cleanup allowlist in `tools/postgres_roles.py` receives
+DELETE. TWF Order and Queue audit events have SELECT/INSERT only, and
+`alembic_version` has SELECT only. Migration 0027 adds PostgreSQL and SQLite
+Order-event UPDATE/DELETE guards; the runtime role cannot alter their PostgreSQL
+trigger or function. Verify exact grants after every migration before API restart. It owns no
+protected object or database and cannot CREATE in the schema/database. The
+migrator owns schema objects and runs Alembic. The bootstrap/admin role creates
+roles/databases and performs the ownership transfer; it is never an API login.
+No automatic SQLite failover or dual-write is added. A PostgreSQL URL for a native
+API uses `127.0.0.1:55432`; Compose API/migration containers use `postgres:5432`.
 
 ## 4. Inventory, import, verify
 
-Set `TWF_DATABASE_URL` to the destination in the current environment. Reports are
+In the isolated operator import process, set `TWF_DATABASE_URL` to the **migrator**
+URL for the destination; never run the importer with API credentials. Reports are
 private and ignored because they contain owner IDs and row fingerprints. Use a new
 report path each time; the importer refuses to overwrite reports.
 
@@ -176,28 +201,28 @@ PostgreSQL URL fails; SQLite testing requires the explicit backend option.
 
 ## 6. Take and rehearse a PostgreSQL backup
 
-For Compose, keep passwords off argv and restrict output file permissions:
+Use a protected, non-command-line secret source (service file/`.pgpass`/secret
+injection). `pg_dump -Fc --no-owner --no-acl` preserves data and schema without
+binding the artifact to local role names. Restore into a **separate empty**
+database owned by `twf_migrator` using `pg_restore --exit-on-error --no-owner
+--no-acl` authenticated as that migrator; provision roles first, then run
+`tools/postgres_roles.py harden` and `verify` against the restored database.
+Verify `twf_migrator` owns the database/schema/tables/functions, `twf_app` can
+perform normal DML, and its DDL bypass attempts receive permission denied.
+Compare all table counts/content, FKs, IDs and sensitive business values to the
+source; do not treat a successful restore command alone as proof of fidelity.
 
-```bash
-umask 077
-docker compose exec -T postgres pg_dump -U twf_app -Fc twf \
-  > var/backups/db1/postgres-before-cutover.dump
-# Create a separate empty restore database owned by the application role:
-docker compose exec -T postgres createdb -U twf -O twf_app twf_restore_check
-docker compose exec -T postgres pg_restore --exit-on-error \
-  -U twf_app -d twf_restore_check < var/backups/db1/postgres-before-cutover.dump
-```
+For the 16 October 2026 OE-3 live role cutover, the retained stopped-writer
+custom-format dump includes original owner/ACL metadata. A separate disposable
+restore *without* `--no-owner --no-acl`, into a database initially owned by
+`twf_app` after provisioning the source roles, reproduced the pre-cutover owners
+and all 46 application-table content fingerprints. This is a rehearsed metadata
+rollback artifact, not permission to restore stale data over newer writes. See
+[TWF_OE3_LIVE_PRIVILEGE_CUTOVER_REPORT.md](TWF_OE3_LIVE_PRIVILEGE_CUTOVER_REPORT.md).
 
-Adapt role/database names to your provisioning. With non-container PostgreSQL use
-`pg_dump`/`pg_restore` and a protected `.pgpass`, service file, or secret injection;
-SQLAlchemy's `+psycopg` URL is not a libpq command URL. Point the importer at the
-restore database and use `--verify-only` against the immutable SQLite backup.
-Require equal counts/content. Keep the dump and verification report. Remove only
-the specifically named disposable restore DB after verification if desired.
-
-For ongoing operation, back up PostgreSQL at a frequency appropriate to the loss
-window and test restoration regularly. Local manual dumps alone are not HA/PITR;
-production needs managed backup/retention/off-host protection and key custody.
+Restrict dump permissions (`umask 077`), encrypt/store off-host, retain the
+credential master key separately, and rehearse restoration regularly. A stale
+SQLite snapshot is not a current PostgreSQL backup.
 
 ## 7. Cut over exactly once
 

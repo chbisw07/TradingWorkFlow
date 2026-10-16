@@ -18,7 +18,7 @@ from test_broker_v1 import client as client
 from test_twf_queue_oe3 import queue_service, ready_order
 
 from twf.brokers.zerodha import ZerodhaAdapter
-from twf.infrastructure.twf_order import TWFOrderRecord
+from twf.infrastructure.twf_order import TWFOrderEventRecord, TWFOrderRecord
 from twf.infrastructure.twf_queue import TWFQueueEntryRecord, TWFQueueEventRecord
 from twf.queue.contracts import QueueState
 from twf.queue.errors import QueueError, QueueErrorCode
@@ -425,3 +425,33 @@ def test_postgres_runtime_metadata(client: TestClient) -> None:
         assert str(database).startswith("twf_test_")
         assert str(isolation) == "read committed"
         print(f"PostgreSQL {version}; PID {pid}; database {database}; isolation {isolation}")
+
+
+def test_order_events_are_append_only_in_managed_database(
+    client: TestClient, account_data: tuple[str, OrderProvider]
+) -> None:
+    order = ready_order(client, account_data[0])
+    factory = service(client).factory
+    with factory() as db:
+        event_id = db.scalar(
+            select(TWFOrderEventRecord.event_id).where(
+                TWFOrderEventRecord.twf_order_id == UUID(order["twf_order_id"])
+            )
+        )
+    assert event_id is not None
+    _reject(
+        factory,
+        lambda db: db.execute(
+            update(TWFOrderEventRecord)
+            .where(TWFOrderEventRecord.event_id == event_id)
+            .values(actor="TAMPERED")
+        ),
+    )
+    _reject(
+        factory,
+        lambda db: db.execute(
+            delete(TWFOrderEventRecord).where(TWFOrderEventRecord.event_id == event_id)
+        ),
+    )
+    with factory() as db:
+        assert db.get(TWFOrderEventRecord, event_id) is not None

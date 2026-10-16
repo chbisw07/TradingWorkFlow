@@ -343,18 +343,29 @@ class QueueService:
             data = json.loads(payload)
             if (
                 type(data) is not dict
+                or type(data.get("v")) is not int
                 or data.get("v") != 1
                 or data.get("owner") != str(owner_id)
                 or data.get("state") != (state.value if state else None)
                 or set(data) != {"v", "owner", "state", "at", "id"}
+                or type(data.get("at")) is not str
+                or type(data.get("id")) is not str
             ):
                 raise ValueError("scope")
             admitted = datetime.fromisoformat(data["at"])
-            if admitted.tzinfo is None:
+            if admitted.tzinfo is None or admitted.utcoffset() is None:
                 raise ValueError("timezone")
+            admitted = admitted.astimezone(UTC)
             entry_id = UUID(data["id"])
             return admitted, entry_id
-        except (ValueError, TypeError, KeyError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        except (
+            ValueError,
+            TypeError,
+            KeyError,
+            OverflowError,
+            UnicodeDecodeError,
+            json.JSONDecodeError,
+        ) as exc:
             raise QueueError(QueueErrorCode.INVALID_CURSOR, "Invalid Queue cursor") from exc
 
     def list_entries(

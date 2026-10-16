@@ -556,7 +556,13 @@ cd apps/api
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements-dev.lock
 .venv/bin/python -m pip install --no-deps -e .
-.venv/bin/alembic upgrade head
+cd ../..
+# First setup only, with operator-only URLs/passwords injected privately:
+apps/api/.venv/bin/python tools/postgres_roles.py provision
+apps/api/.venv/bin/python tools/postgres_roles.py prepare-fresh
+tools/migrate-postgres.sh
+apps/api/.venv/bin/python tools/postgres_roles.py harden
+cd apps/api
 TWF_ENVIRONMENT=development .venv/bin/python -m twf.bootstrap \
   --username trader --display-name "Development Trader"
 # First setup only: enter your own password at the hidden prompt.
@@ -573,9 +579,13 @@ Web: <http://localhost:3000>. API: <http://localhost:8000/health>,
 <http://localhost:8000/api/v1/meta>, and <http://localhost:8000/docs>.
 
 `TWF_DATABASE_URL` is required and normally points to PostgreSQL. Run migrations
-explicitly from `apps/api` with `.venv/bin/alembic upgrade head`; API startup does
-not run migrations. Compose provides a persistent PostgreSQL service and requires
-private credentials. Native URLs use loopback port 55432; container API URLs use
+explicitly with `tools/migrate-postgres.sh` under separate `twf_migrator` credentials; API startup does
+not run migrations. Compose provides a persistent PostgreSQL service and an opt-in `ops` migration
+service. The API receives only `twf_app` credentials; provision and verify roles
+with `tools/postgres_roles.py` before serving traffic. Its runtime DELETE policy
+is default-deny with 11 explicitly allowlisted cleanup tables; TWF Order and Queue
+events are append-only. Reapply and verify grants after each new migration. Keep
+administrator and migrator secrets outside the API environment. Native URLs use loopback port 55432; container API URLs use
 `postgres:5432`. Select SQLite only with an explicit fallback URL.
 
 Primary backend gate: `tools/test-postgres.sh -q` (private disposable PostgreSQL,

@@ -279,7 +279,7 @@ def test_migration_history_and_metadata() -> None:
         with db.connect() as connection:
             assert (
                 MigrationContext.configure(connection).get_current_revision()
-                == "0026_oe3_queue_hardening"
+                == "0027_oe3_order_event_audit"
             )
             assert sorted(inspect(connection).get_table_names()) == [
                 "alembic_version",
@@ -336,7 +336,7 @@ def test_migration_history_and_metadata() -> None:
         with db.connect() as connection:
             assert (
                 MigrationContext.configure(connection).get_current_revision()
-                == "0026_oe3_queue_hardening"
+                == "0027_oe3_order_event_audit"
             )
     finally:
         db.dispose()

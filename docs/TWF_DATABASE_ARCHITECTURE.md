@@ -1,9 +1,9 @@
 # TWF Database Architecture — DB-1
 
-Status: R1/R2 fixes pass focused validation; overall acceptance is blocked by the full SQLite gate. PostgreSQL remains authoritative. Current evidence and the exact blocker are recorded in
-[TWF_DB1_REMEDIATION_REPORT.md](TWF_DB1_REMEDIATION_REPORT.md). This changes
-platform policy, not the frozen OE-1/OE-2 contracts. OE-3 hardening remains separate;
-OE-4 worker execution and Broker handoff are not implemented by DB-1.
+Status: DB-1 was accepted/frozen in
+[TWF_DB1_FINAL_ACCEPTANCE_REVIEW.md](TWF_DB1_FINAL_ACCEPTANCE_REVIEW.md).
+OE-3 privilege/cursor remediation is separate and pending focused re-review;
+OE-4 worker execution and Broker handoff remain unimplemented.
 
 ## Authority and configuration
 
@@ -48,7 +48,7 @@ no invariant exception is swallowed. Hold/Release and the admission write transa
 are unchanged.
 
 Engine construction is lazy. API lifespan verifies a connection and the exact
-supported Alembic head (`0025_twf_queue`) before marking initialization complete.
+supported Alembic head (`0027_oe3_order_event_audit`) before marking initialization complete.
 Failure disposes the engine and prevents startup. A graph consistency test ensures
 that the supported head tracks Alembic. Operators run migrations explicitly;
 startup never mutates schema. `/health` remains process liveness. `/ready` probes
@@ -124,8 +124,9 @@ Fidelity rules:
 a named volume, healthcheck, and an API dependency on database health. Credentials
 are required via private env. Native API URLs use `127.0.0.1:55432`; a container API
 must use `postgres:5432`. Migrations must be run before the API starts. Use a
-non-superuser application/schema-owner role; the local cutover uses `twf_app`.
-Bootstrap/admin credentials should not be used by the running API.
+separate non-superuser schema owner (`twf_migrator`) and limited application
+role (`twf_app`). Bootstrap/admin and migrator credentials must not be available
+to the running API.
 
 The primary test gate is `tools/test-postgres.sh -q`. It creates a disposable
 PostgreSQL cluster using installed PostgreSQL server binaries (`pg_config --bindir`,
@@ -162,11 +163,42 @@ accepted any new write, stop writes and repair/restore PostgreSQL; do not switch
 casually to stale SQLite. Any fallback requires an explicit reconciled recovery
 point and operator decision. Copying `.env` back is not data reconciliation.
 
+
+## OE-3 PostgreSQL privilege boundary and SQLite trust scope (16 October 2026)
+
+PostgreSQL remains the production execution-authority database. The live role model
+uses a bootstrap administrator, a separate `twf_migrator` schema/database owner,
+and a limited `twf_app` runtime login. The approved live ownership cutover completed
+on 16 October 2026; its evidence is in [the live cutover report](TWF_OE3_LIVE_PRIVILEGE_CUTOVER_REPORT.md). Alembic and data restore run under migration
+authority; the API receives only its runtime URL. `twf_app` has CONNECT, schema
+USAGE, required table DML and sequence usage. Runtime DELETE is default-denied,
+with an explicit 11-table cleanup allowlist; TWF Order and Queue audit events
+have SELECT/INSERT only, while `alembic_version` has SELECT only. Migration 0027
+adds database-level Order-event UPDATE/DELETE guards on PostgreSQL and SQLite. It owns no application schema, table,
+sequence, trigger function, or database, cannot CREATE in the searched schema or
+database, and is not a member of the migration/admin roles. The 0026 deferred constraints and audit trigger resist direct
+DML **and** runtime-role DDL removal. The audit function is not SECURITY DEFINER and contains no
+unqualified object lookup; direct EXECUTE is revoked from PUBLIC/runtime.
+New migrations require an operator grant/verification pass before API restart.
+See [the role cutover runbook](TWF_SQLITE_TO_POSTGRES_MIGRATION_RUNBOOK.md).
+
+SQLite has **no equivalent hostile-direct-SQL role boundary**. In explicit
+fallback/recovery/developer mode, TWF-managed connections enable `foreign_keys=ON`
+and migration-installed triggers enforce Order/Queue coherence and append-only
+Queue events for normal application DML; keyset pagination remains owner-bound.
+A process with arbitrary writable access to the database file or a separate raw
+connection can disable foreign keys, drop triggers, or edit bytes. This is outside
+the supported adversarial guarantee. Keep the database and containing directory
+private to a trusted service account (for example mode 0600/0700), and never
+interpret same-user file permissions as protection against a hostile process.
+SQLite is not an adversarially equivalent production execution authority.
+
 ## Carry-forward boundaries
 
-OE-3's cross-table coherence, Queue event immutability, and pagination findings
-remain pending and are not fixed or frozen by DB-1. Existing service transaction
-atomicity is validated independently of those application-role direct-SQL findings.
+OE-3's cross-table coherence, Queue event immutability, and pagination were not
+part of DB-1 acceptance. The later 0026 and role/cursor remediation, including the live role cutover, are ready for
+focused OE-3 re-review; OE-3 is not frozen. Existing service transaction atomicity is validated
+independently of the runtime-role direct-SQL boundary.
 PostgreSQL `FOR UPDATE` and `SKIP LOCKED` are verified capabilities for later OE-4,
 not an implemented worker, risk check, scheduler, or execution path.
 

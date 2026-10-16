@@ -149,8 +149,19 @@ test("Queue operator can page older rows and return to newest", async ({
       terms: { side: "BUY", quantity: 1, order_type: "LIMIT" },
     },
   });
+  let rejectNextCursor = false;
   await page.route("**/api/v1/twf-queue?*", async (route) => {
     const params = new URL(route.request().url()).searchParams;
+    if (params.has("cursor") && rejectNextCursor) {
+      rejectNextCursor = false;
+      await route.fulfill({
+        status: 400,
+        json: {
+          error: { code: "INVALID_CURSOR", message: "raw backend detail" },
+        },
+      });
+      return;
+    }
     const data = params.has("cursor")
       ? { items: [row("a", "READY")], next_cursor: null, has_more: false }
       : params.get("state") === "HELD"
@@ -173,6 +184,16 @@ test("Queue operator can page older rows and return to newest", async ({
   await queue.getByRole("button", { name: "Held" }).click();
   await expect(queue.locator("tbody tr")).toHaveCount(1);
   await expect(queue.getByText("SYM-b")).toBeVisible();
+  await queue.getByRole("button", { name: "All" }).click();
+  await expect(queue.locator("tbody tr")).toHaveCount(2);
+  rejectNextCursor = true;
+  await queue.getByRole("button", { name: "Load older" }).click();
+  await expect(queue.locator("tbody tr")).toHaveCount(2);
+  await expect(queue.getByText("SYM-c")).toBeVisible();
+  await expect(page.locator(".broker-notice[role=alert]")).toContainText(
+    "Queue page expired. Returned to newest entries.",
+  );
+  await expect(page.getByText("raw backend detail")).toHaveCount(0);
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth > window.innerWidth + 2,

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "../shell/icon";
 import {
   twfQueueApi,
+  TWFQueueApiError,
   type TWFQueueEntry,
   type TWFQueueEvent,
   type TWFQueuePage,
@@ -54,24 +55,27 @@ export function QueueWorkspace({
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const refresh = useCallback(async () => {
-    const epoch = ++requestEpoch.current;
-    try {
-      const query = new URLSearchParams({ limit: "50" });
-      if (stateFilter !== "ALL") query.set("state", stateFilter);
-      const page = await twfQueueApi<TWFQueuePage>(`?${query}`);
-      if (epoch !== requestEpoch.current) return;
-      setEntries(page.items);
-      setNextCursor(page.next_cursor);
-      setError("");
-    } catch (e) {
-      if (epoch === requestEpoch.current) setError((e as Error).message);
-    } finally {
-      if (epoch === requestEpoch.current) setLoading(false);
-    }
-  }, [stateFilter]);
+  const refresh = useCallback(
+    async (notice = "") => {
+      const epoch = ++requestEpoch.current;
+      try {
+        const query = new URLSearchParams({ limit: "50" });
+        if (stateFilter !== "ALL") query.set("state", stateFilter);
+        const page = await twfQueueApi<TWFQueuePage>(`?${query}`);
+        if (epoch !== requestEpoch.current) return;
+        setEntries(page.items);
+        setNextCursor(page.next_cursor);
+        setError(notice);
+      } catch (e) {
+        if (epoch === requestEpoch.current) setError((e as Error).message);
+      } finally {
+        if (epoch === requestEpoch.current) setLoading(false);
+      }
+    },
+    [stateFilter],
+  );
   useEffect(() => {
-    void Promise.resolve().then(refresh);
+    void Promise.resolve().then(() => refresh());
   }, [refresh, refreshKey]);
   useEffect(() => {
     if (!selectedId) return;
@@ -112,7 +116,12 @@ export function QueueWorkspace({
       setNextCursor(page.next_cursor);
       setError("");
     } catch (e) {
-      setError((e as Error).message);
+      if (epoch !== requestEpoch.current) return;
+      if (e instanceof TWFQueueApiError && e.code === "INVALID_CURSOR") {
+        await refresh("Queue page expired. Returned to newest entries.");
+      } else {
+        setError((e as Error).message);
+      }
     } finally {
       setLoadingOlder(false);
     }

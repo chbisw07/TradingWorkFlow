@@ -70,3 +70,42 @@ test("Queue opens newest, loads older without duplicates, and returns to newest"
     fetcher.mock.calls.some(([url]) => String(url).includes("state=READY")),
   ).toBe(true);
 });
+
+test("invalid older-page cursor returns to newest without exposing server detail", async () => {
+  let newestLoads = 0;
+  const fetcher = vi.fn(async (url: string) => {
+    const params = new URL(url, "http://localhost").searchParams;
+    if (params.has("cursor")) {
+      return Response.json(
+        { error: { code: "INVALID_CURSOR", message: "raw backend detail" } },
+        { status: 400 },
+      );
+    }
+    newestLoads += 1;
+    return Response.json({
+      items: [entry(newestLoads === 1 ? "old" : "new", "READY")],
+      next_cursor: newestLoads === 1 ? "expired-cursor" : null,
+      has_more: newestLoads === 1,
+    });
+  });
+  vi.stubGlobal("fetch", fetcher);
+  render(
+    <QueueWorkspace
+      selectedId={null}
+      onSelect={vi.fn()}
+      onViewOrder={vi.fn()}
+      refreshKey={0}
+    />,
+  );
+  await screen.findByText("SYM-old");
+  fireEvent.click(screen.getByRole("button", { name: "Load older" }));
+  await screen.findByText("SYM-new");
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "Queue page expired. Returned to newest entries.",
+  );
+  expect(screen.queryByText("SYM-old")).not.toBeInTheDocument();
+  expect(screen.queryByText("raw backend detail")).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Load older" }),
+  ).not.toBeInTheDocument();
+});
