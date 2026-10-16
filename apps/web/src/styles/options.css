@@ -1057,3 +1057,38 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* Preserve contract context while removing the redundant page banner. */
+.options-utility-row {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 8px;
+}
+.options-utility-row .options-title-actions {
+  gap: 8px 12px;
+}
+.options-utility-row .options-data-badge {
+  padding: 4px 8px;
+}
+.options-workspace .options-controls,
+.options-workspace .chain-card,
+.options-workspace .chain-detail {
+  background: var(--twf-canvas);
+  border-color: var(--twf-neutral-border);
+}
+.options-workspace .chain-summary {
+  background: var(--twf-blue-soft);
+  color: var(--twf-text-primary);
+}
+.options-workspace .chain-summary > div {
+  border-right-color: var(--twf-blue-border);
+}
+.options-workspace .chain-summary dt {
+  color: var(--twf-text-muted);
+}
+.options-workspace .chain-summary dd {
+  color: var(--twf-text-primary);
+}
+.options-workspace .options-title-actions a {
+  color: var(--twf-blue-primary);
+}

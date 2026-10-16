@@ -161,13 +161,27 @@ export function OrdersWorkspace() {
   const account = accounts.find((item) => item.id === accountId);
   return (
     <section className="orders-workspace broker-workspace">
-      <div className="orders-heading">
-        <div>
-          <h1>Trade</h1>
-          <p>
-            Prepare TWF Orders, govern Queue admission, and review account
-            positions.
-          </p>
+      <h1 className="sr-only">Trade</h1>
+      <nav className="orders-workspace-tabs" aria-label="Trade sections">
+        <div className="orders-tab-links">
+          <Link
+            href="/trade/orders"
+            aria-current={workspaceTab === "Orders" ? "page" : undefined}
+          >
+            Orders
+          </Link>
+          <Link
+            href="/trade/queue"
+            aria-current={workspaceTab === "Queue" ? "page" : undefined}
+          >
+            Execution Queue
+          </Link>
+          <Link
+            href="/trade/positions"
+            aria-current={workspaceTab === "Positions" ? "page" : undefined}
+          >
+            Positions
+          </Link>
         </div>
         <div className="orders-heading-actions">
           <label>
@@ -195,26 +209,6 @@ export function OrdersWorkspace() {
             + New Order
           </button>
         </div>
-      </div>
-      <nav className="orders-workspace-tabs" aria-label="Trade sections">
-        <Link
-          href="/trade/orders"
-          aria-current={workspaceTab === "Orders" ? "page" : undefined}
-        >
-          Orders
-        </Link>
-        <Link
-          href="/trade/queue"
-          aria-current={workspaceTab === "Queue" ? "page" : undefined}
-        >
-          Execution Queue
-        </Link>
-        <Link
-          href="/trade/positions"
-          aria-current={workspaceTab === "Positions" ? "page" : undefined}
-        >
-          Positions
-        </Link>
       </nav>
       {workspaceTab === "Orders" && (
         <p className="orders-boundary" role="note">

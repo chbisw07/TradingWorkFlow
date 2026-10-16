@@ -1059,3 +1059,44 @@
     max-height: 170px;
   }
 }
+
+/* Compact management row and blue-white list surface. */
+.wl-page-head {
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+.watchlists-workspace .wl-primary,
+.wl-dialog .wl-primary {
+  background: var(--twf-blue-primary);
+  border-color: var(--twf-blue-primary);
+  color: #fff;
+}
+.watchlists-workspace .wl-actions button:not(.wl-primary) {
+  border-color: var(--twf-blue-border);
+  color: var(--twf-blue-primary);
+}
+.watchlists-workspace .wl-card {
+  background: var(--twf-canvas);
+  border-color: var(--twf-neutral-border);
+}
+.watchlists-workspace .wl-navigator nav button.selected {
+  background: var(--twf-blue-selected);
+  box-shadow: inset 2px 0 var(--twf-blue-primary);
+}
+.watchlists-workspace .wl-table th,
+.watchlists-workspace .wl-table th:last-child,
+.watchlists-workspace .wl-trash-table thead th {
+  background: var(--twf-blue-soft);
+  color: var(--twf-text-primary);
+}
+.watchlists-workspace .wl-table tbody tr:hover {
+  background: var(--twf-blue-soft);
+}
+.watchlists-workspace .wl-row-selected {
+  background: var(--twf-blue-selected);
+}
+@media (max-width: 600px) {
+  .wl-page-head .wl-actions {
+    flex-wrap: wrap;
+  }
+}

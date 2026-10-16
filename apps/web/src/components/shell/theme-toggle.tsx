@@ -13,7 +13,7 @@ function subscribe(onChange: () => void) {
 }
 
 export function ThemeToggle() {
-  const theme = useSyncExternalStore(subscribe, getTheme, () => "dark");
+  const theme = useSyncExternalStore(subscribe, getTheme, () => "light");
   function toggle() {
     const next = getTheme() === "dark" ? "light" : "dark";
     document.documentElement.dataset.theme = next;

@@ -786,3 +786,70 @@
   font-size: 0.8rem;
   line-height: 1.45;
 }
+
+/* Scanner-aligned Broker workspace; connection health remains semantic. */
+.broker-workspace .broker-account-tabs {
+  padding: 0 0 0.45rem;
+  margin-bottom: 0.65rem;
+}
+.broker-workspace .broker-tabs a {
+  min-height: 34px;
+  padding: 0.45rem 0.75rem;
+  border-color: var(--twf-neutral-border);
+  color: var(--twf-text-primary);
+}
+.broker-workspace .broker-tabs a[aria-current="page"] {
+  background: var(--twf-blue-soft);
+  border-color: var(--twf-blue-border);
+  color: var(--twf-blue-primary);
+  box-shadow: inset 0 -2px var(--twf-blue-primary);
+}
+.broker-workspace .broker-card,
+.broker-workspace .broker-setup,
+.broker-workspace .broker-summary > div,
+.broker-workspace .broker-table-scroll {
+  background: var(--twf-canvas);
+  border-color: var(--twf-neutral-border);
+}
+.broker-workspace .broker-logo {
+  background: var(--twf-blue-soft);
+  color: var(--twf-blue-primary);
+}
+.broker-workspace button,
+.broker-workspace .broker-button {
+  min-height: 34px;
+  border-color: var(--twf-blue-border);
+  color: var(--twf-blue-primary);
+  background: var(--twf-canvas);
+}
+.broker-workspace button:hover:not(:disabled),
+.broker-workspace .broker-button:hover {
+  background: var(--twf-blue-soft);
+}
+.broker-workspace .primary {
+  background: var(--twf-blue-primary);
+  border-color: var(--twf-blue-primary);
+  color: #fff;
+}
+.broker-workspace .primary:hover:not(:disabled) {
+  background: var(--twf-blue-hover);
+  border-color: var(--twf-blue-hover);
+}
+.broker-workspace .broker-disconnect {
+  color: var(--twf-danger);
+  border-color: color-mix(in srgb, var(--twf-danger) 45%, var(--twf-canvas));
+}
+.broker-workspace .broker-table-scroll thead {
+  background: var(--twf-blue-soft);
+  color: var(--twf-text-primary);
+}
+.broker-workspace .broker-table-scroll tbody tr:hover {
+  background: var(--twf-blue-soft);
+}
+.broker-workspace .broker-table-scroll tfoot {
+  background: var(--twf-blue-soft);
+}
+.broker-workspace :focus-visible {
+  outline: 2px solid var(--twf-blue-primary);
+  outline-offset: 2px;
+}

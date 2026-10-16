@@ -971,16 +971,7 @@ export function ScannerWorkspace() {
   ) : null;
   return (
     <section className="watchlists-workspace scanner-v2">
-      <header className="sc-page-head">
-        <div>
-          <h1>Scanners</h1>
-          <p>
-            Find opportunities using explicit filters, your watchlists, and
-            market evidence.
-          </p>
-        </div>
-        <Link href="/settings#integrations">Provider connections</Link>
-      </header>
+      <h1 className="sr-only">Scanners</h1>
       {error && (
         <div role="alert" className="wl-error">
           {error}
@@ -1079,6 +1070,13 @@ export function ScannerWorkspace() {
             </button>
           </div>
         )}
+        <Link
+          aria-label="Provider connections"
+          className="sc-provider-link"
+          href="/settings#integrations"
+        >
+          Providers
+        </Link>
       </div>
       {derivatives ? (
         <DerivativesScanner />

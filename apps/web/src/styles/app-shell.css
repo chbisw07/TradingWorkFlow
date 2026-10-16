@@ -9,8 +9,8 @@
   --shell-text: #e5edf7;
   --shell-secondary: #b4c5d9;
   --shell-muted: #9bafc8;
-  --shell-active: #193b32;
-  --shell-accent: #88d3aa;
+  --shell-active: var(--twf-blue-selected);
+  --shell-accent: var(--twf-blue-primary);
   --shell-hover: #203144;
   --shell-avatar: #236fb5;
   --shell-on-avatar: #ffffff;
@@ -25,8 +25,8 @@
   --shell-text: #10213f;
   --shell-secondary: #354e70;
   --shell-muted: #657c9c;
-  --shell-active: #e0f3e7;
-  --shell-accent: #168344;
+  --shell-active: var(--twf-blue-selected);
+  --shell-accent: var(--twf-blue-primary);
   --shell-hover: #eaf0f6;
 }
 .redesigned-shell .skip-link {

@@ -1020,14 +1020,8 @@ export function WatchlistsWorkspace() {
   ) : null;
   return (
     <section className="watchlists-workspace">
-      <header className="wl-page-head">
-        <div>
-          <h1>Watchlists</h1>
-          <p>
-            Track opportunities, analyze in real-time, and trade directly from
-            your watchlists.
-          </p>
-        </div>
+      <h1 className="sr-only">Watchlists</h1>
+      <div className="wl-page-head">
         <div className="wl-actions">
           <button
             disabled={!current || current.archived || current.read_only}
@@ -1053,7 +1047,7 @@ export function WatchlistsWorkspace() {
             ＋ New Watchlist
           </button>
         </div>
-      </header>
+      </div>
       {error && (
         <div role="alert" className="wl-error">
           {error}

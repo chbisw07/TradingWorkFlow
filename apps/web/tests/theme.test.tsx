@@ -13,25 +13,25 @@ afterEach(() => {
   delete document.documentElement.dataset.theme;
 });
 
-test("defaults dark and exposes an accessible toggle that persists both choices", () => {
+test("defaults light and exposes an accessible toggle that persists both choices", () => {
   window.eval(themeInitializationScript);
   render(<ThemeToggle />);
   const toggle = screen.getByRole("button", { name: "Light theme" });
-  expect(document.documentElement).toHaveAttribute("data-theme", "dark");
-  expect(toggle).toHaveAttribute("aria-pressed", "false");
-  fireEvent.click(toggle);
   expect(document.documentElement).toHaveAttribute("data-theme", "light");
   expect(toggle).toHaveAttribute("aria-pressed", "true");
-  expect(localStorage.getItem(themeStorageKey)).toBe("light");
   fireEvent.click(toggle);
   expect(document.documentElement).toHaveAttribute("data-theme", "dark");
+  expect(toggle).toHaveAttribute("aria-pressed", "false");
   expect(localStorage.getItem(themeStorageKey)).toBe("dark");
+  fireEvent.click(toggle);
+  expect(document.documentElement).toHaveAttribute("data-theme", "light");
+  expect(localStorage.getItem(themeStorageKey)).toBe("light");
 });
 
 test.each([
   ["light", "light"],
   ["dark", "dark"],
-  ["invalid", "dark"],
+  ["invalid", "light"],
 ])("restores %s as %s before render", (saved, expected) => {
   localStorage.setItem(themeStorageKey, saved);
   window.eval(themeInitializationScript);
@@ -43,7 +43,7 @@ test.each([
   );
 });
 
-test("blocked storage keeps dark initialization and allows in-page switching", () => {
+test("blocked storage keeps light initialization and allows in-page switching", () => {
   vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
     throw new Error("blocked");
   });
@@ -52,7 +52,7 @@ test("blocked storage keeps dark initialization and allows in-page switching", (
   });
   expect(() => window.eval(themeInitializationScript)).not.toThrow();
   render(<ThemeToggle />);
-  expect(document.documentElement).toHaveAttribute("data-theme", "dark");
-  fireEvent.click(screen.getByRole("button", { name: "Light theme" }));
   expect(document.documentElement).toHaveAttribute("data-theme", "light");
+  fireEvent.click(screen.getByRole("button", { name: "Light theme" }));
+  expect(document.documentElement).toHaveAttribute("data-theme", "dark");
 });

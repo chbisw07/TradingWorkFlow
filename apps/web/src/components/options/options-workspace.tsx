@@ -310,14 +310,10 @@ export function OptionsWorkspace() {
   }
   return (
     <section className="options-workspace" aria-labelledby="options-title">
-      <header className="options-title">
-        <div>
-          <h1 id="options-title">Options Analytics</h1>
-          <p>
-            Analyze option chains, track liquidity and open interest, and trade
-            directly through your broker.
-          </p>
-        </div>
+      <h1 id="options-title" className="sr-only">
+        Options Analytics
+      </h1>
+      <div className="options-utility-row">
         <div className="options-title-actions">
           {data && (
             <span
@@ -333,7 +329,7 @@ export function OptionsWorkspace() {
           )}
           <Link href="/settings#integrations">Provider connections</Link>
         </div>
-      </header>
+      </div>
       <div className="options-controls">
         <div
           className="chain-search"

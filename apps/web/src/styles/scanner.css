@@ -2116,3 +2116,38 @@
     z-index: 80;
   }
 }
+
+/* Provider utility shares the Scanner controls row after the title banner is removed. */
+.sc-top {
+  gap: 10px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.sc-type-tabs button {
+  min-height: 44px;
+  padding: 8px 12px;
+}
+.sc-type-tabs [aria-selected="true"] {
+  background: var(--twf-blue-primary);
+  border-color: var(--twf-blue-primary);
+}
+.sc-provider-link {
+  margin-left: auto;
+  padding: 6px 8px;
+  color: var(--twf-blue-primary);
+  font-size: 11px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.sc-provider-link:hover {
+  text-decoration: underline;
+}
+.sc-provider-link:focus-visible {
+  outline: 2px solid var(--twf-blue-primary);
+  outline-offset: 2px;
+}
+@media (max-width: 800px) {
+  .sc-provider-link {
+    margin-left: 0;
+  }
+}

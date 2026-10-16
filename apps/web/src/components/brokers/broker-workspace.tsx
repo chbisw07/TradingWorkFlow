@@ -126,7 +126,9 @@ export function BrokerWorkspace({ path }: { path: string[] }) {
   const rooms = accounts.filter(operational);
   return (
     <section className="broker-workspace">
-      <h1>{setup ? "Setup Zerodha" : manage ? "Manage Brokers" : "Brokers"}</h1>
+      <h1 className="sr-only">
+        {setup ? "Setup Zerodha" : manage ? "Manage Brokers" : "Brokers"}
+      </h1>
       <nav
         className="broker-tabs broker-account-tabs"
         aria-label="Broker accounts"
@@ -233,6 +235,7 @@ export function BrokerWorkspace({ path }: { path: string[] }) {
                         )}
                         {a.state !== "connected" && (
                           <button
+                            className="primary"
                             disabled={busy}
                             onClick={() => void action(a, "connect")}
                           >
@@ -247,6 +250,7 @@ export function BrokerWorkspace({ path }: { path: string[] }) {
                         </Link>
                         {a.state === "connected" && (
                           <button
+                            className="broker-disconnect"
                             disabled={busy}
                             onClick={() => void action(a, "disconnect")}
                           >
@@ -429,6 +433,7 @@ function Setup({ account }: { account?: Account }) {
   }
   return (
     <div className="broker-setup">
+      <h2>{account ? "Update Zerodha connection" : "Setup Zerodha"}</h2>
       <div className="broker-toolbar">
         <Link href="/brokers/manage/my">← Back to brokers</Link>
         <a
@@ -709,6 +714,7 @@ function Room({
             Refresh
           </button>
           <button
+            className="broker-disconnect"
             onClick={disconnect}
             disabled={busy || account.state === "disconnected"}
           >

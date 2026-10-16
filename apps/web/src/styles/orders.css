@@ -424,3 +424,90 @@
 .orders-queue-pagination span {
   margin-right: auto;
 }
+
+/* Compact Trade toolbar: tabs and execution controls share one row. */
+.orders-workspace-tabs {
+  align-items: end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.75rem;
+  margin-bottom: 0.6rem;
+}
+.orders-tab-links {
+  display: flex;
+  gap: 0.3rem;
+  min-width: 0;
+  overflow-x: auto;
+}
+.orders-workspace .orders-heading-actions {
+  margin-left: auto;
+  padding-bottom: 0.3rem;
+  gap: 0.5rem;
+}
+.orders-workspace .orders-heading-actions label {
+  gap: 0.2rem;
+  color: var(--twf-text-muted);
+  font-size: var(--text-xs);
+}
+.orders-workspace .orders-heading-actions select {
+  min-height: 34px;
+}
+.orders-workspace .orders-heading-actions .primary {
+  min-height: 34px;
+}
+.orders-workspace .orders-list,
+.orders-workspace .orders-detail {
+  background: var(--twf-canvas);
+  border-color: var(--twf-neutral-border);
+}
+.orders-workspace .orders-table th,
+.orders-workspace .broker-table-scroll thead {
+  background: var(--twf-blue-soft);
+  color: var(--twf-text-primary);
+}
+.orders-workspace .orders-table tbody tr,
+.orders-workspace .broker-table-scroll tbody tr {
+  background: var(--twf-canvas);
+}
+.orders-workspace .orders-table tbody tr:hover,
+.orders-workspace .broker-table-scroll tbody tr:hover {
+  background: var(--twf-blue-soft);
+}
+.orders-workspace .orders-table tr.selected,
+.orders-workspace .broker-table-scroll tbody tr.selected {
+  background: var(--twf-blue-selected);
+}
+.orders-workspace .broker-table-scroll tfoot {
+  background: var(--twf-blue-soft);
+}
+.orders-workspace .broker-table-scroll tfoot .broker-positive {
+  color: var(--twf-success);
+}
+.orders-workspace .broker-table-scroll tfoot .broker-negative {
+  color: var(--twf-danger);
+}
+.orders-workspace .twf-queue-summary-card {
+  background: var(--twf-canvas);
+  border-color: var(--twf-blue-border);
+}
+.orders-workspace .twf-queue-summary-icon {
+  background: var(--twf-blue-soft);
+  color: var(--twf-blue-primary);
+}
+.orders-workspace .orders-workspace-tabs a[aria-current] {
+  color: var(--twf-blue-primary);
+  background: var(--twf-blue-soft);
+  box-shadow: inset 0 -2px var(--twf-blue-primary);
+}
+@media (max-width: 600px) {
+  .orders-workspace-tabs {
+    align-items: stretch;
+  }
+  .orders-tab-links {
+    width: 100%;
+  }
+  .orders-workspace .orders-heading-actions {
+    width: 100%;
+    margin-left: 0;
+  }
+}
