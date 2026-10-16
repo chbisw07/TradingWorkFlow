@@ -32,6 +32,11 @@ test("O5 Futures stays in Derivatives workspace with explicit filters and icon c
       },
     }),
   );
+  let unavailable = false;
+  const failure = {
+    code: "VOLUME_UNAVAILABLE",
+    detail: "Futures quote has no volume",
+  };
   await page.route("**/api/v1/scanner/derivatives/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path.endsWith("/futures/catalog"))
@@ -73,11 +78,25 @@ test("O5 Futures stays in Derivatives workspace with explicit filters and icon c
           counts: {
             requested: 1,
             resolved: 1,
-            contracts_evaluated: 1,
-            not_evaluated: 0,
-            matches: 1,
+            contracts_evaluated: unavailable ? 0 : 1,
+            not_evaluated: unavailable ? 1 : 0,
+            matches: unavailable ? 0 : 1,
           },
-          underlyings: [{ symbol: "NIFTY", outcome: "MATCH", failure: null }],
+          not_evaluated_reasons: unavailable ? { VOLUME_UNAVAILABLE: 1 } : {},
+          underlyings: [
+            {
+              symbol: "NIFTY",
+              outcome: unavailable ? "NOT_EVALUATED" : "MATCH",
+              failure: null,
+              contract_id: "NSE_FNO:101",
+              evaluation_reason: unavailable ? failure : null,
+              evidence_status: {
+                contract: "PASS",
+                quote: "PASS",
+                volume: unavailable ? "MISSING" : "PASS",
+              },
+            },
+          ],
           rows: [
             {
               contract: {
@@ -97,7 +116,7 @@ test("O5 Futures stays in Derivatives workspace with explicit filters and icon c
               quote: {
                 last_price: "25000",
                 open: "24900",
-                volume: "1000",
+                volume: unavailable ? null : "1000",
                 open_interest: "5000",
                 provider_source_time: "2026-10-13T09:00:00Z",
                 received_at: "2026-10-13T09:00:00Z",
@@ -109,7 +128,7 @@ test("O5 Futures stays in Derivatives workspace with explicit filters and icon c
               observed: {
                 ltp: 25000,
                 change_percent: 0.5,
-                volume: 1000,
+                volume: unavailable ? null : 1000,
                 volume_percentile: 100,
                 open_interest: 5000,
                 oi_percentile: 100,
@@ -134,18 +153,22 @@ test("O5 Futures stays in Derivatives workspace with explicit filters and icon c
               },
               source_time: "2026-10-13T09:00:00Z",
               received_at: "2026-10-13T09:00:00Z",
-              outcome: "MATCH",
+              outcome: unavailable ? "NOT_EVALUATED" : "MATCH",
+              evaluation_reason: unavailable ? failure : null,
+              evaluation_reasons: unavailable ? [failure] : [],
               diagnostics: [
                 {
                   filter: config.filters[0],
-                  observed: 1000,
+                  observed: unavailable ? null : 1000,
                   threshold: 100,
-                  passed: true,
+                  passed: unavailable ? null : true,
                   reason: "Volume >= 100",
                 },
               ],
-              missing_evidence: [],
-              reason: "1/1 active filters matched",
+              missing_evidence: unavailable ? ["volume"] : [],
+              reason: unavailable
+                ? failure.detail
+                : "1/1 active filters matched",
             },
           ],
         },
@@ -191,6 +214,27 @@ test("O5 Futures stays in Derivatives workspace with explicit filters and icon c
   ).toBeVisible();
   await page.getByRole("button", { name: "Futures", exact: true }).click();
   await expect(future.locator("small", { hasText: "1 matches" })).toBeVisible();
+  await future.getByRole("button", { name: "Close panel" }).click();
+  unavailable = true;
+  await future.getByRole("button", { name: "Run Scan" }).click();
+  await future.getByText("Not evaluated: 1 · view reasons").click();
+  await expect(
+    future.getByText("VOLUME UNAVAILABLE · 1", { exact: true }),
+  ).toBeVisible();
+  await future.getByLabel("Show non-matches / not evaluated").check();
+  await expect(
+    future.getByRole("columnheader", { name: "Evaluation" }),
+  ).toBeVisible();
+  await expect(future.getByText(failure.detail, { exact: true })).toBeVisible();
+  await future.getByText("Underlying diagnostics · 1 candidates").click();
+  await expect(
+    future.getByText("contract: PASS · quote: PASS · volume: MISSING"),
+  ).toBeVisible();
+  await future.getByRole("button", { name: "Why?" }).click();
+  await expect(
+    future.locator(".derivative-diagnostics").getByText(/VOLUME UNAVAILABLE/),
+  ).toBeVisible();
+  await page.screenshot({ path: info.outputPath("futures-not-evaluated.png") });
   await page.getByRole("button", { name: "Market Movers" }).click();
   await future.getByRole("button", { name: "Load movers" }).click();
   await expect(future.getByRole("button", { name: "RELIANCE" })).toBeVisible();

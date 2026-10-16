@@ -1048,7 +1048,9 @@ test("O4 real catalog drives typed filters, saved setup, and scan payload", asyn
     "Volume vs Chain Median",
   );
   await page.getByRole("tab", { name: /Equity \/ Index Scanner/ }).click();
-  await expect(page.locator(".derivative-active-bar")).toHaveCount(0);
+  await expect(
+    page.getByRole("tabpanel", { name: "Derivatives Scanner", exact: true }),
+  ).toHaveCount(0);
   await expect(page.locator(".sc-context-panel")).toHaveCount(0);
   await page.getByRole("tab", { name: /Derivatives Scanner/ }).click();
   await expect(page.locator(".derivative-active-bar")).not.toContainText(

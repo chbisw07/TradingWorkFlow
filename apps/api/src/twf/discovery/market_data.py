@@ -251,6 +251,9 @@ class DhanMarketDataProvider:
         self._futures_master: tuple[dict[str, str], ...] = ()
         self._futures_master_at: datetime | None = None
         self._futures_master_lock = asyncio.Lock()
+        self._liquidity_master: tuple[dict[str, str], ...] = ()
+        self._liquidity_master_at: datetime | None = None
+        self._liquidity_master_lock = asyncio.Lock()
         self._master_lock = asyncio.Lock()
         self._index_master: tuple[dict[str, str], ...] | None = None
         self._index_lookup: DhanIndexLookup | None = None
@@ -344,6 +347,27 @@ class DhanMarketDataProvider:
             except (ValueError, UnicodeError, csv.Error):
                 raise MarketDataFailure(MarketDataErrorCode.INVALID_RESPONSE) from None
             self._futures_master, self._futures_master_at = rows, now
+            return rows
+
+    async def _load_liquidity_master(self) -> tuple[dict[str, str], ...]:
+        """Current NSE EQ/FUTSTK/OPTSTK identities from structured detailed fields."""
+        from twf.discovery.dhan_futures import MASTER_URL, parse_master
+
+        async with self._liquidity_master_lock:
+            now = datetime.now(UTC)
+            if (
+                self._liquidity_master_at is not None
+                and self._liquidity_master
+                and (now - self._liquidity_master_at).total_seconds()
+                < self.settings.master_cache_seconds
+            ):
+                return self._liquidity_master
+            try:
+                raw = await self._body("GET", MASTER_URL, limit=40_000_000)
+                rows = parse_master(raw, include_stock_options=True)
+            except (ValueError, UnicodeError, csv.Error):
+                raise MarketDataFailure(MarketDataErrorCode.INVALID_RESPONSE) from None
+            self._liquidity_master, self._liquidity_master_at = rows, now
             return rows
 
     async def _load_master(self) -> tuple[dict[str, str], ...]:

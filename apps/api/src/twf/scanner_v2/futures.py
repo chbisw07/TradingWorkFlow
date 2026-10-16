@@ -278,14 +278,12 @@ def evaluate(
                 ),
             }
         )
-    # A known failed condition is a non-match even if another metric is missing.
+    # Required evidence is checked before predicates can establish an evaluated outcome.
     outcome = (
         "NOT_EVALUATED"
-        if not quote_available
+        if not quote_available or any(item["passed"] is None for item in checks)
         else "NON_MATCH"
         if any(item["passed"] is False for item in checks)
-        else "NOT_EVALUATED"
-        if any(item["passed"] is None for item in checks)
         else "MATCH"
     )
     missing = [
@@ -311,6 +309,154 @@ def _positive_decimal(raw: str | None) -> Decimal | None:
         return value if value.is_finite() and value > 0 else None
     except (InvalidOperation, TypeError):
         return None
+
+
+Reason = dict[str, str]
+
+
+def quote_freshness(quote: QuoteSnapshot | None) -> str | None:
+    """An intraday quote must be current; the last completed quote survives market closure."""
+    if quote is None:
+        return "UNAVAILABLE"
+    source = quote.provider_source_time
+    if source is None or source.tzinfo is None:
+        return "SOURCE_TIME_UNAVAILABLE"
+    age = quote.received_at - source
+    if age < -timedelta(minutes=2):
+        return "SOURCE_TIME_INVALID"
+    local = quote.received_at.astimezone(IST)
+    open_session = local.weekday() < 5 and (9, 15) <= (local.hour, local.minute) <= (15, 30)
+    if age > (timedelta(minutes=30) if open_session else timedelta(days=7)):
+        return "STALE"
+    return None
+
+
+def evidence_reasons(
+    filters: tuple[FuturesFilter, ...],
+    values: dict[str, Any],
+    *,
+    future: QuoteSnapshot | None,
+    spot: QuoteSnapshot | None,
+    quote_error: str | None,
+    volume_cohort: int,
+    oi_cohort: int,
+    comparison_window: dict[str, Any] | None,
+    basis_reason: str,
+) -> list[Reason]:
+    """Deterministic pipeline order; only active predicates require optional evidence."""
+    if future is None:
+        if quote_error:
+            return [
+                {
+                    "code": "PROVIDER_UNAVAILABLE",
+                    "detail": f"Dhan quote request failed ({quote_error})",
+                }
+            ]
+        return [
+            {
+                "code": "FUTURES_QUOTE_UNAVAILABLE",
+                "detail": "Exact futures contract was absent from the quote response",
+            }
+        ]
+    freshness = quote_freshness(future)
+    if freshness:
+        return [
+            {
+                "code": "FUTURES_QUOTE_STALE" if freshness == "STALE" else "DATA_INVALID",
+                "detail": f"Futures quote {freshness.lower().replace('_', ' ')}",
+            }
+        ]
+    active = {predicate.field for predicate in filters}
+    reasons: list[Reason] = []
+
+    def add(code: str, detail: str) -> None:
+        if not any(item["code"] == code for item in reasons):
+            reasons.append({"code": code, "detail": detail})
+
+    if active & {"volume", "volume_percentile"} and future.volume is None:
+        add("VOLUME_UNAVAILABLE", "Futures quote has no volume")
+    if (
+        active
+        & {
+            "open_interest",
+            "oi_percentile",
+            "change_in_open_interest",
+            "oi_change_percent",
+            "interpretation",
+        }
+        and future.open_interest is None
+    ):
+        add("OI_UNAVAILABLE", "Futures quote has no open interest")
+    if (
+        "volume_percentile" in active
+        and values["volume_percentile"] is None
+        and future.volume is not None
+    ):
+        add(
+            "VOLUME_HISTORY_INSUFFICIENT",
+            (
+                f"Volume percentile requires {MIN_PERCENTILE_COHORT} current-scan comparable "
+                f"contracts; {volume_cohort} available"
+            ),
+        )
+    if (
+        "oi_percentile" in active
+        and values["oi_percentile"] is None
+        and future.open_interest is not None
+    ):
+        add(
+            "OI_HISTORY_INSUFFICIENT",
+            (
+                f"OI percentile requires {MIN_PERCENTILE_COHORT} current-scan comparable "
+                f"contracts; {oi_cohort} available"
+            ),
+        )
+    if (
+        active & {"change_in_open_interest", "oi_change_percent", "interpretation"}
+        and comparison_window is None
+    ):
+        add(
+            "OI_COMPARISON_UNAVAILABLE",
+            "Same-contract OI comparison within 30 minutes is unavailable",
+        )
+    if active & {"underlying_trend", "basis_abs", "basis_percent"}:
+        if spot is None:
+            add("SPOT_QUOTE_UNAVAILABLE", "Exact underlying spot quote is unavailable")
+        else:
+            spot_freshness = quote_freshness(spot)
+            if spot_freshness:
+                add(
+                    "SPOT_QUOTE_STALE" if spot_freshness == "STALE" else "DATA_INVALID",
+                    f"Spot quote {spot_freshness.lower().replace('_', ' ')}",
+                )
+    if (
+        "underlying_trend" in active
+        and values["underlying_trend"] is None
+        and spot is not None
+        and quote_freshness(spot) is None
+    ):
+        add("SPOT_DIRECTION_UNAVAILABLE", "Spot 1D direction requires a valid previous close")
+    if active & {"basis_abs", "basis_percent"} and values["basis_abs"] is None and spot is not None:
+        add("TIMESTAMP_MISMATCH", basis_reason)
+    for predicate in filters:
+        if values[predicate.field] is None and not any(
+            item["code"]
+            in {
+                "VOLUME_UNAVAILABLE",
+                "OI_UNAVAILABLE",
+                "VOLUME_HISTORY_INSUFFICIENT",
+                "OI_HISTORY_INSUFFICIENT",
+                "OI_COMPARISON_UNAVAILABLE",
+                "SPOT_QUOTE_UNAVAILABLE",
+                "SPOT_QUOTE_STALE",
+                "SPOT_DIRECTION_UNAVAILABLE",
+                "TIMESTAMP_MISMATCH",
+                "DATA_INVALID",
+            }
+            for item in reasons
+        ):
+            add("DATA_INVALID", f"{FIELDS[predicate.field]['label']} has no valid observation")
+    return reasons
 
 
 class FuturesScannerService:
@@ -544,7 +690,7 @@ class FuturesScannerService:
             )
             trend = None
             spot_change = None
-            if spot and spot.previous_close:
+            if spot and not quote_freshness(spot) and spot.previous_close:
                 spot_change = (spot.last_price - spot.previous_close) / spot.previous_close * 100
                 trend = (
                     "Up"
@@ -610,12 +756,14 @@ class FuturesScannerService:
         volumes = sorted(
             o["future"].volume
             for o in observations
-            if o["future"] and o["future"].volume is not None
+            if o["future"] and not quote_freshness(o["future"]) and o["future"].volume is not None
         )
         interests = sorted(
             o["future"].open_interest
             for o in observations
-            if o["future"] and o["future"].open_interest is not None
+            if o["future"]
+            and not quote_freshness(o["future"])
+            and o["future"].open_interest is not None
         )
         rows: list[dict[str, Any]] = []
         for item in observations:
@@ -657,12 +805,64 @@ class FuturesScannerService:
                 else None,
                 "dte": (item["expiry"] - today).days,
             }
-            verdict = evaluate(config.filters, values, future is not None)
-            item["status"]["outcome"] = verdict["outcome"]
+            failures = evidence_reasons(
+                config.filters,
+                values,
+                future=future,
+                spot=item["spot"],
+                quote_error=quote_error,
+                volume_cohort=len(volumes),
+                oi_cohort=len(interests),
+                comparison_window=item["comparison_window"],
+                basis_reason=item["basis_reason"],
+            )
+            verdict = evaluate(
+                config.filters, values, future is not None and not quote_freshness(future)
+            )
+            if failures:
+                verdict["outcome"] = "NOT_EVALUATED"
+            if verdict["outcome"] == "NOT_EVALUATED":
+                if not failures:
+                    failures = [
+                        {
+                            "code": "DATA_INVALID",
+                            "detail": "Active predicate evidence is unavailable",
+                        }
+                    ]
+                verdict["evaluation_reason"] = failures[0]
+                verdict["evaluation_reasons"] = failures
+                verdict["reason"] = failures[0]["detail"]
+            else:
+                verdict["evaluation_reason"] = None
+                verdict["evaluation_reasons"] = []
+            item["status"].update(
+                outcome=verdict["outcome"],
+                evaluation_reason=verdict["evaluation_reason"],
+                contract_id=identity.native.native_id,
+            )
             if quote_error:
                 item["status"]["failure"] = quote_error
             elif identity.native.native_id in missing_quotes:
                 item["status"]["failure"] = "FUTURES_QUOTE_MISSING"
+            item["status"]["evidence_status"] = {
+                "contract": "PASS",
+                "quote": "STALE"
+                if quote_freshness(future) == "STALE"
+                else "PASS"
+                if future and not quote_freshness(future)
+                else "MISSING",
+                "volume": "PASS" if future and future.volume is not None else "MISSING",
+                "oi": "PASS" if future and future.open_interest is not None else "MISSING",
+                "volume_history": "PASS" if values["volume_percentile"] is not None else "MISSING",
+                "oi_history": "PASS" if values["oi_percentile"] is not None else "MISSING",
+                "spot": "STALE"
+                if quote_freshness(item["spot"]) == "STALE"
+                else "PASS"
+                if item["spot"] and not quote_freshness(item["spot"])
+                else "MISSING",
+                "direction": "PASS" if item["trend"] is not None else "MISSING",
+                "basis": "PASS" if item["basis_abs"] is not None else "MISSING",
+            }
             rows.append(
                 {
                     "contract": contract,
@@ -723,6 +923,33 @@ class FuturesScannerService:
                 "matches": sum(r["outcome"] == "MATCH" for r in rows),
             },
             "rows": rows,
+            "not_evaluated_reasons": {
+                code: sum(
+                    row["outcome"] == "NOT_EVALUATED"
+                    and row["evaluation_reason"] is not None
+                    and row["evaluation_reason"]["code"] == code
+                    for row in rows
+                )
+                + sum(
+                    item["outcome"] == "NOT_EVALUATED" and item["failure"] == code
+                    for item in underlyings
+                    if "contract_id" not in item
+                )
+                for code in sorted(
+                    {
+                        *(
+                            row["evaluation_reason"]["code"]
+                            for row in rows
+                            if row["outcome"] == "NOT_EVALUATED" and row["evaluation_reason"]
+                        ),
+                        *(
+                            item["failure"]
+                            for item in underlyings
+                            if item["failure"] and "contract_id" not in item
+                        ),
+                    }
+                )
+            },
             "performance": {
                 "master_reads": 1,
                 "quote_batches": int(bool(quote_identities)),

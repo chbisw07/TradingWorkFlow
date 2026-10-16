@@ -61,6 +61,7 @@ def test_deterministic_rank_nesting_and_bounded_sizes() -> None:
                 f"S{index:03d}": {
                     "volume": str(index + 1),
                     "open_interest": str(index + 1),
+                    "source_time": f"2026-10-{day:02d}T15:35:00+05:30",
                 }
                 for index in range(205)
             },
@@ -106,16 +107,19 @@ def test_daily_cache_reuse_refresh_and_last_valid_fallback() -> None:
                 "Historical bootstrap is unsupported without expiry-safe resolution"
             )
 
-        async def _load_master(self) -> tuple[dict[str, str], ...]:
+        async def _load_liquidity_master(self) -> tuple[dict[str, str], ...]:
             return rows
 
-        async def get_quotes(self, instruments: tuple[object, ...]) -> tuple[object, ...]:
+        async def get_quotes_partial(
+            self, instruments: tuple[object, ...]
+        ) -> tuple[tuple[object, ...], tuple[str, ...]]:
             nonlocal calls
             calls += 1
             if fail:
                 raise MarketDataFailure(MarketDataErrorCode.PROVIDER_ERROR)
             return tuple(
                 SimpleNamespace(
+                    instrument=item,
                     provider="dhan",
                     provider_source_time=datetime(
                         current.year, current.month, current.day, 15, 35, tzinfo=IST
@@ -123,8 +127,8 @@ def test_daily_cache_reuse_refresh_and_last_valid_fallback() -> None:
                     volume=Decimal("100") if i == 0 else Decimal("50"),
                     open_interest=Decimal("1000") if i == 0 else Decimal("500"),
                 )
-                for i, _ in enumerate(instruments)
-            )
+                for i, item in enumerate(instruments)
+            ), ()
 
     provider = Provider()
 
@@ -177,43 +181,53 @@ def test_readiness_distinguishes_history_credentials_provider_and_stale() -> Non
     )
     assert (
         FnoLiquidityCache.readiness(empty, credential_available=True, now=now)["state"]
-        == "INSUFFICIENT_HISTORY"
+        == "ACCUMULATING"
     )
-    for count in (1, 2):
-        payload = {
-            "observations": [
-                {"date": f"2026-10-{day:02d}", "metrics": {"AAA": {}}}
-                for day in range(8, 8 + count)
-            ],
-            "ranked": [],
+
+    def sample(day: int, symbol: str = "AAA") -> dict[str, object]:
+        stamp = f"2026-10-{day:02d}"
+        return {
+            "date": stamp,
+            "metrics": {
+                symbol: {
+                    "volume": "1",
+                    "open_interest": "1",
+                    "source_time": f"{stamp}T15:35:00+05:30",
+                }
+            },
         }
+
+    for count in (1, 2):
+        payload = {"observations": [sample(day) for day in (8, 9)[:count]], "ranked": []}
         readiness = FnoLiquidityCache.readiness(payload, credential_available=True, now=now)
-        assert readiness["state"] == "BUILDING_HISTORY"
+        assert readiness["state"] == "ACCUMULATING"
         assert readiness["completed_sessions_collected"] == count
         assert readiness["minimum_sessions_required"] == 3
-        assert readiness["lookback_sessions_target"] == 20
-    patchy = {
-        "observations": [
-            {"date": f"2026-10-{day:02d}", "metrics": {f"S{day}": {}}} for day in (8, 9, 12)
-        ],
-        "ranked": [],
-    }
-    patchy_readiness = FnoLiquidityCache.readiness(patchy, credential_available=True, now=now)
-    assert patchy_readiness["state"] == "BUILDING_HISTORY"
-    assert patchy_readiness["completed_sessions_collected"] == 1
+    patchy = {"observations": [sample(day, f"S{day}") for day in (8, 9, 12)], "ranked": []}
+    assert (
+        FnoLiquidityCache.readiness(patchy, credential_available=True, now=now)[
+            "completed_sessions_collected"
+        ]
+        == 1
+    )
     failure = {**empty, "last_error_category": "PROVIDER_FAILURE"}
     assert (
         FnoLiquidityCache.readiness(failure, credential_available=True, now=now)["state"]
         == "PROVIDER_UNAVAILABLE"
     )
     ready = {
-        "observations": [{"date": "2026-10-12", "metrics": {"AAA": {}}}],
+        "observations": [sample(day) for day in (8, 9, 12)],
         "ranked": [{"symbol": "AAA", "rank": 1}],
         "generated_at": now.isoformat(),
         "as_of_date": "2026-10-12",
     }
     assert (
         FnoLiquidityCache.readiness(ready, credential_available=True, now=now)["state"] == "READY"
+    )
+    same_day_failure = {**ready, "last_error_category": "PROVIDER_FAILURE"}
+    assert (
+        FnoLiquidityCache.readiness(same_day_failure, credential_available=True, now=now)["state"]
+        == "STALE"
     )
     tomorrow = datetime(2026, 10, 13, 16, tzinfo=IST)
     stale = FnoLiquidityCache.readiness(ready, credential_available=True, now=tomorrow)
@@ -233,3 +247,75 @@ def test_expired_contract_is_not_used_for_prospective_session() -> None:
     )
     chosen = _eligible_futures(rows, date(2026, 10, 12))["AAA"]
     assert chosen.native.native_id.endswith(":3")
+
+
+def test_partial_retry_restart_and_duplicate_session_preserve_valid_observations() -> None:
+    from twf.config.settings import Settings
+    from twf.infrastructure.database import create_database_engine
+
+    engine = create_database_engine(Settings())
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(engine, expire_on_commit=False)
+    cache = FnoLiquidityCache(factory)
+
+    def sample(day: str, volume: str) -> dict[str, str]:
+        return {
+            "volume": volume,
+            "open_interest": "1000",
+            "source_time": f"{day}T15:35:00+05:30",
+            "contract_id": "NSE_FNO:2",
+            "expiry": "2026-10-27",
+        }
+
+    try:
+        day = date(2026, 10, 8)
+        cache._save_daily(
+            day, {"AAA": sample(day.isoformat(), "100")}, {"AAA", "BBB"}, {"BBB": "QUOTE_MISSING"}
+        )
+        cache._save_daily(
+            day,
+            {"AAA": sample(day.isoformat(), "999"), "BBB": sample(day.isoformat(), "50")},
+            {"AAA", "BBB"},
+            {},
+        )
+        restarted = FnoLiquidityCache(factory)
+        stored = restarted.load()
+        assert len(stored["observations"]) == 1
+        assert stored["observations"][0]["metrics"]["AAA"]["volume"] == "100"
+        assert stored["observations"][0]["metrics"]["BBB"]["volume"] == "50"
+        assert stored["ranked"] == []
+        for day in (date(2026, 10, 9), date(2026, 10, 12)):
+            restarted._save_daily(
+                day,
+                {"AAA": sample(day.isoformat(), "100"), "BBB": sample(day.isoformat(), "50")},
+                {"AAA", "BBB"},
+                {},
+            )
+        final = FnoLiquidityCache(factory).load()
+        assert len(final["observations"]) == 3
+        assert [row["symbol"] for row in final["ranked"]] == ["AAA", "BBB"]
+        assert (
+            FnoLiquidityCache.readiness(final, credential_available=True)[
+                "completed_sessions_collected"
+            ]
+            == 3
+        )
+    finally:
+        engine.dispose()
+
+
+def test_weekend_and_stale_prior_session_quote_never_count_as_completed() -> None:
+    from twf.watchlists.fno_liquidity import _valid_metrics
+
+    saturday = datetime(2026, 10, 17, 16, tzinfo=IST)
+    monday_before_close = datetime(2026, 10, 19, 15, 30, tzinfo=IST)
+    assert FnoLiquidityCache.completed_date(saturday) is None
+    assert FnoLiquidityCache.completed_date(monday_before_close) is None
+    assert not _valid_metrics(
+        {"volume": "10", "open_interest": "100", "source_time": "2026-10-15T15:30:00+05:30"},
+        "2026-10-16",
+    )
+    assert not _valid_metrics(
+        {"volume": "0", "open_interest": "100", "source_time": "2026-10-16T15:30:00+05:30"},
+        "2026-10-16",
+    )

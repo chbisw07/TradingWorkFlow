@@ -238,7 +238,7 @@ test("Futures uses shared catalogs after an auxiliary failure and keeps Custom/W
   ).toBeVisible();
   await expect(
     picker.getByRole("button", {
-      name: /F&O Liquidity 50.*Building liquidity history/,
+      name: /F&O Liquidity 50.*Accumulating history/,
     }),
   ).toBeDisabled();
   await picker

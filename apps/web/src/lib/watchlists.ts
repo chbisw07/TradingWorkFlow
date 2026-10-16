@@ -63,11 +63,14 @@ export type Watchlist = {
     state:
       | "READY"
       | "BUILDING_HISTORY"
+      | "ACCUMULATING"
+      | "ERROR"
       | "STALE"
       | "CREDENTIAL_UNAVAILABLE"
       | "PROVIDER_UNAVAILABLE"
       | "INSUFFICIENT_HISTORY"
       | "UNAVAILABLE";
+    reason: string;
     completed_sessions_collected: number;
     minimum_sessions_required: number;
     lookback_sessions_target: number;
@@ -76,6 +79,9 @@ export type Watchlist = {
     stale: boolean;
     methodology_version: string;
     last_error_category: string | null;
+    last_refresh_attempt_at?: string | null;
+    eligible_count?: number | null;
+    quoted_count?: number | null;
     last_success_at: string | null;
     earliest_session: string | null;
     latest_session: string | null;
@@ -91,13 +97,18 @@ export function watchlistReadinessLabel(list: Watchlist): string | null {
     case "READY":
       return `${list.count} constituents · Ready`;
     case "STALE":
-      return `${list.count} constituents · Stale · updated ${ready.as_of_date || "unknown"}`;
+      return list.enabled
+        ? `${list.count} constituents · Stale · updated ${ready.as_of_date || "unknown"}`
+        : `Unavailable · ${ready.reason}`;
     case "BUILDING_HISTORY":
-      return `Building liquidity history · ${ready.completed_sessions_collected}/${ready.minimum_sessions_required} sessions`;
+    case "ACCUMULATING":
+      return `Accumulating history · ${ready.completed_sessions_collected}/${ready.minimum_sessions_required} sessions${ready.last_error_category ? ` · ${ready.reason}` : ""}`;
     case "CREDENTIAL_UNAVAILABLE":
       return "Credentials unavailable";
     case "PROVIDER_UNAVAILABLE":
-      return "Provider temporarily unavailable";
+      return `${ready.reason || "Provider temporarily unavailable"} · ${ready.completed_sessions_collected}/${ready.minimum_sessions_required} sessions`;
+    case "ERROR":
+      return ready.reason;
     case "INSUFFICIENT_HISTORY":
       return `Unavailable · insufficient history (${ready.completed_sessions_collected}/${ready.minimum_sessions_required} sessions)`;
     default:

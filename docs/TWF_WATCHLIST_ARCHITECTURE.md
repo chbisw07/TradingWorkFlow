@@ -42,16 +42,22 @@ members; they are never padded. Old `FNO_50`/`FNO_100` IDs resolve to the new
 definitions without duplicate navigation entries.
 
 Methodology `v1` uses the **nearest-expiry stock future** per eligible underlying.
-On the first watchlist list request after 15:45 IST on a weekday, one cached
-Dhan master read and one batch quote request (maximum 1,000 futures) collect
-positive futures volume and open interest with a provider source timestamp for
-that completed session. Quotes without same-date source time or positive values
-are excluded. The cache persists up to `LIQUIDITY_LOOKBACK_DAYS = 20` completed
-observations in `fno_liquidity_cache`; it attempts at most one refresh per
-process/trading date and never changes membership intraday. Exchange holidays
-cannot be predicted by the local clock: a no-data day adds no observation.
-A process restart can retry a failed date, but an already stored date is not
-requoted. No SQL transaction spans provider I/O.
+After 15:45 IST on a weekday, a background collector runs independently of
+watchlist page visits; a list request can also trigger collection. The
+collector reads Dhan's **detailed** instrument master so structured
+`UNDERLYING_SYMBOL` joins NSE EQ, active FUTSTK and OPTSTK records. The
+compact derivative master leaves this field blank and must not be used for
+liquidity eligibility. One bounded batch quote request (at most 1,000 futures)
+collects positive nearest-expiry futures volume and OI with a provider source
+timestamp from the **same completed IST session**. Quotes from another date,
+missing source time or non-positive values do not count. Each successful sample
+persists the exact Dhan contract ID, expiry, volume, OI and source time. The
+cache retains up to 20 completed-session observations. An incomplete or failed
+session can be retried after a 15-minute cooldown, merging only previously
+missing symbols; existing valid same-session samples never change or duplicate.
+The process resumes from PostgreSQL (or explicit SQLite fallback) after restart.
+Weekends and exchange holidays add no observation when same-session source
+evidence is absent. No SQL transaction spans provider I/O.
 
 Historical bootstrap is deliberately **not supported in V1**. The existing
 Dhan daily OHLCV adapter can request futures volume and may return a dated OI
@@ -82,15 +88,18 @@ The cache also records the earliest/latest captured session, observation count
 used, last success time, and a coarse last-error category. Repeated same-day
 refreshes do not duplicate observations.
 
-The list API publishes per-owner readiness: `READY`, `BUILDING_HISTORY`,
-`STALE`, `CREDENTIAL_UNAVAILABLE`, `PROVIDER_UNAVAILABLE`, or
-`INSUFFICIENT_HISTORY`. It reports the highest per-symbol count of valid completed sessions
-alongside required/target counts, ranking dates and freshness; disjoint
-partial quote days do not falsely report 3/3 progress. The credential state is derived from the current
-owner-scoped capture and is never written into the global market-data cache.
+The list API publishes per-owner readiness: `READY`, `ACCUMULATING`,
+`STALE`, `CREDENTIAL_UNAVAILABLE`, `PROVIDER_UNAVAILABLE`, or `ERROR`, with a
+plain-text reason, latest error category, valid per-symbol completed-session
+progress, and captured/eligible counts. Disjoint partial quote days cannot
+falsely report 3/3 progress. The credential state comes from the owner-scoped
+capture and is never written into the global market-data cache. A current
+valid ranking auto-enables all three nested lists; the shared Scanner selector
+and Watchlists show compact textual progress or the exact failure reason.
 Without a usable rank, the built-in remains disabled with a progress or failure
 explanation in Watchlists and the shared Scanner selector; it is never shown as
-"Definition pending". A valid cached rank can remain usable after a provider
+"Definition pending". A failed or partial refresh marks a retained valid rank
+stale even on the same session date. A valid cached rank can remain usable after a provider
 refresh failure within the seven-day window and is labeled stale. If credentials
 are unavailable, the cached rank is preserved but new scanning is disabled
 because current F&O eligibility cannot be revalidated.

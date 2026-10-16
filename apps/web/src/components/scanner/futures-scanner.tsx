@@ -99,6 +99,8 @@ type Row = {
   }[];
   missing_evidence: string[];
   reason: string;
+  evaluation_reason?: { code: string; detail: string } | null;
+  evaluation_reasons?: { code: string; detail: string }[];
 };
 type Run = {
   id: string;
@@ -106,7 +108,15 @@ type Run = {
   config: Config;
   counts: Record<string, number>;
   rows: Row[];
-  underlyings: { symbol: string; outcome: string; failure: string | null }[];
+  underlyings: {
+    symbol: string;
+    outcome: string;
+    failure: string | null;
+    contract_id?: string;
+    evaluation_reason?: { code: string; detail: string } | null;
+    evidence_status?: Record<string, string>;
+  }[];
+  not_evaluated_reasons?: Record<string, number>;
   performance?: Record<string, number>;
 };
 type Saved = {
@@ -1297,6 +1307,22 @@ export function FuturesScanner({ active }: { active: boolean }) {
                     </div>
                   ))}
                 </div>
+                {run.counts.not_evaluated > 0 && (
+                  <details className="sc-evidence-summary">
+                    <summary>
+                      Not evaluated: {run.counts.not_evaluated} · view reasons
+                    </summary>
+                    <ul>
+                      {Object.entries(run.not_evaluated_reasons || {}).map(
+                        ([code, count]) => (
+                          <li key={code}>
+                            {code.replaceAll("_", " ")} · {count}
+                          </li>
+                        ),
+                      )}
+                    </ul>
+                  </details>
+                )}
                 <div
                   className="derivative-table-wrap"
                   role="region"
@@ -1333,6 +1359,7 @@ export function FuturesScanner({ active }: { active: boolean }) {
                           .map(([key, label]) => (
                             <th key={key}>{label}</th>
                           ))}
+                        {showAll && <th>Evaluation</th>}
                         <th>Actions</th>
                       </tr>
                     </thead>
@@ -1371,6 +1398,18 @@ export function FuturesScanner({ active }: { active: boolean }) {
                             .map(([key]) => (
                               <td key={key}>{cell(row, key)}</td>
                             ))}
+                          {showAll && (
+                            <td>
+                              <strong>
+                                {row.outcome.replaceAll("_", " ")}
+                              </strong>
+                              {row.evaluation_reason && (
+                                <small className="sc-evidence-reason">
+                                  {row.evaluation_reason.detail}
+                                </small>
+                              )}
+                            </td>
+                          )}
                           <td>
                             <div className="sc-row-actions derivative-row-actions">
                               <button
@@ -1442,17 +1481,32 @@ export function FuturesScanner({ active }: { active: boolean }) {
                     </p>
                   </div>
                 )}
-                {run.underlyings.some((u) => u.failure) && (
-                  <details>
-                    <summary>Underlying diagnostics</summary>
+                {run.underlyings.length > 0 && (
+                  <details className="sc-evidence-summary">
+                    <summary>
+                      Underlying diagnostics · {run.underlyings.length}{" "}
+                      candidates
+                    </summary>
                     <ul>
-                      {run.underlyings
-                        .filter((u) => u.failure)
-                        .map((u) => (
-                          <li key={u.symbol}>
-                            {u.symbol}: {u.failure}
-                          </li>
-                        ))}
+                      {run.underlyings.map((u) => (
+                        <li key={u.symbol}>
+                          <strong>{u.symbol}</strong> ·{" "}
+                          {u.contract_id || "Contract missing"} ·{" "}
+                          {u.outcome.replaceAll("_", " ")}
+                          {u.evaluation_reason
+                            ? ` · ${u.evaluation_reason.detail}`
+                            : u.failure
+                              ? ` · ${u.failure.replaceAll("_", " ")}`
+                              : ""}
+                          {u.evidence_status && (
+                            <small className="sc-evidence-reason">
+                              {Object.entries(u.evidence_status)
+                                .map(([field, state]) => `${field}: ${state}`)
+                                .join(" · ")}
+                            </small>
+                          )}
+                        </li>
+                      ))}
                     </ul>
                   </details>
                 )}
@@ -1537,6 +1591,16 @@ export function FuturesScanner({ active }: { active: boolean }) {
                 </strong>
                 <h3>Why?</h3>
                 <p>{selected.reason}</p>
+                {selected.outcome === "NOT_EVALUATED" &&
+                  selected.evaluation_reasons && (
+                    <ul className="derivative-diagnostics">
+                      {selected.evaluation_reasons.map((item) => (
+                        <li key={item.code}>
+                          {item.code.replaceAll("_", " ")} · {item.detail}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 <ul className="derivative-diagnostics">
                   {selected.diagnostics.map((d) => (
                     <li key={d.filter.field}>

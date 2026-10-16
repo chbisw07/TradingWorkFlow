@@ -496,7 +496,7 @@ def test_built_in_watchlist_scan_persists_immutable_resolved_snapshot(
 def test_dynamic_fno_scan_archives_original_ranked_membership(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from datetime import UTC, datetime
+    from datetime import UTC, datetime, timedelta
     from types import SimpleNamespace
     from typing import cast
 
@@ -505,20 +505,28 @@ def test_dynamic_fno_scan_archives_original_ranked_membership(
 
     app = cast(Any, client.app)
     liquidity = FnoLiquidityCache(app.state.session_factory)
-    now = datetime.now(UTC).isoformat()
-    ranking = {
-        "ranked": [
-            {"symbol": "RELIANCE", "rank": 1, "score": 1.0},
-            {"symbol": "INFY", "rank": 2, "score": 0.0},
-        ],
-        "generated_at": now,
-        "as_of_date": datetime.now(UTC).date().isoformat(),
-        "methodology_version": "v1",
-        "source": "Dhan completed futures quotes",
-        "observations": [],
-        "last_observed_date": datetime.now(UTC).date().isoformat(),
-    }
-    liquidity._save(ranking)
+    day = datetime.now(UTC).date() - timedelta(days=1)
+    for offset in range(3):
+        session = day - timedelta(days=offset)
+        liquidity._save_daily(
+            session,
+            {
+                symbol: {
+                    "volume": str(volume),
+                    "open_interest": str(volume * 10),
+                    "source_time": f"{session}T10:00:00+00:00",
+                    "contract_id": contract,
+                    "expiry": "2099-12-30",
+                }
+                for symbol, volume, contract in (
+                    ("RELIANCE", 200, "NSE_FNO:101"),
+                    ("INFY", 100, "NSE_FNO:103"),
+                )
+            },
+            {"RELIANCE", "INFY"},
+            {},
+        )
+    ranking = liquidity.load()
     app.state.system_universes = SystemUniverseCatalog(liquidity=liquidity)
     live = provider()
     live._master = (
@@ -545,6 +553,15 @@ def test_dynamic_fno_scan_archives_original_ranked_membership(
                 (104, "INFY", "OPTSTK"),
             )
         ),
+    )
+
+    live._liquidity_master = live._master
+    live._liquidity_master_at = datetime.now(UTC)
+    # Real compact stock-derivative rows lack the structured underlying field.
+    # Ready watchlist detail must validate eligibility through the detailed master.
+    live._master = tuple(
+        {**row, "SM_SYMBOL_NAME": ""} if row["SEM_INSTRUMENT_NAME"] in {"FUTSTK", "OPTSTK"} else row
+        for row in live._master
     )
 
     async def history(instrument: Any, interval: str, **kwargs: Any) -> Any:
@@ -587,8 +604,8 @@ def test_dynamic_fno_scan_archives_original_ranked_membership(
     snapshot = run["universe_snapshot"]
     assert snapshot["methodology_version"] == "v1"
     assert [item["symbol"] for item in snapshot["instruments"]] == ["RELIANCE", "INFY"]
-    liquidity._save(
-        {
+    liquidity._update(
+        lambda _: {
             **ranking,
             "ranked": [
                 {"symbol": "INFY", "rank": 1, "score": 1.0},
@@ -599,19 +616,17 @@ def test_dynamic_fno_scan_archives_original_ranked_membership(
     persisted = client.get(BASE + "/runs/" + run["id"]).json()
     assert persisted["universe_snapshot"] == snapshot
     # A cached rank is not proof that the stock still has an active option.
-    live._master = tuple(
+    live._liquidity_master = tuple(
         row
-        for row in live._master
+        for row in live._liquidity_master
         if not (row["SM_SYMBOL_NAME"] == "INFY" and row["SEM_INSTRUMENT_NAME"] == "OPTSTK")
     )
     detail = asyncio.run(app.state.system_universes.detail(built_in["id"], live))
     assert detail["availability"] == "PARTIAL"
     assert detail["unresolved_count"] == 1
     assert [item["instrument"]["symbol"] for item in detail["items"]] == ["RELIANCE"]
-    from datetime import timedelta
-
-    liquidity._save(
-        {
+    liquidity._update(
+        lambda _: {
             **ranking,
             "generated_at": (datetime.now(UTC) - timedelta(days=1)).isoformat(),
             "as_of_date": (datetime.now(UTC) - timedelta(days=1)).date().isoformat(),

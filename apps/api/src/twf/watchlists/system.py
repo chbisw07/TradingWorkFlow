@@ -21,6 +21,7 @@ from twf.watchlists.catalog import WatchlistCatalog, kind
 from twf.watchlists.contracts import UniverseSnapshot
 from twf.watchlists.fno_liquidity import (
     FNO_LIQUIDITY_METHOD_VERSION,
+    MIN_COMPLETED_SESSIONS,
     FnoLiquidityCache,
     _eligible_futures,
 )
@@ -204,15 +205,14 @@ class SystemUniverseCatalog:
         generated_text = ranking.get("generated_at")
         generated = datetime.fromisoformat(generated_text) if generated_text else None
         age = datetime.now(UTC) - generated if generated else None
-        usable = bool(ranked and age is not None and age <= _STALE_LIMIT)
-        completed = FnoLiquidityCache.completed_date(datetime.now(UTC)) if dynamic else None
-        stale = bool(
-            usable
-            and (
-                (age is not None and age > _CACHE_TTL)
-                or (completed is not None and ranking.get("as_of_date", "") < completed.isoformat())
-            )
+        usable = bool(
+            ranked
+            and readiness
+            and readiness["completed_sessions_collected"] >= MIN_COMPLETED_SESSIONS
+            and age is not None
+            and age <= _STALE_LIMIT
         )
+        stale = bool(readiness and readiness["stale"])
         count = (
             min(definition.expected_count, len(ranked))
             if dynamic
@@ -283,7 +283,13 @@ class SystemUniverseCatalog:
         if _dynamic(definition):
             ranking = self.liquidity.load() if self.liquidity else {}
             ranked = ranking.get("ranked", [])
-            if not ranked:
+            if (
+                not ranked
+                or FnoLiquidityCache.readiness(ranking, credential_available=True)[
+                    "completed_sessions_collected"
+                ]
+                < MIN_COMPLETED_SESSIONS
+            ):
                 raise WatchlistFailure("SYSTEM_UNIVERSE_UNAVAILABLE", 503)
             generated = datetime.fromisoformat(ranking["generated_at"])
             age = datetime.now(UTC) - generated
@@ -291,8 +297,10 @@ class SystemUniverseCatalog:
                 raise WatchlistFailure("SYSTEM_UNIVERSE_UNAVAILABLE", 503)
             symbols = tuple(row["symbol"] for row in ranked[: definition.expected_count])
             completed = FnoLiquidityCache.completed_date(datetime.now(UTC))
-            stale = age > _CACHE_TTL or bool(
-                completed and ranking.get("as_of_date", "") < completed.isoformat()
+            stale = (
+                bool(ranking.get("last_error_category"))
+                or age > _CACHE_TTL
+                or bool(completed and ranking.get("as_of_date", "") < completed.isoformat())
             )
             return definition, _Membership(symbols, generated, "STALE" if stale else "CURRENT")
         if not definition.enabled or definition.constituent_url is None:
@@ -327,7 +335,9 @@ class SystemUniverseCatalog:
         current_eligible: set[str] | None = None
         if _dynamic(definition):
             local_date = datetime.now(UTC).astimezone(ZoneInfo("Asia/Kolkata")).date()
-            current_eligible = set(_eligible_futures(await provider._load_master(), local_date))
+            current_eligible = set(
+                _eligible_futures(await provider._load_liquidity_master(), local_date)
+            )
         resolved = await watchlist_catalog.resolve_symbols(
             {f"NSE:{symbol}" for symbol in membership.symbols}
         )

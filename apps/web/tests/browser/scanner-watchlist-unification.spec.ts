@@ -165,7 +165,7 @@ test("unified watchlist-first scanner clean, popover and built-in states", async
     }),
   ).toBeVisible();
   const buildingChoice = page.getByRole("button", {
-    name: /F&O Liquidity 50.*Building liquidity history/,
+    name: /F&O Liquidity 50.*Accumulating history/,
   });
   await expect(buildingChoice).toBeDisabled();
   await expect(buildingChoice).toContainText("2/3 sessions");

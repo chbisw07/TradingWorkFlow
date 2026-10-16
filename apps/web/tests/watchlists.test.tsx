@@ -1109,7 +1109,7 @@ test("built-in watchlists are grouped, read-only and copy into custom lists", as
     ).toBeDisabled();
   }
   expect(
-    screen.getAllByText("Building liquidity history · 1/3 sessions"),
+    screen.getAllByText("Accumulating history · 1/3 sessions"),
   ).toHaveLength(3);
   expect(screen.queryByText("Definition pending")).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: /Nifty Bank/ }));

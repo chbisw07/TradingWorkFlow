@@ -701,7 +701,21 @@ Futures LTP, open, prior close, volume, and absolute OI come from that exact con
 
 Cash or index spot uses TWF's Dhan identity and the same quote batch. Basis is `futures LTP - spot LTP` and basis % is `basis / spot LTP × 100`. Both quotes must have source timestamps within five minutes of each other and each source must be at most 15 minutes behind receipt; otherwise basis is unavailable. Positive/negative basis describes premium/discount only. Spot direction uses the Dhan spot quote versus its positive previous close, with ±0.1% thresholds for Up/Down and otherwise Sideways. The participation label is an *inference* from same-window futures price and OI percentage changes: +/+ Long buildup, -/+ Short buildup, +/- Short covering, -/- Long unwinding; sub-threshold movement is Mixed / Unclear. Without comparable evidence it is Insufficient evidence. The archived Why? evidence retains this provenance even though the compact result pill omits redundant “inferred” text.
 
-Only explicitly visible filters determine MATCH, NON_MATCH, or NOT_EVALUATED. Known failed conditions are NON_MATCH; otherwise missing active evidence is NOT_EVALUATED. Expiry, universe, loaded template, and every predicate appear in editable controls and active chips. Intraday and Positional Futures presets use only supported explicit fields; Futures breakout/breakdown are deferred because no authoritative breakout field exists. My Templates store configuration alone. Saved scans store configuration, while history stores the immutable run, exact evidence, counts, source timestamps, and diagnostics. Summary cards use the EWD's compact icons for requested, resolved, contracts evaluated, not evaluated, and matches.
+Futures evidence failures are archived as additive, typed `evaluation_reason`
+and ordered `evaluation_reasons` on each NOT_EVALUATED row, with grouped counts
+per run and compact per-underlying stage status. Required evidence is driven by
+active predicates: missing display-only basis, spot, IV, or OI comparison cannot
+block an unrelated volume or price filter. A current-run volume/OI percentile
+requires five comparable contracts; same-contract OI change requires a prior
+scan within 30 minutes. Dhan quote source time is checked for intraday
+freshness (30 minutes during market hours); the last completed-session quote
+may be read after close for up to seven days, with its source time visible.
+An unavailable active field remains NOT_EVALUATED even when another active
+predicate is known false; all required evidence must exist before evaluation. The
+Futures table shows row reasons when non-matches are visible; grouped reasons
+and per-underlying evidence stages appear in expandable diagnostics and Why?.
+
+Only explicitly visible filters determine MATCH, NON_MATCH, or NOT_EVALUATED. Missing active evidence is NOT_EVALUATED; once all required evidence exists, failed conditions are NON_MATCH. Expiry, universe, loaded template, and every predicate appear in editable controls and active chips. Intraday and Positional Futures presets use only supported explicit fields; Futures breakout/breakdown are deferred because no authoritative breakout field exists. My Templates store configuration alone. Saved scans store configuration, while history stores the immutable run, exact evidence, counts, source timestamps, and diagnostics. Summary cards use the EWD's compact icons for requested, resolved, contracts evaluated, not evaluated, and matches.
 
 Broker V2 Buy/Sell opens only after an exact capable broker contract with matching underlying, expiry, lot, and tick is found; Scanner never submits an order. A Futures-specific Analytics workspace and futures chart route do not currently exist, so those actions remain visibly unavailable. The screen never relabels a spot chart as a futures chart. Add-to-Watchlist and comparison of futures contracts remain deferred pending an exact supported mapping. Live Dhan user validation is still required.
 

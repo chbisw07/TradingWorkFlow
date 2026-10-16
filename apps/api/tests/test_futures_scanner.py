@@ -40,6 +40,7 @@ def install_futures(
     spot_source_lag_minutes: int = 0,
     missing_contract_symbol: str | None = None,
     ambiguous_symbol: str | None = None,
+    stale_contract_symbol: str | None = None,
 ) -> dict[str, int]:
     from test_watchlists import provider as base_provider
 
@@ -114,7 +115,11 @@ def install_futures(
                     if future
                     else None,
                     provider_source_time=(
-                        now - timedelta(minutes=spot_source_lag_minutes) if not future else now
+                        now - timedelta(minutes=spot_source_lag_minutes)
+                        if not future
+                        else now - timedelta(days=8)
+                        if item.symbol == f"{stale_contract_symbol}FUT"
+                        else now
                     ),
                     received_at=now,
                     provider="dhan",
@@ -412,3 +417,163 @@ def test_futures_saved_scan_is_configuration_only_and_history_is_owner_scoped(
     assert len(history) == 1 and history[0]["id"] == executed.json()["id"]
     assert "rows" not in history[0]
     assert client.get(BASE + "/runs/" + history[0]["id"]).json()["rows"] == executed.json()["rows"]
+
+
+def test_active_futures_evidence_reasons_are_typed_and_optional_fields_do_not_block() -> None:
+    from twf.scanner_v2.futures import evidence_reasons
+
+    now = datetime(2026, 10, 16, 6, 30, tzinfo=UTC)
+    future = SimpleNamespace(
+        provider_source_time=now,
+        received_at=now,
+        volume=Decimal(100),
+        open_interest=Decimal(500),
+    )
+    spot = SimpleNamespace(
+        provider_source_time=now,
+        received_at=now,
+        previous_close=Decimal(100),
+        last_price=Decimal(101),
+    )
+    values: dict[str, Any] = {
+        "volume": Decimal(100),
+        "open_interest": Decimal(500),
+        "volume_percentile": None,
+        "oi_percentile": None,
+        "underlying_trend": "Up",
+        "basis_abs": None,
+        "change_in_open_interest": None,
+    }
+
+    def codes(field: str, **changes: Any) -> list[str]:
+        options: dict[str, Any] = {
+            "future": future,
+            "spot": spot,
+            "quote_error": None,
+            "volume_cohort": 2,
+            "oi_cohort": 2,
+            "comparison_window": None,
+            "basis_reason": "Source timestamps differ by six minutes",
+        }
+        options.update(changes)
+        return [
+            item["code"]
+            for item in evidence_reasons(
+                (
+                    FuturesFilter(field=field, operator=">=", value=1)
+                    if field != "underlying_trend"
+                    else FuturesFilter(field=field, operator="equals", value="Up"),
+                ),
+                values,
+                **options,
+            )
+        ]
+
+    assert codes("volume_percentile") == ["VOLUME_HISTORY_INSUFFICIENT"]
+    assert codes("oi_percentile") == ["OI_HISTORY_INSUFFICIENT"]
+    assert codes("volume") == []  # Missing optional spot/basis does not block.
+    assert codes("volume", future=None, quote_error="RATE_LIMITED") == ["PROVIDER_UNAVAILABLE"]
+    assert codes("volume", future=None) == ["FUTURES_QUOTE_UNAVAILABLE"]
+    assert codes("volume", future=SimpleNamespace(**{**vars(future), "volume": None})) == [
+        "VOLUME_UNAVAILABLE"
+    ]
+    assert codes(
+        "open_interest", future=SimpleNamespace(**{**vars(future), "open_interest": None})
+    ) == ["OI_UNAVAILABLE"]
+    assert codes("underlying_trend", spot=None) == ["SPOT_QUOTE_UNAVAILABLE"]
+    assert codes(
+        "underlying_trend",
+        spot=SimpleNamespace(**{**vars(spot), "provider_source_time": now - timedelta(hours=2)}),
+    ) == ["SPOT_QUOTE_STALE"]
+    assert codes("basis_abs") == ["TIMESTAMP_MISMATCH"]
+    assert codes("change_in_open_interest") == ["OI_COMPARISON_UNAVAILABLE"]
+    assert codes(
+        "volume",
+        future=SimpleNamespace(
+            **{**vars(future), "provider_source_time": now - timedelta(hours=2)}
+        ),
+    ) == ["FUTURES_QUOTE_STALE"]
+    assert codes("underlying_trend", spot=spot) == []
+    values["underlying_trend"] = None
+    assert codes("underlying_trend") == ["SPOT_DIRECTION_UNAVAILABLE"]
+
+
+def test_mixed_futures_scan_reason_counts_and_summary_invariant(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    install_futures(client, monkeypatch, missing_contract_symbol="INFY")
+    response = client.post(
+        BASE + "/futures/runs",
+        json=payload(filters=[{"field": "volume", "operator": ">=", "value": 300}]),
+        headers=HEADERS,
+    )
+    assert response.status_code == 200, response.text
+    run = response.json()
+    counts = run["counts"]
+    assert counts["requested"] == counts["resolved"] == 5
+    assert counts["contracts_evaluated"] == 4
+    assert counts["not_evaluated"] == 1
+    assert counts["matches"] == 3
+    assert counts["contracts_evaluated"] + counts["not_evaluated"] == counts["resolved"]
+    assert run["not_evaluated_reasons"] == {"FUTURES_QUOTE_UNAVAILABLE": 1}
+    missing = next(row for row in run["rows"] if row["underlying"] == "INFY")
+    assert missing["evaluation_reason"]["code"] == "FUTURES_QUOTE_UNAVAILABLE"
+    assert missing["outcome"] == "NOT_EVALUATED"
+    non_match = next(row for row in run["rows"] if row["underlying"] == "RELIANCE")
+    assert non_match["outcome"] == "NON_MATCH"
+    assert non_match["evaluation_reason"] is None
+
+
+def test_stale_contract_does_not_supply_percentile_cohort(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    install_futures(client, monkeypatch, stale_contract_symbol="INFY")
+    response = client.post(BASE + "/futures/runs", json=payload(), headers=HEADERS)
+    assert response.status_code == 200, response.text
+    run = response.json()
+    assert run["counts"]["not_evaluated"] == 5
+    assert run["not_evaluated_reasons"] == {
+        "FUTURES_QUOTE_STALE": 1,
+        "VOLUME_HISTORY_INSUFFICIENT": 4,
+    }
+    assert all(row["relative_volume_cohort_size"] == 4 for row in run["rows"])
+    assert (
+        next(u for u in run["underlyings"] if u["symbol"] == "INFY")["evidence_status"]["quote"]
+        == "STALE"
+    )
+
+
+def test_stale_optional_spot_does_not_block_volume_scan(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    install_futures(client, monkeypatch, spot_source_lag_minutes=8 * 24 * 60)
+    request = payload(filters=[{"field": "volume", "operator": ">=", "value": 0}])
+    response = client.post(BASE + "/futures/runs", json=request, headers=HEADERS)
+    assert response.status_code == 200, response.text
+    assert response.json()["counts"]["matches"] == 5
+    request["filters"] = [{"field": "underlying_trend", "operator": "equals", "value": "Down"}]
+    response = client.post(BASE + "/futures/runs", json=request, headers=HEADERS)
+    assert response.json()["not_evaluated_reasons"] == {"SPOT_QUOTE_STALE": 5}
+    assert response.json()["counts"]["contracts_evaluated"] == 0
+
+
+def test_missing_required_evidence_precedes_failed_predicate(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    install_futures(client, monkeypatch)
+    response = client.post(
+        BASE + "/futures/runs",
+        json=payload(
+            filters=[
+                {"field": "volume", "operator": ">=", "value": 999999},
+                {"field": "change_in_open_interest", "operator": ">=", "value": 1},
+            ]
+        ),
+        headers=HEADERS,
+    )
+    assert response.status_code == 200, response.text
+    run = response.json()
+    assert run["counts"]["contracts_evaluated"] == 0
+    assert run["not_evaluated_reasons"] == {"OI_COMPARISON_UNAVAILABLE": 5}
+    assert all(row["diagnostics"][0]["passed"] is False for row in run["rows"])
+    assert all(row["outcome"] == "NOT_EVALUATED" for row in run["rows"])

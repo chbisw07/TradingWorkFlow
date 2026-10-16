@@ -201,10 +201,10 @@ test("ranked readiness labels distinguish building, stale, credentials and provi
     screen.getByRole("button", { name: "Watchlist: Choose watchlist" }),
   );
   const item = screen.getByRole("button", {
-    name: /F&O Liquidity 50.*Building liquidity history/,
+    name: /F&O Liquidity 50.*Accumulating history/,
   });
   expect(item).toBeDisabled();
-  expect(item).toHaveTextContent("Building liquidity history · 2/3 sessions");
+  expect(item).toHaveTextContent("Accumulating history · 2/3 sessions");
   expect(
     watchlistReadinessLabel({
       ...ranked,
@@ -214,6 +214,7 @@ test("ranked readiness labels distinguish building, stale, credentials and provi
         as_of_date: "2026-10-11",
       },
       count: 50,
+      enabled: true,
     }),
   ).toContain("Stale");
   expect(
@@ -227,5 +228,5 @@ test("ranked readiness labels distinguish building, stale, credentials and provi
       ...ranked,
       readiness: { ...ranked.readiness!, state: "PROVIDER_UNAVAILABLE" },
     }),
-  ).toBe("Provider temporarily unavailable");
+  ).toBe("Provider temporarily unavailable · 2/3 sessions");
 });

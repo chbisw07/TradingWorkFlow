@@ -1,3 +1,4 @@
+import asyncio
 import secrets
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
@@ -62,7 +63,7 @@ from twf.preferences import SettingsFailure
 from twf.queue.errors import QueueError
 from twf.scanner_v2.service import ScannerHistory
 from twf.schemas import ErrorResponse
-from twf.watchlists.fno_liquidity import FnoLiquidityCache
+from twf.watchlists.fno_liquidity import FnoLiquidityCache, collect_completed_sessions
 from twf.watchlists.market import WatchlistHistoryCache, WatchlistQuoteCache
 from twf.watchlists.reference import WatchlistReferenceCache
 from twf.watchlists.service import WatchlistFailure
@@ -111,10 +112,25 @@ def create_app(
             )
         app.state.auth_dummy_hash = PasswordHasher().hash(secrets.token_urlsafe(32))
         app.state.initialized = True
+        collector = None
+        if settings.environment != "test" and app.state.system_universes.liquidity is not None:
+            collector = asyncio.create_task(
+                collect_completed_sessions(
+                    app.state.system_universes.liquidity,
+                    app.state.dhan_credentials,
+                    app.state.session_factory,
+                )
+            )
         logger.info("application_started")
         try:
             yield
         finally:
+            if collector is not None:
+                collector.cancel()
+                try:
+                    await collector
+                except asyncio.CancelledError:
+                    pass
             app.state.initialized = False
             await app.state.mcp_manager.operations.shutdown()
             app.state.session_factory = None

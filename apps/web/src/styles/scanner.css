@@ -2151,3 +2151,29 @@
     margin-left: 0;
   }
 }
+
+.sc-evidence-summary {
+  margin: 0.5rem 0;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid #d5e2f0;
+  border-radius: 6px;
+  background: #f8fbff;
+  color: #23436b;
+}
+.sc-evidence-summary summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.sc-evidence-summary ul {
+  margin: 0.4rem 0 0;
+  padding-left: 1.1rem;
+}
+.sc-evidence-summary li {
+  margin: 0.25rem 0;
+}
+.sc-evidence-reason {
+  display: block;
+  color: #4e627b;
+  font-weight: 400;
+  margin-top: 0.15rem;
+}

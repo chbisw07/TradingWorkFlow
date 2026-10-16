@@ -24,8 +24,15 @@ FIELDS = {
 }
 
 
-def parse_master(content: bytes) -> tuple[dict[str, str], ...]:
-    """Adapt detailed fields to TWF identity fields. Derivative ticks are paise."""
+def parse_master(
+    content: bytes, *, include_stock_options: bool = False
+) -> tuple[dict[str, str], ...]:
+    """Adapt detailed fields to TWF identity fields. Derivative ticks are paise.
+
+    The liquidity collector requests stock options only to establish current
+    eligibility from the detailed master's structured UNDERLYING_SYMBOL.
+    Futures scans retain their smaller futures/equity/index snapshot.
+    """
     reader = csv.DictReader(io.StringIO(content.decode("utf-8-sig")))
     if not FIELDS.issubset(reader.fieldnames or ()):
         raise ValueError("Invalid detailed instrument master schema")
@@ -37,10 +44,12 @@ def parse_master(content: bytes) -> tuple[dict[str, str], ...]:
         if r["EXCH_ID"] != "NSE":
             continue
         kind = r["INSTRUMENT"]
-        if kind not in {"FUTSTK", "FUTIDX", "EQUITY", "INDEX"}:
+        if kind not in {"FUTSTK", "FUTIDX", "EQUITY", "INDEX"} and not (
+            include_stock_options and kind == "OPTSTK"
+        ):
             continue
         tick = r["TICK_SIZE"]
-        if kind in {"FUTSTK", "FUTIDX"}:
+        if kind in {"FUTSTK", "FUTIDX", "OPTSTK"}:
             try:
                 tick = str(Decimal(tick) / 100)
             except InvalidOperation:

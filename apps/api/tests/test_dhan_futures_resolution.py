@@ -228,3 +228,20 @@ def test_invalid_contract_metadata_is_excluded_before_stable_tie_break() -> None
     result, failure = index.resolve("RELIANCE")
     assert result and failure is None
     assert result[1]["SEM_SMST_SECURITY_ID"] == "48987"
+
+
+def test_liquidity_eligibility_uses_detailed_structured_underlying() -> None:
+    from twf.watchlists.fno_liquidity import _eligible_futures
+
+    rows = raw_rows()
+    future = next(row for row in rows if row["INSTRUMENT"] == "FUTSTK")
+    option = future.copy()
+    option.update(INSTRUMENT="OPTSTK", SECURITY_ID="999001", SYMBOL_NAME="Option display only")
+    rows.append(option)
+    parsed = parse_master(content(rows), include_stock_options=True)
+    eligible = _eligible_futures(parsed, TODAY)
+    assert future["UNDERLYING_SYMBOL"] in eligible
+    assert (
+        eligible[future["UNDERLYING_SYMBOL"]].native.native_id == "NSE_FNO:" + future["SECURITY_ID"]
+    )
+    assert not any(row["SEM_INSTRUMENT_NAME"] == "OPTSTK" for row in parse_master(content(rows)))
