@@ -57,7 +57,7 @@ Market Context work; Sprint 2 as a whole is not accepted or frozen.
 | Scanner LLM narrative         | **PLANNED / DEFERRED / OPTIONAL**         | Future natural-language synthesis only; deterministic scores remain authoritative                                                              |
 | Derivatives Scanner O4        | **IMPLEMENTED / USER VALIDATION PENDING** | Bounded single-leg NSE options scanning, transparent Intraday/Positional templates, and exact O1/O3 handoffs                                   |
 | Derivatives Scanner O5        | **IMPLEMENTED / LIVE VALIDATION PENDING** | Exact NSE FUTSTK/FUTIDX Dhan quote scanning, explicit Futures filters/templates, archived evidence, and guarded Broker V2 preview              |
-| OE — TWF Order / Queue        | **OE-1/2 ACCEPTED / FROZEN; OE-3 IMPLEMENTED / REVIEW** | Manual Orders intake stops at READY; explicit OE-3 Queue admission atomically creates one entry and moves the Order to QUEUED. Broker bridge is absent |
+| OE — TWF Order / Queue        | **OE-1/2 ACCEPTED / FROZEN; OE-3 HARDENED / REVIEW** | Manual Orders intake stops at READY; explicit OE-3 Queue admission atomically creates one entry and moves the Order to QUEUED. Broker bridge is absent |
 | Opportunity O6–O13            | **PLANNED / DEFERRED**                    | Analytics, Discovery, context, monitoring, and execution handoff follow the OE foundation                                                      |
 
 The accepted Broker capability is TWF's execution substrate. It is not intended
@@ -341,13 +341,14 @@ user validation and independent adversarial review; OE-4 has not started.
    server-side, creates MANUAL TWF Orders, validates and stops at READY.
    Owner-scoped list/detail/history use OE-1 persistence. No Queue or broker
    submission occurs. See the [OE-2 architecture](docs/TWF_ORDERS_OE2_ARCHITECTURE.md).
-3. **OE-3 — TWF Queue Foundation (IMPLEMENTED / REVIEW).** Explicit Add to Queue
+3. **OE-3 — TWF Queue Foundation (HARDENED / REVIEW).** Explicit Add to Queue
    atomically creates one owner-bound entry and transitions a READY Order to
    QUEUED, with Order and Queue audit events. Queue entries support READY and
-   HELD, FIFO listing, Hold/Release, and Trade → Execution Queue operator views.
+   HELD, newest-first operator pagination with preserved FIFO semantics,
+   Hold/Release, and Trade → Execution Queue operator views.
    Trade also groups Orders and read-only account Positions with one persistent
    Instrument account selector and New Order action. This does not implement the
-   future TWF-managed Position lifecycle. It makes no broker write calls. See the [OE-3 Queue architecture](docs/TWF_QUEUE_OE3_ARCHITECTURE.md).
+   future TWF-managed Position lifecycle. It makes no broker write calls. See the [OE-3 Queue architecture](docs/TWF_QUEUE_OE3_ARCHITECTURE.md) and [OE-3 hardening report](docs/TWF_OE3_HARDENING_REPORT.md).
 4. **OE-4 — Queue → Broker V2 Bridge.** Submit ready, authorized Queue items
    through Broker V2 using exact contract identity, idempotency, timeout safety,
    durable submission identity, acknowledgement capture, and typed failures.

@@ -126,3 +126,56 @@ test("OE-3 admits one READY order and audits Hold/Release without broker submiss
     ),
   ).toBe(false);
 });
+
+test("Queue operator can page older rows and return to newest", async ({
+  page,
+}, info) => {
+  await page.goto("/login");
+  await page.getByLabel("Username").fill(`queue-${info.project.name}`);
+  await page
+    .getByLabel("Password", { exact: true })
+    .fill("test-only-browser-password");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL("/");
+  const row = (id: string, state: "READY" | "HELD") => ({
+    queue_entry_id: id,
+    twf_order_id: `order-${id}`,
+    queue_state: state,
+    version: 1,
+    admitted_at: "2026-10-15T10:00:00Z",
+    order: {
+      state: "QUEUED",
+      instrument: { symbol: `SYM-${id}`, asset_class: "EQUITY" },
+      terms: { side: "BUY", quantity: 1, order_type: "LIMIT" },
+    },
+  });
+  await page.route("**/api/v1/twf-queue?*", async (route) => {
+    const params = new URL(route.request().url()).searchParams;
+    const data = params.has("cursor")
+      ? { items: [row("a", "READY")], next_cursor: null, has_more: false }
+      : params.get("state") === "HELD"
+        ? { items: [row("b", "HELD")], next_cursor: null, has_more: false }
+        : {
+            items: [row("c", "READY"), row("b", "HELD")],
+            next_cursor: "opaque-cursor",
+            has_more: true,
+          };
+    await route.fulfill({ json: data });
+  });
+  await page.goto("/trade/queue");
+  const queue = page.locator("section[aria-label='TWF Queue']");
+  await expect(queue.locator("tbody tr")).toHaveCount(2);
+  await expect(queue.getByText("SYM-c")).toBeVisible();
+  await queue.getByRole("button", { name: "Load older" }).click();
+  await expect(queue.locator("tbody tr")).toHaveCount(3);
+  await queue.getByRole("button", { name: "Back to newest" }).click();
+  await expect(queue.locator("tbody tr")).toHaveCount(2);
+  await queue.getByRole("button", { name: "Held" }).click();
+  await expect(queue.locator("tbody tr")).toHaveCount(1);
+  await expect(queue.getByText("SYM-b")).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > window.innerWidth + 2,
+    ),
+  ).toBe(false);
+});

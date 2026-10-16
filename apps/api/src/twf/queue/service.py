@@ -4,6 +4,9 @@ This distinct subsystem alone writes READY -> QUEUED with TWF_QUEUE audit
 authority. OE-1's public domain transition method stays unchanged.
 """
 
+import base64
+import hmac
+import json
 import logging
 import sqlite3
 import time
@@ -11,7 +14,7 @@ from datetime import UTC, datetime
 from typing import Any, cast
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, select, update
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session, sessionmaker
@@ -22,7 +25,13 @@ from twf.infrastructure.twf_queue import TWFQueueEntryRecord, TWFQueueEventRecor
 from twf.orders.context import OrderContext
 from twf.orders.contracts import EventType, OrderState, Source
 from twf.orders.service import _view as order_view
-from twf.queue.contracts import QueueEntryView, QueueEventType, QueueEventView, QueueState
+from twf.queue.contracts import (
+    QueueEntryView,
+    QueueEventType,
+    QueueEventView,
+    QueuePage,
+    QueueState,
+)
 from twf.queue.errors import QueueError, QueueErrorCode
 
 logger = logging.getLogger(__name__)
@@ -162,6 +171,7 @@ class QueueService:
             or order.owner_id != owner_id
             or order.twf_order_id != order_id
             or order.state != OrderState.QUEUED.value
+            or order.queue_entry_id != entry.queue_entry_id
         ):
             raise QueueError(
                 QueueErrorCode.QUEUE_INVARIANT_FAILURE, "Queue and order state disagree"
@@ -208,6 +218,7 @@ class QueueService:
                     )
                     .values(
                         state=OrderState.QUEUED.value,
+                        queue_entry_id=entry.queue_entry_id,
                         version=order.version + 1,
                         updated_at=now,
                     )
@@ -274,7 +285,14 @@ class QueueService:
                 pass
             except IntegrityError as exc:
                 if not _duplicate_order_link(exc):
-                    raise
+                    logger.error(
+                        "twf_queue_admission_invariant_rejected",
+                        extra={"twf_order_id": str(order_id)},
+                    )
+                    raise QueueError(
+                        QueueErrorCode.QUEUE_INVARIANT_FAILURE,
+                        "Queue admission rejected by persistence invariant",
+                    ) from exc
             except OperationalError as exc:
                 if not _sqlite_contention(exc):
                     raise
@@ -295,12 +313,59 @@ class QueueService:
             QueueErrorCode.RETRYABLE_CONCURRENCY_CONFLICT, "Concurrent Queue admission; retry"
         )
 
-    def list_entries(self, *, limit: int = 50) -> tuple[QueueEntryView, ...]:
+    def _cursor(self, owner_id: UUID, state: QueueState | None, row: TWFQueueEntryRecord) -> str:
+        payload = json.dumps(
+            {
+                "v": 1,
+                "owner": str(owner_id),
+                "state": state.value if state else None,
+                "at": _utc(row.admitted_at).isoformat(),
+                "id": str(row.queue_entry_id),
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+        signature = hmac.digest(self.context.session_hash.encode(), payload, "sha256")
+        return base64.urlsafe_b64encode(payload + signature).decode().rstrip("=")
+
+    def _parse_cursor(
+        self, token: str, owner_id: UUID, state: QueueState | None
+    ) -> tuple[datetime, UUID]:
+        try:
+            if not 1 <= len(token) <= 1024:
+                raise ValueError("size")
+            raw = base64.b64decode(token + "=" * (-len(token) % 4), altchars=b"-_", validate=True)
+            payload, signature = raw[:-32], raw[-32:]
+            if len(signature) != 32 or not hmac.compare_digest(
+                signature, hmac.digest(self.context.session_hash.encode(), payload, "sha256")
+            ):
+                raise ValueError("signature")
+            data = json.loads(payload)
+            if (
+                type(data) is not dict
+                or data.get("v") != 1
+                or data.get("owner") != str(owner_id)
+                or data.get("state") != (state.value if state else None)
+                or set(data) != {"v", "owner", "state", "at", "id"}
+            ):
+                raise ValueError("scope")
+            admitted = datetime.fromisoformat(data["at"])
+            if admitted.tzinfo is None:
+                raise ValueError("timezone")
+            entry_id = UUID(data["id"])
+            return admitted, entry_id
+        except (ValueError, TypeError, KeyError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise QueueError(QueueErrorCode.INVALID_CURSOR, "Invalid Queue cursor") from exc
+
+    def list_entries(
+        self, *, limit: int = 50, cursor: str | None = None, state: QueueState | None = None
+    ) -> QueuePage:
+        """Owner-facing newest-first keyset view. Execution FIFO remains admission-ascending."""
         if not 1 <= limit <= 100:
             raise ValueError("Queue limit must be 1..100")
         with self.sessions() as db:
             owner_id = self._owner(db)
-            rows = db.execute(
+            query = (
                 select(TWFQueueEntryRecord, TWFOrderRecord)
                 .join(
                     TWFOrderRecord,
@@ -308,13 +373,33 @@ class QueueService:
                     & (TWFOrderRecord.owner_id == TWFQueueEntryRecord.owner_id),
                 )
                 .where(TWFQueueEntryRecord.owner_id == owner_id)
-                .order_by(
-                    TWFQueueEntryRecord.admitted_at,
-                    TWFQueueEntryRecord.queue_entry_id,
+            )
+            if state is not None:
+                query = query.where(TWFQueueEntryRecord.queue_state == state.value)
+            if cursor is not None:
+                admitted, entry_id = self._parse_cursor(cursor, owner_id, state)
+                query = query.where(
+                    or_(
+                        TWFQueueEntryRecord.admitted_at < admitted,
+                        and_(
+                            TWFQueueEntryRecord.admitted_at == admitted,
+                            TWFQueueEntryRecord.queue_entry_id < entry_id,
+                        ),
+                    )
                 )
-                .limit(limit)
+            rows = db.execute(
+                query.order_by(
+                    TWFQueueEntryRecord.admitted_at.desc(),
+                    TWFQueueEntryRecord.queue_entry_id.desc(),
+                ).limit(limit + 1)
             ).all()
-            return tuple(_entry_view(entry, order) for entry, order in rows)
+            visible = rows[:limit]
+            has_more = len(rows) > limit
+            return QueuePage(
+                items=tuple(_entry_view(entry, order) for entry, order in visible),
+                next_cursor=self._cursor(owner_id, state, visible[-1][0]) if has_more else None,
+                has_more=has_more,
+            )
 
     def get_for_order(self, order_id: UUID) -> QueueEntryView:
         with self.sessions() as db:
@@ -426,6 +511,15 @@ class QueueService:
                 extra={"queue_entry_id": str(entry_id), "queue_state": target.value},
             )
             return output
+        except IntegrityError as exc:
+            logger.error(
+                "twf_queue_state_invariant_rejected",
+                extra={"queue_entry_id": str(entry_id)},
+            )
+            raise QueueError(
+                QueueErrorCode.QUEUE_INVARIANT_FAILURE,
+                "Queue state change rejected by persistence invariant",
+            ) from exc
         except OperationalError as exc:
             if _sqlite_contention(exc):
                 raise QueueError(

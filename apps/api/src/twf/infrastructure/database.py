@@ -111,7 +111,7 @@ def probe_database(engine: Engine) -> bool:
 
 
 # Deployment compatibility, checked against the Alembic graph in the platform gate.
-DATABASE_SCHEMA_HEAD = "0025_twf_queue"
+DATABASE_SCHEMA_HEAD = "0026_oe3_queue_hardening"
 
 
 def database_status(engine: Engine) -> dict[str, str]:

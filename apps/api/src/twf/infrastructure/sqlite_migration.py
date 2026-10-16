@@ -38,6 +38,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.engine import Connection
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.sql.ddl import sort_tables
 
 from twf.config.settings import Settings
 from twf.infrastructure.database import (
@@ -364,7 +365,18 @@ def migrate_snapshot(
                 raise MigrationFailure(
                     "Source and destination table sets differ; no table may be skipped"
                 )
-            tables = [t for t in metadata.sorted_tables if t.name != "alembic_version"]
+            # OE-3 adds a deferred Order -> Queue binding, forming a cycle
+            # with Queue -> Order. Ignore only commit-deferred edges for
+            # insertion ordering; all constraints remain enforced and the
+            # post-copy FK verification still checks every edge.
+            tables = [
+                t
+                for t in sort_tables(
+                    sorted(metadata.tables.values(), key=lambda table: table.name),
+                    skip_fn=lambda fk: bool(fk.deferrable and fk.initially == "DEFERRED"),
+                )
+                if t.name != "alembic_version"
+            ]
             # Exclude concurrent writes to destination for the entire copy+verify.
             if not dry_run and not verify_only:
                 target.execute(

@@ -277,7 +277,10 @@ def test_migration_history_and_metadata() -> None:
     db = create_database_engine(Settings())
     try:
         with db.connect() as connection:
-            assert MigrationContext.configure(connection).get_current_revision() == "0025_twf_queue"
+            assert (
+                MigrationContext.configure(connection).get_current_revision()
+                == "0026_oe3_queue_hardening"
+            )
             assert sorted(inspect(connection).get_table_names()) == [
                 "alembic_version",
                 "auth_sessions",
@@ -331,7 +334,10 @@ def test_migration_history_and_metadata() -> None:
             assert MigrationContext.configure(connection).get_current_revision() is None
         command.upgrade(config, "head")
         with db.connect() as connection:
-            assert MigrationContext.configure(connection).get_current_revision() == "0025_twf_queue"
+            assert (
+                MigrationContext.configure(connection).get_current_revision()
+                == "0026_oe3_queue_hardening"
+            )
     finally:
         db.dispose()
 

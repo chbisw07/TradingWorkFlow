@@ -403,3 +403,24 @@
     flex-wrap: wrap;
   }
 }
+.orders-queue-filters,
+.orders-queue-pagination {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.5rem 0;
+}
+.orders-queue-filters button[aria-pressed="true"] {
+  color: var(--broker-action);
+  background: var(--surface-accent);
+  border-color: var(--broker-action);
+}
+.orders-queue-pagination {
+  justify-content: flex-end;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+.orders-queue-pagination span {
+  margin-right: auto;
+}

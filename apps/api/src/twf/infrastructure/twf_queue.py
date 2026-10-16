@@ -30,6 +30,14 @@ class TWFQueueEntryRecord(Base):
             ondelete="RESTRICT",
             name="fk_twf_queue_entries_order_owner",
         ),
+        ForeignKeyConstraint(
+            ["twf_order_id", "owner_id", "queue_entry_id"],
+            ["twf_orders.twf_order_id", "twf_orders.owner_id", "twf_orders.queue_entry_id"],
+            ondelete="RESTRICT",
+            name="fk_twf_queue_entries_order_binding",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
         UniqueConstraint("twf_order_id", name="uq_twf_queue_entries_order"),
         UniqueConstraint(
             "queue_entry_id", "twf_order_id", "owner_id", name="uq_twf_queue_entries_identity"

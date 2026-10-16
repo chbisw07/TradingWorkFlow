@@ -14,6 +14,12 @@ export type TWFQueueEntry = {
   order: TWFOrder;
 };
 
+export type TWFQueuePage = {
+  items: TWFQueueEntry[];
+  next_cursor: string | null;
+  has_more: boolean;
+};
+
 export type TWFQueueEvent = {
   event_id: string;
   queue_entry_id: string;
@@ -39,12 +45,16 @@ export class TWFQueueApiError extends Error {
 }
 
 export async function twfQueueApi<T>(path = "", body?: unknown): Promise<T> {
-  const response = await fetch("/api/v1/twf-queue" + (path ? "/" + path : ""), {
-    method: body === undefined ? "GET" : "POST",
-    headers: body === undefined ? {} : { "Content-Type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
-    cache: "no-store",
-  });
+  const response = await fetch(
+    "/api/v1/twf-queue" +
+      (path ? (path.startsWith("?") ? path : "/" + path) : ""),
+    {
+      method: body === undefined ? "GET" : "POST",
+      headers: body === undefined ? {} : { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      cache: "no-store",
+    },
+  );
   const data = await response.json();
   if (!response.ok)
     throw new TWFQueueApiError(

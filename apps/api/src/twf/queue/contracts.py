@@ -45,6 +45,12 @@ class QueueEntryView(Contract):
     order: OrderView
 
 
+class QueuePage(Contract):
+    items: tuple[QueueEntryView, ...]
+    next_cursor: str | None
+    has_more: bool
+
+
 class QueueEventView(Contract):
     event_id: UUID
     queue_entry_id: UUID

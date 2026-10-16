@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "../shell/icon";
 import {
   twfQueueApi,
   type TWFQueueEntry,
   type TWFQueueEvent,
+  type TWFQueuePage,
 } from "../../lib/twf-queue";
 
 type QueueTab = "Overview" | "TWF Order" | "Queue History";
@@ -41,6 +42,12 @@ export function QueueWorkspace({
   refreshKey: number;
 }) {
   const [entries, setEntries] = useState<TWFQueueEntry[]>([]);
+  const requestEpoch = useRef(0);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [stateFilter, setStateFilter] = useState<"ALL" | "READY" | "HELD">(
+    "ALL",
+  );
+  const [loadingOlder, setLoadingOlder] = useState(false);
   const [detail, setDetail] = useState<TWFQueueEntry | null>(null);
   const [history, setHistory] = useState<TWFQueueEvent[]>([]);
   const [tab, setTab] = useState<QueueTab>("Overview");
@@ -48,16 +55,21 @@ export function QueueWorkspace({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const refresh = useCallback(async () => {
+    const epoch = ++requestEpoch.current;
     try {
-      const rows = await twfQueueApi<TWFQueueEntry[]>("");
-      setEntries(rows);
+      const query = new URLSearchParams({ limit: "50" });
+      if (stateFilter !== "ALL") query.set("state", stateFilter);
+      const page = await twfQueueApi<TWFQueuePage>(`?${query}`);
+      if (epoch !== requestEpoch.current) return;
+      setEntries(page.items);
+      setNextCursor(page.next_cursor);
       setError("");
     } catch (e) {
-      setError((e as Error).message);
+      if (epoch === requestEpoch.current) setError((e as Error).message);
     } finally {
-      setLoading(false);
+      if (epoch === requestEpoch.current) setLoading(false);
     }
-  }, []);
+  }, [stateFilter]);
   useEffect(() => {
     void Promise.resolve().then(refresh);
   }, [refresh, refreshKey]);
@@ -81,6 +93,30 @@ export function QueueWorkspace({
       cancelled = true;
     };
   }, [selectedId, refreshKey]);
+  async function loadOlder() {
+    if (!nextCursor || loadingOlder) return;
+    setLoadingOlder(true);
+    const epoch = requestEpoch.current;
+    try {
+      const query = new URLSearchParams({ limit: "50", cursor: nextCursor });
+      if (stateFilter !== "ALL") query.set("state", stateFilter);
+      const page = await twfQueueApi<TWFQueuePage>(`?${query}`);
+      if (epoch !== requestEpoch.current) return;
+      setEntries((previous) => {
+        const seen = new Set(previous.map((entry) => entry.queue_entry_id));
+        return [
+          ...previous,
+          ...page.items.filter((entry) => !seen.has(entry.queue_entry_id)),
+        ];
+      });
+      setNextCursor(page.next_cursor);
+      setError("");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoadingOlder(false);
+    }
+  }
   async function changeState(entry: TWFQueueEntry) {
     if (busy) return;
     setBusy(true);
@@ -124,12 +160,12 @@ export function QueueWorkspace({
           {error} <button onClick={() => void refresh()}>Retry</button>
         </p>
       )}
-      <div className="twf-queue-summary" aria-label="Recent Queue summary">
+      <div className="twf-queue-summary" aria-label="Loaded Queue page summary">
         {(
           [
-            ["Recent", entries.length, "stack"],
-            ["Ready", ready, "check"],
-            ["Held", held, "history"],
+            ["Loaded", entries.length, "stack"],
+            ["Ready loaded", ready, "check"],
+            ["Held loaded", held, "history"],
           ] as const
         ).map(([label, count, icon]) => (
           <div className="twf-queue-summary-card" key={label}>
@@ -149,7 +185,22 @@ export function QueueWorkspace({
         <section className="orders-list" aria-label="TWF Queue">
           <div className="orders-list-head">
             <h2>TWF Queue</h2>
-            <span>FIFO · oldest admitted first</span>
+            <span>Newest admissions first · execution remains FIFO</span>
+          </div>
+          <div className="orders-queue-filters" aria-label="Queue state filter">
+            {(["ALL", "READY", "HELD"] as const).map((value) => (
+              <button
+                key={value}
+                aria-pressed={stateFilter === value}
+                onClick={() => {
+                  if (stateFilter === value) return;
+                  setLoading(true);
+                  setStateFilter(value);
+                }}
+              >
+                {value === "ALL" ? "All" : value === "READY" ? "Ready" : "Held"}
+              </button>
+            ))}
           </div>
           {loading ? (
             <p role="status">Loading Queue…</p>
@@ -233,9 +284,15 @@ export function QueueWorkspace({
               </table>
             </div>
           )}
-          <p className="orders-list-note">
-            First 50 by admission time · owner-scoped
-          </p>
+          <div className="orders-queue-pagination">
+            <span>Showing {entries.length} newest-first · owner-scoped</span>
+            {nextCursor && (
+              <button disabled={loadingOlder} onClick={() => void loadOlder()}>
+                {loadingOlder ? "Loading…" : "Load older"}
+              </button>
+            )}
+            <button onClick={() => void refresh()}>Back to newest</button>
+          </div>
         </section>
         {selectedId && (
           <aside className="orders-detail" aria-label="Queue details">

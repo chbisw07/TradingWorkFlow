@@ -70,7 +70,7 @@ def test_explicit_admission_replay_history_hold_release_and_no_broker(
     account_id, provider = account
     order = ready_order(client, account_id)
     oid = order["twf_order_id"]
-    assert client.get(BASE).json() == []
+    assert client.get(BASE).json()["items"] == []
     admitted = client.post(
         BASE + "/admit",
         json={"twf_order_id": oid, "expected_order_version": order["version"]},
@@ -87,7 +87,7 @@ def test_explicit_admission_replay_history_hold_release_and_no_broker(
     assert client.get("/api/v1/twf-orders/" + oid).json()["state"] == "QUEUED"
     assert client.get(BASE + "/by-order/" + oid).json() == entry
     assert client.get(BASE + "/" + entry["queue_entry_id"]).json() == entry
-    assert client.get(BASE).json() == [entry]
+    assert client.get(BASE).json()["items"] == [entry]
     assert client.post(BASE + "/admit", json={"twf_order_id": oid}, headers=HEADERS).json() == entry
     history = client.get(BASE + "/" + entry["queue_entry_id"] + "/history").json()
     assert [(event["sequence"], event["event_type"]) for event in history] == [
@@ -181,11 +181,20 @@ def test_draft_and_foreign_owner_cannot_admit_or_read(
     )
     assert rejected.status_code == 409
     assert rejected.json()["error"]["code"] == "ORDER_NOT_READY"
-    assert client.get(BASE).json() == []
+    assert client.get(BASE).json()["items"] == []
     order = ready_order(client, account_id)
     queued = client.post(
         BASE + "/admit", json={"twf_order_id": order["twf_order_id"]}, headers=HEADERS
     ).json()
+    second = ready_order(client, account_id)
+    assert (
+        client.post(
+            BASE + "/admit", json={"twf_order_id": second["twf_order_id"]}, headers=HEADERS
+        ).status_code
+        == 200
+    )
+    owner_cursor = client.get(BASE, params={"limit": 1}).json()["next_cursor"]
+    assert owner_cursor
     assert (
         client.post(
             "/api/v1/auth/login",
@@ -194,7 +203,10 @@ def test_draft_and_foreign_owner_cannot_admit_or_read(
         ).status_code
         == 200
     )
-    assert client.get(BASE).json() == []
+    assert client.get(BASE).json()["items"] == []
+    foreign_cursor = client.get(BASE, params={"limit": 1, "cursor": owner_cursor})
+    assert foreign_cursor.status_code == 400
+    assert foreign_cursor.json()["error"]["code"] == "INVALID_CURSOR"
     assert client.get(BASE + "/" + queued["queue_entry_id"]).status_code == 404
     assert client.get(BASE + "/by-order/" + order["twf_order_id"]).status_code == 404
     assert client.get(BASE + "/" + queued["queue_entry_id"] + "/history").status_code == 404
@@ -242,7 +254,7 @@ def test_client_cannot_assign_queue_authority(
         BASE + "/admit", json={"twf_order_id": order["twf_order_id"], field: value}, headers=HEADERS
     )
     assert result.status_code == 422
-    assert client.get(BASE).json() == []
+    assert client.get(BASE).json()["items"] == []
     assert account[1].calls == []
 
 
@@ -312,7 +324,7 @@ def test_terminal_orders_cannot_be_admitted(
     )
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "ORDER_NOT_READY"
-    assert client.get(BASE).json() == []
+    assert client.get(BASE).json()["items"] == []
     assert account[1].calls == []
 
 
@@ -397,12 +409,20 @@ def test_fifo_list_is_bounded_and_projects_exact_orders_without_history_queries(
     queue = queue_service(client)
     first = queue.admit(UUID(first_order["twf_order_id"]))
     second = queue.admit(UUID(second_order["twf_order_id"]))
-    assert [entry.queue_entry_id for entry in queue.list_entries()] == [
-        first.queue_entry_id,
+    assert [entry.queue_entry_id for entry in queue.list_entries().items] == [
         second.queue_entry_id,
+        first.queue_entry_id,
     ]
-    assert [entry.queue_entry_id for entry in queue.list_entries(limit=1)] == [first.queue_entry_id]
-    assert queue.list_entries(limit=2)[1].order.twf_order_id == UUID(second_order["twf_order_id"])
+    page = queue.list_entries(limit=1)
+    assert [entry.queue_entry_id for entry in page.items] == [second.queue_entry_id]
+    assert page.next_cursor and page.has_more
+    assert (
+        queue.list_entries(limit=1, cursor=page.next_cursor).items[0].queue_entry_id
+        == first.queue_entry_id
+    )
+    assert queue.list_entries(limit=2).items[0].order.twf_order_id == UUID(
+        second_order["twf_order_id"]
+    )
     assert client.get(BASE, params={"limit": 0}).status_code == 422
     assert client.get(BASE, params={"limit": 101}).status_code == 422
     assert account[1].calls == []

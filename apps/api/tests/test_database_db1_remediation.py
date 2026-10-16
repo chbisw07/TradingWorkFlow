@@ -30,7 +30,7 @@ from twf.infrastructure.sqlite_migration import (
     _source_rows,
     migrate_snapshot,
 )
-from twf.queue.errors import QueueError, QueueErrorCode
+from twf.queue.errors import QueueError
 from twf.queue.service import QueueService
 
 
@@ -347,13 +347,10 @@ def test_replay_rejects_genuine_state_corruption(client: TestClient, account: An
     order = ready_order(client, account[0])
     q = queue_service(client)
     entry = q.admit(UUID(order["twf_order_id"]))
-    # Known separate OE-3 F1 permits direct SQL incoherence. Do not fix that here;
-    # prove the coherent-read remediation still detects it on replay.
-    with service(client).factory.begin() as db:
+    # OE-3 hardening now rejects the former corruption at the database boundary.
+    with pytest.raises(IntegrityError), service(client).factory.begin() as db:
         db.execute(text("UPDATE twf_orders SET state='READY'"))
-    with pytest.raises(QueueError) as error:
-        q.admit(entry.twf_order_id)
-    assert error.value.code == QueueErrorCode.QUEUE_INVARIANT_FAILURE
+    assert q.admit(entry.twf_order_id) == entry
     assert len(q.history(entry.queue_entry_id)) == 1
 
 

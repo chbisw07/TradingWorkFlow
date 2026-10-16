@@ -13,7 +13,14 @@ from twf.api.brokers import Who
 from twf.api.errors import error_response
 from twf.infrastructure.identity import AuthSession, User
 from twf.orders.context import OrderContext
-from twf.queue.contracts import AdmitOrder, QueueChange, QueueEntryView, QueueEventView
+from twf.queue.contracts import (
+    AdmitOrder,
+    QueueChange,
+    QueueEntryView,
+    QueueEventView,
+    QueuePage,
+    QueueState,
+)
 from twf.queue.errors import QueueError, QueueErrorCode
 from twf.queue.service import QueueService
 
@@ -46,6 +53,7 @@ async def queue_error(request: Request, exc: Exception) -> JSONResponse:
     )
     status = {
         QueueErrorCode.UNAUTHORIZED: 401,
+        QueueErrorCode.INVALID_CURSOR: 400,
         QueueErrorCode.ORDER_NOT_FOUND: 404,
         QueueErrorCode.QUEUE_ENTRY_NOT_FOUND: 404,
         QueueErrorCode.ORDER_NOT_READY: 409,
@@ -62,9 +70,12 @@ async def queue_error(request: Request, exc: Exception) -> JSONResponse:
 
 @router.get("")
 def list_entries(
-    service: Service, limit: Annotated[int, Query(ge=1, le=100)] = 50
-) -> tuple[QueueEntryView, ...]:
-    return service.list_entries(limit=limit)
+    service: Service,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    cursor: str | None = None,
+    state: QueueState | None = None,
+) -> QueuePage:
+    return service.list_entries(limit=limit, cursor=cursor, state=state)
 
 
 @router.get("/by-order/{order_id}")
