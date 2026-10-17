@@ -69,7 +69,6 @@ export function useBrokerQuotes(base: string, instruments: Instrument[]) {
     let timeout: ReturnType<typeof setTimeout> | undefined;
     let controller: AbortController;
     async function poll() {
-      const started = Date.now();
       controller = new AbortController();
       timeout = setTimeout(() => controller.abort(), 4000);
       try {
@@ -101,10 +100,9 @@ export function useBrokerQuotes(base: string, instruments: Instrument[]) {
       } finally {
         clearTimeout(timeout);
         if (!disposed)
-          timer = setTimeout(
-            () => void poll(),
-            Math.max(0, 2000 - (Date.now() - started)),
-          );
+          // Pace from completion so a slow successful request is not followed by
+          // an immediate poll that trips provider admission and erases fresh data.
+          timer = setTimeout(() => void poll(), 2000);
       }
     }
     void poll();

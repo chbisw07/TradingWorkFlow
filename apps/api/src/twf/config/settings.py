@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     broker_secret_key: SecretStr | None = Field(default=None, repr=False)
     broker_callback_url: str = "http://localhost:3000/brokers/callback"
     broker_manual_trading_enabled: bool = False
+    queue_dispatch_enabled: bool = False
     broker_deadline_seconds: float = Field(default=20, ge=0.05, le=60)
 
     @field_validator("broker_callback_url")

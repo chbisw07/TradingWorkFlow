@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from twf.brokers.contracts import BrokerFailure, Instrument
+from twf.brokers.contracts import BrokerFailure, Credentials, Instrument
 from twf.brokers.order_contracts import (
     Capability,
     Choices,
@@ -473,6 +473,16 @@ class OrderService:
         claimed, tag = await self.broker.write(claim)
         if tag is None:
             return claimed
+        return await self._submit_claimed(claimed, tag, credentials, item)
+
+    async def _submit_claimed(
+        self, claimed: IntentView, tag: str, credentials: Credentials, item: Instrument
+    ) -> IntentView:
+        """Shared post-commit Broker V2 I/O for manual and governed Queue claims.
+
+        Caller owns the committed, unique claim. Never call this for recovery.
+        """
+        adapter = self.adapter()
         # The claim transaction has COMMITTED before the only provider write.
         order_id: str | None = None
         failure: str | None = UNKNOWN
@@ -490,7 +500,7 @@ class OrderService:
             pass
 
         def finish(db: Session) -> IntentView:
-            row = db.get(OrderIntent, intent_id, with_for_update=True)
+            row = db.get(OrderIntent, claimed.id, with_for_update=True)
             assert row is not None
             if row.status == "SUBMITTING":
                 row.status, row.failure, row.broker_order_id = status, failure, order_id

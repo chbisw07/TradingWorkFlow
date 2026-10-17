@@ -36,6 +36,7 @@ function SidebarItem({
       ) : (
         <Link
           href={item.href}
+          prefetch={item.planned ? false : undefined}
           className="nav-item"
           aria-current={active ? "page" : undefined}
           onClick={onNavigate}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { QueuePolicyControl } from "./queue-policy-control";
 import { Icon } from "../shell/icon";
 import {
   twfQueueApi,
@@ -36,11 +37,13 @@ export function QueueWorkspace({
   onSelect,
   onViewOrder,
   refreshKey,
+  accountId = "",
 }: {
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onViewOrder: (id: string) => void;
   refreshKey: number;
+  accountId?: string;
 }) {
   const [entries, setEntries] = useState<TWFQueueEntry[]>([]);
   const requestEpoch = useRef(0);
@@ -126,12 +129,23 @@ export function QueueWorkspace({
       setLoadingOlder(false);
     }
   }
-  async function changeState(entry: TWFQueueEntry) {
+  async function changeState(
+    entry: TWFQueueEntry,
+    action?: "dispatch" | "cancel",
+  ) {
+    if (
+      action === "dispatch" &&
+      !window.confirm(
+        `Dispatch ${entry.order.instrument.symbol} ${entry.order.terms.side} ${entry.order.terms.quantity} through the bound broker account?`,
+      )
+    )
+      return;
     if (busy) return;
     setBusy(true);
     setError("");
     try {
-      const path = entry.queue_state === "READY" ? "hold" : "release";
+      const path =
+        action || (entry.queue_state === "READY" ? "hold" : "release");
       const updated = await twfQueueApi<TWFQueueEntry>(
         `${entry.queue_entry_id}/${path}`,
         { expected_version: entry.version },
@@ -160,10 +174,7 @@ export function QueueWorkspace({
   const held = entries.filter((entry) => entry.queue_state === "HELD").length;
   return (
     <>
-      <p className="orders-boundary" role="note">
-        Broker submission is not enabled in OE-3. TWF Queue entries wait for
-        governed execution in a later phase.
-      </p>
+      <QueuePolicyControl accountId={accountId} />
       {error && (
         <p className="broker-notice" role="alert">
           {error} <button onClick={() => void refresh()}>Retry</button>
@@ -230,9 +241,11 @@ export function QueueWorkspace({
                     <th>Side</th>
                     <th>Qty</th>
                     <th>Order Type</th>
+                    <th>Source</th>
+                    <th>Mode</th>
                     <th>Queue State</th>
                     <th>Age</th>
-                    <th>Actions</th>
+                    <th className="queue-actions">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -252,7 +265,7 @@ export function QueueWorkspace({
                             setTab("Overview");
                           }}
                         >
-                          {entry.queue_entry_id.slice(0, 8)}…
+                          {entry.public_queue_id || entry.queue_entry_id}
                         </button>
                       </td>
                       <td>
@@ -260,7 +273,7 @@ export function QueueWorkspace({
                           className="orders-id"
                           onClick={() => onViewOrder(entry.twf_order_id)}
                         >
-                          {entry.twf_order_id.slice(0, 8)}…
+                          {entry.public_order_id || entry.twf_order_id}
                         </button>
                       </td>
                       <td>{displayDate(entry.admitted_at)}</td>
@@ -272,20 +285,70 @@ export function QueueWorkspace({
                       <td>{entry.order.terms.quantity}</td>
                       <td>{entry.order.terms.order_type}</td>
                       <td>
+                        <span className="queue-source-chip">
+                          {entry.source_kind || entry.order.provenance.source}
+                        </span>
+                      </td>
+                      <td>{entry.effective_dispatch_mode || "MANUAL"}</td>
+                      <td>
                         <span
                           className={`twf-order-state twf-queue-state-${entry.queue_state.toLowerCase()}`}
                         >
-                          {entry.queue_state}
+                          {entry.queue_state === "READY"
+                            ? entry.effective_dispatch_mode === "AUTO"
+                              ? "AWAITING AUTO DISPATCH"
+                              : "READY FOR DISPATCH"
+                            : entry.queue_state.replaceAll("_", " ")}
                         </span>
                       </td>
                       <td>{displayAge(entry.admitted_at)}</td>
-                      <td>
-                        <button
-                          disabled={busy}
-                          onClick={() => void changeState(entry)}
-                        >
-                          {entry.queue_state === "READY" ? "Hold" : "Release"}
-                        </button>
+                      <td className="queue-actions">
+                        <div>
+                          {!entry.broker_account_id && (
+                            <small>
+                              Legacy entry: no execution account. Cancel and
+                              create a new reviewed order.
+                            </small>
+                          )}
+                          {entry.queue_state === "READY" &&
+                            entry.effective_dispatch_mode !== "AUTO" &&
+                            entry.broker_account_id && (
+                              <button
+                                className="primary"
+                                disabled={busy}
+                                onClick={() =>
+                                  void changeState(entry, "dispatch")
+                                }
+                              >
+                                Dispatch
+                              </button>
+                            )}
+                          {["READY", "HELD"].includes(entry.queue_state) && (
+                            <>
+                              <button
+                                disabled={busy}
+                                onClick={() => void changeState(entry)}
+                              >
+                                {entry.queue_state === "READY"
+                                  ? "Hold"
+                                  : "Release"}
+                              </button>
+                              <button
+                                disabled={busy}
+                                onClick={() =>
+                                  void changeState(entry, "cancel")
+                                }
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          )}
+                          <button
+                            onClick={() => onSelect(entry.queue_entry_id)}
+                          >
+                            Details
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -326,12 +389,17 @@ export function QueueWorkspace({
                     {active.queue_state}
                   </span>
                   <small>{active.queue_entry_id}</small>
-                  <button
-                    disabled={busy}
-                    onClick={() => void changeState(active)}
-                  >
-                    {active.queue_state === "READY" ? "Hold" : "Release"}
-                  </button>
+                  <span>
+                    {active.source_kind} · {active.effective_dispatch_mode}
+                  </span>
+                  {["READY", "HELD"].includes(active.queue_state) && (
+                    <button
+                      disabled={busy}
+                      onClick={() => void changeState(active)}
+                    >
+                      {active.queue_state === "READY" ? "Hold" : "Release"}
+                    </button>
+                  )}
                 </div>
                 <nav
                   className="orders-detail-tabs"
@@ -418,6 +486,19 @@ export function QueueWorkspace({
                             ? ` · ${event.reason_message}`
                             : ""}
                         </span>
+                        {event.details &&
+                          Object.keys(event.details).length > 0 && (
+                            <dl>
+                              {Object.entries(event.details).map(
+                                ([key, value]) => (
+                                  <div key={key}>
+                                    <dt>{key.replaceAll("_", " ")}</dt>
+                                    <dd>{String(value ?? "—")}</dd>
+                                  </div>
+                                ),
+                              )}
+                            </dl>
+                          )}
                       </li>
                     ))}
                   </ol>

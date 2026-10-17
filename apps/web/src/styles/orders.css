@@ -295,12 +295,12 @@
   font-size: 1rem;
 }
 .twf-queue-state-ready {
-  color: var(--status-ready);
-  background: var(--surface-accent);
+  background: #e8f2ff;
+  color: #1763bd;
 }
 .twf-queue-state-held {
-  color: var(--text-secondary);
-  background: var(--surface-raised);
+  color: #8a5700;
+  background: #fff4d6;
 }
 .twf-queue-confirm-body {
   padding: 0.8rem 1rem;
@@ -510,4 +510,72 @@
     width: 100%;
     margin-left: 0;
   }
+}
+
+.orders-queue-policy {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+}
+.orders-queue-policy small {
+  flex-basis: 100%;
+}
+.orders-queue-policy button[aria-pressed="true"] {
+  background: #087cff;
+  color: white;
+}
+.twf-queue-state-dispatched {
+  background: #e0f5ea;
+  color: #087c4b;
+}
+.twf-queue-state-failed {
+  background: #fff0f1;
+  color: #c52b41;
+}
+.twf-queue-state-reconciliation_required {
+  background: #fff4d6;
+  color: #8a5700;
+}
+.twf-queue-state-cancelled {
+  background: #edf0f4;
+  color: #526174;
+}
+
+.queue-source-chip {
+  display: inline-block;
+  padding: 0.15rem 0.4rem;
+  border-radius: 0.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 0.75rem;
+}
+.twf-queue-state-dispatching {
+  background: #e8f2ff;
+  color: #1763bd;
+}
+
+.orders-table .queue-actions {
+  position: sticky;
+  right: 0;
+  background: var(--surface);
+  white-space: normal;
+}
+.orders-table th.queue-actions {
+  background: #eef5ff;
+  z-index: 2;
+}
+.queue-actions > div {
+  display: flex;
+  flex-wrap: wrap;
+  width: 10rem;
+  gap: 0.25rem;
+}
+.queue-actions button {
+  padding: 0.3rem 0.45rem;
+  font-size: 0.75rem;
 }

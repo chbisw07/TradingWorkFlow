@@ -1,0 +1,135 @@
+r alembic_version twf_migrator True True False False False
+r auth_sessions twf_migrator True True True True False
+r broker_accounts twf_migrator True True True True False
+r broker_attempts twf_migrator True True True True True
+r broker_order_intents twf_migrator True True True True False
+r broker_secrets twf_migrator True True True True False
+r dhan_market_data_connections twf_migrator True True True True False
+r dhan_market_data_secrets twf_migrator True True True True True
+r discovery_active_slots twf_migrator True True True True True
+r discovery_comparison_scopes twf_migrator True True True True False
+r discovery_episodes twf_migrator True True True True False
+r discovery_llm_explanations twf_migrator True True True True False
+r discovery_market_context twf_migrator True True True True False
+r discovery_observations twf_migrator True True True True False
+r discovery_projection_checkpoints twf_migrator True True True True False
+r discovery_scan_admissions twf_migrator True True True True False
+r discovery_scan_evidence_series twf_migrator True True True True False
+r discovery_scan_matches twf_migrator True True True True False
+r discovery_scan_runs twf_migrator True True True True False
+r discovery_settings twf_migrator True True True True False
+r discovery_snapshots twf_migrator True True True True False
+r discovery_temporal_lanes twf_migrator True True True True False
+r discovery_transitions twf_migrator True True True True False
+r fno_liquidity_cache twf_migrator True True True True False
+r instrument_metadata twf_migrator True True True True False
+r instrument_metadata_refreshes twf_migrator True True True True False
+r manual_order_previews twf_migrator True True True True True
+r mcp_connections twf_migrator True True True True False
+r mcp_oauth_attempts twf_migrator True True True True True
+r mcp_operations twf_migrator True True True True False
+r mcp_secrets twf_migrator True True True True True
+r preference_changes twf_migrator True True True False False
+r preference_profiles twf_migrator True True True True False
+r scanner_v2_derivative_templates twf_migrator True True True True True
+r scanner_v2_runs twf_migrator True True True False False
+r scanner_v2_saved twf_migrator True True True True False
+r twf_dispatch_attempts twf_migrator True True True True False
+r twf_order_events twf_migrator True True True False False
+r twf_order_public_ids twf_migrator True True True False False
+r twf_orders twf_migrator True True True True False
+r twf_public_id_counters twf_migrator True True True True False
+r twf_queue_dispatch_policies twf_migrator True True True True False
+r twf_queue_entries twf_migrator True True True True False
+r twf_queue_events twf_migrator True True True False False
+r twf_queue_policy_events twf_migrator True True True False False
+r user_preferences twf_migrator True True True True False
+r users twf_migrator True True True True False
+r watchlist_activity twf_migrator True True True True True
+r watchlist_items twf_migrator True True True True True
+r watchlist_notes twf_migrator True True True True True
+r watchlists twf_migrator True True True True True
+FUNCTIONS
+twf_dispatch_attempt_identity_immutable  twf_migrator False
+twf_order_event_immutable  twf_migrator False
+twf_queue_event_immutable  twf_migrator False
+twf_queue_snapshot_immutable  twf_migrator False
+TRIGGERS
+twf_dispatch_attempts trg_twf_dispatch_identity O twf_dispatch_attempt_identity_immutable
+twf_order_events trg_twf_order_events_immutable O twf_order_event_immutable
+twf_order_public_ids trg_twf_order_public_ids_immutable O twf_queue_event_immutable
+twf_queue_entries trg_twf_queue_snapshot O twf_queue_snapshot_immutable
+twf_queue_events trg_twf_queue_events_immutable O twf_queue_event_immutable
+twf_queue_policy_events trg_twf_queue_policy_events_immutable O twf_queue_event_immutable
+OE4_CONSTRAINTS_AND_INDEXES
+constraint manual_order_previews ck_manual_order_previews_ck_manual_order_previews_consu_7c77 CHECK ((((consumed_at IS NULL) AND (order_id IS NULL) AND (validation IS NULL)) OR ((consumed_at IS NOT NULL) AND (order_id IS NOT NULL) AND (validation IS NOT NULL))))
+constraint manual_order_previews fk_manual_order_previews_order_id_twf_orders FOREIGN KEY (order_id) REFERENCES twf_orders(twf_order_id)
+constraint manual_order_previews fk_manual_order_previews_owner_id_users FOREIGN KEY (owner_id) REFERENCES users(id)
+constraint manual_order_previews pk_manual_order_previews PRIMARY KEY (preview_id)
+constraint manual_order_previews uq_manual_order_previews_order_id UNIQUE (order_id)
+constraint twf_dispatch_attempts fk_twf_dispatch_attempts_broker_intent_id_broker_order_intents FOREIGN KEY (broker_intent_id) REFERENCES broker_order_intents(id)
+constraint twf_dispatch_attempts fk_twf_dispatch_attempts_owner_id_users FOREIGN KEY (owner_id) REFERENCES users(id)
+constraint twf_dispatch_attempts fk_twf_dispatch_attempts_queue_entry_id_twf_queue_entries FOREIGN KEY (queue_entry_id) REFERENCES twf_queue_entries(queue_entry_id)
+constraint twf_dispatch_attempts pk_twf_dispatch_attempts PRIMARY KEY (dispatch_attempt_id)
+constraint twf_dispatch_attempts uq_twf_dispatch_attempts_broker_intent_id UNIQUE (broker_intent_id)
+constraint twf_dispatch_attempts uq_twf_dispatch_attempts_queue_entry_id UNIQUE (queue_entry_id)
+constraint twf_order_events fk_twf_order_events_order_owner FOREIGN KEY (twf_order_id, owner_id) REFERENCES twf_orders(twf_order_id, owner_id) ON DELETE RESTRICT
+constraint twf_order_events fk_twf_order_events_owner_id_users FOREIGN KEY (owner_id) REFERENCES users(id)
+constraint twf_order_events pk_twf_order_events PRIMARY KEY (event_id)
+constraint twf_order_public_ids fk_twf_order_public_ids_twf_order_id_twf_orders FOREIGN KEY (twf_order_id) REFERENCES twf_orders(twf_order_id)
+constraint twf_order_public_ids pk_twf_order_public_ids PRIMARY KEY (twf_order_id)
+constraint twf_order_public_ids uq_twf_order_public_ids_public_order_id UNIQUE (public_order_id)
+constraint twf_orders ck_twf_orders_ck_twf_orders_admitted_state_bound CHECK ((((state)::text <> ALL ((ARRAY['QUEUED'::character varying, 'SUBMITTING'::character varying, 'BROKER_ACCEPTED'::character varying, 'PARTIALLY_FILLED'::character varying, 'FILLED'::character varying])::text[])) OR (queue_entry_id IS NOT NULL)))
+constraint twf_orders ck_twf_orders_ck_twf_orders_pre_queue_unbound CHECK ((((state)::text <> ALL ((ARRAY['DRAFT'::character varying, 'READY'::character varying])::text[])) OR (queue_entry_id IS NULL)))
+constraint twf_orders ck_twf_orders_ck_twf_orders_version_positive CHECK ((version > 0))
+constraint twf_orders fk_twf_orders_owner_id_users FOREIGN KEY (owner_id) REFERENCES users(id)
+constraint twf_orders fk_twf_orders_queue_binding FOREIGN KEY (queue_entry_id, twf_order_id, owner_id) REFERENCES twf_queue_entries(queue_entry_id, twf_order_id, owner_id) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED
+constraint twf_orders pk_twf_orders PRIMARY KEY (twf_order_id)
+constraint twf_orders uq_twf_orders_id_owner UNIQUE (twf_order_id, owner_id)
+constraint twf_orders uq_twf_orders_queue_binding UNIQUE (twf_order_id, owner_id, queue_entry_id)
+constraint twf_public_id_counters pk_twf_public_id_counters PRIMARY KEY (bucket)
+constraint twf_queue_dispatch_policies ck_twf_queue_dispatch_policies_ck_twf_queue_dispatch_po_c724 CHECK (((current_dispatch_mode)::text = ANY ((ARRAY['MANUAL'::character varying, 'AUTO'::character varying])::text[])))
+constraint twf_queue_dispatch_policies fk_twf_queue_dispatch_policies_broker_account_id_broker_9d56 FOREIGN KEY (broker_account_id) REFERENCES broker_accounts(id)
+constraint twf_queue_dispatch_policies fk_twf_queue_dispatch_policies_owner_id_users FOREIGN KEY (owner_id) REFERENCES users(id)
+constraint twf_queue_dispatch_policies pk_twf_queue_dispatch_policies PRIMARY KEY (owner_id, broker_account_id)
+constraint twf_queue_entries ck_twf_queue_entries_active_state CHECK (((queue_state)::text = ANY ((ARRAY['READY'::character varying, 'HELD'::character varying, 'DISPATCHING'::character varying, 'DISPATCHED'::character varying, 'FAILED'::character varying, 'RECONCILIATION_REQUIRED'::character varying, 'CANCELLED'::character varying])::text[])))
+constraint twf_queue_entries ck_twf_queue_entries_ck_twf_queue_entries_version_positive CHECK ((version > 0))
+constraint twf_queue_entries ck_twf_queue_entries_dispatch_mode CHECK (((effective_dispatch_mode)::text = ANY ((ARRAY['MANUAL'::character varying, 'AUTO'::character varying])::text[])))
+constraint twf_queue_entries fk_twf_queue_dispatch_account FOREIGN KEY (broker_account_id) REFERENCES broker_accounts(id)
+constraint twf_queue_entries fk_twf_queue_entries_order_binding FOREIGN KEY (twf_order_id, owner_id, queue_entry_id) REFERENCES twf_orders(twf_order_id, owner_id, queue_entry_id) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED
+constraint twf_queue_entries fk_twf_queue_entries_order_owner FOREIGN KEY (twf_order_id, owner_id) REFERENCES twf_orders(twf_order_id, owner_id) ON DELETE RESTRICT
+constraint twf_queue_entries pk_twf_queue_entries PRIMARY KEY (queue_entry_id)
+constraint twf_queue_entries uq_twf_queue_entries_identity UNIQUE (queue_entry_id, twf_order_id, owner_id)
+constraint twf_queue_entries uq_twf_queue_entries_order UNIQUE (twf_order_id)
+constraint twf_queue_entries uq_twf_queue_public_id UNIQUE (public_queue_id)
+constraint twf_queue_events fk_twf_queue_events_entry_order_owner FOREIGN KEY (queue_entry_id, twf_order_id, owner_id) REFERENCES twf_queue_entries(queue_entry_id, twf_order_id, owner_id) ON DELETE RESTRICT
+constraint twf_queue_events pk_twf_queue_events PRIMARY KEY (event_id)
+constraint twf_queue_policy_events fk_twf_queue_policy_events_broker_account_id_broker_accounts FOREIGN KEY (broker_account_id) REFERENCES broker_accounts(id)
+constraint twf_queue_policy_events fk_twf_queue_policy_events_owner_id_users FOREIGN KEY (owner_id) REFERENCES users(id)
+constraint twf_queue_policy_events pk_twf_queue_policy_events PRIMARY KEY (event_id)
+constraint twf_queue_policy_events uq_twf_policy_version UNIQUE (owner_id, broker_account_id, version)
+index manual_order_previews ix_manual_order_previews_owner_expiry CREATE INDEX ix_manual_order_previews_owner_expiry ON public.manual_order_previews USING btree (owner_id, expires_at)
+index manual_order_previews pk_manual_order_previews CREATE UNIQUE INDEX pk_manual_order_previews ON public.manual_order_previews USING btree (preview_id)
+index manual_order_previews uq_manual_order_previews_order_id CREATE UNIQUE INDEX uq_manual_order_previews_order_id ON public.manual_order_previews USING btree (order_id)
+index twf_dispatch_attempts pk_twf_dispatch_attempts CREATE UNIQUE INDEX pk_twf_dispatch_attempts ON public.twf_dispatch_attempts USING btree (dispatch_attempt_id)
+index twf_dispatch_attempts uq_twf_dispatch_attempts_broker_intent_id CREATE UNIQUE INDEX uq_twf_dispatch_attempts_broker_intent_id ON public.twf_dispatch_attempts USING btree (broker_intent_id)
+index twf_dispatch_attempts uq_twf_dispatch_attempts_queue_entry_id CREATE UNIQUE INDEX uq_twf_dispatch_attempts_queue_entry_id ON public.twf_dispatch_attempts USING btree (queue_entry_id)
+index twf_order_events ix_twf_order_events_owner_order_seq CREATE UNIQUE INDEX ix_twf_order_events_owner_order_seq ON public.twf_order_events USING btree (owner_id, twf_order_id, sequence)
+index twf_order_events pk_twf_order_events CREATE UNIQUE INDEX pk_twf_order_events ON public.twf_order_events USING btree (event_id)
+index twf_order_public_ids pk_twf_order_public_ids CREATE UNIQUE INDEX pk_twf_order_public_ids ON public.twf_order_public_ids USING btree (twf_order_id)
+index twf_order_public_ids uq_twf_order_public_ids_public_order_id CREATE UNIQUE INDEX uq_twf_order_public_ids_public_order_id ON public.twf_order_public_ids USING btree (public_order_id)
+index twf_orders ix_twf_orders_owner_created CREATE INDEX ix_twf_orders_owner_created ON public.twf_orders USING btree (owner_id, created_at)
+index twf_orders pk_twf_orders CREATE UNIQUE INDEX pk_twf_orders ON public.twf_orders USING btree (twf_order_id)
+index twf_orders uq_twf_orders_id_owner CREATE UNIQUE INDEX uq_twf_orders_id_owner ON public.twf_orders USING btree (twf_order_id, owner_id)
+index twf_orders uq_twf_orders_queue_binding CREATE UNIQUE INDEX uq_twf_orders_queue_binding ON public.twf_orders USING btree (twf_order_id, owner_id, queue_entry_id)
+index twf_public_id_counters pk_twf_public_id_counters CREATE UNIQUE INDEX pk_twf_public_id_counters ON public.twf_public_id_counters USING btree (bucket)
+index twf_queue_dispatch_policies pk_twf_queue_dispatch_policies CREATE UNIQUE INDEX pk_twf_queue_dispatch_policies ON public.twf_queue_dispatch_policies USING btree (owner_id, broker_account_id)
+index twf_queue_entries ix_twf_queue_entries_owner_fifo CREATE INDEX ix_twf_queue_entries_owner_fifo ON public.twf_queue_entries USING btree (owner_id, admitted_at, queue_entry_id)
+index twf_queue_entries pk_twf_queue_entries CREATE UNIQUE INDEX pk_twf_queue_entries ON public.twf_queue_entries USING btree (queue_entry_id)
+index twf_queue_entries uq_twf_queue_entries_identity CREATE UNIQUE INDEX uq_twf_queue_entries_identity ON public.twf_queue_entries USING btree (queue_entry_id, twf_order_id, owner_id)
+index twf_queue_entries uq_twf_queue_entries_order CREATE UNIQUE INDEX uq_twf_queue_entries_order ON public.twf_queue_entries USING btree (twf_order_id)
+index twf_queue_entries uq_twf_queue_public_id CREATE UNIQUE INDEX uq_twf_queue_public_id ON public.twf_queue_entries USING btree (public_queue_id)
+index twf_queue_events ix_twf_queue_events_owner_entry_seq CREATE UNIQUE INDEX ix_twf_queue_events_owner_entry_seq ON public.twf_queue_events USING btree (owner_id, queue_entry_id, sequence)
+index twf_queue_events pk_twf_queue_events CREATE UNIQUE INDEX pk_twf_queue_events ON public.twf_queue_events USING btree (event_id)
+index twf_queue_policy_events pk_twf_queue_policy_events CREATE UNIQUE INDEX pk_twf_queue_policy_events ON public.twf_queue_policy_events USING btree (event_id)
+index twf_queue_policy_events uq_twf_policy_version CREATE UNIQUE INDEX uq_twf_policy_version ON public.twf_queue_policy_events USING btree (owner_id, broker_account_id, version)

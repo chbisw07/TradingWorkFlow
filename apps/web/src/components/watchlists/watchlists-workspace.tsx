@@ -1005,7 +1005,7 @@ export function WatchlistsWorkspace() {
           </button>
         </div>
         <small>
-          Opens the broker ticket. Preview and confirmation are required.
+          Opens a TWF Order ticket. Preview and Create Order are required.
         </small>
         {!accounts.length && (
           <Link href="/brokers">Connect a trading-enabled broker</Link>
@@ -2383,6 +2383,8 @@ export function WatchlistsWorkspace() {
       )}
       {ticket && (
         <OrderTicket
+          destination="TWF_ORDER"
+          origin={{ source: "WATCHLIST", reference: selected }}
           account={ticket.account}
           initial={ticket}
           close={() => setTicket(null)}

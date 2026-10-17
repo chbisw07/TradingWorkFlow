@@ -2,12 +2,12 @@ import { writeFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { chainFixture } from "../fixtures/option-chain";
 
-test("canonical chain, CE/PE Broker preview, partial data and responsive layout", async ({
+test("canonical chain, CE/PE TWF Order preview, partial data and responsive layout", async ({
   page,
 }, info) => {
   test.setTimeout(120000);
   await page.goto("/login");
-  await page.getByLabel("Username").fill(`broker-${info.project.name}`);
+  await page.getByLabel("Username").fill(`options-${info.project.name}`);
   await page
     .getByLabel("Password", { exact: true })
     .fill("test-only-browser-password");
@@ -36,7 +36,7 @@ test("canonical chain, CE/PE Broker preview, partial data and responsive layout"
     (
       await page.request.post("/api/v1/brokers/callback", {
         headers,
-        data: { state, request_token: "request123" },
+        data: { state, request_token: `options-request-${info.project.name}` },
       })
     ).ok(),
   ).toBeTruthy();
@@ -232,7 +232,8 @@ test("canonical chain, CE/PE Broker preview, partial data and responsive layout"
     await dialog.getByLabel("Price (₹)", { exact: true }).fill("147.05");
     const responsePromise = page.waitForResponse(
       (r) =>
-        r.url().endsWith("/option-preview") && r.request().method() === "POST",
+        r.url().endsWith("/api/v1/twf-orders/preview") &&
+        r.request().method() === "POST",
     );
     await dialog
       .getByRole("button", { name: `Preview ${action}`, exact: true })
@@ -240,19 +241,25 @@ test("canonical chain, CE/PE Broker preview, partial data and responsive layout"
     const response = await responsePromise;
     expect(response.ok()).toBeTruthy();
     const payload = response.request().postDataJSON();
-    expect(payload.contract).toEqual({
+    expect(payload).toMatchObject({
+      account_id: account,
+      side: action === "Buy" ? "BUY" : "SELL",
+      quantity: 65,
+      order_type: "LIMIT",
+      limit_price: "147.05",
+    });
+    expect(payload.reference).toBeTruthy();
+    expect(payload.native_token).toBeTruthy();
+    const preview = await response.json();
+    expect(preview.instrument).toMatchObject({
+      asset_class: "OPTION",
       exchange: "NFO",
-      underlying_symbol: "NIFTY",
       expiry: expiries[0],
       strike: "25000",
       option_type: side,
+      lot_size: 65,
     });
-    const intent = await response.json();
-    expect(intent.option_contract.canonical_id).toBe(
-      `NFO:NIFTY:${expiries[0]}:25000:${side}`,
-    );
-    expect(intent.option_contract.lot_size).toBe(65);
-    expect(intent.status).toBe("PREVIEWED");
+    expect(preview.source).toBe("MANUAL");
     await expect(
       dialog.getByRole("heading", { name: "Preview", exact: true }),
     ).toBeVisible();
@@ -262,7 +269,11 @@ test("canonical chain, CE/PE Broker preview, partial data and responsive layout"
       fullPage: true,
       animations: "disabled",
     });
-    // Explicitly stop at preview. Never click Confirm.
+    // Explicitly stop at preview. Never create a TWF Order or submit to a broker.
+    await expect(
+      dialog.getByRole("button", { name: "Create TWF Order" }),
+    ).toBeVisible();
+    await expect(dialog).toContainText("No broker order will be submitted");
     await dialog.getByRole("button", { name: "Close order ticket" }).click();
   }
   await page.getByRole("button", { name: "Clear selection" }).click();

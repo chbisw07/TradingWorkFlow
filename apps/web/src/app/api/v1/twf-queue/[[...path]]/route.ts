@@ -12,11 +12,14 @@ async function forward(
   const allowed =
     request.method === "GET"
       ? route === "" ||
+        route === "aliases/orders" ||
         new RegExp(`^${id}(?:/history)?$`).test(route) ||
-        new RegExp(`^by-order/${id}$`).test(route)
+        new RegExp(`^by-order/${id}$`).test(route) ||
+        new RegExp(`^policy/${id}$`).test(route)
       : request.method === "POST" &&
         (route === "admit" ||
-          new RegExp(`^${id}/(?:hold|release)$`).test(route));
+          new RegExp(`^${id}/(?:hold|release|dispatch|cancel)$`).test(route) ||
+          new RegExp(`^policy/${id}$`).test(route));
   const output = {
     "Content-Type": "application/json",
     "Cache-Control": "no-store",

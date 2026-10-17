@@ -104,7 +104,7 @@ test("grouped navigation, mobile focus trap, user menu, planned routes and Setti
     "INSIGHTS",
     "SETTINGS",
   ]);
-  await expect(nav.getByRole("link")).toHaveCount(17);
+  await expect(nav.getByRole("link")).toHaveCount(16);
   await expect(
     nav.getByRole("link", { name: "Scanners", exact: true }),
   ).toHaveAttribute("aria-current", "page");

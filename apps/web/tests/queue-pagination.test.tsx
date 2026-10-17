@@ -17,6 +17,7 @@ const entry = (id: string, state: "READY" | "HELD") =>
     version: 1,
     admitted_at: "2026-10-15T10:00:00Z",
     order: {
+      provenance: { source: "MANUAL", source_ref: null },
       instrument: { symbol: `SYM-${id}`, asset_class: "EQUITY" },
       terms: { side: "BUY", quantity: 1, order_type: "LIMIT" },
     },

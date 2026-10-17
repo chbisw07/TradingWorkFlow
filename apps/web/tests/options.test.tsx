@@ -177,7 +177,7 @@ test("partial quotes, missing PE, missing IV and Greeks preserve listed contract
   fireEvent.click(
     table().getByRole("button", { name: "Select NIFTY 24550 CE" }),
   );
-  expect(screen.getByText(/Quote unavailable.*Broker preview/)).toBeVisible();
+  expect(screen.getByText(/Quote unavailable.*Order preview/)).toBeVisible();
   expect(screen.getAllByText("—").length).toBeGreaterThan(4);
   expect(
     screen.getByText(

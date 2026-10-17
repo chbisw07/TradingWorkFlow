@@ -12,7 +12,12 @@ async function forward(
   const allowed =
     request.method === "GET"
       ? route === "" || new RegExp(`^${id}(?:/history)?$`).test(route)
-      : request.method === "POST" && (route === "" || route === "preview");
+      : request.method === "POST" &&
+        (route === "" ||
+          route === "preview" ||
+          new RegExp(`^from/(WATCHLIST|SCANNER)/${id}(?:/preview)?$`).test(
+            route,
+          ));
   const output = {
     "Content-Type": "application/json",
     "Cache-Control": "no-store",

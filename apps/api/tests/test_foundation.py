@@ -105,6 +105,11 @@ def test_database_boundary() -> None:
             "twf_orders",
             "manual_order_previews",
             "twf_queue_entries",
+            "twf_queue_dispatch_policies",
+            "twf_queue_policy_events",
+            "twf_dispatch_attempts",
+            "twf_public_id_counters",
+            "twf_order_public_ids",
             "twf_queue_events",
         }
         assert set(inspect(engine).get_table_names()) == set(Base.metadata.tables) | {
@@ -115,7 +120,9 @@ def test_database_boundary() -> None:
 
 
 def test_empty_migration_foundation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("TWF_DATABASE_URL", f"sqlite+pysqlite:///{tmp_path / 'migration.db'}")
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'migration.db'}"
+    monkeypatch.setenv("TWF_DATABASE_URL", database_url)
+    monkeypatch.setenv("TWF_MIGRATION_DATABASE_URL", database_url)
     config = Config(str(Path(__file__).parents[1] / "alembic.ini"))
     command.upgrade(config, "head")
     command.check(config)

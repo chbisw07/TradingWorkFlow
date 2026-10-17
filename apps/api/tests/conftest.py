@@ -23,7 +23,9 @@ def isolated_database_environment(
             monkeypatch.delenv(key)
     monkeypatch.chdir(tmp_path)
     if request.config.getoption("--db-backend") == "sqlite":
-        monkeypatch.setenv("TWF_DATABASE_URL", f"sqlite+pysqlite:///{tmp_path / 'isolated.db'}")
+        sqlite_url = f"sqlite+pysqlite:///{tmp_path / 'isolated.db'}"
+        monkeypatch.setenv("TWF_DATABASE_URL", sqlite_url)
+        monkeypatch.setenv("TWF_MIGRATION_DATABASE_URL", sqlite_url)
         yield
         return
     if not test_url:
@@ -38,7 +40,9 @@ def isolated_database_environment(
     with admin.connect() as connection:
         connection.execute(text(f'CREATE SCHEMA "{schema}"'))
     isolated = url.update_query_dict({"options": f"-csearch_path={schema}"})
-    monkeypatch.setenv("TWF_DATABASE_URL", isolated.render_as_string(hide_password=False))
+    isolated_url = isolated.render_as_string(hide_password=False)
+    monkeypatch.setenv("TWF_DATABASE_URL", isolated_url)
+    monkeypatch.setenv("TWF_MIGRATION_DATABASE_URL", isolated_url)
     try:
         yield
     finally:

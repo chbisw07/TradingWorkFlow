@@ -31,7 +31,7 @@ from twf.discovery.domain import (
 from twf.discovery.product_service import INDEX_SYMBOLS
 from twf.infrastructure.identity import AuthSession, User
 from twf.infrastructure.order_preview import ManualOrderPreviewRecord
-from twf.orders.context import OrderContext
+from twf.orders.context import OrderContext, _TrustedSubsystemOrigin
 from twf.orders.contracts import (
     AssetClass,
     CreateOrder,
@@ -229,19 +229,27 @@ def _utc(value: datetime) -> datetime:
     return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
 
 
-def _context(broker: BrokerService, who: Principal) -> OrderContext:
+def _context(
+    broker: BrokerService, who: Principal, origin: _TrustedSubsystemOrigin | None = None
+) -> OrderContext:
     with broker.factory() as db:
         user = db.get(User, who.user_id)
         login = db.get(AuthSession, who.session_hash)
         if user is None or login is None:
             raise BrokerFailure("UNAUTHORIZED", "Please sign in again.", 401)
+        if origin is not None:
+            return OrderContext.from_trusted_subsystem(user, login, origin)
         return OrderContext.from_authenticated_session(user, login)
 
 
 async def preview(
-    broker: BrokerService, who: Principal, payload: ManualOrderInput
+    broker: BrokerService,
+    who: Principal,
+    payload: ManualOrderInput,
+    *,
+    _origin: _TrustedSubsystemOrigin | None = None,
 ) -> ManualPreview:
-    _context(broker, who)
+    context = _context(broker, who, _origin)
     _, instrument, terms = await _resolve(broker, who, payload)
     now = datetime.now(UTC)
     preview_id = uuid4()
@@ -263,7 +271,8 @@ async def preview(
                 instrument=instrument.model_dump(mode="json"),
                 terms=terms.model_dump(mode="json"),
                 notes=payload.notes,
-                source=Source.MANUAL.value,
+                source=context.source.value,
+                source_ref=context.source_ref,
                 created_at=now,
                 expires_at=expires_at,
             )
@@ -274,6 +283,7 @@ async def preview(
         instrument=instrument,
         terms=terms,
         account_id=payload.account_id,
+        source=context.source,
     )
 
 
@@ -287,7 +297,10 @@ class _ClaimLost(Exception):
 
 
 def _reviewed(
-    broker: BrokerService, who: Principal, payload: ManualCreateInput
+    broker: BrokerService,
+    who: Principal,
+    payload: ManualCreateInput,
+    context: OrderContext,
 ) -> tuple[OrderInstrument, OrderTerms, str, UUID | None, ReadinessResult | None]:
     with broker.factory() as db:
         bound = db.get(ManualOrderPreviewRecord, payload.preview_id)
@@ -306,7 +319,8 @@ def _reviewed(
         if (
             terms != _terms(payload)
             or bound.notes != payload.notes
-            or bound.source != Source.MANUAL.value
+            or bound.source != context.source.value
+            or bound.source_ref != context.source_ref
         ):
             raise BrokerFailure(
                 "PREVIEW_MISMATCH", "Order details changed. Preview the order again.", 409
@@ -368,7 +382,8 @@ def _create_atomic(
             or OrderInstrument.model_validate(bound.instrument) != instrument
             or OrderTerms.model_validate(bound.terms) != terms
             or bound.notes != payload.notes
-            or bound.source != Source.MANUAL.value
+            or bound.source != context.source.value
+            or bound.source_ref != context.source_ref
         ):
             raise BrokerFailure(
                 "PREVIEW_MISMATCH", "Order details changed. Preview the order again.", 409
@@ -388,7 +403,7 @@ def _create_atomic(
         request = CreateOrder(
             instrument=instrument,
             terms=terms,
-            provenance=OrderProvenance(source=Source.MANUAL),
+            provenance=OrderProvenance(source=context.source, source_ref=context.source_ref),
             notes=payload.notes,
         )
         draft = service.create_order(request)
@@ -420,14 +435,18 @@ def _create_atomic(
 
 
 async def create(
-    broker: BrokerService, who: Principal, payload: ManualCreateInput
+    broker: BrokerService,
+    who: Principal,
+    payload: ManualCreateInput,
+    *,
+    _origin: _TrustedSubsystemOrigin | None = None,
 ) -> ManualCreation:
     # The whole transaction, including the conditional claim, is retried only
     # for known SQLite contention. Every retry reloads preview and catalog truth.
     for attempt in range(6):
         try:
-            context = _context(broker, who)
-            instrument, terms, _, existing_id, validation = _reviewed(broker, who, payload)
+            context = _context(broker, who, _origin)
+            instrument, terms, _, existing_id, validation = _reviewed(broker, who, payload, context)
             if existing_id is not None:
                 assert validation is not None
                 reader = OrderService(
@@ -462,8 +481,8 @@ async def create(
         await asyncio.sleep(0.01 * (attempt + 1))
     # A final read can still recover a winner that committed on the last attempt.
     try:
-        context = _context(broker, who)
-        _, _, _, existing_id, validation = _reviewed(broker, who, payload)
+        context = _context(broker, who, _origin)
+        _, _, _, existing_id, validation = _reviewed(broker, who, payload, context)
         if existing_id is not None:
             assert validation is not None
             reader = OrderService(

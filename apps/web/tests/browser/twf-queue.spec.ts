@@ -67,7 +67,7 @@ test("OE-3 admits one READY order and audits Hold/Release without broker submiss
   await expect(confirmation).toBeVisible();
   await expect(confirmation.getByText(orderId)).toBeVisible();
   await expect(
-    confirmation.getByText(/does not submit an order to the broker/),
+    confirmation.getByText(/MANUAL entries wait for DISPATCH/),
   ).toBeVisible();
   await expect(
     confirmation.getByRole("button", { name: "Add to Queue" }),
@@ -144,6 +144,7 @@ test("Queue operator can page older rows and return to newest", async ({
     version: 1,
     admitted_at: "2026-10-15T10:00:00Z",
     order: {
+      provenance: { source: "MANUAL", source_ref: null },
       state: "QUEUED",
       instrument: { symbol: `SYM-${id}`, asset_class: "EQUITY" },
       terms: { side: "BUY", quantity: 1, order_type: "LIMIT" },

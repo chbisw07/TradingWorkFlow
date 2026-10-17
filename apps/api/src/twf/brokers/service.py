@@ -119,6 +119,23 @@ class BrokerService:
 
     @staticmethod
     def authorize(db: Session, who: Principal) -> None:
+        from twf.brokers.queue_authority import _is_issued
+        from twf.infrastructure.twf_queue import TWFQueueEntryRecord
+
+        if _is_issued(who):
+            entry = db.get(TWFQueueEntryRecord, who.queue_entry_id)
+            user = db.get(User, who.user_id)
+            if (
+                entry is None
+                or user is None
+                or not user.is_active
+                or entry.owner_id != who.user_id
+                or entry.broker_account_id != who.account_id
+                or entry.effective_dispatch_mode != "AUTO"
+                or entry.queue_state not in {"READY", "DISPATCHING"}
+            ):
+                raise BrokerFailure("UNAUTHORIZED", "Invalid Queue dispatch authority.", 401)
+            return
         login = db.get(AuthSession, who.session_hash, with_for_update=True)
         user = db.get(User, who.user_id)
         if (
@@ -134,6 +151,10 @@ class BrokerService:
     @staticmethod
     def owned(db: Session, who: Principal, account_id: UUID) -> BrokerAccount:
         BrokerService.authorize(db, who)
+        from twf.brokers.queue_authority import _is_issued
+
+        if _is_issued(who) and who.account_id != account_id:
+            raise BrokerFailure("UNAUTHORIZED", "Queue account mismatch.", 401)
         row = db.scalar(
             select(BrokerAccount)
             .where(BrokerAccount.id == account_id, BrokerAccount.user_id == who.user_id)

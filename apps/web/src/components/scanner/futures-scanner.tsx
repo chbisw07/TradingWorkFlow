@@ -1435,7 +1435,7 @@ export function FuturesScanner({ active }: { active: boolean }) {
                                 }
                                 title={
                                   broker
-                                    ? "Open Broker V2 preview for exact contract"
+                                    ? "Open TWF Order preview for exact contract"
                                     : "Connect a futures-capable broker"
                                 }
                                 onClick={() => void trade(row, "BUY")}
@@ -1451,7 +1451,7 @@ export function FuturesScanner({ active }: { active: boolean }) {
                                 }
                                 title={
                                   broker
-                                    ? "Open Broker V2 preview for exact contract"
+                                    ? "Open TWF Order preview for exact contract"
                                     : "Connect a futures-capable broker"
                                 }
                                 onClick={() => void trade(row, "SELL")}
@@ -1798,6 +1798,8 @@ export function FuturesScanner({ active }: { active: boolean }) {
       </div>
       {ticket && (
         <OrderTicket
+          destination="TWF_ORDER"
+          origin={{ source: "SCANNER", reference: run!.id }}
           account={ticket.account}
           initial={{ instrument: ticket.instrument, side: ticket.side }}
           close={() => setTicket(null)}

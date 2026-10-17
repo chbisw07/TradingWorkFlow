@@ -1,10 +1,31 @@
 import type { TWFOrder } from "./twf-orders";
 
+export type QueuePolicy = {
+  broker_account_id: string;
+  current_dispatch_mode: "MANUAL" | "AUTO";
+  version: number;
+  updated_at: string;
+  execution_enabled: boolean;
+};
+export type QueueState =
+  | "READY"
+  | "HELD"
+  | "DISPATCHING"
+  | "DISPATCHED"
+  | "FAILED"
+  | "RECONCILIATION_REQUIRED"
+  | "CANCELLED";
 export type TWFQueueEntry = {
+  effective_dispatch_mode?: "MANUAL" | "AUTO";
+  broker_account_id?: string | null;
+  source_kind?: string;
+  source_reference?: string | null;
+  public_order_id?: string | null;
+  public_queue_id?: string | null;
   queue_entry_id: string;
   twf_order_id: string;
   owner_id: string;
-  queue_state: "READY" | "HELD";
+  queue_state: QueueState;
   version: number;
   admitted_at: string;
   updated_at: string;
@@ -26,9 +47,10 @@ export type TWFQueueEvent = {
   twf_order_id: string;
   sequence: number;
   queue_version: number;
-  event_type: "QUEUE_ADMITTED" | "QUEUE_HELD" | "QUEUE_RELEASED";
-  from_state: "READY" | "HELD" | null;
-  to_state: "READY" | "HELD";
+  event_type: string;
+  details?: Record<string, unknown>;
+  from_state: QueueState | null;
+  to_state: QueueState;
   actor: string;
   reason_code: string | null;
   reason_message: string | null;

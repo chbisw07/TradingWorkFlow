@@ -37,11 +37,11 @@ test("complete broker journey, both themes, responsive tables and disconnect", a
       const state = new URLSearchParams(
         url.searchParams.get("redirect_params") || "",
       ).get("state");
+      const callbackUrl = `http://127.0.0.1:3100/brokers/callback?status=success&request_token=broker-${testInfo.project.name}&state=${state}`;
       await route.fulfill({
-        status: 302,
-        headers: {
-          location: `http://127.0.0.1:3100/brokers/callback?status=success&request_token=request123&state=${state}`,
-        },
+        status: 200,
+        contentType: "text/html",
+        body: `<!doctype html><title>Broker callback</title><script>location.replace(${JSON.stringify(callbackUrl)})</script>`,
       });
     },
   );
@@ -115,11 +115,20 @@ test("complete broker journey, both themes, responsive tables and disconnect", a
           page
             .getByRole("row", { name: /HDFCBANK26OCT730PE/ })
             .getByRole("cell"),
-        ).toHaveText(["NRML", "0", "0", "20.15", "-1,007.5", "0", "-1,007.5"]);
+        ).toHaveText([
+          "BROKER_EXTERNAL",
+          "NRML",
+          "0",
+          "0",
+          "20.15",
+          "-1,007.5",
+          "0",
+          "-1,007.5",
+        ]);
         const open = page.getByRole("row", { name: /NIFTY26OCT25000CE/ });
-        await expect(open.getByRole("cell").nth(4)).toHaveText("10");
-        await expect(open.getByRole("cell").nth(5)).toHaveText("30");
-        await expect(open.getByRole("cell").nth(6)).toHaveText("40");
+        await expect(open.getByRole("cell").nth(5)).toHaveText("10");
+        await expect(open.getByRole("cell").nth(6)).toHaveText("30");
+        await expect(open.getByRole("cell").nth(7)).toHaveText("40");
         await expect(
           page.getByRole("row", { name: /Totals/ }).getByRole("cell"),
         ).toHaveText(["-997.5", "30", "-967.5"]);

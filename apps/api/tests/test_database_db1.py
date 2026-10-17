@@ -96,7 +96,9 @@ def sqlite_snapshot(
 ) -> Iterator[tuple[Path, dict[str, Any]]]:
     path = tmp_path / "source.sqlite"
     with monkeypatch.context() as patch:
-        patch.setenv("TWF_DATABASE_URL", f"sqlite+pysqlite:///{path}")
+        snapshot_url = f"sqlite+pysqlite:///{path}"
+        patch.setenv("TWF_DATABASE_URL", snapshot_url)
+        patch.setenv("TWF_MIGRATION_DATABASE_URL", snapshot_url)
         command.upgrade(Config(CONFIG), "head")
         settings = Settings(
             broker_manual_trading_enabled=True,

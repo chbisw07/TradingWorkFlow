@@ -11,14 +11,15 @@ import logging
 import sqlite3
 import time
 from datetime import UTC, datetime
-from typing import Any, cast
+from typing import Any, Literal, cast
 from uuid import UUID, uuid4
 
 from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError, OperationalError
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import Session, object_session, sessionmaker
 
+from twf.infrastructure.dispatch import OrderPublicID, PublicIDCounter
 from twf.infrastructure.identity import AuthSession, User
 from twf.infrastructure.twf_order import TWFOrderEventRecord, TWFOrderRecord
 from twf.infrastructure.twf_queue import TWFQueueEntryRecord, TWFQueueEventRecord
@@ -33,6 +34,8 @@ from twf.queue.contracts import (
     QueueState,
 )
 from twf.queue.errors import QueueError, QueueErrorCode
+from twf.queue.policy import locked_policy
+from twf.queue.public_ids import allocate
 
 logger = logging.getLogger(__name__)
 _AUTHORITY = "TWF_QUEUE"
@@ -43,7 +46,16 @@ def _utc(value: datetime) -> datetime:
 
 
 def _entry_view(row: TWFQueueEntryRecord, order: TWFOrderRecord) -> QueueEntryView:
+    db = object_session(row)
+    alias = db.get(OrderPublicID, order.twf_order_id) if db else None
     return QueueEntryView(
+        public_order_id=alias.public_order_id if alias else None,
+        effective_dispatch_mode=cast(Literal["MANUAL", "AUTO"], row.effective_dispatch_mode),
+        broker_account_id=row.broker_account_id,
+        policy_version=row.policy_version,
+        source_kind=row.source_kind,
+        source_reference=row.source_reference,
+        public_queue_id=row.public_queue_id,
         queue_entry_id=row.queue_entry_id,
         twf_order_id=row.twf_order_id,
         owner_id=row.owner_id,
@@ -60,6 +72,7 @@ def _entry_view(row: TWFQueueEntryRecord, order: TWFOrderRecord) -> QueueEntryVi
 
 def _event_view(row: TWFQueueEventRecord) -> QueueEventView:
     return QueueEventView(
+        details=row.details,
         event_id=row.event_id,
         queue_entry_id=row.queue_entry_id,
         twf_order_id=row.twf_order_id,
@@ -170,7 +183,16 @@ class QueueService:
             or entry.owner_id != owner_id
             or order.owner_id != owner_id
             or order.twf_order_id != order_id
-            or order.state != OrderState.QUEUED.value
+            or order.state
+            not in {
+                "READY": {"QUEUED"},
+                "HELD": {"QUEUED"},
+                "DISPATCHING": {"SUBMITTING"},
+                "RECONCILIATION_REQUIRED": {"SUBMITTING"},
+                "DISPATCHED": {"BROKER_ACCEPTED", "PARTIALLY_FILLED", "FILLED"},
+                "FAILED": {"FAILED", "REJECTED"},
+                "CANCELLED": {"CANCELLED"},
+            }.get(entry.queue_state, set())
             or order.queue_entry_id != entry.queue_entry_id
         ):
             raise QueueError(
@@ -178,8 +200,15 @@ class QueueService:
             )
         return _entry_view(entry, order)
 
-    def _admit_once(self, order_id: UUID, expected_order_version: int | None) -> QueueEntryView:
+    def _admit_once(
+        self, order_id: UUID, expected_order_version: int | None, broker_account_id: UUID | None
+    ) -> QueueEntryView:
         with self.sessions() as db, db.begin():
+            if db.get_bind().dialect.name == "sqlite":
+                # Reserve the writer before any read snapshot, as Broker V2 does.
+                db.execute(
+                    update(PublicIDCounter).where(PublicIDCounter.bucket == "").values(value=0)
+                )
             owner_id = self._owner(db)
             order = self._owned_order(db, owner_id, order_id)
             existing = self._existing_admission(db, owner_id, order_id)
@@ -190,8 +219,16 @@ class QueueService:
                 raise QueueError(QueueErrorCode.ORDER_NOT_READY, "Order is not READY")
             if expected_order_version is not None and order.version != expected_order_version:
                 raise QueueError(QueueErrorCode.ORDER_VERSION_CONFLICT, "Order version changed")
+            policy = locked_policy(db, owner_id, broker_account_id) if broker_account_id else None
+            provenance = order_view(order).provenance
             now = datetime.now(UTC)
             entry = TWFQueueEntryRecord(
+                effective_dispatch_mode=policy.current_dispatch_mode if policy else "MANUAL",
+                broker_account_id=broker_account_id,
+                policy_version=policy.version if policy else 0,
+                source_kind=provenance.source.value,
+                source_reference=provenance.source_ref,
+                public_queue_id=allocate(db.connection(), "QID", now),
                 queue_entry_id=uuid4(),
                 twf_order_id=order_id,
                 owner_id=owner_id,
@@ -263,6 +300,13 @@ class QueueService:
                     sequence=1,
                     queue_version=1,
                     event_type=QueueEventType.QUEUE_ADMITTED.value,
+                    details={
+                        "effective_dispatch_mode": entry.effective_dispatch_mode,
+                        "policy_version": entry.policy_version,
+                        "source_kind": entry.source_kind,
+                        "source_reference": entry.source_reference,
+                        "broker_account_id": str(broker_account_id) if broker_account_id else None,
+                    },
                     from_state=None,
                     to_state=QueueState.READY.value,
                     actor=self.context.actor,
@@ -277,10 +321,16 @@ class QueueService:
         logger.info("twf_queue_admitted", extra={"queue_entry_id": str(output.queue_entry_id)})
         return output
 
-    def admit(self, order_id: UUID, *, expected_order_version: int | None = None) -> QueueEntryView:
+    def admit(
+        self,
+        order_id: UUID,
+        *,
+        expected_order_version: int | None = None,
+        broker_account_id: UUID | None = None,
+    ) -> QueueEntryView:
         for attempt in range(8):
             try:
-                return self._admit_once(order_id, expected_order_version)
+                return self._admit_once(order_id, expected_order_version, broker_account_id)
             except _AdmissionRace:
                 pass
             except IntegrityError as exc:

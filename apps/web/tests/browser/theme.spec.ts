@@ -20,12 +20,12 @@ test("themes switch without changing layout and persist across reloads", async (
   await page.goto("/");
   const root = page.locator("html");
   const toggle = page.getByRole("button", { name: "Light theme" });
-  await expect(root).toHaveAttribute("data-theme", "dark");
+  await expect(root).toHaveAttribute("data-theme", "light");
   const initial = await page.getByRole("main").boundingBox();
   await toggle.focus();
   await page.keyboard.press("Space");
-  await expect(toggle).toHaveAttribute("aria-pressed", "true");
-  await expect(root).toHaveAttribute("data-theme", "light");
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  await expect(root).toHaveAttribute("data-theme", "dark");
   expect(await page.getByRole("main").boundingBox()).toEqual(initial);
   expect(
     await page.evaluate(
@@ -33,19 +33,19 @@ test("themes switch without changing layout and persist across reloads", async (
     ),
   ).toBe(true);
   expect(await root.evaluate((el) => getComputedStyle(el).colorScheme)).toBe(
-    "light",
+    "dark",
   );
   await page.screenshot({
-    path: testInfo.outputPath("light.png"),
+    path: testInfo.outputPath("dark.png"),
     fullPage: true,
   });
   await page.reload();
-  await expect(root).toHaveAttribute("data-theme", "light");
-  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await expect(root).toHaveAttribute("data-theme", "dark");
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
   await toggle.click();
-  await expect(root).toHaveAttribute("data-theme", "dark");
+  await expect(root).toHaveAttribute("data-theme", "light");
   await page.reload();
-  await expect(root).toHaveAttribute("data-theme", "dark");
+  await expect(root).toHaveAttribute("data-theme", "light");
   expect(errors).toEqual([]);
 });
 

@@ -214,7 +214,7 @@ source; do not treat a successful restore command alone as proof of fidelity.
 
 For the 16 October 2026 OE-3 live role cutover, the retained stopped-writer
 custom-format dump includes original owner/ACL metadata. A separate disposable
-restore *without* `--no-owner --no-acl`, into a database initially owned by
+restore _without_ `--no-owner --no-acl`, into a database initially owned by
 `twf_app` after provisioning the source roles, reproduced the pre-cutover owners
 and all 46 application-table content fingerprints. This is a rehearsed metadata
 rollback artifact, not permission to restore stale data over newer writes. See
@@ -265,3 +265,7 @@ replication, or reverse synchronization is implemented.
 
 Version: DB-1, 2026-10-15. Review status belongs to the implementation report;
 this runbook does not freeze OE-3 or authorize an OE-4 worker.
+
+### OE-4 and future object registration
+
+The role tool uses an exact schema registry. Migration 0028 adds five registered tables and zero sequences. A migration that adds any runtime table, sequence, or protected function must declare it and its minimum operations in `tools/postgres_roles.py`; otherwise `harden`/`verify` refuses the schema. Never repair this with an ad-hoc live GRANT. Stop writers, take and restore-verify a dump, apply the canonical policy, verify exact ownership/grants and rollback-only denial probes, then restart the API. The OE-4 live procedure and evidence are recorded in [TWF_OE4_RUNTIME_PRIVILEGE_REMEDIATION_REPORT.md](TWF_OE4_RUNTIME_PRIVILEGE_REMEDIATION_REPORT.md).

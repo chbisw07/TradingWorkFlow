@@ -42,6 +42,7 @@ export function OrdersWorkspace() {
       : pathname === "/trade/positions"
         ? "Positions"
         : "Orders";
+  const [aliases, setAliases] = useState<Record<string, string>>({});
   const [orders, setOrders] = useState<TWFOrder[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [accountId, setAccountId] = useState("");
@@ -60,6 +61,9 @@ export function OrdersWorkspace() {
     try {
       const rows = await twfOrdersApi<TWFOrder[]>("");
       setOrders(rows);
+      void twfQueueApi<Record<string, string>>("aliases/orders")
+        .then(setAliases)
+        .catch(() => {});
       setError("");
     } catch (e) {
       setError((e as Error).message);
@@ -137,6 +141,7 @@ export function OrdersWorkspace() {
       const entry = await twfQueueApi<TWFQueueEntry>("admit", {
         twf_order_id: confirmOrder.twf_order_id,
         expected_order_version: confirmOrder.version,
+        broker_account_id: accountId || undefined,
       });
       setDetail(entry.order);
       setConfirmOrder(null);
@@ -212,9 +217,9 @@ export function OrdersWorkspace() {
       </nav>
       {workspaceTab === "Orders" && (
         <p className="orders-boundary" role="note">
-          Creating a TWF Order records a validated intent. Queue admission
-          requires a separate Add to Queue action. No broker submission occurs
-          here.
+          Creating a TWF Order records a validated intent. Add to Queue is a
+          separate action: MANUAL entries wait for Dispatch; AUTO entries may
+          execute after fresh checks.
         </p>
       )}
       {workspaceTab === "Orders" && !account && (
@@ -278,7 +283,7 @@ export function OrdersWorkspace() {
                             }}
                             aria-label={`View order ${order.twf_order_id}`}
                           >
-                            {order.twf_order_id.slice(0, 8)}…
+                            {aliases[order.twf_order_id] || order.twf_order_id}
                           </button>
                         </td>
                         <td>{displayDate(order.created_at)}</td>
@@ -533,6 +538,7 @@ export function OrdersWorkspace() {
         </div>
       ) : workspaceTab === "Queue" ? (
         <QueueWorkspace
+          accountId={accountId}
           selectedId={queueSelection}
           onSelect={setQueueSelection}
           onViewOrder={viewOrder}
@@ -543,6 +549,8 @@ export function OrdersWorkspace() {
       )}
       {confirmOrder && (
         <QueueAdmissionDialog
+          accountId={accountId}
+          accountName={account?.name || "No execution account"}
           order={confirmOrder}
           busy={queueBusy}
           onCancel={() => setConfirmOrder(null)}

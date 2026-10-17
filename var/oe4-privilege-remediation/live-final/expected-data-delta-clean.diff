@@ -1,0 +1,41 @@
+--- var/oe4-privilege-remediation/live-final/before-clean.txt	2026-10-16 22:15:41.133954795 +0530
++++ var/oe4-privilege-remediation/live-final/after-clean.txt	2026-10-16 22:18:51.133449244 +0530
+@@ -1,6 +1,6 @@
+ alembic_version|1|8cd545e66fa512186f4f5c222c993032
+-auth_sessions|54|bfb1b313870c2829e6c07ccd6497960d
+-broker_accounts|1|96a72c67aee43edba02dbc5d1dfdf36b
++auth_sessions|58|2a2d700d45a0220526c252935c180a0c
++broker_accounts|1|43d7100b1fb93a121ff0f967a3f65ed2
+ broker_attempts|1|84fc9310d1fba4457baa53c80cd57e05
+ broker_order_intents|10|cdbfd386d6d50d9897ff4aa6ea31bf93
+ broker_secrets|1|96e79ec06bfba107ae4f9d457a1e12b5
+@@ -24,7 +24,7 @@
+ fno_liquidity_cache|1|34520159713a96dcea9f0ecf51a2cc92
+ instrument_metadata|2603|4062e0af10a3322214f96f30f86127a0
+ instrument_metadata_refreshes|1|f5af02384769fc95545da9ecd0660e3e
+-manual_order_previews|3|e5944dd4a5a8fc8ef84d821100f3dd33
++manual_order_previews|4|1925a8b7ddea6bba3f9b5a0e6de0f6f0
+ mcp_connections|23|3b3924a46eb6ed99cf6d3386fddb9c66
+ mcp_oauth_attempts|7|ba39ddd9a68d2ccc181d123ce50374f0
+ mcp_operations|460|fa2a89001b688d11ef188fcbe57a24d0
+@@ -35,14 +35,14 @@
+ scanner_v2_runs|147|f6aa492bf6013960c8e47c52c734809c
+ scanner_v2_saved|0|d41d8cd98f00b204e9800998ecf8427e
+ twf_dispatch_attempts|0|d41d8cd98f00b204e9800998ecf8427e
+-twf_order_events|5|9426b5cb5758c83a739c2961100c7381
+-twf_order_public_ids|1|4695154337d0e41813376f4f1e8f2a11
+-twf_orders|1|052a9b20dc4d9a6620ab9ffd742ea91f
+-twf_public_id_counters|2|acd4ca79282c5cb694e8d03675482408
+-twf_queue_dispatch_policies|0|d41d8cd98f00b204e9800998ecf8427e
++twf_order_events|9|74f015da8011b53002441d5e224df998
++twf_order_public_ids|2|da46013b9b8616dacf6ef0a52d84eacf
++twf_orders|2|9082cb68da82cbe7e86888350ab31a90
++twf_public_id_counters|3|a130c8d4feae08205692f79a605c94e1
++twf_queue_dispatch_policies|1|5b39fbdfd18d50a7005560dd4b2cc644
+ twf_queue_entries|1|d04e9e61b935b7e8dfb5896d79a44eac
+ twf_queue_events|3|445e118173cecd43305220f608fb5e4b
+-twf_queue_policy_events|0|d41d8cd98f00b204e9800998ecf8427e
++twf_queue_policy_events|6|dff4c20cf7439a32cb17bf7056e59318
+ user_preferences|0|d41d8cd98f00b204e9800998ecf8427e
+ users|1|ed14e4dd6ce0c5faae84d67518ce866b
+ watchlist_activity|24|f7d578dbe12d67819d009b5b4b64739d

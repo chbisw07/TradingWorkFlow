@@ -438,6 +438,7 @@ test("TWF destination reuses ticket and server preview, creates once, and never 
       order: {
         twf_order_id: "33333333-3333-4333-8333-333333333333",
         state: "READY",
+        provenance: { source: "MANUAL", source_ref: null },
         terms: preview.terms,
         instrument: preview.instrument,
         created_at: "2026-10-14T12:00:00Z",

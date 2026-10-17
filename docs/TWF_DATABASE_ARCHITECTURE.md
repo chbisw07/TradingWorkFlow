@@ -163,7 +163,6 @@ accepted any new write, stop writes and repair/restore PostgreSQL; do not switch
 casually to stale SQLite. Any fallback requires an explicit reconciled recovery
 point and operator decision. Copying `.env` back is not data reconciliation.
 
-
 ## OE-3 PostgreSQL privilege boundary and SQLite trust scope (16 October 2026)
 
 PostgreSQL remains the production execution-authority database. The live role model
@@ -204,3 +203,7 @@ not an implemented worker, risk check, scheduler, or execution path.
 
 Version: DB-1, 2026-10-15. This policy supersedes historical SQLite-default and
 PostgreSQL-offline-only statements without rewriting their historical evidence.
+
+## OE-4 runtime object grant policy
+
+PostgreSQL runtime grants are a closed, explicit object registry in `tools/postgres_roles.py`. Every migration that adds a table, sequence, or protected function must update that registry and its exact operation allowlists in the same change. Unknown objects make `harden`/`verify` fail closed. Migration 0028 requires SELECT/INSERT/UPDATE on policy/counter/dispatch-lifecycle tables and SELECT/INSERT on immutable public-ID and policy-event tables; it requires no runtime sequences and no direct protected-function execution. DELETE remains default-deny with the accepted 11-table cleanup allowlist. After every migration, operators must stop writers, back up, migrate as `twf_migrator`, run canonical `harden` and `verify` as the bootstrap administrator, and only then restore `twf_app` access.

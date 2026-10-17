@@ -25,8 +25,28 @@ from twf.main import create_app as application
 REFERENCE_TIME = datetime(2026, 9, 25, 12, tzinfo=UTC)
 
 
+class QueueBrowserProvider(OrderProvider):
+    """OE-4-only fault prices; synthetic transport, no production test switches."""
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        from decimal import Decimal
+        from urllib.parse import parse_qs
+
+        if request.url.path == "/orders/regular" and "oe4key" in request.headers.get(
+            "Authorization", ""
+        ):
+            price = Decimal(parse_qs(request.content.decode())["price"][0])
+            self.mode = {
+                Decimal("100.10"): "reject",
+                Decimal("100.15"): "lost",
+            }.get(price, "success")
+        else:
+            self.mode = "success"
+        return super().__call__(request)
+
+
 def create_app() -> FastAPI:
-    settings = Settings(broker_manual_trading_enabled=True)
+    settings = Settings(broker_manual_trading_enabled=True, queue_dispatch_enabled=True)
     clients = (
         SyntheticScannerService(reference_time=REFERENCE_TIME),
         SyntheticTIService(
@@ -41,7 +61,7 @@ def create_app() -> FastAPI:
     )
     app = application(
         settings,
-        broker_adapter=ZerodhaAdapter(transport=httpx.MockTransport(OrderProvider())),
+        broker_adapter=ZerodhaAdapter(transport=httpx.MockTransport(QueueBrowserProvider())),
         service_registry=ServiceRegistry(settings.service_clients, clients=clients),
     )
 
@@ -158,9 +178,17 @@ def create_app() -> FastAPI:
             manager = instance.state.dhan_credentials
             original_capture = manager.capture
             manager.capture = lambda *args, **kwargs: ready_capture
+            import asyncio
+            from contextlib import suppress
+            from twf.queue.dispatch import DispatchService
+            # Explicit browser-only coordinator: adapter above is network-free.
+            worker = asyncio.create_task(DispatchService(instance.state.broker_service).run())
             try:
                 yield
             finally:
+                worker.cancel()
+                with suppress(asyncio.CancelledError):
+                    await worker
                 manager.capture = original_capture
 
     app.router.lifespan_context = fixture_lifespan

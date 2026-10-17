@@ -103,3 +103,4 @@ class TWFOrderEventRecord(Base):
 
 # Direct metadata.create_all users need the referenced Queue table registered.
 import twf.infrastructure.twf_queue  # noqa: E402,F401
+import twf.queue.public_ids  # noqa: E402,F401 -- transactional alias, no lifecycle authority

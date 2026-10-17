@@ -54,6 +54,7 @@ export function OrderTicket({
   recovery,
   canonical,
   destination = "BROKER_DIRECT",
+  origin,
   onCreated,
   close,
 }: {
@@ -67,6 +68,7 @@ export function OrderTicket({
   recovery?: Intent;
   canonical?: { contract: OptionContractRequest; side: Side };
   destination?: "BROKER_DIRECT" | "TWF_ORDER";
+  origin?: { source: "WATCHLIST" | "SCANNER"; reference: string };
   onCreated?: (orderId: string) => void;
   close: () => void;
 }) {
@@ -246,7 +248,14 @@ export function OrderTicket({
           validity: order.validity as "DAY" | "IOC",
           notes: "",
         };
-        setTwfPreview(await twfOrdersApi<TWFPreview>("preview", payload));
+        setTwfPreview(
+          await twfOrdersApi<TWFPreview>(
+            origin
+              ? `from/${origin.source}/${origin.reference}/preview`
+              : "preview",
+            payload,
+          ),
+        );
         setTwfPayload(payload);
         setStage("preview");
         return;
@@ -274,10 +283,13 @@ export function OrderTicket({
     setBusy(true);
     setError("");
     try {
-      const result = await twfOrdersApi<TWFCreation>("", {
-        ...twfPayload,
-        preview_id: twfPreview.preview_id,
-      });
+      const result = await twfOrdersApi<TWFCreation>(
+        origin ? `from/${origin.source}/${origin.reference}` : "",
+        {
+          ...twfPayload,
+          preview_id: twfPreview.preview_id,
+        },
+      );
       setTwfCreation(result);
       setStage("result");
       onCreated?.(result.order.twf_order_id);
@@ -656,7 +668,9 @@ export function OrderTicket({
                 {twfPreview.instrument.exchange} ·{" "}
                 {twfPreview.instrument.asset_class}
               </span>
-              <span>Source: MANUAL · {account.name}</span>
+              <span>
+                Source: {twfPreview.source} · {account.name}
+              </span>
             </div>
             <dl className="order-totals">
               <div>
@@ -787,7 +801,7 @@ export function OrderTicket({
               </strong>
             </p>
             <p>
-              Source: MANUAL · Created{" "}
+              Source: {twfCreation.order.provenance.source} · Created{" "}
               {new Date(twfCreation.order.created_at).toLocaleString("en-IN")}
             </p>
             {!twfCreation.validation.ready && (

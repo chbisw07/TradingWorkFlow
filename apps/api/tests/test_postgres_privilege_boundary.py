@@ -38,6 +38,14 @@ def _run(action: str, env: dict[str, str]) -> None:
     assert result.returncode == 0, result.stderr
 
 
+def _refused(action: str, env: dict[str, str]) -> None:
+    result = subprocess.run(
+        [sys.executable, str(TOOL), action], env=env, capture_output=True, text=True
+    )
+    assert result.returncode != 0
+    assert result.stderr.strip() == "PostgreSQL role operation refused: ValueError"
+
+
 def _denied(engine: Engine, statement: str, *, sqlstate: str | None = "42501") -> None:
     with pytest.raises(DBAPIError) as error:
         with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as db:
@@ -55,9 +63,6 @@ def test_runtime_role_cannot_remove_queue_guards(
 ) -> None:
     if request.config.getoption("--db-backend") != "postgres":
         pytest.skip("PostgreSQL role boundary only")
-    from alembic import command
-    from alembic.config import Config
-
     token = uuid4().hex[:12]
     database, migrator, app = f"twf_role_{token}", f"mig_{token}", f"app_{token}"
     base = make_url(os.environ["TWF_DATABASE_URL"]).difference_update_query(["options"])
@@ -89,10 +94,27 @@ def test_runtime_role_cannot_remove_queue_guards(
             _run("prepare-fresh", env)
             migration_url = mig_url
         if legacy_owner:
-            monkeypatch.setenv(
-                "TWF_DATABASE_URL", migration_url.render_as_string(hide_password=False)
+            migration_env = {
+                **env,
+                "TWF_DATABASE_URL": migration_url.render_as_string(hide_password=False),
+                "TWF_MIGRATION_DATABASE_URL": migration_url.render_as_string(hide_password=False),
+            }
+            migrated = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "alembic",
+                    "-c",
+                    str(ALEMBIC),
+                    "upgrade",
+                    "head",
+                ],
+                cwd=ALEMBIC.parent,
+                env=migration_env,
+                capture_output=True,
+                text=True,
             )
-            command.upgrade(Config(str(ALEMBIC)), "head")
+            assert migrated.returncode == 0, migrated.stderr
         else:
             operator_env = {
                 **env,
@@ -150,10 +172,10 @@ def test_runtime_role_cannot_remove_queue_guards(
                 "watchlist_notes",
                 "watchlists",
             }
-            assert len(tables) == 46
+            assert len(tables) == 51
             assert len(required_delete) == 11
             denied_delete = tables - required_delete - {"alembic_version", "twf_queue_events"}
-            assert len(denied_delete) == 33
+            assert len(denied_delete) == 38
             granted_delete = {
                 name
                 for name in tables
@@ -167,6 +189,8 @@ def test_runtime_role_cannot_remove_queue_guards(
             _denied(engine, f'DELETE FROM "{table}" WHERE 1=0')
         for statement in (
             "UPDATE twf_order_events SET actor='TAMPERED' WHERE 1=0",
+            "UPDATE twf_queue_policy_events SET actor='TAMPERED' WHERE 1=0",
+            "UPDATE twf_order_public_ids SET public_order_id='TAMPERED' WHERE 1=0",
             "UPDATE preference_changes SET id=id WHERE 1=0",
             "UPDATE scanner_v2_runs SET id=id WHERE 1=0",
             "DELETE FROM twf_orders WHERE 1=0",
@@ -175,22 +199,28 @@ def test_runtime_role_cannot_remove_queue_guards(
         ):
             _denied(engine, statement)
         _denied(engine, "DELETE FROM twf_order_events WHERE 1=0")
-        # Newly migrated tables receive no DELETE merely by being present.
+        # Undeclared future relations fail closed instead of receiving implicit DML.
         future_table = f"future_audit_{token}"
         disposable_admin = create_engine(target, isolation_level="AUTOCOMMIT")
         try:
             with disposable_admin.connect() as db:
                 db.execute(text(f'CREATE TABLE "{future_table}" (id integer)'))
-            _run("harden", env)
-            _run("verify", env)
+            _refused("harden", env)
+            _refused("verify", env)
             with engine.connect() as db:
-                assert not db.scalar(
-                    text("SELECT has_table_privilege(:role,:table,'DELETE')"),
-                    {"role": app, "table": f"public.{future_table}"},
-                )
+                for privilege in ("SELECT", "INSERT", "UPDATE", "DELETE"):
+                    assert not db.scalar(
+                        text("SELECT has_table_privilege(:role,:table,:privilege)"),
+                        {
+                            "role": app,
+                            "table": f"public.{future_table}",
+                            "privilege": privilege,
+                        },
+                    )
             _denied(engine, f'DELETE FROM "{future_table}" WHERE 1=0')
             with disposable_admin.connect() as db:
                 db.execute(text(f'DROP TABLE "{future_table}"'))
+            _run("verify", env)
         finally:
             disposable_admin.dispose()
         for statement in (
@@ -228,6 +258,22 @@ def test_runtime_role_cannot_remove_queue_guards(
             )
             assert response.status_code == 200
             account = bound(client)
+            current_policy = client.get(f"/api/v1/twf-queue/policy/{account}")
+            assert current_policy.status_code == 200, current_policy.text
+            assert current_policy.json()["current_dispatch_mode"] == "MANUAL"
+            assert current_policy.json()["execution_enabled"] is False
+            changed_policy = client.post(
+                f"/api/v1/twf-queue/policy/{account}",
+                json={"current_dispatch_mode": "AUTO", "expected_version": 1},
+                headers=HEADERS,
+            )
+            assert changed_policy.status_code == 200, changed_policy.text
+            restored_policy = client.post(
+                f"/api/v1/twf-queue/policy/{account}",
+                json={"current_dispatch_mode": "MANUAL", "expected_version": 2},
+                headers=HEADERS,
+            )
+            assert restored_policy.status_code == 200, restored_policy.text
             order = ready_order(client, account)
             order_id = UUID(order["twf_order_id"])
             with engine.connect() as db:
@@ -339,6 +385,41 @@ def test_runtime_role_cannot_remove_queue_guards(
                     restored_runtime,
                     "ALTER TABLE twf_queue_events DISABLE TRIGGER trg_twf_queue_events_immutable",
                 )
+                restored_provider = OrderProvider()
+                restored_settings = runtime.model_copy(
+                    update={
+                        "database_url": app_url.set(database=restored_database).render_as_string(
+                            hide_password=False
+                        )
+                    }
+                )
+                with TestClient(
+                    create_app(
+                        restored_settings,
+                        engine_factory=lambda _: restored_runtime,
+                        broker_adapter=ZerodhaAdapter(
+                            transport=httpx.MockTransport(restored_provider)
+                        ),
+                    )
+                ) as restored_client:
+                    login = restored_client.post(
+                        "/api/v1/auth/login",
+                        json={
+                            "username": "trader",
+                            "password": "test-only-broker-password",
+                        },
+                        headers=HEADERS,
+                    )
+                    assert login.status_code == 200, login.text
+                    accounts = restored_client.get("/api/v1/brokers/accounts")
+                    assert accounts.status_code == 200, accounts.text
+                    restored_account = accounts.json()[0]["id"]
+                    policy = restored_client.get(f"/api/v1/twf-queue/policy/{restored_account}")
+                    assert policy.status_code == 200, policy.text
+                    assert policy.json()["current_dispatch_mode"] == "MANUAL"
+                    assert policy.json()["execution_enabled"] is False
+                    assert ready_order(restored_client, restored_account)["state"] == "READY"
+                    assert restored_provider.calls == []
             finally:
                 restored_runtime.dispose()
     finally:

@@ -107,6 +107,12 @@ def test_lifecycle_and_contracts(settings: Settings) -> None:
         schema = client.get("/openapi.json").json()
         assert set(schema["paths"]) == {
             "/api/v1/twf-queue",
+            "/api/v1/twf-queue/aliases/orders",
+            "/api/v1/twf-queue/policy/{account_id}",
+            "/api/v1/twf-queue/{entry_id}/dispatch",
+            "/api/v1/twf-queue/{entry_id}/cancel",
+            "/api/v1/twf-orders/from/{source}/{reference}/preview",
+            "/api/v1/twf-orders/from/{source}/{reference}",
             "/api/v1/twf-queue/admit",
             "/api/v1/twf-queue/by-order/{order_id}",
             "/api/v1/twf-queue/{entry_id}",

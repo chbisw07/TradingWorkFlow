@@ -1094,7 +1094,7 @@ function OptionsScanner({ active }: { active: boolean }) {
           title={
             !broker || expiredContract(row.contract)
               ? tradeUnavailable
-              : "Broker V2 preview"
+              : "TWF Order preview"
           }
           disabled={!broker || expiredContract(row.contract)}
           onClick={() => openTrade(row, "BUY")}
@@ -1107,7 +1107,7 @@ function OptionsScanner({ active }: { active: boolean }) {
           title={
             !broker || expiredContract(row.contract)
               ? tradeUnavailable
-              : "Broker V2 preview"
+              : "TWF Order preview"
           }
           disabled={!broker || expiredContract(row.contract)}
           onClick={() => openTrade(row, "SELL")}
@@ -2459,19 +2459,20 @@ function OptionsScanner({ active }: { active: boolean }) {
                     disabled={!broker || expiredContract(selected.contract)}
                     onClick={() => openTrade(selected, "BUY")}
                   >
-                    Buy · Broker V2 preview
+                    Buy · TWF Order preview
                   </button>
                   <button
                     className="wl-sell"
                     disabled={!broker || expiredContract(selected.contract)}
                     onClick={() => openTrade(selected, "SELL")}
                   >
-                    Sell · Broker V2 preview
+                    Sell · TWF Order preview
                   </button>
                 </div>
                 <small>
-                  Broker preview requires separate confirmation. Expired
-                  historical contracts cannot be traded.
+                  Creating an Order requires separate confirmation. Queue
+                  admission is a separate action. Expired historical contracts
+                  cannot be traded.
                 </small>
               </div>
             )}
@@ -2570,6 +2571,8 @@ function OptionsScanner({ active }: { active: boolean }) {
       )}
       {ticket && (
         <OrderTicket
+          destination="TWF_ORDER"
+          origin={{ source: "SCANNER", reference: run!.id }}
           account={ticket.account}
           canonical={ticket.canonical}
           close={() => setTicket(null)}

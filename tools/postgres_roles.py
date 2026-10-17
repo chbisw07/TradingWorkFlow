@@ -29,9 +29,91 @@ REQUIRED_DELETE_TABLES = frozenset(
         "watchlists",
     }
 )
-IMMUTABLE_EVENT_TABLES = frozenset({"twf_order_events", "twf_queue_events"})
-APPEND_ONLY_EVIDENCE_TABLES = frozenset({"preference_changes", "scanner_v2_runs"})
-EXPECTED_HEAD = "0027_oe3_order_event_audit"
+APPEND_ONLY_TABLES = frozenset(
+    {
+        "preference_changes",
+        "scanner_v2_runs",
+        "twf_order_events",
+        "twf_order_public_ids",
+        "twf_queue_events",
+        "twf_queue_policy_events",
+    }
+)
+MUTABLE_RUNTIME_TABLES = frozenset(
+    {
+        "auth_sessions",
+        "broker_accounts",
+        "broker_attempts",
+        "broker_order_intents",
+        "broker_secrets",
+        "dhan_market_data_connections",
+        "dhan_market_data_secrets",
+        "discovery_active_slots",
+        "discovery_comparison_scopes",
+        "discovery_episodes",
+        "discovery_llm_explanations",
+        "discovery_market_context",
+        "discovery_observations",
+        "discovery_projection_checkpoints",
+        "discovery_scan_admissions",
+        "discovery_scan_evidence_series",
+        "discovery_scan_matches",
+        "discovery_scan_runs",
+        "discovery_settings",
+        "discovery_snapshots",
+        "discovery_temporal_lanes",
+        "discovery_transitions",
+        "fno_liquidity_cache",
+        "instrument_metadata",
+        "instrument_metadata_refreshes",
+        "manual_order_previews",
+        "mcp_connections",
+        "mcp_oauth_attempts",
+        "mcp_operations",
+        "mcp_secrets",
+        "preference_profiles",
+        "scanner_v2_derivative_templates",
+        "scanner_v2_saved",
+        "twf_dispatch_attempts",
+        "twf_orders",
+        "twf_public_id_counters",
+        "twf_queue_dispatch_policies",
+        "twf_queue_entries",
+        "user_preferences",
+        "users",
+        "watchlist_activity",
+        "watchlist_items",
+        "watchlist_notes",
+        "watchlists",
+    }
+)
+READ_ONLY_TABLES = frozenset({"alembic_version"})
+REGISTERED_RUNTIME_TABLES = (
+    READ_ONLY_TABLES | APPEND_ONLY_TABLES | MUTABLE_RUNTIME_TABLES
+)
+RUNTIME_SEQUENCES: frozenset[str] = frozenset()
+PROTECTED_TRIGGER_FUNCTIONS = frozenset(
+    {
+        "twf_dispatch_attempt_identity_immutable",
+        "twf_order_event_immutable",
+        "twf_queue_event_immutable",
+        "twf_queue_snapshot_immutable",
+    }
+)
+EXPECTED_HEAD = "0028_oe4_dispatch"
+
+
+def _expected_table_privileges(name: str) -> frozenset[str]:
+    if name in READ_ONLY_TABLES:
+        return frozenset({"SELECT"})
+    if name in APPEND_ONLY_TABLES:
+        return frozenset({"SELECT", "INSERT"})
+    if name in MUTABLE_RUNTIME_TABLES:
+        privileges = {"SELECT", "INSERT", "UPDATE"}
+        if name in REQUIRED_DELETE_TABLES:
+            privileges.add("DELETE")
+        return frozenset(privileges)
+    raise ValueError("Unregistered runtime table")
 
 
 def _ident_env(name: str, default: str) -> str:
@@ -152,7 +234,7 @@ def prepare_fresh(db: psycopg.Connection, schema: str, migrator: str, app: str) 
     )
     # Ownership transfer does not repair ACLs inherited from the former owner.
     db.execute(
-        sql.SQL("GRANT ALL ON DATABASE {} TO {}").format(
+        sql.SQL("GRANT CONNECT, CREATE, TEMPORARY ON DATABASE {} TO {}").format(
             sql.Identifier(database), sql.Identifier(migrator)
         )
     )
@@ -175,7 +257,7 @@ def prepare_fresh(db: psycopg.Connection, schema: str, migrator: str, app: str) 
         )
     )
     db.execute(
-        sql.SQL("GRANT ALL ON SCHEMA {} TO {}").format(
+        sql.SQL("GRANT USAGE, CREATE ON SCHEMA {} TO {}").format(
             sql.Identifier(schema), sql.Identifier(migrator)
         )
     )
@@ -253,14 +335,47 @@ def harden(db: psycopg.Connection, schema: str, migrator: str, app: str) -> None
         "SELECT 1 FROM pg_class WHERE relnamespace=%s::regnamespace AND relname='twf_queue_events'",
         (schema,),
     ).fetchone():
-        raise ValueError("Run Alembic to the OE-3 head before cutover")
+        raise ValueError("Run Alembic to the OE-4 head before role hardening")
     revision = db.execute(
         sql.SQL("SELECT version_num FROM {}.alembic_version").format(
             sql.Identifier(schema)
         )
     ).fetchall()
     if revision != [(EXPECTED_HEAD,)]:
-        raise ValueError("Expected exact OE-3 Alembic head before role cutover")
+        raise ValueError("Expected exact OE-4 Alembic head before role hardening")
+    discovered = db.execute(
+        "SELECT relname,relkind FROM pg_class WHERE relnamespace=%s::regnamespace "
+        "AND relkind IN ('r','p','v','m','S','f') ORDER BY relkind,relname",
+        (schema,),
+    ).fetchall()
+    discovered_tables = {name for name, kind in discovered if kind in ("r", "p")}
+    discovered_sequences = {name for name, kind in discovered if kind == "S"}
+    discovered_other = {
+        (name, kind) for name, kind in discovered if kind not in ("r", "p", "S")
+    }
+    if discovered_tables != REGISTERED_RUNTIME_TABLES:
+        raise ValueError(
+            "Runtime table privilege registry does not match the migrated schema"
+        )
+    if discovered_sequences != RUNTIME_SEQUENCES:
+        raise ValueError(
+            "Runtime sequence privilege registry does not match the migrated schema"
+        )
+    if discovered_other:
+        raise ValueError(
+            "Runtime relation privilege registry does not cover a schema object"
+        )
+    discovered_functions = {
+        name
+        for (name,) in db.execute(
+            "SELECT p.proname FROM pg_proc p WHERE p.pronamespace=%s::regnamespace",
+            (schema,),
+        ).fetchall()
+    }
+    if discovered_functions != PROTECTED_TRIGGER_FUNCTIONS:
+        raise ValueError(
+            "Runtime function privilege registry does not match the migrated schema"
+        )
     # One PostgreSQL transaction covers ownership and ACL changes. No row is copied.
     db.execute(
         sql.SQL("REVOKE ALL ON DATABASE {} FROM PUBLIC").format(
@@ -279,7 +394,7 @@ def harden(db: psycopg.Connection, schema: str, migrator: str, app: str) -> None
     )
     # Ownership transfer does not repair ACLs inherited from the former owner.
     db.execute(
-        sql.SQL("GRANT ALL ON DATABASE {} TO {}").format(
+        sql.SQL("GRANT CONNECT, CREATE, TEMPORARY ON DATABASE {} TO {}").format(
             sql.Identifier(database), sql.Identifier(migrator)
         )
     )
@@ -302,7 +417,7 @@ def harden(db: psycopg.Connection, schema: str, migrator: str, app: str) -> None
         )
     )
     db.execute(
-        sql.SQL("GRANT ALL ON SCHEMA {} TO {}").format(
+        sql.SQL("GRANT USAGE, CREATE ON SCHEMA {} TO {}").format(
             sql.Identifier(schema), sql.Identifier(migrator)
         )
     )
@@ -311,11 +426,7 @@ def harden(db: psycopg.Connection, schema: str, migrator: str, app: str) -> None
             sql.Identifier(schema), sql.Identifier(app)
         )
     )
-    relations = db.execute(
-        "SELECT relname,relkind FROM pg_class WHERE relnamespace=%s::regnamespace "
-        "AND relkind IN ('r','p','v','m','S','f') ORDER BY relkind,relname",
-        (schema,),
-    ).fetchall()
+    relations = discovered
     kinds = {
         "r": "TABLE",
         "p": "TABLE",
@@ -370,22 +481,20 @@ def harden(db: psycopg.Connection, schema: str, migrator: str, app: str) -> None
                     sql.Identifier(schema), sql.Identifier(name), sql.Identifier(app)
                 )
             )
-        elif name == "alembic_version":
+        elif name in READ_ONLY_TABLES:
             db.execute(
                 sql.SQL("GRANT SELECT ON TABLE {}.{} TO {}").format(
                     sql.Identifier(schema), sql.Identifier(name), sql.Identifier(app)
                 )
             )
-        elif name in IMMUTABLE_EVENT_TABLES:
+        elif name in APPEND_ONLY_TABLES:
             db.execute(
                 sql.SQL("GRANT SELECT, INSERT ON TABLE {}.{} TO {}").format(
                     sql.Identifier(schema), sql.Identifier(name), sql.Identifier(app)
                 )
             )
-        else:
-            privileges = "SELECT, INSERT"
-            if name not in APPEND_ONLY_EVIDENCE_TABLES:
-                privileges += ", UPDATE"
+        elif name in MUTABLE_RUNTIME_TABLES:
+            privileges = "SELECT, INSERT, UPDATE"
             if name in REQUIRED_DELETE_TABLES:
                 privileges += ", DELETE"
             db.execute(
@@ -397,9 +506,7 @@ def harden(db: psycopg.Connection, schema: str, migrator: str, app: str) -> None
                 )
             )
     # The trigger continues to execute; runtime cannot invoke/replace its function.
-    for function in ("twf_queue_event_immutable", "twf_order_event_immutable"):
-        if not any(name == function for name, _, _ in functions):
-            continue
+    for function in sorted(PROTECTED_TRIGGER_FUNCTIONS):
         db.execute(
             sql.SQL("REVOKE ALL ON FUNCTION {}.{}() FROM PUBLIC").format(
                 sql.Identifier(schema), sql.Identifier(function)
@@ -433,7 +540,42 @@ def verify(db: psycopg.Connection, schema: str, migrator: str, app: str) -> None
             )
         )
     }
+    sequence_names = {
+        name
+        for (name,) in db.execute(
+            "SELECT relname FROM pg_class WHERE relnamespace=%s::regnamespace "
+            "AND relkind='S' ORDER BY relname",
+            (schema,),
+        ).fetchall()
+    }
+    function_names = {
+        name
+        for (name,) in db.execute(
+            "SELECT proname FROM pg_proc WHERE pronamespace=%s::regnamespace ORDER BY proname",
+            (schema,),
+        ).fetchall()
+    }
+    exact_table_grants = set(tables) == REGISTERED_RUNTIME_TABLES and all(
+        bool(
+            _scalar(
+                db.execute(
+                    "SELECT has_table_privilege(%s,%s,%s)",
+                    (app, f"{schema}.{name}", privilege),
+                )
+            )
+        )
+        == (privilege in _expected_table_privileges(name))
+        for name in tables
+        for privilege in ("SELECT", "INSERT", "UPDATE", "DELETE")
+    )
     checks = [
+        ("table registry matches schema", set(tables) == REGISTERED_RUNTIME_TABLES),
+        ("table grants match explicit registry", exact_table_grants),
+        ("sequence registry matches schema", sequence_names == RUNTIME_SEQUENCES),
+        (
+            "function registry matches schema",
+            function_names == PROTECTED_TRIGGER_FUNCTIONS,
+        ),
         (
             "DELETE grants match explicit allowlist",
             delete_grants == REQUIRED_DELETE_TABLES,
@@ -447,7 +589,7 @@ def verify(db: psycopg.Connection, schema: str, migrator: str, app: str) -> None
                         (app, f"{schema}.{name}"),
                     )
                 )
-                for name in APPEND_ONLY_EVIDENCE_TABLES
+                for name in APPEND_ONLY_TABLES
             ),
         ),
         (
@@ -585,12 +727,15 @@ def verify(db: psycopg.Connection, schema: str, migrator: str, app: str) -> None
             == (True,),
         ),
         (
-            "runtime cannot execute audit function directly",
-            not _scalar(
-                db.execute(
-                    "SELECT has_function_privilege(%s,%s,'EXECUTE')",
-                    (app, f"{schema}.twf_queue_event_immutable()"),
+            "runtime cannot execute protected functions directly",
+            all(
+                not _scalar(
+                    db.execute(
+                        "SELECT has_function_privilege(%s,%s,'EXECUTE')",
+                        (app, f"{schema}.{function}()"),
+                    )
                 )
+                for function in PROTECTED_TRIGGER_FUNCTIONS
             ),
         ),
         (

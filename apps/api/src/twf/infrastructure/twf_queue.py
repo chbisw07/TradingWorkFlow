@@ -4,11 +4,14 @@ The Queue references an Order; it never copies the authoritative trade request.
 """
 
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import (
+    JSON,
     CheckConstraint,
     DateTime,
+    ForeignKey,
     ForeignKeyConstraint,
     Index,
     Integer,
@@ -24,6 +27,7 @@ from twf.infrastructure.database import Base
 class TWFQueueEntryRecord(Base):
     __tablename__ = "twf_queue_entries"
     __table_args__ = (
+        UniqueConstraint("public_queue_id", name="uq_twf_queue_public_id"),
         ForeignKeyConstraint(
             ["twf_order_id", "owner_id"],
             ["twf_orders.twf_order_id", "twf_orders.owner_id"],
@@ -43,13 +47,30 @@ class TWFQueueEntryRecord(Base):
             "queue_entry_id", "twf_order_id", "owner_id", name="uq_twf_queue_entries_identity"
         ),
         CheckConstraint("version > 0", name="version_positive"),
-        CheckConstraint("queue_state IN ('READY', 'HELD')", name="active_state"),
+        CheckConstraint(
+            "queue_state IN ('READY', 'HELD', 'DISPATCHING', 'DISPATCHED', 'FAILED', "
+            "'RECONCILIATION_REQUIRED', 'CANCELLED')",
+            name="active_state",
+        ),
+        CheckConstraint("effective_dispatch_mode IN ('MANUAL', 'AUTO')", name="dispatch_mode"),
         Index("ix_twf_queue_entries_owner_fifo", "owner_id", "admitted_at", "queue_entry_id"),
     )
 
     queue_entry_id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
     twf_order_id: Mapped[UUID] = mapped_column(Uuid, nullable=False)
     owner_id: Mapped[UUID] = mapped_column(Uuid, nullable=False)
+    effective_dispatch_mode: Mapped[str] = mapped_column(
+        String(8), nullable=False, default="MANUAL", server_default="MANUAL"
+    )
+    broker_account_id: Mapped[UUID | None] = mapped_column(ForeignKey("broker_accounts.id"))
+    policy_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    source_kind: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="MANUAL", server_default="MANUAL"
+    )
+    source_reference: Mapped[str | None] = mapped_column(String(256))
+    public_queue_id: Mapped[str | None] = mapped_column(String(64))
     queue_state: Mapped[str] = mapped_column(String(32), nullable=False)
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     admitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -93,4 +114,7 @@ class TWFQueueEventRecord(Base):
     actor: Mapped[str] = mapped_column(String(128), nullable=False)
     reason_code: Mapped[str | None] = mapped_column(String(64))
     reason_message: Mapped[str | None] = mapped_column(String(512))
+    details: Mapped[dict[str, Any]] = mapped_column(
+        JSON, nullable=False, default=dict, server_default="{}"
+    )
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

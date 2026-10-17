@@ -509,14 +509,14 @@ export function ScannerWorkspace() {
     row.instrument.instrument_type === "EQUITY";
   const tradeAvailability = (row: ScanRow) =>
     !equityIdentity(row)
-      ? "Only resolved equity instruments can open a broker ticket."
+      ? "Only resolved equity instruments can open an order ticket."
       : !accountsLoaded
         ? "Checking equity-capable brokers."
         : !accounts.length
           ? "Connect/select an equity-capable broker to preview a trade."
           : !accountId && accounts.length > 1
             ? "Select an equity-capable broker in Instrument Analysis to preview a trade."
-            : "Opens Broker V2 order ticket; preview and confirmation are required.";
+            : "Opens a TWF Order ticket; Preview and Create Order are required.";
   function addTo(ids: string[]) {
     setAddIds(ids);
     setTarget(lists[0]?.id || "new");
@@ -2746,6 +2746,8 @@ export function ScannerWorkspace() {
       )}
       {ticket && (
         <OrderTicket
+          destination="TWF_ORDER"
+          origin={{ source: "SCANNER", reference: run!.id }}
           account={ticket.account}
           initial={{ instrument: ticket.instrument, side: ticket.side }}
           close={() => setTicket(null)}

@@ -40,6 +40,7 @@ class ManualOrderPreviewRecord(Base):
     terms: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     notes: Mapped[str] = mapped_column(String(2000), nullable=False)
     source: Mapped[str] = mapped_column(String(16), nullable=False)
+    source_ref: Mapped[str | None] = mapped_column(String(256))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

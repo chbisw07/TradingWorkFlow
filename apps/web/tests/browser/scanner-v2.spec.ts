@@ -298,7 +298,7 @@ test("Scanner V2 editable filters, durable runs, Watchlist handoff and responsiv
     if (await price.count()) await price.fill("100.05");
     await ticket.getByRole("button", { name: `Preview ${action}` }).click();
     await expect(
-      ticket.getByRole("button", { name: `Confirm ${action}` }),
+      ticket.getByRole("button", { name: "Create TWF Order" }),
     ).toBeVisible();
     await expect(ticket.locator(".order-preview")).toContainText(
       `${side} RELIANCE`,

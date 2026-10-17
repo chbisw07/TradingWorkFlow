@@ -801,7 +801,7 @@ export function OptionsWorkspace() {
                       {selected.availability === "UNAVAILABLE"
                         ? "Quote unavailable"
                         : "Partial quote"}
-                      . Broker preview checks the execution contract again.
+                      . Order preview checks the exact contract again.
                     </p>
                   )}
                   <details>
@@ -871,8 +871,8 @@ export function OptionsWorkspace() {
                       </button>
                     </div>
                     <small>
-                      Opens the Broker V2 order ticket. Preview and explicit
-                      confirmation are required.
+                      Opens a TWF Order ticket. Preview and Create Order are
+                      required; Queue admission is a separate action.
                     </small>
                   </div>
                 </>
@@ -895,13 +895,14 @@ export function OptionsWorkspace() {
             </p>
             <div className="chain-landing-capabilities">
               <span>Market data · Dhan</span>
-              <span>Trading preview · Broker V2</span>
+              <span>Order preview · TWF Order</span>
             </div>
           </div>
         )
       )}
       {ticket && (
         <OrderTicket
+          destination="TWF_ORDER"
           account={ticket.account}
           canonical={ticket.canonical}
           close={() => setTicket(null)}

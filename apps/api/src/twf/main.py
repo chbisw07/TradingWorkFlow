@@ -60,6 +60,7 @@ from twf.observability import create_logger
 from twf.options.chain_service import ChainFailure
 from twf.orders.errors import OrderError
 from twf.preferences import SettingsFailure
+from twf.queue.dispatch import DispatchService
 from twf.queue.errors import QueueError
 from twf.scanner_v2.service import ScannerHistory
 from twf.schemas import ErrorResponse
@@ -121,10 +122,19 @@ def create_app(
                     app.state.session_factory,
                 )
             )
+        dispatcher = None
+        if settings.queue_dispatch_enabled and settings.environment != "test":
+            dispatcher = asyncio.create_task(DispatchService(app.state.broker_service).run())
         logger.info("application_started")
         try:
             yield
         finally:
+            if dispatcher is not None:
+                dispatcher.cancel()
+                try:
+                    await dispatcher
+                except asyncio.CancelledError:
+                    pass
             if collector is not None:
                 collector.cancel()
                 try:

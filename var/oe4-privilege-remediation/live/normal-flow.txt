@@ -1,0 +1,14 @@
+HTTP GET /api/v1/auth/me 200 request_id=8db9b66d588e4ad69c241888031f81b7
+{"id":"dc40ca32-8091-4498-8fd4-bb3d3be0d13d","username":"trader","display_name":"Development Trader"}
+HTTP GET /api/v1/twf-queue/policy/855fb13f-848b-4937-b6a9-703d1faa912f 200 request_id=98d1fe57615b4165975ae34b83c939ca
+{"previous_dispatch_mode":null,"execution_enabled":false,"broker_account_id":"855fb13f-848b-4937-b6a9-703d1faa912f","current_dispatch_mode":"MANUAL","version":1,"updated_at":"2026-10-16T15:20:38.758937Z"}
+HTTP GET /api/v1/brokers/accounts/855fb13f-848b-4937-b6a9-703d1faa912f/instruments?limit=100 200 request_id=64afdf26090c4561a4bd5f7c5712be97
+{"account":{"id":"855fb13f-848b-4937-b6a9-703d1faa912f","provider":"zerodha","name":"Zerodha – Primary","identity":"ZC2754","state":"connected","health":"healthy","generation":36,"updated_at":"2026-10-16T15:20:41.519788Z","last_read_at":"2026-10-16T15:20:38.820471Z"},"fetched_at":"2026-10-16T15:20:41.535453Z","data":{"items":[{"symbol":"BANKEX26DEC56300CE","exchange":"BFO","reference":"ZERODHA:BFO:BANKEX26DEC56300CE","native_token":"294276613","name":"BANKEX","underlying":"BANKEX","expiry":"2026-12-31","strike":"56300","kind":"CE","segment":"BFO-OPT","lot_size":"30","tick_size":"0.05","canonical_id":null,"underlying_type":null,"option_type":null,"currency":null,"is_active":null,"last_trading_date":null,"freeze_quantity":null,"contract_multiplier":null},{"symbol":"BANKEX26DEC56300PE","exchange":"BFO","reference":"ZERODHA:BFO:BANKEX26DEC56300PE","native_token":"291129349","name":"BANKEX","underlying":"BANKEX","expiry":"2026-12-31","strike":"56300","kind":"PE","segment":"BFO-OPT","lot_size":"30","tick_size":"0.05","canonical_id":null,"underlying_type":null,"option_type":null,"currency":null,"is_active":null,"last_trading_date":null,"freeze_quantity":null,"contract_multiplier":null},{"
+HTTP POST /api/v1/twf-orders/preview 422 request_id=6ecc5de673024685a61cd1847b033651
+{"error":{"code":"INSTRUMENT_UNAVAILABLE","message":"Underlying classification is unavailable.","request_id":"6ecc5de673024685a61cd1847b033651","details":null}}
+ORDER_CREATE_SKIPPED preview did not succeed
+HTTP POST /api/v1/twf-queue/policy/855fb13f-848b-4937-b6a9-703d1faa912f 200 request_id=2811a99ec4ea45508ad77f02e2ab3010
+{"previous_dispatch_mode":"MANUAL","execution_enabled":false,"broker_account_id":"855fb13f-848b-4937-b6a9-703d1faa912f","current_dispatch_mode":"AUTO","version":2,"updated_at":"2026-10-16T15:20:41.668705Z"}
+HTTP POST /api/v1/twf-queue/policy/855fb13f-848b-4937-b6a9-703d1faa912f 200 request_id=d23d4630a6ef40d0b781ede4a7988641
+{"previous_dispatch_mode":"AUTO","execution_enabled":false,"broker_account_id":"855fb13f-848b-4937-b6a9-703d1faa912f","current_dispatch_mode":"MANUAL","version":3,"updated_at":"2026-10-16T15:20:41.730943Z"}
+POLICY_VERIFIED MANUAL AUTO MANUAL execution_enabled=false

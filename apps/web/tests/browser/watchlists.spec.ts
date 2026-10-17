@@ -618,7 +618,7 @@ test("persistent Watchlists, instrument detail, CSV, notes, archive and responsi
     .getByRole("button", { name: "Preview Buy", exact: true })
     .click();
   await expect(
-    ticket.getByRole("button", { name: "Confirm Buy", exact: true }),
+    ticket.getByRole("button", { name: "Create TWF Order", exact: true }),
   ).toBeVisible();
   await ticket.getByRole("button", { name: "Close order ticket" }).click();
   expect(submissions).toBe(0);

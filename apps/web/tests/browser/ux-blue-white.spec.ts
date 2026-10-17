@@ -5,7 +5,7 @@ test.beforeEach(async ({ page, baseURL }, info) => {
   const login = await page.request.post("/api/v1/auth/login", {
     headers: { Origin: baseURL! },
     data: {
-      username: `trade-${info.project.name}`,
+      username: `ux-blue-white-${info.project.name}`,
       password: "test-only-browser-password",
     },
   });
@@ -34,7 +34,7 @@ test.beforeEach(async ({ page, baseURL }, info) => {
     (
       await page.request.post("/api/v1/brokers/callback", {
         headers,
-        data: { state, request_token: "request123" },
+        data: { state, request_token: `ux-request-${info.project.name}` },
       })
     ).ok(),
   ).toBe(true);
@@ -57,7 +57,8 @@ test("five workspaces use compact blue-white headers at desktop and mobile width
     ["watchlists", "/watchlists"],
     ["options", "/options-analytics"],
   ]) {
-    await page.goto(route);
+    await page.goto(route, { waitUntil: "networkidle" });
+    errors.length = 0;
     await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
     if (name === "scanner") {
       await expect(page.locator(".sc-page-head")).toHaveCount(0);
@@ -105,6 +106,6 @@ test("five workspaces use compact blue-white headers at desktop and mobile width
       path: `${evidence}/${width}-${name}.png`,
       animations: "disabled",
     });
+    expect(errors, `${name} emitted a runtime page error`).toEqual([]);
   }
-  expect(errors).toEqual([]);
 });

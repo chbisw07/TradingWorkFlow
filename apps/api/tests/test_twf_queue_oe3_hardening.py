@@ -357,7 +357,17 @@ def test_migration_preserves_existing_queue_data_and_refuses_corrupt_0025(
         assert order_row is not None
         assert order_row.queue_entry_id == entry.queue_entry_id
         assert db.scalar(select(func.count()).select_from(TWFQueueEventRecord)) == 2
-    assert queue.get_entry(entry.queue_entry_id).queue_state == "HELD"
+    restored = queue.get_entry(entry.queue_entry_id)
+    assert restored.queue_state == "HELD"
+    # OE-4 must backfill legacy entries without granting automatic execution.
+    assert restored.queue_entry_id == entry.queue_entry_id
+    assert restored.twf_order_id == UUID(order["twf_order_id"])
+    assert restored.effective_dispatch_mode == "MANUAL"
+    assert restored.policy_version == 0
+    assert restored.broker_account_id is None
+    assert restored.source_kind == "MANUAL"
+    assert restored.public_queue_id and restored.public_queue_id.startswith("QID-")
+    assert restored.public_order_id and restored.public_order_id.startswith("ORD-")
 
     command.downgrade(config, "0025_twf_queue")
     with factory() as db, db.begin():

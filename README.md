@@ -326,8 +326,11 @@ decommissioned as described below.
 The freeze covers canonical broker-neutral Order contracts, exact instrument
 identity and owner/source trust boundaries, lifecycle and Queue/Broker authority
 guards, optimistic concurrency, migration, persistence, and audit/history
-semantics. OE-2 is also **ACCEPTED / FROZEN**. OE-3 is implemented and awaits
-user validation and independent adversarial review; OE-4 has not started.
+semantics. OE-2, OE-3 and DB-1 are also **ACCEPTED / FROZEN**. OE-4 is now
+implemented for independent review, with live execution disabled by default.
+Queue policy affects only future admissions; every entry keeps its immutable
+admission-time MANUAL/AUTO mode. See the [OE-4 bridge architecture](docs/TWF_OE4_QUEUE_BROKER_BRIDGE_ARCHITECTURE.md)
+and [implementation evidence](docs/TWF_OE4_IMPLEMENTATION_REPORT.md).
 
 1. **OE-1 — TWF Order Domain & Lifecycle Foundation (ACCEPTED / FROZEN).**
    Owner-scoped, broker-neutral Equity/Futures/Options orders have exact canonical
@@ -341,7 +344,7 @@ user validation and independent adversarial review; OE-4 has not started.
    server-side, creates MANUAL TWF Orders, validates and stops at READY.
    Owner-scoped list/detail/history use OE-1 persistence. No Queue or broker
    submission occurs. See the [OE-2 architecture](docs/TWF_ORDERS_OE2_ARCHITECTURE.md).
-3. **OE-3 — TWF Queue Foundation (HARDENED / REVIEW).** Explicit Add to Queue
+3. **OE-3 — TWF Queue Foundation (ACCEPTED / FROZEN).** Explicit Add to Queue
    atomically creates one owner-bound entry and transitions a READY Order to
    QUEUED, with Order and Queue audit events. Queue entries support READY and
    HELD, newest-first operator pagination with preserved FIFO semantics,
@@ -349,9 +352,12 @@ user validation and independent adversarial review; OE-4 has not started.
    Trade also groups Orders and read-only account Positions with one persistent
    Instrument account selector and New Order action. This does not implement the
    future TWF-managed Position lifecycle. It makes no broker write calls. See the [OE-3 Queue architecture](docs/TWF_QUEUE_OE3_ARCHITECTURE.md) and [OE-3 hardening report](docs/TWF_OE3_HARDENING_REPORT.md).
-4. **OE-4 — Queue → Broker V2 Bridge.** Submit ready, authorized Queue items
-   through Broker V2 using exact contract identity, idempotency, timeout safety,
-   durable submission identity, acknowledgement capture, and typed failures.
+4. **OE-4 — Queue → Broker V2 Bridge (READY FOR INDEPENDENT REVIEW).** Owner/account
+   policy is snapshotted immutably at admission. MANUAL and AUTO share one
+   dispatch service, exact-contract checks and a durable pre-I/O claim. AUTO
+   selects persisted entry mode, never current policy. Ambiguity requires
+   reconciliation without resending. Operator IDs supplement UUIDs.
+   Live execution remains off until an explicit, separately accepted rollout.
 5. **OE-5 — Broker Reconciliation.** Reconcile broker order IDs and accepted,
    rejected, open, partially filled, filled, cancelled, and broker-side changes.
    Broker confirmation remains final execution truth.

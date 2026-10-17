@@ -111,6 +111,7 @@ def test_lazy_engine_and_app_lifecycle(tmp_path: Path, monkeypatch: pytest.Monke
     disposed.assert_called_once()
     assert app.state.initialized is False
     monkeypatch.setenv("TWF_DATABASE_URL", settings.database_url)
+    monkeypatch.setenv("TWF_MIGRATION_DATABASE_URL", settings.database_url)
     command.upgrade(Config(str(Path(__file__).parents[1] / "alembic.ini")), "head")
     with TestClient(app) as client:
         assert client.get("/ready").json()["database_checked"] is True
@@ -267,6 +268,11 @@ def test_migration_history_and_metadata() -> None:
         "twf_order_events",
         "twf_orders",
         "twf_queue_entries",
+        "twf_queue_dispatch_policies",
+        "twf_queue_policy_events",
+        "twf_dispatch_attempts",
+        "twf_public_id_counters",
+        "twf_order_public_ids",
         "twf_queue_events",
         "manual_order_previews",
     }
@@ -278,8 +284,7 @@ def test_migration_history_and_metadata() -> None:
     try:
         with db.connect() as connection:
             assert (
-                MigrationContext.configure(connection).get_current_revision()
-                == "0027_oe3_order_event_audit"
+                MigrationContext.configure(connection).get_current_revision() == "0028_oe4_dispatch"
             )
             assert sorted(inspect(connection).get_table_names()) == [
                 "alembic_version",
@@ -318,10 +323,15 @@ def test_migration_history_and_metadata() -> None:
                 "scanner_v2_derivative_templates",
                 "scanner_v2_runs",
                 "scanner_v2_saved",
+                "twf_dispatch_attempts",
                 "twf_order_events",
+                "twf_order_public_ids",
                 "twf_orders",
+                "twf_public_id_counters",
+                "twf_queue_dispatch_policies",
                 "twf_queue_entries",
                 "twf_queue_events",
+                "twf_queue_policy_events",
                 "user_preferences",
                 "users",
                 "watchlist_activity",
@@ -335,17 +345,16 @@ def test_migration_history_and_metadata() -> None:
         command.upgrade(config, "head")
         with db.connect() as connection:
             assert (
-                MigrationContext.configure(connection).get_current_revision()
-                == "0027_oe3_order_event_audit"
+                MigrationContext.configure(connection).get_current_revision() == "0028_oe4_dispatch"
             )
     finally:
         db.dispose()
 
 
 def test_offline_postgresql_migration(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(
-        "TWF_DATABASE_URL", "postgresql+psycopg://placeholder:credential_marker_123@db.invalid/twf"
-    )
+    offline_url = "postgresql+psycopg://placeholder:credential_marker_123@db.invalid/twf"
+    monkeypatch.setenv("TWF_DATABASE_URL", offline_url)
+    monkeypatch.setenv("TWF_MIGRATION_DATABASE_URL", offline_url)
     output = io.StringIO()
     config = Config(str(Path(__file__).parents[1] / "alembic.ini"), output_buffer=output)
     command.upgrade(config, "head", sql=True)
@@ -363,7 +372,9 @@ def test_temporal_migration_preserves_legacy_episode_round_trip(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     database = tmp_path / "temporal-legacy.db"
-    monkeypatch.setenv("TWF_DATABASE_URL", f"sqlite+pysqlite:///{database}")
+    database_url = f"sqlite+pysqlite:///{database}"
+    monkeypatch.setenv("TWF_DATABASE_URL", database_url)
+    monkeypatch.setenv("TWF_MIGRATION_DATABASE_URL", database_url)
     config = Config(str(Path(__file__).parents[1] / "alembic.ini"))
     command.upgrade(config, "0013_discovery_scan_archive")
     db = create_database_engine(Settings())

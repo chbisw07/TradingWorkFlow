@@ -1,6 +1,7 @@
 # TradingWorkFlow — Ubuntu/Linux Local Development Setup
 
 > DB-1 supersedes the historical SQLite-default setup below: PostgreSQL is primary, `TWF_DATABASE_URL` is required, and SQLite must be explicitly selected. Follow [Database architecture](TWF_DATABASE_ARCHITECTURE.md) and the [migration runbook](TWF_SQLITE_TO_POSTGRES_MIGRATION_RUNBOOK.md) for current setup, tests, backup, and cutover.
+
 ## 1. Purpose
 
 This guide covers local development setup for TradingWorkFlow (TWF) on
@@ -509,3 +510,7 @@ The current scaffold does not yet include:
 These capabilities remain assigned to later gated targets. Login and the Broker V1
 read-only Zerodha implementation are now present; Broker V1 remains pending acceptance
 and a user-driven real-provider smoke.
+
+### PostgreSQL migrations and runtime grants
+
+Alembic uses `TWF_MIGRATION_DATABASE_URL`; the API uses `TWF_DATABASE_URL`. Tests and browser fixtures must bind both variables to the same disposable database so migration setup cannot touch the developer/live database. After migrating a real PostgreSQL database, run `tools/postgres_roles.py harden` and `verify` with the private bootstrap `TWF_PG_ADMIN_URL`. The exact registry deliberately refuses undeclared new objects; do not use broad grants, transfer ownership to `twf_app`, or mount admin/migrator credentials into the API. See the [migration runbook](TWF_SQLITE_TO_POSTGRES_MIGRATION_RUNBOOK.md#oe-4-and-future-object-registration).

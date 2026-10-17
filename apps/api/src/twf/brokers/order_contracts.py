@@ -99,8 +99,8 @@ class IntentView(BaseModel):
     account_name: str
     instrument: Instrument
     order: OrderDraft
-    source: Literal["BROKER_WORKSPACE"] = "BROKER_WORKSPACE"
-    execution_authority: Literal["MANUAL_USER"] = "MANUAL_USER"
+    source: Literal["BROKER_WORKSPACE", "TWF_QUEUE"] = "BROKER_WORKSPACE"
+    execution_authority: Literal["MANUAL_USER", "QUEUE_USER", "QUEUE_SYSTEM"] = "MANUAL_USER"
     status: Literal["PREVIEWED", "SUBMITTING", "SUBMITTED", "BROKER_REJECTED", "SUBMISSION_UNKNOWN"]
     created_at: datetime
     expires_at: datetime

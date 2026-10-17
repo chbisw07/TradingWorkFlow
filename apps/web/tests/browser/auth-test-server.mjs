@@ -17,6 +17,8 @@ if (
   );
 }
 const directory = mkdtempSync(join(tmpdir(), "twf-auth-e2e-"));
+const databaseUrl =
+  postgresTestUrl || `sqlite+pysqlite:///${directory}/auth.db`;
 const api = resolve("../api");
 const python = join(api, ".venv/bin/python");
 const env = Object.fromEntries(
@@ -38,8 +40,8 @@ Object.assign(env, {
       enabled: true,
     })),
   ),
-  TWF_DATABASE_URL:
-    postgresTestUrl || `sqlite+pysqlite:///${directory}/auth.db`,
+  TWF_DATABASE_URL: databaseUrl,
+  TWF_MIGRATION_DATABASE_URL: databaseUrl,
   TWF_CORS_ORIGINS: '["http://127.0.0.1:3100"]',
   TWF_MCP_PROVIDERS: JSON.stringify([
     {
@@ -87,9 +89,12 @@ with session_scope(create_session_factory(engine)) as session:
             create_user(session, f'builtin-{browser}-{width}', 'Built-in Watchlist Trader', 'test-only-browser-password')
             create_user(session, f'order-{browser}-{width}', 'Order Trader', 'test-only-browser-password')
             create_user(session, f'oe2-{browser}-{width}', 'OE-2 Trader', 'test-only-browser-password')
+            create_user(session, f'oe4-{browser}-{width}', 'OE-4 Trader', 'test-only-browser-password')
             create_user(session, f'queue-{browser}-{width}', 'Queue Trader', 'test-only-browser-password')
             create_user(session, f'trade-{browser}-{width}', 'Trade Trader', 'test-only-browser-password')
+            create_user(session, f'ux-blue-white-{browser}-{width}', 'UX Review Trader', 'test-only-browser-password')
             create_user(session, f'broker-{browser}-{width}', 'Broker Trader', 'test-only-browser-password')
+            create_user(session, f'options-{browser}-{width}', 'Options Trader', 'test-only-browser-password')
             create_user(session, f'o4-broker-{browser}-{width}', 'O4 Preview Trader', 'test-only-browser-password')
             create_user(session, f'settings-{browser}-{width}', 'Settings Trader', 'test-only-browser-password')
             create_user(session, f'discovery-{browser}-{width}', 'Discovery Analyst', 'test-only-browser-password')

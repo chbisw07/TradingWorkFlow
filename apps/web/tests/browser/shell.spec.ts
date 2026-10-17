@@ -104,7 +104,7 @@ test("skip link, reduced motion, and localized panel overflow work", async ({
     scheme: getComputedStyle(document.documentElement).colorScheme,
     focus: getComputedStyle(document.querySelector("main")!).outlineStyle,
   }));
-  expect(theme).toEqual({ motion: 0, scheme: "dark", focus: "solid" });
+  expect(theme).toEqual({ motion: 0, scheme: "light", focus: "solid" });
   const body = page.getByRole("region", { name: "Workspace activity content" });
   await body.evaluate((element) => {
     const oversized = document.createElement("div");

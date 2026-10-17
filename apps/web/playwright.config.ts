@@ -1,5 +1,12 @@
 import { defineConfig } from "@playwright/test";
 
+const browserEnvironment = { ...process.env };
+
+// VS Code's Snap launcher points GIO at modules built against the core20
+// runtime. Playwright WebKit then loads that older glibc in its network
+// process and fails every navigation before application code runs.
+delete browserEnvironment.GIO_MODULE_DIR;
+
 export default defineConfig({
   testDir: "./tests/browser",
   fullyParallel: true,
@@ -9,6 +16,7 @@ export default defineConfig({
   reporter: "list",
   use: {
     baseURL: "http://127.0.0.1:3100",
+    launchOptions: { env: browserEnvironment },
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },

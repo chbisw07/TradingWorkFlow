@@ -525,7 +525,7 @@ test("O4 bounded scanner, explanation and exact Analytics handoff", async ({
   ).toBeVisible();
 });
 
-test("O4 exact canonical contract reaches Broker V2 Buy and Sell previews", async ({
+test("O4 exact canonical contract reaches TWF Order Buy and Sell previews", async ({
   page,
 }, info) => {
   test.setTimeout(120000);
@@ -578,6 +578,40 @@ test("O4 exact canonical contract reaches Broker V2 Buy and Sell previews", asyn
     confirms++;
     await route.abort();
   });
+  await page.route(
+    "**/api/v1/twf-orders/from/SCANNER/*/preview",
+    async (route) => {
+      const payload = route.request().postDataJSON();
+      await route.fulfill({
+        json: {
+          preview_id: "00000000-0000-0000-0000-000000000099",
+          expires_at: "2099-12-30T10:05:00Z",
+          instrument: {
+            asset_class: "OPTION",
+            instrument_id: canonical.canonical_id,
+            exchange: "NFO",
+            symbol: canonical.display_symbol,
+            underlying_id: canonical.underlying_symbol,
+            expiry: canonical.expiry,
+            strike: canonical.strike,
+            option_type: canonical.option_type,
+            lot_size: canonical.lot_size,
+            tick_size: canonical.tick_size,
+          },
+          terms: {
+            side: payload.side,
+            quantity: payload.quantity,
+            order_type: payload.order_type,
+            limit_price: payload.limit_price,
+            product: "CARRY_FORWARD",
+            validity: payload.validity,
+          },
+          source: "MANUAL",
+          account_id: account,
+        },
+      });
+    },
+  );
   await page.route("**/api/v1/scanner/derivatives/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path.endsWith("/catalog"))
@@ -724,7 +758,19 @@ test("O4 exact canonical contract reaches Broker V2 Buy and Sell previews", asyn
       name: `${side} ${canonical.display_symbol}`,
     });
     await expect(action).toBeEnabled();
+    const capabilityRequest = page.waitForRequest(
+      (request) =>
+        request.url().endsWith("/option-capabilities") &&
+        request.method() === "POST",
+    );
     await action.click();
+    expect((await capabilityRequest).postDataJSON()).toEqual({
+      exchange: "NFO",
+      underlying_symbol: "NIFTY",
+      expiry,
+      strike: "25000",
+      option_type: "PE",
+    });
     const dialog = page.getByRole("dialog");
     await expect(
       dialog.getByRole("heading", { name: "Order Ticket" }),
@@ -735,24 +781,30 @@ test("O4 exact canonical contract reaches Broker V2 Buy and Sell previews", asyn
     await dialog.getByLabel("Price (₹)").fill("147.05");
     const responsePromise = page.waitForResponse(
       (r) =>
-        r.url().endsWith("/option-preview") && r.request().method() === "POST",
+        r.url().includes("/api/v1/twf-orders/from/SCANNER/") &&
+        r.url().endsWith("/preview") &&
+        r.request().method() === "POST",
     );
     await dialog.getByRole("button", { name: `Preview ${side}` }).click();
     const response = await responsePromise;
     expect(response.ok()).toBeTruthy();
-    expect(response.request().postDataJSON().contract).toEqual({
-      exchange: "NFO",
-      underlying_symbol: "NIFTY",
-      expiry,
-      strike: "25000",
-      option_type: "PE",
+    expect(response.request().postDataJSON()).toMatchObject({
+      account_id: account,
+      side: side === "Buy" ? "BUY" : "SELL",
+      quantity: canonical.lot_size,
+      order_type: "LIMIT",
+      limit_price: "147.05",
     });
-    expect((await response.json()).option_contract.canonical_id).toBe(
+    expect((await response.json()).instrument.instrument_id).toBe(
       canonical.canonical_id,
     );
     await expect(
       dialog.getByRole("heading", { name: "Preview", exact: true }),
     ).toBeVisible();
+    await expect(
+      dialog.getByRole("button", { name: "Create TWF Order" }),
+    ).toBeVisible();
+    await expect(dialog).toContainText("No broker order will be submitted");
     await page.screenshot({
       path: info.outputPath(`o4-${side.toLowerCase()}-preview.png`),
       fullPage: true,
@@ -766,10 +818,10 @@ test("O4 exact canonical contract reaches Broker V2 Buy and Sell previews", asyn
   await page.getByRole("button", { name: "Why?" }).click();
   await expect(detail).toContainText("2020-01-01");
   await expect(
-    detail.getByRole("button", { name: "Buy · Broker V2 preview" }),
+    detail.getByRole("button", { name: "Buy · TWF Order preview" }),
   ).toBeDisabled();
   await expect(
-    detail.getByRole("button", { name: "Sell · Broker V2 preview" }),
+    detail.getByRole("button", { name: "Sell · TWF Order preview" }),
   ).toBeDisabled();
   expect(confirms).toBe(0);
 });

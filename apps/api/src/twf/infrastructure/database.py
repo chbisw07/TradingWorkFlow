@@ -111,7 +111,7 @@ def probe_database(engine: Engine) -> bool:
 
 
 # Deployment compatibility, checked against the Alembic graph in the platform gate.
-DATABASE_SCHEMA_HEAD = "0027_oe3_order_event_audit"
+DATABASE_SCHEMA_HEAD = "0028_oe4_dispatch"
 
 
 def database_status(engine: Engine) -> dict[str, str]:

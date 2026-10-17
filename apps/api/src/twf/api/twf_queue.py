@@ -1,4 +1,4 @@
-"""Owner-scoped TWF Queue API. No generic state setter or broker operation."""
+"""Owner-scoped TWF Queue API with explicit governed dispatch; no generic state setter."""
 
 import logging
 from typing import Annotated, cast
@@ -9,19 +9,24 @@ from sqlalchemy.orm import Session, sessionmaker
 from starlette.responses import JSONResponse
 
 from twf.api.auth import require_origin
+from twf.api.brokers import Service as BrokerServiceDependency
 from twf.api.brokers import Who
 from twf.api.errors import error_response
 from twf.infrastructure.identity import AuthSession, User
 from twf.orders.context import OrderContext
 from twf.queue.contracts import (
     AdmitOrder,
+    PolicyChange,
+    PolicyView,
     QueueChange,
     QueueEntryView,
     QueueEventView,
     QueuePage,
     QueueState,
 )
+from twf.queue.dispatch import DispatchService
 from twf.queue.errors import QueueError, QueueErrorCode
+from twf.queue.policy import change_policy, locked_policy
 from twf.queue.service import QueueService
 
 router = APIRouter(prefix="/api/v1/twf-queue", tags=["TWF Queue"])
@@ -83,6 +88,43 @@ def get_for_order(order_id: UUID, service: Service) -> QueueEntryView:
     return service.get_for_order(order_id)
 
 
+@router.get("/policy/{account_id}")
+def get_policy(account_id: UUID, service: Service, broker: BrokerServiceDependency) -> PolicyView:
+    def operation(db: Session) -> PolicyView:
+        owner = service._owner(db)
+        row = locked_policy(db, owner, account_id)
+        return PolicyView.model_validate(row, from_attributes=True).model_copy(
+            update={"execution_enabled": broker.settings.queue_dispatch_enabled}
+        )
+
+    return broker.transaction(operation)
+
+
+@router.post("/policy/{account_id}", dependencies=[Depends(require_origin)])
+def set_policy(
+    account_id: UUID, payload: PolicyChange, service: Service, broker: BrokerServiceDependency
+) -> PolicyView:
+    def operation(db: Session) -> PolicyView:
+        owner = service._owner(db)
+        previous = locked_policy(db, owner, account_id).current_dispatch_mode
+        row = change_policy(
+            db,
+            owner,
+            account_id,
+            payload.current_dispatch_mode,
+            payload.expected_version,
+            service.context.actor,
+        )
+        return PolicyView.model_validate(row, from_attributes=True).model_copy(
+            update={
+                "execution_enabled": broker.settings.queue_dispatch_enabled,
+                "previous_dispatch_mode": previous,
+            }
+        )
+
+    return broker.transaction(operation)
+
+
 @router.get("/{entry_id}")
 def get_entry(entry_id: UUID, service: Service) -> QueueEntryView:
     return service.get_entry(entry_id)
@@ -96,7 +138,9 @@ def history(entry_id: UUID, service: Service) -> tuple[QueueEventView, ...]:
 @router.post("/admit", dependencies=[Depends(require_origin)])
 def admit(payload: AdmitOrder, service: Service) -> QueueEntryView:
     return service.admit(
-        payload.twf_order_id, expected_order_version=payload.expected_order_version
+        payload.twf_order_id,
+        expected_order_version=payload.expected_order_version,
+        broker_account_id=payload.broker_account_id,
     )
 
 
@@ -108,3 +152,46 @@ def hold(entry_id: UUID, payload: QueueChange, service: Service) -> QueueEntryVi
 @router.post("/{entry_id}/release", dependencies=[Depends(require_origin)])
 def release(entry_id: UUID, payload: QueueChange, service: Service) -> QueueEntryView:
     return service.release(entry_id, expected_version=payload.expected_version)
+
+
+@router.post("/{entry_id}/dispatch", dependencies=[Depends(require_origin)])
+async def dispatch(
+    entry_id: UUID,
+    payload: QueueChange,
+    service: Service,
+    who: Who,
+    broker: BrokerServiceDependency,
+) -> QueueEntryView:
+    await DispatchService(broker).dispatch(entry_id, who, expected_version=payload.expected_version)
+    return service.get_entry(entry_id)
+
+
+@router.post("/{entry_id}/cancel", dependencies=[Depends(require_origin)])
+async def cancel(
+    entry_id: UUID,
+    payload: QueueChange,
+    service: Service,
+    who: Who,
+    broker: BrokerServiceDependency,
+) -> QueueEntryView:
+    await DispatchService(broker).cancel(who, entry_id, payload.expected_version)
+    return service.get_entry(entry_id)
+
+
+@router.get("/aliases/orders")
+def order_aliases(service: Service) -> dict[str, str]:
+    from sqlalchemy import select
+
+    from twf.infrastructure.dispatch import OrderPublicID
+    from twf.infrastructure.twf_order import TWFOrderRecord
+
+    with service.sessions() as db:
+        owner = service._owner(db)
+        rows = db.execute(
+            select(OrderPublicID.twf_order_id, OrderPublicID.public_order_id)
+            .join(TWFOrderRecord, TWFOrderRecord.twf_order_id == OrderPublicID.twf_order_id)
+            .where(TWFOrderRecord.owner_id == owner)
+            .order_by(TWFOrderRecord.created_at.desc(), TWFOrderRecord.twf_order_id)
+            .limit(100)
+        ).all()
+        return {str(key): value for key, value in rows}
